@@ -12,10 +12,10 @@ WORKDIR /src
 COPY . .
 
 #  Restore dependencies
-RUN dotnet restore
+RUN dotnet restore Tenant.Api/Tenant.Api.csproj
 
 #  Publish ONLY API project (YOU CHANGE THIS PER SERVICE)
-RUN dotnet publish tenant.Api/tenant.Api.csproj \
+RUN dotnet publish Tenant.Api/Tenant.Api.csproj \
     -c Release \
     -o /app/publish \
     /p:UseAppHost=false
