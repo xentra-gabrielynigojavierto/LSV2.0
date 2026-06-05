@@ -24,14 +24,8 @@ spec:
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '637423518666'
-
-        #  ECR registry URL
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
-        #  Versioned image tag
         IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
-
-        #  EKS config
         EKS_CLUSTER_NAME = 'dev-eks-cluster'
         K8S_NAMESPACE = 'dev'
     }
