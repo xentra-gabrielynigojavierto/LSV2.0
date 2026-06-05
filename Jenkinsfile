@@ -8,10 +8,19 @@ metadata:
   namespace: tools
 spec:
   containers:
+
+  # =====================================================
+  # ✅ DOCKER-IN-DOCKER CONTAINER (BUILDS + PUSHES IMAGES)
+  # =====================================================
   - name: docker
     image: docker:24.0.7-dind
     securityContext:
       privileged: true
+    tty: true
+
+  # =====================================================
+  # ✅ AWS + KUBECTL TOOLS (DEPLOYMENT ONLY)
+  # =====================================================
   - name: aws-k8s-tools
     image: amazon/aws-cli:2.15.15
     command: ["cat"]
@@ -20,65 +29,127 @@ spec:
         }
     }
 
+    # =====================================================
+    # ✅ GLOBAL VARIABLES
+    # =====================================================
     environment {
-         AWS_REGION = 'us-east-1' //Make sure this matches the region where your ECR repository and EKS cluster are located
-         AWS_ACCOUNT_ID = '637423518666'   //Make sure this matches your AWS account ID
-         ECR_REPOSITORY = 'dotnet-core-service' //Make sure this matches the name of your ECR repository
-         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-         IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
-         EKS_CLUSTER_NAME = 'dev-eks-cluster' //Make sure this matches the name of your EKS cluster
-         K8S_NAMESPACE = 'dev' //Make sure this matches the namespace you want to deploy to
-         DEPLOYMENT_NAME = 'dotnet-core-deployment' //Make sure this matches the name of your Kubernetes deployment 
-         IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '637423518666'
+
+        # ✅ ECR registry URL
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+        # ✅ Versioned image tag
+        IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
+
+        # ✅ EKS config
+        EKS_CLUSTER_NAME = 'dev-eks-cluster'
+        K8S_NAMESPACE = 'dev'
     }
 
     stages {
+
+        # =====================================================
+        # ✅ STAGE 1: DOCKER LOGIN (FIXED LOCATION)
+        # =====================================================
         stage('Docker Login') {
             steps {
-                container('aws-k8s-tools') {
-                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                container('docker') {
+
+                    sh '''
+                    # ✅ install aws CLI inside docker container
+                    apk add --no-cache aws-cli
+
+                    # ✅ login to ECR (credentials will persist in THIS container)
+                    aws ecr get-login-password --region $AWS_REGION \
+                    | docker login \
+                        --username AWS \
+                        --password-stdin $ECR_REGISTRY
+                    '''
                 }
             }
         }
 
+        # =====================================================
+        # ✅ STAGE 2: BUILD & PUSH (PARALLEL)
+        # =====================================================
         stage('Parallel Build & Push') {
+
             parallel {
-                stage('Build Frontends') {
+
+                # -----------------------------
+                # ✅ TENANT APP
+                # -----------------------------
+                stage('Tenant App') {
                     steps {
                         container('docker') {
-                            // Example for Tenant App
-                            sh "docker build --build-arg APP_PORT=5000 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/tenant-app:latest ./tenant-app"
-                            sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/tenant-app:latest"
+                            sh '''
+                            docker build \
+                              --build-arg APP_PORT=5000 \
+                              -t $ECR_REGISTRY/tenant-app:$IMAGE_TAG \
+                              ./tenant-app
+
+                            docker push $ECR_REGISTRY/tenant-app:$IMAGE_TAG
+                            '''
                         }
                     }
                 }
-                stage('Build Core Infrastructure') {
+
+                # -----------------------------
+                # ✅ GATEWAY
+                # -----------------------------
+                stage('Gateway') {
                     steps {
                         container('docker') {
-                            // Example for Gateway (YARP)
-                            sh "docker build --build-arg SERVICE_PORT=5010 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/gateway-yarp:latest ./gateway"
-                            sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/gateway-yarp:latest"
+                            sh '''
+                            docker build \
+                              --build-arg SERVICE_PORT=5010 \
+                              -t $ECR_REGISTRY/gateway-yarp:$IMAGE_TAG \
+                              ./gateway
+
+                            docker push $ECR_REGISTRY/gateway-yarp:$IMAGE_TAG
+                            '''
                         }
                     }
                 }
-                stage('Build Core APIs') {
+
+                # -----------------------------
+                # ✅ IDENTITY SERVICE
+                # -----------------------------
+                stage('Identity Service') {
                     steps {
                         container('docker') {
-                            // Example for Identity Service
-                            sh "docker build --build-arg SERVICE_PORT=5001 -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/identity-service:latest ./identity"
-                            sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/identity-service:latest"
+                            sh '''
+                            docker build \
+                              --build-arg SERVICE_PORT=5001 \
+                              -t $ECR_REGISTRY/identity-service:$IMAGE_TAG \
+                              ./identity
+
+                            docker push $ECR_REGISTRY/identity-service:$IMAGE_TAG
+                            '''
                         }
                     }
                 }
+
             }
         }
 
-        stage('Deploy Cluster Mesh') {
+        # =====================================================
+        # ✅ STAGE 3: DEPLOY TO EKS (FIXED)
+        # =====================================================
+        stage('Deploy to EKS') {
             steps {
                 container('aws-k8s-tools') {
-                    echo 'Applying updated application manifests to EKS Cluster...'
-                    // Loops through your defined architecture directories to patch EKS
-                    sh "kubectl apply -f ./k8s/mesh-configuration/"
+
+                    sh '''
+                    # ✅ Configure kubeconfig for EKS
+                    aws eks update-kubeconfig \
+                      --region $AWS_REGION \
+                      --name $EKS_CLUSTER_NAME
+
+                    # ✅ Apply manifests
+                    kubectl apply -f ./k8s/mesh-configuration/
+                    '''
                 }
             }
         }
