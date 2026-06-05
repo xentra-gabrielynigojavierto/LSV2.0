@@ -1,0 +1,281 @@
+Feature ID: LS-NOTIF-SMS-002
+
+Title:
+SMS Preference Management + Compliance Controls
+
+Objective:
+Add SMS compliance controls to Notification Service so SMS delivery respects recipient preferences, opt-out state, tenant policy, and basic SMS safeguards before Twilio or any future SMS provider is invoked.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all SMS compliance and preference-management work must remain isolated within the Notification Service boundary.
+
+Requirements:
+- Do not add SMS compliance logic to unrelated services.
+- Do not create shared cross-service SMS abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - SMS preference state
+  - SMS opt-in / opt-out enforcement
+  - SMS compliance keyword processing
+  - SMS tenant policy handling
+  - SMS compliance audit records
+  - SMS skipped-send classification
+- Other services should continue interacting with Notification Service through existing notification APIs/events/contracts where possible.
+- Preserve Notification Service as the only delivery execution and compliance enforcement boundary for SMS.
+
+Implementation Requirements:
+1. Add SMS preference management inside Notification Service.
+2. Enforce SMS opt-out and suppression state before sending SMS.
+3. Add tenant-level policy support for unknown SMS preference state.
+4. Process inbound SMS compliance keywords from Twilio webhooks.
+5. Audit all SMS preference and compliance events.
+6. Preserve existing notification behavior for email, in-app, and other channels.
+7. Preserve compatibility with the existing SMS provider abstraction from LS-NOTIF-SMS-001.
+
+Critical Constraints:
+- Reuse existing Notification Service architecture patterns.
+- Reuse existing ContactEnforcementService, TenantContactPolicy, webhook ingestion, audit, and notification skip mechanisms where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT hardcode Twilio-specific compliance logic into general business workflows.
+- Provider-specific inbound parsing may remain in Twilio webhook normalization/ingestion only.
+- All SMS compliance enforcement must happen before provider send execution.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-002-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS delivery and compliance-related architecture findings
+3. Existing contact enforcement / suppression / tenant policy findings
+4. Existing webhook ingestion findings
+5. Files added
+6. Files modified
+7. Database/schema/config changes
+8. API/interface changes
+9. Validation/testing performed
+10. Known gaps/issues
+11. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Compliance Architecture
+- Identify:
+  - Existing ContactEnforcementService behavior
+  - Existing suppression list behavior
+  - Existing TenantContactPolicy model/configuration
+  - Existing webhook ingestion flow
+  - Existing Twilio webhook normalization
+  - Existing audit/event patterns
+  - Existing notification skip/failure reason classification
+  - Existing database entities/migrations related to notification preferences or suppression
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Preference State
+Add or extend appropriate Notification Service-local models/entities/types to represent SMS preference state.
+
+Expected states:
+- opted_in
+- opted_out
+- unknown
+
+Requirements:
+- Preference state must be scoped appropriately by tenant and recipient/contact.
+- Prefer reusing existing suppression/contact policy models if they already support this cleanly.
+- Avoid duplicating preference data if an existing Notification Service model already represents suppression/preference.
+- Include timestamps for preference changes where architecture supports them.
+- Include source/reason metadata where architecture supports it, such as:
+  - inbound_stop_keyword
+  - inbound_start_keyword
+  - manual_update
+  - tenant_policy
+  - system_import
+
+STEP 3 — Add Tenant Policy for Unknown SMS Preference
+Extend tenant contact policy behavior to define how SMS should behave when recipient preference is unknown.
+
+Supported policy options should include:
+- allow_unknown_sms_preference
+- block_unknown_sms_preference
+
+Requirements:
+- Default must be conservative if no policy exists.
+- Recommended default: block_unknown_sms_preference unless existing product behavior clearly requires otherwise.
+- Policy must be evaluated before SMS provider execution.
+- Policy evaluation must produce a structured skip reason.
+
+Expected skip reason:
+- sms_preference_unknown_blocked_by_policy
+
+STEP 4 — Enforce SMS Preference Before Send
+Update the SMS send pipeline so preference/suppression checks happen before Twilio or any SMS provider is called.
+
+Requirements:
+- Opted-out recipients must be skipped before provider execution.
+- Unknown recipients must follow tenant policy.
+- Opted-in recipients may proceed unless blocked by another suppression rule.
+- Existing contact enforcement behavior must remain intact.
+- Existing retry/dead-letter behavior must not be used for preference-blocked sends.
+- Preference-blocked sends should be treated as skipped or blocked, not provider failures.
+
+Expected skip/failure reasons:
+- sms_opted_out
+- sms_suppressed
+- sms_preference_unknown_blocked_by_policy
+- no_phone_on_file
+
+STEP 5 — Process Inbound SMS Compliance Keywords
+Extend Twilio webhook ingestion to process inbound SMS keywords when Twilio sends inbound message callbacks.
+
+Recognized opt-out keywords:
+- STOP
+- STOPALL
+- UNSUBSCRIBE
+- CANCEL
+- END
+- QUIT
+
+Recognized opt-in keywords:
+- START
+- YES
+- UNSTOP
+
+Recognized help keyword:
+- HELP
+
+Requirements:
+- Keyword matching must be case-insensitive.
+- Trim whitespace before matching.
+- Only exact keyword matches should trigger compliance state changes.
+- STOP-family keywords must mark the sender as opted out.
+- START-family keywords must mark the sender as opted in.
+- HELP must be audited but should not change opt-in state unless existing compliance rules require otherwise.
+- Store/audit provider metadata where available:
+  - provider
+  - provider message id
+  - from phone
+  - to phone
+  - tenant/provider config if resolvable
+  - raw keyword category
+- Do not log sensitive payloads unnecessarily.
+
+STEP 6 — Add or Extend Preference APIs
+Add API endpoints only if consistent with the existing Notification Service API style.
+
+Required capabilities:
+- Get SMS preference for a recipient/contact.
+- Update SMS preference manually.
+- Optionally list preference history if existing audit/history patterns make this simple.
+
+Requirements:
+- Keep APIs inside Notification Service.
+- Do not add UI.
+- Manual updates must be audited.
+- Manual updates must support at least:
+  - opted_in
+  - opted_out
+- Use existing authorization/authentication patterns.
+- Do not expose provider credentials or sensitive webhook payloads.
+
+STEP 7 — Audit SMS Compliance Events
+Add audit records for all SMS compliance events.
+
+Audit events should include:
+- sms.preference.opted_out
+- sms.preference.opted_in
+- sms.preference.help_requested
+- sms.preference.manual_update
+- notification.sms.skipped_opted_out
+- notification.sms.skipped_unknown_preference
+- notification.sms.skipped_suppressed
+
+Requirements:
+- Preserve existing audit conventions.
+- Mask phone numbers consistently with LS-NOTIF-SMS-001 behavior.
+- Include tenant id, notification id, correlation id, and actor/source where available.
+- Do not expose Twilio secrets or auth metadata.
+
+STEP 8 — Preserve Provider Abstraction
+Ensure compliance logic is not implemented as Twilio-only send logic.
+
+Requirements:
+- Outbound enforcement must be provider-agnostic.
+- Twilio-specific inbound webhook parsing may remain in Twilio webhook handling.
+- Future SMS providers must be able to reuse the same preference enforcement logic.
+- Do not add SMS preference checks inside TwilioAdapter.SendAsync unless only as a defensive guard; primary enforcement belongs in Notification Service orchestration/contact enforcement.
+
+STEP 9 — Documentation and Configuration
+Add/update documentation for:
+- SMS preference states
+- Tenant unknown-preference policy
+- STOP/START/HELP handling
+- Manual preference API usage
+- Audit events
+- Production compliance notes
+
+Configuration documentation should describe:
+- default behavior for unknown SMS preference
+- tenant override behavior if implemented
+- interaction with existing suppression/contact enforcement
+
+STEP 10 — Validation
+Perform validation/testing for:
+
+Preference enforcement:
+- opted-out recipient is skipped before provider call
+- opted-in recipient proceeds to provider route
+- unknown recipient is blocked when tenant policy blocks unknown
+- unknown recipient proceeds when tenant policy allows unknown, if implemented
+- existing email behavior is unchanged
+
+Inbound keyword processing:
+- STOP marks sender opted out
+- STOPALL marks sender opted out
+- UNSUBSCRIBE marks sender opted out
+- CANCEL marks sender opted out
+- END marks sender opted out
+- QUIT marks sender opted out
+- START marks sender opted in
+- YES marks sender opted in
+- UNSTOP marks sender opted in
+- HELP creates audit event only
+- Mixed-case and whitespace-padded keywords are handled
+- Non-exact phrases do not trigger compliance state changes
+
+API behavior:
+- preference can be retrieved
+- preference can be manually updated
+- manual update is audited
+
+Security and boundary:
+- phone numbers are masked in logs/audit where existing conventions require
+- Twilio credentials are never logged
+- SMS compliance code remains inside Notification Service
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SMS preference state model or clean extension of existing suppression/contact policy model
+- SMS preference enforcement before SMS provider execution
+- Tenant policy handling for unknown SMS preference
+- Inbound STOP/START/HELP keyword processing
+- SMS compliance audit events
+- Optional Notification Service preference APIs if consistent with existing API patterns
+- Updated documentation/config examples
+- Completed analysis report
+
+Do NOT:
+- Introduce placeholder implementations
+- Break existing notification flows
+- Break LS-NOTIF-SMS-001 Twilio provider integration
+- Move SMS compliance logic outside Notification Service
+- Add SMS business logic to unrelated services
+- Hardcode Twilio-specific logic into provider-agnostic orchestration
+- Expose phone numbers unnecessarily in logs
+- Expose provider credentials or secrets
+- Treat preference-blocked sends as provider failures

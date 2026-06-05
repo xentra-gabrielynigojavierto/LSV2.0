@@ -1,0 +1,612 @@
+Feature ID: LS-NOTIF-SMS-025
+
+Title:
+Federated Cross-Channel Governance Enforcement Engines and Unified Policy Execution Runtime
+
+Objective:
+Operationalize active governance enforcement across Email, Push, Webhook, and future notification channels by introducing federated governance execution engines, a unified policy execution runtime, channel-specific enforcement adapters, shared governance execution telemetry, and cross-channel simulation integrated with the LS-NOTIF-SMS-024 federation topology.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- unified governance execution runtime
+- channel-specific governance enforcement engines
+- cross-channel effective rule execution
+- governance execution telemetry
+- governance execution auditability
+- cross-channel governance simulation
+- runtime governance APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance runtime visibility. Do not duplicate runtime rule evaluation, topology resolution, channel enforcement, simulation, or telemetry logic in Control Center.
+
+Requirements:
+- Implement unified governance execution runtime inside Notification Service.
+- Preserve existing SMS governance behavior from LS-NOTIF-SMS-017 through LS-NOTIF-SMS-024.
+- Preserve SMS-only behavior for all existing tenants.
+- Add active governance enforcement for Email, Push, and Webhook where the current delivery pipeline supports integration.
+- Use LS-NOTIF-SMS-024 governance topology resolution as the source of effective rules.
+- Governance execution must be channel-aware and tenant-aware.
+- Existing SMS governance must remain backward compatible and must not be rewritten.
+- Non-SMS enforcement must degrade safely if channel payload context is insufficient.
+- Runtime governance failures must fail open unless explicitly configured otherwise.
+- Governance execution must not block unrelated notification channels.
+- Do not store raw phone numbers, message bodies, credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, or provider payloads in runtime telemetry/audit tables.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-024 behavior.
+
+Implementation Requirements:
+1. Add unified governance execution runtime abstraction.
+2. Add channel enforcement engine abstraction.
+3. Add Email governance enforcement engine.
+4. Add Push governance enforcement engine.
+5. Add Webhook governance enforcement engine.
+6. Add SMS compatibility adapter if needed, without replacing existing SMS governance.
+7. Add governance execution context/result models.
+8. Add governance execution telemetry persistence.
+9. Add governance execution audit/query APIs.
+10. Add cross-channel governance simulation API.
+11. Integrate runtime evaluation into Email, Push, and Webhook send paths where safe.
+12. Ensure topology resolver from LS-NOTIF-SMS-024 is used for effective rule resolution.
+13. Add Control Center governance runtime dashboard if feasible.
+14. Ensure all failures degrade safely.
+
+Critical Constraints:
+- Reuse existing IGovernanceTopologyResolver, GovernanceChannelScope, GovernanceFederatedRulePack, GovernanceFederationOverlay, SmsGovernanceRule, SmsGovernanceRulePack, SmsGovernanceRuleEngine, SmsTemplateGovernanceService, SmsGovernanceTenantResolutionService, SmsGovernanceRuleMatchMetric, Notification, NotificationAttempt, existing Email/Push/Webhook delivery pipeline code, admin endpoint, EF/migration, audit/logging, worker, and Control Center governance UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite existing SMS governance execution.
+- Do NOT replace LS-017 governance.
+- Do NOT replace LS-018 template governance.
+- Do NOT replace LS-019 dynamic rule engine.
+- Do NOT replace LS-020 versioning/rollback behavior.
+- Do NOT replace LS-021 release-management behavior.
+- Do NOT bypass LS-021-HARDENING activation locking.
+- Do NOT replace LS-022 rollout orchestration.
+- Do NOT replace LS-023 tenant isolation.
+- Do NOT replace LS-024 federation topology.
+- Do NOT implement AI/ML governance recommendation.
+- Do NOT call external policy engines, deployment systems, workflow systems, compliance APIs, moderation APIs, telecom APIs, or fraud APIs.
+- Do NOT persist raw phones, raw message bodies, provider payloads, credentials, secrets, or webhook URLs.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-025-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-024 topology resolver findings
+3. Existing SMS governance execution findings
+4. Existing Email delivery pipeline findings
+5. Existing Push delivery pipeline findings
+6. Existing Webhook delivery pipeline findings
+7. Existing Notification/NotificationAttempt payload findings
+8. Existing Control Center federation UI findings
+9. Files added
+10. Files modified
+11. Database/schema/config changes
+12. API/interface changes
+13. UI/route changes, if implemented
+14. Validation/testing performed
+15. Known gaps/issues
+16. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Channel Delivery and Governance Runtime Architecture
+- Identify:
+  - existing SMS governance execution insertion points
+  - existing Email send pipeline
+  - existing Push send pipeline
+  - existing Webhook send pipeline
+  - existing Notification.Channel usage
+  - existing Notification.RenderedSubject and RenderedBody behavior
+  - existing NotificationAttempt status/dead-letter behavior
+  - existing governance decision persistence patterns
+  - LS-NOTIF-SMS-024 IGovernanceTopologyResolver behavior
+  - existing federated topology graph shape
+  - existing Control Center federation UI patterns
+  - existing admin authorization conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Governance Execution Context and Result Models
+Add shared runtime execution models.
+
+Suggested model:
+GovernanceExecutionContext
+
+Suggested fields:
+- NotificationId Guid? nullable
+- AttemptId Guid? nullable
+- TenantId Guid? nullable
+- ChannelType string
+- TemplateId Guid? nullable
+- TemplateKey string? nullable
+- RolloutPlanId Guid? nullable
+- ReleasePackageId Guid? nullable
+- SubjectMetadata string? nullable
+- PayloadTextForEvaluation string? nullable transient only
+- PayloadMetadataJson string? nullable safe metadata only
+- EvaluationContext string? nullable
+- ExecutedAtUtc DateTime
+
+Suggested result:
+GovernanceExecutionResult
+
+Suggested fields:
+- DecisionType string
+- ReasonCode string
+- ChannelType string
+- TenantId Guid? nullable
+- MatchedRuleIds IReadOnlyList<Guid>
+- MatchedRulePackIds IReadOnlyList<Guid>
+- AppliedOverlayIds IReadOnlyList<Guid>
+- ContentClassification string? nullable
+- ShouldProceed bool
+- ShouldWarn bool
+- ShouldBlock bool
+- RequiresReview bool
+- SafeMetadata dictionary
+
+Suggested DecisionType values:
+- allow
+- warn
+- review_required
+- block
+- suppress
+
+Suggested ReasonCode values:
+- no_applicable_rules
+- rule_match
+- restricted_content
+- prohibited_content
+- unsafe_payload
+- topology_resolution_failed
+- channel_engine_failed
+- insufficient_context
+- evaluation_error
+- fail_open
+
+Requirements:
+- PayloadTextForEvaluation must be transient only.
+- Do not persist raw message body or raw webhook payload.
+- Metadata must be safe and bounded.
+- Result must be channel-agnostic.
+
+STEP 3 — Define Unified Governance Execution Runtime
+Add runtime orchestrator.
+
+Suggested interface:
+IGovernanceExecutionRuntime
+
+Suggested methods:
+- Task<GovernanceExecutionResult> EvaluateAsync(GovernanceExecutionContext context, CancellationToken ct)
+- Task<GovernanceSimulationResult> SimulateAsync(GovernanceSimulationRequest request, CancellationToken ct)
+- Task<IReadOnlyList<GovernanceChannelRuntimeStatus>> GetChannelRuntimeStatusAsync(CancellationToken ct)
+
+Runtime behavior:
+1. Normalize channel type.
+2. Resolve topology using IGovernanceTopologyResolver.
+3. Select registered IGovernanceChannelEnforcementEngine for the channel.
+4. Execute channel-specific enforcement against effective rules.
+5. Persist safe telemetry/audit.
+6. Return decision result.
+7. Fail open when configured.
+
+Requirements:
+- No external APIs.
+- No delivery sends.
+- No provider calls.
+- No raw payload persistence.
+- Failure in one channel engine must not affect others.
+- Missing channel engine should fail open with reason insufficient_context or no_engine_registered.
+- Must not alter existing SMS behavior unless explicitly using compatibility adapter.
+
+STEP 4 — Define Channel Enforcement Engine Interface
+Add channel-specific enforcement abstraction.
+
+Suggested interface:
+IGovernanceChannelEnforcementEngine
+
+Suggested properties:
+- string ChannelType
+- bool SupportsSimulation
+
+Suggested methods:
+- Task<GovernanceExecutionResult> EvaluateAsync(GovernanceExecutionContext context, GovernanceTopologyGraph topology, CancellationToken ct)
+- Task<GovernanceSimulationResult> SimulateAsync(GovernanceSimulationRequest request, GovernanceTopologyGraph topology, CancellationToken ct)
+
+Requirements:
+- Engines receive effective rules from topology resolver.
+- Engines do not query DB directly unless unavoidable.
+- Engines do not mutate rules.
+- Engines do not call external services.
+- Engines do not persist raw payloads.
+- Engines must fail safely.
+
+STEP 5 — Implement Shared Rule Evaluation Helper
+Add a reusable rule matching helper for non-SMS channels.
+
+Suggested service:
+GovernanceRuleEvaluationHelper
+
+Responsibilities:
+- prohibited_phrase matching
+- restricted_pattern matching with timeout/safety
+- link/domain checks
+- classification override support
+- variable rule support where payload variables exist
+- severity-to-decision mapping
+- safe matched-rule metadata
+
+Requirements:
+- Reuse LS-019 rule semantics where practical.
+- Do not duplicate unsafe regex behavior.
+- Do not persist matched content.
+- Return masked match info only.
+- Keep deterministic local rule evaluation.
+
+STEP 6 — Implement Email Governance Enforcement Engine
+Add active enforcement for Email.
+
+Suggested class:
+EmailGovernanceEnforcementEngine : IGovernanceChannelEnforcementEngine
+
+Evaluation inputs:
+- RenderedSubject
+- RenderedBody
+- TemplateKey/TemplateId
+- safe content metadata
+
+Suggested enforcement:
+- prohibited phrase rules
+- restricted pattern rules
+- link/domain rules
+- classification override
+- marketing/compliance warning rules
+- unsafe payload detection
+- variable rule validation where unresolved tokens exist
+
+Requirements:
+- Do not persist full subject/body.
+- Do not expose recipient emails.
+- If body unavailable, fail open with insufficient_context.
+- Block/review decisions should prevent provider execution where integration supports it.
+- Warn decisions should proceed and persist telemetry.
+
+STEP 7 — Implement Push Governance Enforcement Engine
+Add active enforcement for Push.
+
+Suggested class:
+PushGovernanceEnforcementEngine : IGovernanceChannelEnforcementEngine
+
+Evaluation inputs:
+- push title
+- push body
+- notification rendered body/subject if reused
+- safe metadata
+
+Suggested enforcement:
+- short-content prohibited phrase checks
+- spammy repeated wording checks
+- restricted content patterns
+- classification override
+- unsafe payload metadata checks
+
+Requirements:
+- Do not persist push body/title.
+- If push payload unavailable, fail open with insufficient_context.
+- Preserve existing push delivery behavior when no rules match.
+- Block/review decisions should prevent provider execution where integration supports it.
+
+STEP 8 — Implement Webhook Governance Enforcement Engine
+Add active enforcement for Webhook.
+
+Suggested class:
+WebhookGovernanceEnforcementEngine : IGovernanceChannelEnforcementEngine
+
+Evaluation inputs:
+- safe payload shape metadata
+- event type
+- target category if available
+- template key
+- not raw JSON payload unless transient evaluation is already available
+
+Suggested enforcement:
+- unsafe event type rules
+- restricted payload metadata rules
+- disallowed endpoint category rules
+- restricted pattern checks only against safe textual metadata
+- link/domain rules only if safe destination metadata exists
+
+Requirements:
+- Do not persist raw webhook payload.
+- Do not expose webhook URLs.
+- Do not log full payload.
+- If only raw payload exists and safe metadata cannot be derived, fail open with insufficient_context.
+- Preserve existing webhook delivery behavior when no rules match.
+
+STEP 9 — Add SMS Compatibility Adapter If Needed
+Add an adapter only if useful for runtime status/simulation.
+
+Suggested class:
+SmsGovernanceCompatibilityEngine : IGovernanceChannelEnforcementEngine
+
+Requirements:
+- Do not replace existing SMS governance flow.
+- Do not change SMS delivery behavior.
+- May delegate simulation to existing SmsGovernanceRuleEngine or SmsTemplateGovernanceService where safe.
+- Runtime status should show SMS as active/enforced.
+- Avoid duplicate SMS decision persistence.
+
+STEP 10 — Add Governance Execution Telemetry Entity
+Persist safe runtime execution telemetry.
+
+Suggested entity:
+GovernanceExecutionRecord
+
+Suggested fields:
+- Id Guid
+- NotificationId Guid? nullable
+- AttemptId Guid? nullable
+- TenantId Guid? nullable
+- ChannelType string
+- DecisionType string
+- ReasonCode string
+- MatchedRuleIdsJson string? nullable
+- MatchedRulePackIdsJson string? nullable
+- AppliedOverlayIdsJson string? nullable
+- ContentClassification string? nullable
+- TopologyResolutionStatus string? nullable
+- EngineStatus string? nullable
+- SafeMetadataJson string? nullable
+- IsSimulation bool
+- CreatedAt DateTime
+
+Requirements:
+- No raw phones.
+- No email addresses.
+- No raw message body.
+- No webhook URLs.
+- No provider payloads.
+- Store IDs and aggregate metadata only.
+- Add indexes:
+  - ChannelType, CreatedAt
+  - TenantId, ChannelType, CreatedAt
+  - DecisionType, CreatedAt
+  - NotificationId
+  - IsSimulation, CreatedAt
+
+STEP 11 — Add Governance Runtime Configuration
+Add runtime config.
+
+Suggested config:
+GovernanceExecutionRuntime:
+- Enabled bool default true
+- FailOpenOnRuntimeError bool default true
+- EnableEmailEnforcement bool default true
+- EnablePushEnforcement bool default true
+- EnableWebhookEnforcement bool default true
+- EnableSmsCompatibilityRuntime bool default false
+- PersistAllowDecisions bool default false
+- MaxEvaluationTextLength int default 5000
+- RegexTimeoutMs int default 200
+
+Requirements:
+- Safe defaults.
+- SMS compatibility disabled unless needed.
+- Fail-open behavior documented.
+- No secrets in config.
+
+STEP 12 — Integrate Runtime Into Non-SMS Delivery Paths
+Integrate governance runtime before provider execution for Email/Push/Webhook where safe.
+
+Expected flow:
+1. Existing notification rendering.
+2. Existing preference/contact/channel checks.
+3. GovernanceExecutionRuntime.EvaluateAsync.
+4. If allow/warn: continue existing delivery.
+5. If review_required/block/suppress: stop provider execution and record safe attempt/dead-letter/review state where existing model supports it.
+6. Existing retry/dead-letter semantics preserved.
+
+Requirements:
+- Do not disrupt SMS path.
+- Do not rewrite delivery pipeline.
+- Preserve existing email/push/webhook send behavior when no rules match.
+- If integration point is unclear, implement runtime + simulation + APIs and document delivery integration gap.
+- Runtime evaluation failure must not block delivery when fail-open enabled.
+
+STEP 13 — Add Runtime APIs
+Add admin APIs.
+
+Suggested endpoints:
+- GET /v1/admin/governance/runtime/status
+- GET /v1/admin/governance/runtime/channels
+- GET /v1/admin/governance/runtime/executions
+- GET /v1/admin/governance/runtime/telemetry
+- POST /v1/admin/governance/runtime/simulate
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Use pagination where appropriate.
+- Support filters:
+  - channelType
+  - tenantId
+  - decisionType
+  - isSimulation
+  - from
+  - to
+- Do not expose raw payloads, bodies, phones, emails, webhook URLs, credentials, or provider payloads.
+- Simulation accepts operator-provided payload text transiently and does not persist raw payload text.
+
+STEP 14 — Add Runtime Analytics Service
+Add runtime telemetry analytics.
+
+Suggested interface:
+IGovernanceExecutionTelemetryService
+
+Suggested methods:
+- RecordExecutionAsync(GovernanceExecutionContext context, GovernanceExecutionResult result, bool isSimulation, CancellationToken ct)
+- QueryExecutionsAsync(GovernanceExecutionQuery query, CancellationToken ct)
+- GetRuntimeTelemetryAsync(GovernanceRuntimeTelemetryQuery query, CancellationToken ct)
+- GetChannelStatusAsync(CancellationToken ct)
+
+Suggested analytics:
+- execution count by channel
+- allow/warn/block/review rates
+- top matched rule IDs
+- topology failure count
+- engine failure count
+- simulation vs live count
+- tenant/channel breakdown
+
+Requirements:
+- Use safe aggregate data only.
+- No raw payload persistence.
+- Bounded queries.
+- Telemetry failure must not block delivery.
+
+STEP 15 — Extend Control Center UI If Feasible
+Add runtime dashboard UI.
+
+Suggested route:
+- /notifications/governance/runtime
+
+Suggested sections:
+- channel runtime status
+- execution telemetry cards
+- cross-channel decision breakdown
+- runtime execution audit table
+- simulation panel
+- topology/runtime health
+- engine status
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate runtime evaluation logic.
+- No raw phones, emails, message bodies, credentials, webhook URLs, or provider payloads displayed.
+- Simulation input should be transient in UI and not saved.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 16 — Documentation
+Update documentation/report notes for:
+- unified runtime behavior
+- channel enforcement engine responsibilities
+- Email enforcement behavior
+- Push enforcement behavior
+- Webhook enforcement behavior
+- SMS compatibility behavior
+- fail-open behavior
+- telemetry safety
+- runtime API behavior
+- delivery integration limitations if any
+- Control Center UI if implemented
+
+Documentation must explain:
+- LS-025 activates non-SMS governance enforcement.
+- SMS behavior remains unchanged.
+- runtime uses LS-024 topology.
+- no external policy engines are used.
+- raw payloads are never persisted.
+
+STEP 17 — Validation
+Perform validation/testing for:
+
+Runtime:
+- runtime resolves topology.
+- missing channel engine fails open safely.
+- runtime returns allow when no rules apply.
+- runtime returns block/review/warn when rules match.
+- runtime persists safe telemetry.
+- telemetry failure does not block evaluation.
+
+Email:
+- prohibited phrase blocks/reviews email where integrated.
+- warning allows email.
+- no rule match preserves existing email delivery.
+- no subject/body persistence.
+- unresolved token detection works where applicable.
+
+Push:
+- prohibited phrase blocks/reviews push where integrated.
+- warning allows push.
+- missing payload fails open.
+- no push body/title persistence.
+
+Webhook:
+- unsafe metadata blocks/reviews webhook where integrated.
+- raw payload not persisted.
+- webhook URL not exposed.
+- missing safe metadata fails open.
+
+SMS:
+- existing SMS governance behavior unchanged.
+- SMS compatibility runtime does not duplicate decision persistence.
+- SMS status shows active/enforced if compatibility adapter implemented.
+
+APIs:
+- PlatformAdmin authorization enforced.
+- execution list paginated.
+- telemetry filters work.
+- simulation does not persist raw payload.
+- no sensitive data exposed.
+
+Control Center UI if implemented:
+- runtime status renders.
+- telemetry renders.
+- simulation panel works.
+- execution audit renders.
+- no sensitive data displayed.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-024 behavior preserved.
+- SMS tenant resolution preserved.
+- federation topology preserved.
+- release/rollout management preserved.
+- delivery pipeline behavior unchanged unless governance explicitly blocks non-SMS channel.
+
+Security:
+- no raw phones stored.
+- no email addresses stored.
+- no raw message bodies stored.
+- no webhook URLs stored.
+- no credentials exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Governance execution context/result models
+- Unified governance execution runtime
+- Channel enforcement engine abstraction
+- Email governance enforcement engine
+- Push governance enforcement engine
+- Webhook governance enforcement engine
+- Optional SMS compatibility adapter
+- Shared rule evaluation helper
+- Governance execution telemetry entity/table
+- Governance runtime configuration
+- Runtime telemetry service
+- Runtime admin APIs
+- Optional Control Center runtime dashboard
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist email addresses
+- Persist raw message bodies
+- Persist raw webhook payloads
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external policy engines
+- Call external deployment/workflow systems
+- Call external compliance/moderation APIs
+- Implement AI/ML governance recommendation
+- Rewrite delivery pipeline
+- Replace existing SMS governance execution
+- Replace LS-024 topology
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-024 behavior

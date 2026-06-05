@@ -1,0 +1,115 @@
+Run CareConnect scheduling Step 13: apply the AppointmentSlots/Appointments migration, generate the first slots, and test booking end to end.
+
+Goal:
+Verify that the new scheduling layer works in practice:
+- migration applies cleanly
+- slots can be generated from provider availability templates
+- slots can be listed through Gateway
+- an appointment can be booked from a slot
+- capacity enforcement works
+
+Context:
+- CareConnect scheduling foundation already exists
+- AppointmentSlots + slot generation + Appointments code has already been generated and reviewed
+- Migration should already exist and be safe to apply
+- Gateway, Identity, and CareConnect are already configured
+- This step is for applying and testing, not for adding new features
+
+Tasks
+
+1. Apply the CareConnect migration for slots and appointments
+Use the correct Infrastructure and API projects.
+Expected migration name:
+- AddAppointmentSlotsAndAppointments
+
+2. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+3. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+4. Confirm prerequisite data exists:
+- at least one Provider in tenant
+- at least one Facility in tenant
+- at least one ServiceOffering in tenant
+- at least one ProviderAvailabilityTemplate for that provider
+
+If any prerequisite is missing, identify exactly what is missing before booking tests continue.
+
+5. Generate slots using:
+- POST /careconnect/api/providers/{providerId}/slots/generate
+
+Use a small date range first, for example:
+- FromDateUtc = 2026-04-01T00:00:00Z
+- ToDateUtc = 2026-04-07T00:00:00Z
+
+6. Verify slot generation result:
+- returns count of slots created
+- does not create duplicates if run again for same range/provider
+- generated slots are tenant-scoped
+- generated slots use:
+  - Capacity from template
+  - ReservedCount = 0
+  - Status = Open
+
+7. List generated slots using:
+- GET /careconnect/api/slots
+
+Test basic filters:
+- providerId
+- facilityId
+- serviceOfferingId
+- from
+- to
+- status
+- page
+- pageSize
+
+8. Book the first appointment using:
+- POST /careconnect/api/appointments
+
+Use:
+- ReferralId
+- AppointmentSlotId
+- Notes
+
+9. Verify booking behavior:
+- appointment is created successfully
+- slot ReservedCount increments by 1
+- slot and appointment belong to same tenant
+- ScheduledStartAtUtc / EndAtUtc come from the slot
+- ProviderId / FacilityId / ServiceOfferingId are copied from slot
+- appointment Status = Scheduled
+
+10. Test capacity enforcement
+If the slot Capacity is 1, try to book the same slot again.
+Expected:
+- clean failure
+- 400 or equivalent business validation error
+- no raw stack trace
+
+11. Test duplicate generation protection
+Run slot generation a second time for the same provider and date range.
+Expected:
+- no duplicate slots created
+- result should indicate 0 new slots or an equivalent clean outcome
+
+12. Output:
+- migration command used
+- whether migration succeeded
+- slot generation request used
+- slot generation result
+- appointment booking request used
+- booking result
+- whether duplicate protection worked
+- whether capacity enforcement worked
+
+Important:
+Do not add new schema or features in this step.
+Do not implement appointment status history yet.
+Do not implement rescheduling or exceptions yet.
+This step is only to validate the first end-to-end scheduling flow.

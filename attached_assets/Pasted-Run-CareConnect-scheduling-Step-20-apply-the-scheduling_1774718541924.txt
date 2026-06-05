@@ -1,0 +1,92 @@
+Run CareConnect scheduling Step 20: apply the scheduling exceptions migration and test blackout behavior end to end.
+
+Goal:
+Verify that provider/facility scheduling exceptions work in practice:
+- migration applies cleanly
+- exception windows can be created
+- slot generation respects active exceptions
+- existing overlapping slots can be blocked safely
+- blocked slots cannot be booked
+
+Context:
+- CareConnect scheduling foundation, booking baseline, and appointment lifecycle already exist
+- Scheduling exceptions code has already been generated and reviewed
+- Migration should already exist and be safe to apply
+- Gateway, Identity, and CareConnect are already configured
+- This step is for applying and testing, not adding new features
+
+Tasks
+
+1. Apply the CareConnect migration for scheduling exceptions.
+Expected migration name:
+- AddProviderAvailabilityExceptions
+
+2. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+3. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+4. Confirm prerequisite data exists:
+- at least one Provider already exists
+- at least one Facility already exists
+- at least one ProviderAvailabilityTemplate already exists
+- at least one generated slot exists for that provider
+If prerequisites are missing, identify exactly what is missing before blackout tests continue.
+
+5. Create a provider availability exception using:
+- POST /careconnect/api/providers/{id}/availability-exceptions
+
+Use a sample payload like:
+{
+  "facilityId": "OPTIONAL_FACILITY_ID_OR_NULL",
+  "startAtUtc": "2026-04-03T13:00:00Z",
+  "endAtUtc": "2026-04-03T15:00:00Z",
+  "exceptionType": "Unavailable",
+  "reason": "Provider unavailable for afternoon block",
+  "isActive": true
+}
+
+6. Verify exception creation:
+- returns 200 or 201
+- exception is tenant-scoped
+- listing endpoint returns the new exception
+
+7. Test slot generation with exceptions:
+- run slot generation for the provider and a date range covering the exception window
+- verify slots overlapping the exception window are NOT generated
+- verify non-overlapping slots are still generated
+- verify rerunning generation does not create duplicates
+
+8. Test apply-exceptions for existing slots:
+- call POST /careconnect/api/providers/{id}/slots/apply-exceptions
+- verify overlapping existing slots are changed to Status = Blocked where safe
+- verify non-overlapping slots remain unchanged
+- verify booked slots are not corrupted
+
+9. Test blocked slot behavior:
+- identify a blocked slot
+- attempt to book it using POST /careconnect/api/appointments
+Expected:
+- clean failure
+- 400 or equivalent business validation error
+- no raw stack trace
+
+10. Output:
+- migration command used
+- whether migration succeeded
+- exception create request used
+- exception listing result
+- slot generation request/result
+- apply-exceptions request/result
+- whether overlapping slots were blocked correctly
+- whether blocked slots were prevented from booking
+
+Important:
+Do not add new schema or features in this step.
+Do not implement notifications, reminders, calendar sync, or provider portal logic yet.
+This step is only to validate scheduling exceptions end to end.

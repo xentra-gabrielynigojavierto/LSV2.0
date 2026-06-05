@@ -1,0 +1,498 @@
+TASK-B03 — Platform Integration Layer
+(Contains TASK-007, TASK-008, TASK-009)
+
+OBJECTIVE:
+Evolve the standalone Task service into a platform-integrated service that is portable across LegalSynq products and orchestration-aware. This block must add cross-product context hardening, Flow linkage and event consumption, and external-consumer readiness without introducing Liens-specific assumptions.
+
+NON-NEGOTIABLE RULES:
+- Service name: task
+- Database: tasks_db
+- MUST remain standalone and reusable
+- MUST preserve TASK-B01 and TASK-B02 behavior
+- MUST NOT introduce Liens-specific runtime assumptions
+- MUST support both:
+  - product-scoped task visibility
+  - general cross-product personal task aggregation
+- MUST create report FIRST and update incrementally
+- MUST validate against the current codebase before implementing
+- MUST use existing platform patterns for auth, contracts, HTTP clients, event handling, logging, and configuration
+- NO placeholders, fake integrations, or speculative architecture not grounded in the current codebase
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-B03-report.md
+
+Initialize with:
+
+# TASK-B03 Report — Platform Integration Layer
+
+## 1. Codebase Analysis
+## 2. Existing Task Baseline Review
+## 3. Cross-Product Context Hardening
+## 4. Product-Scoped Visibility + General Aggregation
+## 5. Flow Linkage Model
+## 6. Flow Event Consumption
+## 7. External Consumer APIs & Access Hooks
+## 8. Notification / Audit / Identity Integration Review
+## 9. API Changes
+## 10. Database / Migration Changes
+## 11. Validation Results
+## 12. Known Gaps / Risks
+
+Update this report AFTER EVERY MAJOR STEP with:
+- what was analyzed
+- what changed
+- files added/updated
+- migrations added/applied
+- validation results
+- issues encountered
+- final outcome of the step
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT CODEBASE AND PLATFORM INTEGRATION PATTERNS
+--------------------------------------------------
+
+Before changing anything:
+
+1. Analyze the current Task service from TASK-B01 and TASK-B02:
+   - entities
+   - APIs
+   - migrations
+   - assignment/governance/template/reminder/notification behavior
+   - current query/filter patterns
+2. Analyze the existing Flow service and related platform services to determine:
+   - current event or integration patterns
+   - whether Flow publishes domain events, HTTP callbacks, internal endpoints, outbox messages, or other integration contracts
+   - naming and structure of workflow identifiers and step identifiers
+3. Analyze Identity / Audit / Notification integration patterns already used across the platform.
+4. Confirm how product context is represented elsewhere in the platform:
+   - whether product codes are centralized in config, enums, database tables, shared contracts, or not standardized yet
+5. Confirm whether a product registry / canonical product code source already exists.
+6. Confirm how admin-only / internal-only endpoints are protected elsewhere.
+
+Document findings under:
+## 1. Codebase Analysis
+## 2. Existing Task Baseline Review
+## 8. Notification / Audit / Identity Integration Review
+
+IMPORTANT:
+Do not assume Flow event shape or product-code semantics without inspecting the current codebase first.
+
+--------------------------------------------------
+STEP 2 — CROSS-PRODUCT CONTEXT HARDENING (TASK-007 PART 1)
+--------------------------------------------------
+
+Harden Task’s source-context model so it is safe for multi-product reuse.
+
+A. Review and refine current context fields on tasks and related entities:
+- SourceProductCode
+- SourceEntityType
+- SourceEntityId
+- TaskScope
+- TenantId
+- AssignedUserId / CreatedByUserId / UpdatedByUserId
+
+B. Add additional generic linkage support if needed, based on current codebase patterns.
+Recommended capability:
+- task-linked related entities table or equivalent generic linkage model, for attaching multiple related references without polluting the core task table
+
+Suggested generic model if needed:
+TaskLinkedEntity
+- id
+- task_id
+- tenant_id
+- source_product_code
+- entity_type
+- entity_id
+- relationship_type
+- created_at
+
+Rules:
+- MUST remain generic
+- MUST NOT add Liens-specific columns
+- SHOULD support future reuse by other products
+- Maintain tenant isolation
+
+C. Product code hardening
+Based on what exists in the codebase, implement the safest feasible product-code validation strategy:
+- reuse existing canonical product-code source if one exists
+- otherwise introduce a constrained validation layer/configuration for allowed product codes that is explicit and maintainable
+- do not scatter ad hoc string checks throughout the service
+
+D. Context validation
+Validate on create/update/template-create:
+- PRODUCT-scope tasks require SourceProductCode
+- if SourceEntityType is provided, SourceEntityId should also be provided unless current platform patterns support looser semantics
+- product-specific stages/templates/governance must match the task’s product context
+- GENERAL-scope tasks must not accidentally inherit invalid product-specific defaults unless explicitly intended
+
+Update report:
+## 3. Cross-Product Context Hardening
+## 10. Database / Migration Changes
+
+--------------------------------------------------
+STEP 3 — PRODUCT-SCOPED VISIBILITY + GENERAL AGGREGATION (TASK-007 PART 2)
+--------------------------------------------------
+
+Implement and harden the visibility/query model required by the platform UX.
+
+REQUIRED BEHAVIOR:
+- When the user is inside a product, only tasks associated with that product should be returned
+- When the user is in the general platform area, a generic task list should aggregate the user’s tasks across products
+- This must work without requiring a dedicated “Task product”
+
+A. Product-scoped query behavior
+Review existing list/search APIs and strengthen filtering behavior:
+- product-scoped listing/filtering by SourceProductCode
+- tenant isolation always enforced
+- support filtering by:
+  - status
+  - priority
+  - stage
+  - assigned user
+  - due-date windows
+  - source product
+
+B. General aggregation behavior
+Harden:
+- GET /api/tasks/my
+or equivalent endpoint
+to support:
+- all assigned tasks across products
+- optional grouping metadata by product
+- sorting/pagination
+- filters that still preserve cross-product behavior
+
+C. Response metadata
+Add enough response metadata so shared/general UI can render meaningful context, such as:
+- sourceProductCode
+- sourceEntityType
+- sourceEntityId
+- taskScope
+- currentStage summary
+- dueAt
+- priority
+- assignment summary
+
+D. Query safety/performance
+Add/adjust indexes and repository methods for expected query paths:
+- my tasks across products
+- my tasks within product
+- product-specific list pages
+- due-date / stage / status filters
+
+Update report:
+## 4. Product-Scoped Visibility + General Aggregation
+## 9. API Changes
+## 10. Database / Migration Changes
+
+--------------------------------------------------
+STEP 4 — FLOW LINKAGE MODEL (TASK-008 PART 1)
+--------------------------------------------------
+
+Add Flow linkage support while preserving architectural separation.
+
+IMPORTANT RULE:
+- Flow remains process orchestration
+- Task remains work execution
+- Task stages are NOT Flow workflow steps
+- Do NOT merge these concepts
+
+A. Add Flow linkage fields to Task as needed:
+- WorkflowInstanceId (nullable)
+- WorkflowStepKey (nullable)
+- optionally WorkflowStepName or equivalent only if justified by existing Flow patterns
+- any correlation/reference field only if actually useful and grounded in current codebase patterns
+
+B. Domain rules:
+- tasks may exist without Flow linkage
+- Flow-linked tasks must preserve product/task behavior
+- updating Flow linkage must not overwrite Task execution stage logic
+- terminal task status behavior remains Task-owned
+
+C. APIs:
+Add safe internal/admin endpoints if needed for:
+- attaching/updating Flow linkage
+- retrieving task by workflow context
+Do not expose unsafe public mutation endpoints unless they align with current platform patterns.
+
+D. History / audit:
+Write history entries when Flow linkage changes in a meaningful way.
+
+Update report:
+## 5. Flow Linkage Model
+## 9. API Changes
+## 10. Database / Migration Changes
+
+--------------------------------------------------
+STEP 5 — FLOW EVENT CONSUMPTION (TASK-008 PART 2)
+--------------------------------------------------
+
+Make Task consume Flow changes directly using the integration pattern that actually exists in the platform.
+
+A. Analyze the current Flow integration approach first:
+- event bus
+- outbox/inbox
+- callback endpoint
+- internal HTTP endpoint
+- message queue
+- other
+
+B. Implement the correct consumption pattern based on the codebase, not assumptions.
+
+Primary goal:
+- when Flow signals a relevant step change or workflow transition, Task can update Flow linkage fields and/or perform appropriate internal sync actions
+
+Constraints:
+- preserve current parity-first behavior
+- do not redesign Flow orchestration
+- do not invent stage remapping unless there is already a clean existing model
+- idempotency required
+- duplicate event delivery / repeated callback must be safe
+- failures must be logged and should not corrupt task state
+
+C. Minimum expected behavior:
+- consume a Flow step/workflow update
+- map to the correct task or set of tasks using workflow identifiers
+- update WorkflowStepKey (and related linkage fields if appropriate)
+- write task history when a meaningful linkage update occurs
+
+D. Protection:
+- use internal/admin auth pattern if HTTP endpoint based
+- validate tenant and workflow identifiers
+- ensure malformed or duplicate messages do not break Task
+
+Update report:
+## 6. Flow Event Consumption
+## 9. API Changes
+## 11. Validation Results
+## 12. Known Gaps / Risks
+
+--------------------------------------------------
+STEP 6 — EXTERNAL CONSUMER APIS & ACCESS HOOKS (TASK-009)
+--------------------------------------------------
+
+Prepare Task for safe consumption by other products and services.
+
+A. External-consumer readiness
+Review and harden APIs for product consumers such as Liens, CareConnect, Fund, and future products:
+- create task
+- create task from template
+- list/search tasks
+- get task detail
+- assign/reassign/unassign
+- transition status
+- read notes/history
+- read stage/template/governance config where appropriate
+
+B. Access hooks
+Based on existing platform patterns, add the best available access-control hooks.
+Examples only if grounded in current codebase:
+- authenticated-user baseline
+- admin-only config endpoints
+- internal-service endpoints
+- future permission-code seam if full permissions do not exist yet
+
+C. Bulk or helper endpoints
+Only if useful and consistent with current codebase patterns, add safe helper endpoints such as:
+- get tasks by workflow instance
+- get tasks by source entity
+- product-scoped task summaries
+- my task counts grouped by product/status
+
+Do NOT add speculative bloat. Keep APIs purposeful.
+
+D. Audit integration
+If Audit service integration patterns already exist, emit or record appropriate task events for:
+- task linkage updates
+- task assignment changes
+- stage changes
+- template-based task creation
+- reminder processing outcomes where appropriate
+
+If no formal Audit integration exists yet beyond history/logging, document that clearly and align with the established pattern.
+
+Update report:
+## 7. External Consumer APIs & Access Hooks
+## 8. Notification / Audit / Identity Integration Review
+## 9. API Changes
+## 11. Validation Results
+
+--------------------------------------------------
+STEP 7 — API / DTO / CONTRACT HARDENING
+--------------------------------------------------
+
+Review and finalize the Task API surface after these integrations.
+
+Ensure the API set cleanly supports:
+
+Task runtime:
+- create / update / get / list
+- my tasks (cross-product)
+- product-scoped tasks
+- assign / unassign / reassign
+- transition status
+- notes / history
+
+Task config:
+- stage config
+- governance settings
+- templates
+
+Integration / internal:
+- Flow linkage retrieval/update where appropriate
+- reminder processing endpoint
+- internal Flow event consumption endpoint if HTTP-based
+- cross-product summary/helper endpoints if justified
+
+Requirements:
+- maintain route consistency
+- maintain JWT / internal auth patterns
+- maintain tenant isolation
+- maintain backward compatibility with TASK-B01 and TASK-B02 where possible
+- update DTOs to expose only useful and safe fields
+- avoid leaking internal-only fields unnecessarily
+
+Update report:
+## 9. API Changes
+
+--------------------------------------------------
+STEP 8 — DATABASE MIGRATIONS
+--------------------------------------------------
+
+Create and apply all required migrations for:
+- Flow linkage fields
+- linked entities / related context tables if added
+- any new indexes to support visibility/search/workflow queries
+- any helper tables needed for clean context integration
+
+Follow the established migration pattern in the platform.
+
+Document:
+- migration names
+- tables/columns/indexes created or updated
+- any backfill/defaulting logic applied to existing tasks
+
+Update report:
+## 10. Database / Migration Changes
+
+--------------------------------------------------
+STEP 9 — VALIDATION
+--------------------------------------------------
+
+Execute validation against the implemented Task service.
+
+At minimum validate:
+
+Cross-product context
+1. create PRODUCT task with valid product code
+2. reject PRODUCT task without required product context
+3. create GENERAL task without product context
+4. validate context rules for linked entities or related references if added
+
+Visibility / aggregation
+5. GET product-scoped task list returns only that product’s tasks
+6. GET /api/tasks/my returns cross-product tasks for current user
+7. pagination / filtering still works for my tasks
+8. grouped / contextual metadata is available for shared UI use if implemented
+
+Flow linkage
+9. attach or persist workflow linkage on a task
+10. retrieve task by workflow context if endpoint exists
+11. meaningful Flow linkage change writes history
+12. task execution stage remains unchanged unless explicitly changed through Task logic
+
+Flow event consumption
+13. simulate or execute the current platform-appropriate Flow update path
+14. verify idempotent handling of duplicate event/callback
+15. verify malformed or unauthorized calls are rejected safely
+16. verify Task state is not corrupted on Flow integration failure
+
+External consumer readiness
+17. existing TASK-B01 and TASK-B02 endpoints still function
+18. config/admin endpoints remain protected correctly
+19. access hooks follow current platform patterns
+20. tenant isolation still holds across all new queries
+
+Performance / operational sanity
+21. indexes exist for expected query paths
+22. reminder processing endpoint still functions after changes
+23. notification integration still works or remains unaffected by this block
+
+Document exact results under:
+## 11. Validation Results
+
+IMPORTANT:
+Do not mark checks as PASS unless they were actually run or directly verified in the current environment/codebase.
+
+--------------------------------------------------
+STEP 10 — DOCUMENT KNOWN GAPS / RISKS
+--------------------------------------------------
+
+Document what remains intentionally deferred, such as:
+- Liens cutover and proxy mode
+- Liens data migration / dual-write / read flip
+- broader cross-product permissions matrix
+- advanced product registry centralization if not already present
+- richer Flow stage-mapping / orchestration intelligence
+- SLA escalation sophistication
+- UI implementation details in consuming products
+- monitoring registration if still pending
+
+Also document any technical debt introduced or platform assumptions that should be revisited later.
+
+Update report:
+## 12. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-B03 is successful only if:
+
+1. Task remains a standalone platform service
+2. Cross-product context handling is hardened and validated
+3. Product-scoped task visibility works correctly
+4. General cross-product personal task aggregation works correctly
+5. Flow linkage fields exist and are usable
+6. Task consumes Flow changes using the actual platform integration pattern
+7. External consumer APIs are sufficiently hardened for reuse by other products
+8. Existing TASK-B01 and TASK-B02 behavior still works
+9. No Liens-specific runtime assumptions are introduced
+10. Task remains clearly separated from Flow as the work engine, not the process engine
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- apps/services/task/Task.Domain
+- apps/services/task/Task.Application
+- apps/services/task/Task.Infrastructure
+- apps/services/task/Task.Api
+- shared contracts/config/integration helpers if the codebase pattern requires it
+- gateway/config only if required for new safe routes
+- tests if there is an established test pattern
+- Flow integration surface only as needed to connect using the existing platform pattern
+
+--------------------------------------------------
+DO NOT DO IN THIS BLOCK
+--------------------------------------------------
+
+Do NOT implement:
+- Liens-to-Task consumer cutover
+- Liens data migration
+- Liens proxy compatibility layer
+- removal of Liens-local task runtime
+- broad UI redesign in portals
+- speculative enterprise bus redesign
+- large permission-system rewrite beyond current platform hooks
+
+Those belong to TASK-B04 or later hardening passes.
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

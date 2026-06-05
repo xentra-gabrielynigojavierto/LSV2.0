@@ -1,0 +1,241 @@
+You are implementing feature MON-INT-00-001 — Monitoring Service Integration Onboarding.
+
+OBJECTIVE
+Prepare the main platform workspace for Monitoring Service integration by importing the Monitoring source code, analyzing architectural fit, validating database alignment (monitoring_db), and documenting the exact integration touchpoints required for downstream implementation.
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-00-001-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT claim success without evidence
+- Do NOT use placeholder implementations
+- Do NOT perform actual platform integration yet
+- Prefer incremental, reversible changes
+- Keep backend, API, and UI concerns clearly separated in the report
+
+AVAILABLE INPUTS
+Primary Monitoring service archive:
+- /mnt/data/MonitoringService-source.zip
+
+Main platform archives exist in /mnt/data. You must inspect and select the best candidate.
+
+Database context:
+- A MySQL database named `monitoring_db` has already been created
+- You must validate whether the Monitoring service is compatible with this database
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-00-001-report.md
+
+Initialize immediately with:
+
+# MON-INT-00-001 — Monitoring Service Integration Onboarding
+
+## 1. Task Summary
+## 2. Input Archives Discovered
+## 3. Selected Main Platform Baseline
+## 4. Monitoring Service Codebase Analysis
+## 5. Main Platform Codebase Analysis
+## 6. Integration Fit Assessment
+## 7. Build / Compatibility Findings
+## 8. Database Assessment (monitoring_db)
+## 9. Integration Touchpoint Inventory
+## 10. Files Added / Moved / Examined
+## 11. Validation Performed
+## 12. Known Gaps / Blockers / Risks
+## 13. Recommended Next Feature
+
+Explicitly note that the report was created FIRST.
+
+---
+
+STEP 2 — DISCOVER ARCHIVES
+
+Inspect /mnt/data:
+- identify Monitoring archive
+- identify all platform archives
+- classify each archive (core platform, portal, service, outdated)
+
+Select ONE primary platform baseline and document:
+- archive name
+- why selected
+- why others were not selected
+
+---
+
+STEP 3 — UNPACK ARCHIVES
+
+Create working directory:
+- /tmp/mon_int_00_001/
+
+Unpack:
+- Monitoring service
+- selected platform archive
+
+Document:
+- folder structures
+- unpack success/failure
+- any archive issues
+
+---
+
+STEP 4 — ANALYZE MONITORING SERVICE
+
+Identify and document:
+- solution/project structure
+- entry point(s)
+- startup/config files
+- architecture layers (API, Application, Domain, Infrastructure)
+- database layer (EF Core, MySQL, etc.)
+- connection string handling
+- auth model (JWT, etc.)
+- logging/config approach
+- existing endpoints (health, status, alerts)
+
+IMPORTANT:
+Identify specifically:
+- where DB connection is configured
+- expected DB provider
+- migration or schema strategy
+
+---
+
+STEP 5 — ANALYZE MAIN PLATFORM
+
+Identify:
+- backend services
+- gateway/routing layer
+- shared services (Identity, Documents, Notifications, Audit)
+- config patterns
+- service registration patterns
+- UI shell / Control Center
+- auth integration approach
+
+Document exact paths and structure.
+
+---
+
+STEP 6 — DATABASE ASSESSMENT (monitoring_db)
+
+Analyze compatibility with:
+- MySQL provider used in Monitoring service
+- connection string format
+- required schema/tables
+- migration setup (EF migrations or manual schema)
+
+Validate:
+- whether monitoring_db can be used as-is
+- whether migrations are required
+- whether schema exists or needs creation
+
+Classify outcome:
+- READY (config-only)
+- NEEDS MIGRATIONS
+- BLOCKED (incompatible)
+
+DO NOT run destructive operations.
+
+---
+
+STEP 7 — BUILD / COMPATIBILITY
+
+Attempt (if feasible):
+- identify .NET version
+- validate solution structure
+- attempt build if safe
+
+If build fails:
+- categorize issue:
+  - config missing
+  - dependency issue
+  - version mismatch
+  - path issue
+  - unknown
+
+---
+
+STEP 8 — INTEGRATION FIT
+
+Provide explicit recommendation:
+- Monitoring remains separate service (yes/no)
+- accessed via platform routing (yes/no)
+- auth reuse strategy
+- DB isolation strategy (separate vs shared)
+- where UI will live (Control Center)
+
+NO vague answers.
+
+---
+
+STEP 9 — INTEGRATION TOUCHPOINT INVENTORY
+
+Identify where future changes will happen for:
+
+MON-INT-01-001 — Read APIs  
+MON-INT-01-002 — Routing  
+MON-INT-01-003 — UI Entry  
+MON-INT-01-004 — Summary Panel  
+
+Include:
+- backend paths
+- routing files
+- config/auth files
+- UI shell locations
+
+---
+
+STEP 10 — FILES CHANGED
+
+List:
+- directories created
+- archives unpacked
+- files inspected
+
+No unnecessary permanent changes allowed.
+
+---
+
+STEP 11 — VALIDATION
+
+Confirm:
+- archives discovered
+- unpack success
+- structure analyzed
+- DB compatibility assessed
+- enough clarity to proceed
+
+---
+
+STEP 12 — RECOMMEND NEXT FEATURE
+
+Default:
+MON-INT-01-001 — Monitoring Read API Integration
+
+Include:
+- justification
+- any assumptions
+- any prerequisites discovered
+
+---
+
+FALLBACK RULES
+
+If anything fails:
+- continue analysis
+- document blockers clearly
+- do NOT fake completion
+
+---
+
+DONE CONDITION
+
+Task is complete when:
+- report exists and was created FIRST
+- monitoring service analyzed
+- platform baseline selected and analyzed
+- monitoring_db compatibility assessed
+- integration touchpoints documented
+- next feature recommended

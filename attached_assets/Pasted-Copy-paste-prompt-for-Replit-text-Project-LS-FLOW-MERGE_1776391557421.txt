@@ -1,0 +1,293 @@
+Copy-paste prompt for Replit:
+
+```text
+Project: LS-FLOW-MERGE-P1
+Title: LegalSynq Merge Phase 1 — Structural Integration of Workflow Service
+
+You are implementing Phase 1 of the Flow-to-LegalSynq merge plan.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-MERGE-P1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around repository structure, naming alignment, build/runtime isolation, and anything you could not safely automate.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - repo structure changes
+   - build/run notes
+   - validation/build/test results
+   - known gaps/issues
+   - recommendation: ready for next phase or needs iteration
+
+REPORT FORMAT
+
+# LS-FLOW-MERGE-P1 Report
+
+## Scope Executed
+## Assumptions
+## Repository Structure Changes
+## Backend Integration Notes
+## Frontend Integration Notes
+## Documentation Changes
+## Configuration Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Bring the completed Flow codebase into the LegalSynq main codebase as a standalone platform service/module without changing core runtime behavior.
+
+This phase is structural integration only.
+
+The goal is to:
+- move/adapt the Flow code into the LegalSynq repo structure
+- preserve Flow as an independent service boundary
+- prepare it for later Identity / Notifications / Audit integration
+- avoid breaking existing LegalSynq products
+
+This phase must NOT introduce behavior-heavy platform coupling yet.
+
+CRITICAL REQUIREMENT
+
+You MUST:
+- preserve Flow as a detachable service/module
+- avoid shared-database coupling
+- avoid product-specific logic injection
+- avoid premature integration with Identity, Notifications, or Audit
+- keep the current Flow behavior working as-is after the move
+- make the codebase easier to integrate in later phases
+
+This is a repo and architecture alignment phase, not a feature phase.
+
+DO NOT BUILD
+
+- Identity integration
+- Notification service integration
+- Audit service integration
+- shared DB merge
+- product-specific workflow mappings
+- UI redesign
+- auth rewrite
+- API contract rewrite
+- feature additions unrelated to structural merge
+
+TARGET STRUCTURE
+
+Use this LegalSynq-aligned target structure:
+
+/apps/services/flow/
+  backend/
+  frontend/
+  docs/
+
+If the repo already has a stronger and clearly established service/module convention under /apps/services, follow that convention only if it remains fully consistent with the target above. Document any deviation clearly.
+
+Important:
+- backend and frontend remain clearly separated
+- docs move with the service
+- no flattening into a product-specific module like SynqLien
+- do not create /services/workflow-service or any alternative duplicate structure
+- use /apps/services/flow as the authoritative destination
+
+IMPLEMENTATION REQUIREMENTS
+
+1. REPOSITORY STRUCTURE ALIGNMENT
+
+Move the Flow code into the LegalSynq repo in a way that clearly establishes it as a shared platform service.
+
+Requirements:
+- create the target service folder at /apps/services/flow if it does not already exist
+- place backend under /apps/services/flow/backend
+- place frontend under /apps/services/flow/frontend
+- move or copy relevant docs under /apps/services/flow/docs
+- remove or avoid redundant nested structure if safe
+- avoid duplicate copies of the same backend/frontend unless a temporary staging move is necessary
+- if a temporary staging move is used, clean it up before completion
+
+Naming:
+- service folder name must be: flow
+- you may keep internal project/namespace names as Flow.* for now if renaming is too risky in this phase
+- if you perform any renaming, keep it minimal and document it clearly
+
+2. PRESERVE SERVICE BOUNDARY
+
+Flow must remain its own bounded service.
+
+Requirements:
+- keep its own backend project structure
+- keep its own DB ownership model
+- keep its own API surface
+- do NOT merge data models directly into LegalSynq product code
+- do NOT allow direct DB access from other modules
+- document clearly that the service remains API-first and DB-isolated
+
+3. BACKEND STRUCTURE INTEGRATION
+
+Bring the Flow backend into the LegalSynq codebase.
+
+Requirements:
+- ensure solution/project files still work from the new location
+- fix relative paths if needed
+- fix build scripts if needed
+- preserve EF Core migrations
+- preserve appsettings/environment config behavior
+- preserve current API routes unless there is a compelling structural reason to change them
+- do not rewrite backend architecture unless required for relocation/build stability
+
+If there is a LegalSynq-wide convention for backend services under /apps/services, align to it only if low-risk.
+
+4. FRONTEND STRUCTURE INTEGRATION
+
+Bring the Flow frontend into the LegalSynq codebase.
+
+Requirements:
+- ensure frontend still builds from the new location
+- preserve current routes and UI behavior
+- preserve env-based API URL config
+- preserve local dev viability
+- keep package/dependency setup isolated if full monorepo/workspace migration is too risky in this phase
+- fix path aliases/imports only as needed for relocation
+
+Important:
+- do NOT attempt a full design-system rewrite
+- do NOT force full workspace consolidation unless already trivial and clearly safe
+- keep frontend structurally colocated but operationally independent if that is the safer path
+
+5. DOCUMENTATION MOVE + MERGE NOTES
+
+Move/organize the Flow architecture and operational docs into the service area.
+
+Requirements:
+- place Flow architecture documentation under /apps/services/flow/docs
+- add a merge note explaining:
+  - service purpose
+  - ownership of flow_db
+  - API-first integration principle
+  - later planned integrations (Identity, Notifications, Audit)
+  - intentional deferrals for this phase
+- preserve prior architectural details rather than discarding them
+
+Suggested new/updated docs:
+- /apps/services/flow/docs/README.md
+- /apps/services/flow/docs/architecture.md
+- /apps/services/flow/docs/merge-phase-1-notes.md
+
+If existing docs are already sufficient, update them rather than duplicating excessively.
+
+6. CONFIGURATION ALIGNMENT
+
+Align configuration in a low-risk way.
+
+Backend:
+- ensure appsettings/environment variables still resolve correctly from new path
+- preserve DB connection string resolution order
+- document any new local run path or command changes
+- do not hardcode environment-specific values
+
+Frontend:
+- preserve NEXT_PUBLIC_FLOW_API_URL or equivalent
+- document expected local value(s) after move
+- do not hardcode environment-specific values
+
+7. BUILD / RUN VALIDATION
+
+You MUST validate the service after structural integration.
+
+Backend:
+- build cleanly from its new location
+- migrations still discoverable
+- startup still works structurally
+
+Frontend:
+- install/build succeeds from new location
+- route structure still compiles
+- API client imports still resolve
+
+If full runtime testing is limited by environment, be explicit about what was and wasn’t verified.
+
+8. NON-GOALS / EXPLICIT DEFERRALS
+
+Document clearly that the following are intentionally deferred to later phases:
+- Identity v2 integration
+- shared Notifications service integration
+- shared Audit service integration
+- SynqLien/CareConnect/SynqFund workflow mapping
+- DB consolidation
+- cross-service event bus integration
+- auth rewrite
+- API redesign
+
+This is important so future reviewers understand the merge is intentionally staged.
+
+9. CLEANUP / HOUSEKEEPING
+
+While moving the code:
+- remove clearly temporary/dev-only files if safe
+- update stale relative references
+- keep the result clean and understandable
+- do not perform broad unrelated refactors
+- do not modify unrelated products/services
+
+10. VALIDATION CHECKLIST
+
+You MUST confirm and record in the report:
+
+Repository:
+- service folder exists at /apps/services/flow
+- backend, frontend, docs are in the intended locations
+
+Backend:
+- solution/project builds from new location
+- migrations remain intact
+- config still resolves structurally
+
+Frontend:
+- app compiles from new location
+- routes/components resolve
+- API config still works structurally
+
+Documentation:
+- merge notes added
+- future phase boundaries documented
+
+If something cannot be fully completed safely, do the maximum safe subset and document the remainder clearly.
+
+EXECUTION APPROACH
+
+1. Inspect the current repository and identify:
+   - main LegalSynq repo root
+   - current Flow backend location
+   - current Flow frontend location
+   - current Flow docs location
+2. Create /analysis/LS-FLOW-MERGE-P1-report.md immediately and start logging actions/assumptions.
+3. Establish /apps/services/flow target structure.
+4. Relocate or integrate backend into /apps/services/flow/backend.
+5. Relocate or integrate frontend into /apps/services/flow/frontend.
+6. Move/update docs into /apps/services/flow/docs.
+7. Fix only the minimum required paths/config/build references.
+8. Validate backend build.
+9. Validate frontend build.
+10. Update documentation and finalize the report.
+
+SUCCESS CONDITION
+
+The workflow service is now housed inside the LegalSynq codebase in a clean, isolated, buildable structure under /apps/services/flow and is ready for Phase 2 integration work.
+
+FAILURE CONDITION
+
+The move breaks buildability, blurs service boundaries, creates duplicate or conflicting directory structures, or prematurely entangles Flow with product-specific or shared-service behavior.
+
+DELIVERABLE EXPECTATION
+
+At the end of this phase, the LegalSynq repo should contain:
+- a clearly separated flow service under /apps/services/flow
+- backend + frontend + docs under a stable service location
+- preserved buildability
+- preserved architecture boundary
+- clear documentation for future integration phases
+```
+
+After Replit finishes, upload `LS-FLOW-MERGE-P1-report.md` here and I’ll assess the outcome and decide whether it is ready for the next phase or needs an iteration.

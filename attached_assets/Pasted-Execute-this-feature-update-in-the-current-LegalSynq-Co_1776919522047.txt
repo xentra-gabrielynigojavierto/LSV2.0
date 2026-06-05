@@ -1,0 +1,185 @@
+Execute this feature update in the current LegalSynq Control Center codebase.
+
+Feature ID: CC-UX-NAV-001-01
+Title: Control Center Left Navigation Sync with Selected Dashboard Category
+
+Objective
+Adjust the new Control Center navigation hub behavior so that when a user clicks a category box on the dashboard body, the child menus for that category appear in the left navigation sidebar.
+
+This is the required interaction model:
+- Left sidebar always contains Home
+- Dashboard body shows category boxes/cards
+- When a category is clicked in the dashboard body, that category becomes the active context
+- The left sidebar must then render the menu items that belong to that selected category
+- The body may still show the category detail panel, but the key requirement is that the actual menus move into the left nav for easy repeated navigation
+
+You MUST create the report file first:
+- Create `/analysis/CC-UX-NAV-001-01-report.md` before making changes
+- Update it incrementally as you work
+- At the end include:
+  - codebase analysis
+  - files changed
+  - behavior changes
+  - validation results
+  - known gaps / follow-ups
+
+Context
+The current refactor already introduced:
+- a compact left sidebar
+- a Home item
+- dashboard category cards in the page body
+- category selection via URL query param such as `/?group=audit`
+
+However, the current behavior still shows the selected category’s menus in the page body. The desired behavior is:
+- category cards remain in the body
+- category click sets the active group
+- active group child links render in the LEFT SIDEBAR
+- left nav becomes the main place for the selected category’s menu items
+
+Required behavior
+
+1) Left nav structure
+Refactor the Control Center sidebar so it behaves like this:
+- Always show `Home` at the top and route it to `/`
+- When no category is selected:
+  - show only Home
+  - optionally show a short helper state such as “Select a category”
+  - do NOT render all child menus from all groups
+- When a category is selected:
+  - show Home
+  - show a visual label/header for the active category
+  - show all child menu items under that active category
+- The active child route must be visibly highlighted
+
+2) Dashboard category click behavior
+When a user clicks a category card on the dashboard body:
+- update URL state using the existing query param approach, preferably `/?group=<slug>`
+- the selected category should become active
+- the left sidebar should immediately render that category’s child menu items
+- the page body can still show a summary/detail card for the selected category, but it must no longer be the only place where the child menus are accessible
+
+3) Keep Home behavior simple
+Clicking Home in the left nav should:
+- return to `/`
+- clear the active category state if appropriate
+- collapse the sidebar back to Home-only mode
+
+Preferred behavior:
+- `/` = no selected group unless product wants default selection
+- `/?group=audit` = Audit becomes active and its menus appear in left nav
+
+4) Sidebar should be the primary navigation area for selected category
+Once a category is selected, the user should be able to continue navigating from the left nav without needing to re-click cards in the body.
+This is the primary goal of this correction.
+
+5) Body layout adjustments
+Update the dashboard body so it supports the new pattern cleanly:
+- keep the category cards grid
+- when a category is selected, the body can show:
+  - category summary
+  - description
+  - tool count
+  - optional quick-launch cards
+But avoid duplicating the full navigation list in a way that competes with the left nav.
+The left nav should now own the main menu list for the selected category.
+
+6) Non-home routes
+On non-home routes:
+- infer the active category from pathname using `CC_NAV`
+- left nav should show:
+  - Home
+  - active category header
+  - that category’s child menu items
+- this must work even if the page is loaded directly from a deep route such as:
+  - `/synqaudit`
+  - `/synqaudit/user-activity`
+  - `/tenants`
+  - `/notifications/templates`
+
+7) Preserve existing route contracts
+- Do not rename routes
+- Do not break any existing pages
+- Use `CC_NAV` as the source of truth
+
+8) State rules
+Use URL-driven and route-aware state.
+Preferred logic:
+- if pathname is `/` and query param `group` exists, use that selected group
+- if pathname is not `/`, derive the active group from pathname match
+- the sidebar should render from this resolved active group
+
+Implementation guidance
+
+A) Update sidebar logic
+Refactor `apps/control-center/src/components/shell/cc-sidebar.tsx`:
+- read active group from URL/search params and/or current pathname
+- render:
+  - Home
+  - active group title
+  - active group children
+- do not render full global navigation tree
+
+B) Reuse nav utility layer
+If already created, update `nav-utils.ts` or equivalent to support:
+- `getGroupBySlug(slug)`
+- `getGroupByPathname(pathname)`
+- `getGroupSlug(group)`
+- `getGroupChildren(group)`
+
+C) Update dashboard page
+Refactor `apps/control-center/src/app/page.tsx`:
+- keep category cards
+- clicking a card should set `group`
+- selected group section in body should become summary-oriented, not the primary place for the menu list
+- remove or reduce the large body menu grid if it duplicates the sidebar
+
+D) Ensure active highlighting
+In the left nav:
+- selected category visually obvious
+- active child route visually obvious
+- Home visually active only on home state
+
+Acceptance criteria
+The feature is complete only if all of the following are true:
+
+1. Sidebar always shows Home.
+2. When no dashboard category is selected, sidebar is minimal and does not show the full nav tree.
+3. Clicking a dashboard category card causes that category’s child menu items to appear in the left sidebar.
+4. On deep routes, the sidebar automatically shows the correct category’s child menu items based on pathname.
+5. Existing routes continue to work without renaming.
+6. The body no longer acts as the only place to access a selected category’s child menus.
+7. The interaction feels stable and production-ready.
+
+Files likely to change
+At minimum review and update:
+- `apps/control-center/src/lib/nav.ts`
+- `apps/control-center/src/lib/nav-utils.ts` if present
+- `apps/control-center/src/components/shell/cc-sidebar.tsx`
+- `apps/control-center/src/components/shell/cc-shell.tsx`
+- `apps/control-center/src/app/page.tsx`
+
+Validation steps
+After implementation:
+1. Open `/`
+2. Confirm left sidebar shows only Home by default
+3. Click `Audit` category card on dashboard
+4. Confirm left sidebar now shows:
+   - Home
+   - Audit header/context
+   - Audit child menu items
+5. Click at least 3 Audit child items from the left nav and confirm pages open correctly
+6. Refresh on one of those Audit routes and confirm the sidebar still shows the Audit menu
+7. Return Home and confirm sidebar returns to compact mode
+8. Repeat with at least:
+   - Identity
+   - Notifications
+   - Tenants
+9. Record results in the report
+
+Output
+When done, update `/analysis/CC-UX-NAV-001-01-report.md` with:
+- exact files changed
+- before/after behavior summary
+- how active group resolution works
+- validation notes
+- any minor remaining UX recommendations

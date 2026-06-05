@@ -1,0 +1,186 @@
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+After completing the implementation, you MUST generate a detailed report.
+
+Create the file:
+
+/analysis/<FEATURE-ID>-report.md
+
+Replace <FEATURE-ID> with the current feature name
+(e.g., NOTIF-UI-001, NOTIF-UI-002, NOTIF-006, etc.)
+
+==================================================
+REPORT CONTENT REQUIREMENTS
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+
+- What was built
+- Scope completed vs requested scope
+- What is read-only vs interactive (if UI)
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+
+List all files:
+
+- New files (with purpose)
+- Modified files (with description of changes)
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+
+Break down all implemented features:
+
+- List each feature or capability
+- Describe how it works
+- Identify any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+
+List all endpoints used or created:
+
+- Group by domain (notifications, billing, providers, etc.)
+- For each:
+  - endpoint
+  - purpose
+  - status (working / partial / assumed)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+
+Explain how the system works end-to-end:
+
+- request flow
+- data fetching / mutation flow
+- state handling approach
+- integration points with existing platform
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+
+Document validation performed:
+
+- compile/typecheck status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+
+Describe:
+
+- how errors are handled
+- validation behavior
+- fallback behavior
+- user-facing error states (if UI)
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT (IF APPLICABLE)
+--------------------------------------
+
+- how tenant context is handled
+- how auth is enforced
+- how headers/tokens are injected
+- failure behavior when missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE (IF APPLICABLE)
+--------------------------------------
+
+- caching strategy used
+- revalidation behavior
+- performance considerations
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+
+List all gaps:
+
+- missing features
+- backend dependencies
+- temporary implementations
+- assumptions made
+
+For each:
+- severity (low / medium / high)
+- which future phase will address it
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+
+List problems during implementation:
+
+- bugs
+- mismatches
+- missing contracts
+- design constraints
+
+Include:
+- resolution (if fixed)
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+
+Provide exact steps:
+
+- how to start the system
+- required environment variables
+- how to access the feature
+- any setup steps (tenant, seed data, etc.)
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+
+Answer clearly:
+
+- Is the feature complete? (Yes / Mostly / Partial)
+- Is it safe for internal use? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+
+List:
+
+- next features to build
+- improvements needed
+- dependencies to resolve
+
+==================================================
+IMPORTANT RULES
+==================================================
+
+- Do NOT skip any section
+- Do NOT claim features that are not implemented
+- Be precise and structured
+- Do NOT hide limitations — document them clearly
+- Prefer clarity over verbosity
+
+The report is required for audit and validation.
+
+Generate it after implementation is complete.

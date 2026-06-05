@@ -1,0 +1,140 @@
+Implement the first real SynqLien vertical slice in the existing Next.js tenant-aware frontend:
+
+provider creates lien -> provider offers lien -> lien owner browses marketplace -> lien owner purchases lien -> lien owner views portfolio
+
+Current state already working:
+- Next.js tenant-aware platform scaffold is implemented
+- SessionProvider, guards, app shell, tenant branding, API client, and gateway-only access are working
+- CareConnect referral and appointment slices are implemented
+- SynqFund law firm/funder slice is implemented
+- Backend enforces capabilities and org-participant checks
+- Product roles already exist:
+  - SYNQLIEN_SELLER
+  - SYNQLIEN_BUYER
+  - SYNQLIEN_HOLDER
+
+Target vertical slice:
+create lien -> offer lien -> browse marketplace -> purchase lien -> view purchased/held portfolio
+
+Business rules:
+- Provider users with SYNQLIEN_SELLER can create and offer liens
+- Lien owner users with SYNQLIEN_BUYER can browse offered liens and purchase
+- Lien owner users with SYNQLIEN_HOLDER can view/manage held liens
+- Liens are multi-actor:
+  - SellingOrganizationId
+  - BuyingOrganizationId
+  - HoldingOrganizationId
+  - SubjectPartyId optional
+- Frontend should shape UX by productRoles, but backend remains the security boundary
+
+Generate the output in these exact sections:
+
+1. SynqLien Slice Scope
+- define what is included in this slice
+- define what stays stubbed for later
+
+2. API Contract Assumptions
+List the frontend-facing API contracts assumed for:
+- GET /lien/api/liens
+- POST /lien/api/liens
+- GET /lien/api/liens/{id}
+- POST /lien/api/liens/{id}/offer
+- GET /lien/api/liens/marketplace
+- POST /lien/api/liens/{id}/offers
+- POST /lien/api/liens/{id}/purchase
+- GET /lien/api/liens/portfolio
+For each include:
+- request params/body
+- response shape needed by frontend
+
+3. TypeScript Models
+Generate the TS models for:
+- LienSummary
+- LienDetail
+- CreateLienRequest
+- OfferLienRequest
+- SubmitLienOfferRequest
+- PurchaseLienRequest
+- LienOfferSummary
+- LienStatusHistoryItem
+- LienSearchParams
+- PartyBriefResponse optional usage
+
+4. Frontend Data Layer
+Generate:
+- lien-api.ts
+- lien list/get/create/offer/browse/submit-offer/purchase/portfolio methods
+- typed wrappers around apiClient
+
+5. Page Implementations
+Generate minimal but real implementations for:
+- /lien/my-liens
+- /lien/my-liens/new
+- /lien/my-liens/[id]
+- /lien/marketplace
+- /lien/marketplace/[id]
+- /lien/portfolio
+- /lien/portfolio/[id]
+
+Requirements:
+- provider sees “My Liens” inventory
+- lien owner sees marketplace and portfolio
+- detail pages render:
+  - seller/buyer/holder orgs
+  - subject party snapshot if available
+  - amounts
+  - status
+  - history
+- action panels vary by role and status
+
+6. Create / Offer Lien UI
+Design and generate:
+- CreateLienForm
+- OfferLienPanel
+Requirements:
+- create lien supports:
+  - lien number
+  - lien type
+  - original amount
+  - optional subject party inline snapshot fields
+  - case reference
+  - incident date
+  - jurisdiction state
+  - confidentiality toggle
+- offer panel supports setting offer price
+- success navigates to lien detail page
+
+7. Marketplace / Purchase UI
+Design and generate:
+- MarketplaceFilters
+- MarketplaceListTable or card grid
+- LienOfferPanel
+- PurchaseLienPanel
+Requirements:
+- marketplace list supports basic filters
+- confidential liens hide subject identity
+- buyer can submit offer or purchase according to assumed API
+- handle 403/409 gracefully
+
+8. UX Role Shaping
+Explain and implement:
+- when provider sees create/offer controls
+- when lien owner sees marketplace/purchase controls
+- when holder sees portfolio/manage views
+- how to handle backend denial even if UI showed the action
+
+9. Minimal Component List
+Generate starter components for:
+- LienListTable
+- LienDetailPanel
+- CreateLienForm
+- OfferLienPanel
+- MarketplaceFilters
+- MarketplaceCard
+- LienOfferPanel
+- PurchaseLienPanel
+- PortfolioTable
+- LienStatusTimeline
+
+10. Implementation Sequence
+Give the exact order to build these files in the existing repo so the slice becomes runnable quickly.

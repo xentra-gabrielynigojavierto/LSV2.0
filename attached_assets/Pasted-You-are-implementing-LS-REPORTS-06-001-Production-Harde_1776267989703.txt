@@ -1,0 +1,287 @@
+You are implementing **LS-REPORTS-06-001 — Production Hardening & Integration Layer** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story transitions the Reports Service into a **production-ready system** by replacing mock/stub components with real integrations and adding observability and resilience.
+
+This is a production-hardening story. Do NOT build UI or redesign core architecture.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create:
+
+- `/analysis/LS-REPORTS-06-001-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step, update with:
+- files created/modified
+- integration notes
+- configuration notes
+- validation results
+- issues encountered
+- decisions made
+- build/run/API status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- UI
+- billing/usage tracking
+- multi-region failover
+- advanced distributed orchestration redesign
+- analytics/report builder UX
+
+## 4. Preserve architecture
+- API → Service → Execution → Export → Delivery → Adapter
+- DO NOT bypass service layers
+- DO NOT leak EF entities
+- keep adapter pattern intact
+- external integrations must go through adapters
+
+## 5. Preserve current functionality
+Do not break:
+- template APIs
+- assignment APIs
+- override APIs
+- execution APIs
+- export APIs
+- scheduling APIs
+- audit integration
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-06-001 — Production Hardening & Integration Layer**
+
+---
+
+# OBJECTIVE
+Replace mock/stub components with real integrations and add observability, storage, and resilience so the Reports Service is production-ready.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Email Delivery Integration (Notifications Service)
+
+Replace mock email adapter with real integration.
+
+### Requirements
+- integrate with Notifications service (v2 shared service)
+- send:
+  - recipients
+  - subject
+  - message
+  - attachment (exported file)
+
+### Implementation
+- update `EmailReportDeliveryAdapter`
+- use HTTP client or shared client pattern
+- return structured `DeliveryResult`
+
+---
+
+## B. SFTP Delivery Integration
+
+Replace stub SFTP adapter.
+
+### Requirements
+- use SSH.NET or equivalent
+- support:
+  - host
+  - port
+  - username/password or key auth
+  - remote path
+- upload file
+
+### Security
+- credentials via config only
+- no hardcoding
+
+---
+
+## C. File Storage Integration
+
+Add persistent storage (S3 preferred).
+
+### Requirements
+- create storage adapter (e.g., `IFileStorageAdapter`)
+- upload exported files
+- return storage key / URL
+
+### Update behavior
+- export service optionally stores file
+- return metadata instead of raw bytes when enabled
+
+### Config
+- Storage:Enabled
+- Storage:Provider
+- Storage:BucketName
+- Storage:BasePath
+
+---
+
+## D. Real Data Adapter
+
+Replace mock query adapter with real product data integration.
+
+### Requirements
+- implement at least one adapter (e.g., SynqLien)
+- map report definition → real query
+- return TabularResultSet
+
+### Rules
+- keep adapter isolated
+- no direct DB access in service layer
+
+---
+
+## E. Observability
+
+### Logging
+- structured logging
+- include:
+  - correlationId
+  - tenantId
+  - executionId / scheduleId
+
+### Metrics (basic)
+- execution count
+- export count
+- schedule runs
+- failures
+
+### Tracing
+- propagate correlationId through:
+  - execution
+  - export
+  - delivery
+  - audit
+
+---
+
+## F. Configuration Hardening
+
+Add config for:
+
+### Email
+- Notifications endpoint
+- auth token placeholder
+
+### SFTP
+- host, port, credentials
+
+### Storage
+- bucket, provider, region
+
+### Data adapters
+- connection/API settings
+
+### Rules
+- fail fast when enabled but invalid
+- fallback to mock when disabled
+
+---
+
+## G. Delivery Result Enhancements
+
+Extend `DeliveryResult`:
+- external reference ID (email ID, SFTP path, storage key)
+- duration
+- retryable flag (optional)
+
+---
+
+## H. Audit Enhancements
+
+Include in metadata:
+- delivery channel
+- storage reference
+- external IDs
+
+---
+
+## I. Resilience
+
+Add:
+- timeout handling
+- lightweight retry (1–2 attempts max)
+- safe failure handling
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. Email delivery uses real Notifications service
+2. SFTP uploads real files
+3. files stored in storage (S3 or equivalent)
+4. at least one real data adapter implemented
+5. pipeline works with real integrations
+6. structured logging implemented
+7. correlationId propagated
+8. config supports enable/disable integrations
+9. system falls back safely when disabled
+10. audit metadata enhanced
+11. service builds successfully
+12. service runs successfully
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file
+2. Replace Email adapter
+3. Implement SFTP adapter
+4. Add storage adapter
+5. Implement real data adapter
+6. Add logging and correlation
+7. Update configuration + DI
+8. Add resilience (timeouts/retries)
+9. Validate integrations
+10. Finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- Files Created/Modified
+- Integration Summary
+- Configuration Summary
+- Validation Results
+- Build Status
+- Issues
+- Decisions
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- real integrations active
+- pipeline works end-to-end with real data
+- observability implemented
+- configuration production-ready
+- system resilient
+- architecture preserved
+
+---
+
+Now implement **LS-REPORTS-06-001** exactly as described.

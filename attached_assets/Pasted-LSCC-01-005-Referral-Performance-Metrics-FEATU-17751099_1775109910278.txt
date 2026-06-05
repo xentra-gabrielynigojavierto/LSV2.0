@@ -1,0 +1,543 @@
+LSCC-01-005 — Referral Performance Metrics
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-005
+
+Initial implementation report:
+- /analysis/LSCC-01-005-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-01-005-YY-report.md
+
+Examples:
+- /analysis/LSCC-01-005-report.md
+- /analysis/LSCC-01-005-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Provide administrators with actionable performance insight into the CareConnect referral lifecycle so they can understand how quickly referrals are accepted, how responsive providers are, and where delays are occurring.
+
+This feature must provide:
+
+1. time-to-accept metrics
+2. acceptance rate metrics
+3. referral aging distribution for unaccepted referrals
+4. provider-level responsiveness comparison
+5. a simple admin-facing performance dashboard
+
+Do NOT build a full analytics or BI platform.
+Do NOT redesign booking, appointments, or broader workflow logic.
+Do NOT add predictive analytics, exports, or alerting in this feature.
+
+This feature converts operational data into actionable performance insight.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Performance metric definitions and calculation logic
+B. Admin performance API
+C. Performance dashboard UI
+D. Aging distribution view
+E. Provider responsiveness table
+F. Tests
+G. Report
+
+Do NOT implement:
+- cohort analytics
+- advanced charts/BI tooling
+- exports/CSV/PDF
+- notifications or alerting
+- provider scoring/ranking systems beyond basic displayed metrics
+- new workflow states
+- booking/appointment redesign
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing referral data and timestamps where possible
+2. Do NOT introduce new persistence unless absolutely necessary
+3. Keep calculations deterministic and testable
+4. Prefer simple aggregated queries over heavy analytics infrastructure
+5. Keep the UI high-signal and admin-focused
+6. Ensure all metrics behave safely with empty or partial data
+7. Use UTC consistently
+8. Keep this feature read-only; no mutation flows
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Backend:
+- apps/services/careconnect/...
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/admin/...
+- apps/web/src/components/careconnect/admin/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT modify unrelated product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+You already have:
+- secure referral workflow
+- canonical referral states
+- admin dashboard and queues (LSCC-01-004)
+- blocked provider visibility
+- referral queue visibility
+- created/updated timestamps
+- accepted referral states
+
+Current gap:
+- admins can see activity, but cannot yet measure performance quality
+
+LSCC-01-005 must add that performance layer.
+
+==================================================
+CORE ADMIN QUESTIONS THIS FEATURE MUST ANSWER
+==================================================
+
+After this feature, admins should be able to answer:
+
+1. How long does it take for referrals to be accepted?
+2. What percentage of referrals get accepted?
+3. Which providers are more or less responsive?
+4. How many referrals are sitting in New and for how long?
+5. Where are delays accumulating?
+
+==================================================
+METRIC DEFINITIONS
+==================================================
+
+--------------------------------------------------
+A. TIME TO ACCEPT (TTA)
+--------------------------------------------------
+
+Definition:
+- accepted timestamp minus created timestamp
+
+Formula:
+- TTA = AcceptedAtUtc - CreatedAtUtc
+
+Requirements:
+- only compute for referrals that have actually been accepted
+- if accepted timestamp is unavailable in current schema, derive it from the earliest referral status history entry where status transitioned to Accepted
+- if no reliable accepted timestamp exists, document the fallback approach clearly in the report
+- corrupted or missing timestamps must be excluded from TTA calculations
+
+Output:
+- average time to accept (hours, or a consistent unit documented in report)
+
+--------------------------------------------------
+B. ACCEPTANCE RATE
+--------------------------------------------------
+
+Definition:
+- accepted referrals divided by total referrals in the selected range
+
+Formula:
+- Acceptance Rate = Accepted Referrals / Total Referrals
+
+Requirements:
+- selected time window must be clearly defined
+- divide-by-zero must never produce NaN or Infinity
+- return 0 or null consistently when denominator is zero; document chosen behavior
+
+--------------------------------------------------
+C. REFERRAL AGING (UNACCEPTED)
+--------------------------------------------------
+
+Definition:
+- how long referrals in New have been waiting since creation
+
+Formula:
+- Aging = NowUtc - CreatedAtUtc for referrals currently in New
+
+Required buckets:
+- < 1 hour
+- 1–24 hours
+- 1–3 days
+- 3+ days
+
+Requirements:
+- only count referrals currently in New
+- bucket boundaries must be deterministic and documented
+- use UTC only
+
+--------------------------------------------------
+D. PROVIDER RESPONSIVENESS
+--------------------------------------------------
+
+For each provider in the selected range, compute:
+- Total Referrals
+- Accepted Referrals
+- Acceptance Rate
+- Average Time to Accept
+
+Requirements:
+- provider rows with zero accepted referrals may show avg TTA as null/blank/—
+- provider rows must still show totals and acceptance rate
+- provider display should be sortable on key fields if low-risk
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. PERFORMANCE API
+--------------------------------------------------
+
+Add a minimal admin endpoint.
+
+Suggested route:
+- GET /api/admin/performance
+
+Suggested query params:
+- since=<ISO datetime>   (optional)
+- or simple preset params if preferred (e.g. days=7)
+
+Recommended default:
+- last 7 days
+
+Response should include:
+
+1. Summary metrics
+   - totalReferrals
+   - acceptedReferrals
+   - acceptanceRate
+   - avgTimeToAcceptHours (or documented unit)
+
+2. Aging distribution
+   - lt1h
+   - h1to24
+   - d1to3
+   - gt3d
+
+3. Provider performance rows
+   - providerId
+   - providerName
+   - totalReferrals
+   - acceptedReferrals
+   - acceptanceRate
+   - avgTimeToAcceptHours
+
+Rules:
+- admin-only
+- deterministic
+- reasonably fast
+- no full BI-style query engine
+
+--------------------------------------------------
+B. DATA SOURCE STRATEGY
+--------------------------------------------------
+
+Preferred sources:
+- referrals
+- referral status histories / audit history if needed for AcceptedAt derivation
+- provider records
+
+Rules:
+- do not create a new analytics table unless absolutely necessary
+- if accepted timestamp must be derived from status history, do so consistently
+- document any approximations clearly
+- avoid double-counting referrals
+
+--------------------------------------------------
+C. SUMMARY METRICS VIEW
+--------------------------------------------------
+
+Create an admin performance page.
+
+Suggested route:
+- /careconnect/admin/performance
+
+Page must show summary cards for:
+- Total Referrals
+- Accepted Referrals
+- Acceptance Rate
+- Avg Time to Accept
+
+Optional low-risk metric:
+- Current New referrals count
+
+UI:
+- simple stat cards
+- no heavy charting library required
+
+--------------------------------------------------
+D. AGING DISTRIBUTION VIEW
+--------------------------------------------------
+
+Display the distribution of currently-New referrals across the required buckets:
+- < 1 hour
+- 1–24 hours
+- 1–3 days
+- 3+ days
+
+UI may be:
+- simple labeled bars
+- stacked blocks
+- compact numeric rows
+
+Rules:
+- keep it lightweight
+- make “stuck” referrals easy to identify conceptually
+- no need for complex chart libraries
+
+--------------------------------------------------
+E. PROVIDER PERFORMANCE TABLE
+--------------------------------------------------
+
+Add a simple provider performance table.
+
+Minimum columns:
+- Provider Name
+- Total Referrals
+- Accepted
+- Acceptance Rate
+- Avg Time to Accept
+
+Preferred capabilities:
+- simple sort on at least one or two useful columns (e.g. name, acceptance rate, avg TTA) if low-risk
+- empty state if no provider activity in range
+
+Rules:
+- keep the table readable
+- do not overbuild ranking logic
+- this is diagnostic, not gamification
+
+--------------------------------------------------
+F. DATE RANGE / TIME WINDOW
+--------------------------------------------------
+
+Support a simple performance time window.
+
+Minimum:
+- default last 7 days
+
+Optional low-risk additions:
+- 24h / 7d / 30d presets
+- `since` query param in URL
+
+Rules:
+- keep the time-window model simple
+- document how the selected range affects each metric
+- if using query params, keep them deterministic and shareable
+
+--------------------------------------------------
+G. EMPTY / PARTIAL DATA HANDLING
+--------------------------------------------------
+
+Must handle safely:
+
+1. no referrals in range
+- show empty state
+- summary cards should display safe values
+
+2. no accepted referrals
+- acceptance rate = 0 or documented safe value
+- avg TTA = null/blank/— or documented safe value
+
+3. provider with zero accepted
+- still show row if there are referrals
+- avg TTA handled safely
+
+4. missing timestamps
+- exclude affected records from TTA calculation
+- do not crash or misreport silently; document fallback
+
+--------------------------------------------------
+H. SECURITY / ACCESS CONTROL
+--------------------------------------------------
+
+Everything in this feature must be admin-only.
+
+Requirements:
+- performance page: admin-only
+- performance API: admin-only
+- no provider/referrer/public exposure
+- follow existing admin auth conventions already in CareConnect
+
+--------------------------------------------------
+I. PERFORMANCE / IMPLEMENTATION CONSTRAINTS
+--------------------------------------------------
+
+Requirements:
+- typical admin load should be reasonably fast
+- avoid scanning unnecessary data where filtering can be applied early
+- use indexes and filtered queries where practical
+- in-memory aggregation is acceptable only after a bounded/refined dataset is queried
+- do not introduce expensive joins unless justified
+
+If there is a tradeoff between precision and speed:
+- choose the smallest correct approach
+- document it clearly in the report
+
+--------------------------------------------------
+J. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. accepted referral with no accepted timestamp in primary record
+- derive from status history or documented fallback
+
+2. duplicate/odd history entries
+- choose consistent derivation rule (e.g. earliest Accepted transition)
+
+3. referrals created outside the range but accepted within the range
+- define whether selection is based on created date, accepted date, or another anchor
+- document the chosen rule clearly
+
+Recommended default:
+- base the cohort on referral created date for total/acceptance-rate consistency
+- if another anchor is used, document it explicitly
+
+4. old referrals still New
+- they must appear in aging buckets correctly if currently New and within query logic assumptions
+
+--------------------------------------------------
+K. FRONTEND REQUIREMENTS
+--------------------------------------------------
+
+Build:
+- /careconnect/admin/performance
+
+Suggested sections:
+1. summary metric cards
+2. aging distribution
+3. provider performance table
+
+UI priorities:
+- high signal
+- fast
+- minimal
+- easy to read
+
+Do NOT:
+- add unnecessary animations
+- add heavy data viz packages unless already standard in repo
+- turn this into a full dashboard suite
+
+--------------------------------------------------
+L. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+Backend:
+1. acceptance rate calculation
+2. avg time-to-accept calculation
+3. aging bucket distribution
+4. provider aggregation
+5. empty dataset handling
+6. zero accepted handling
+7. accepted timestamp derivation/fallback logic
+8. admin-only access enforcement
+
+Frontend:
+1. summary metrics render correctly
+2. empty state renders correctly
+3. provider table renders expected values
+4. aging distribution renders expected bucket values
+5. any sort/filter behavior added works correctly
+
+If full UI testing is limited:
+- test aggregation services thoroughly
+- test component rendering logic separately
+- document limitations in the report
+
+--------------------------------------------------
+M. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-005-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Metric definitions
+- exact formulas used
+- time-window rules
+- accepted timestamp derivation approach
+
+3. API
+- route
+- query params
+- response shape
+- auth model
+
+4. Dashboard UI
+- route
+- sections shown
+- empty-state behavior
+
+5. Data source strategy
+- which tables/history were used
+- any approximations or performance tradeoffs
+
+6. Tests
+- what scenarios are covered
+- what gaps remain
+
+7. Known limitations / deferred items
+- anything intentionally left for future work
+
+8. Recommended next step
+- smallest logical follow-up after performance metrics
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. define metric formulas and time-window anchor explicitly
+2. implement aggregation/query logic
+3. add admin performance API
+4. build performance page UI
+5. add empty/partial-data handling
+6. add tests
+7. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-005 is complete ONLY if:
+
+1. admin can see time-to-accept
+2. admin can see acceptance rate
+3. admin can see aging distribution for New referrals
+4. admin can compare provider responsiveness
+5. metrics are accurate, deterministic, and admin-only
+6. no regressions to LSCC-01-004 or prior CareConnect governance/operations features
+7. report exists at:
+   /analysis/LSCC-01-005-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this minimal, accurate, and operationally useful.
+
+This feature is about turning CareConnect from merely observable into measurable, so admins can identify delay, responsiveness, and throughput issues without building a full analytics platform.

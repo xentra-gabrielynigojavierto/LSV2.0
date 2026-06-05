@@ -1,0 +1,104 @@
+Implement a focused interaction correction for the split divider controls in:
+
+- Tenant Portal → Synq Liens → Case Detail
+- Tenant Portal → Synq Liens → Lien Detail
+
+Goal:
+Fix the divider arrow behavior so the directions match user expectation.
+
+--------------------------------------------------
+CURRENT BUG
+--------------------------------------------------
+
+The expand/collapse behavior is inverted.
+
+Expected:
+- ">" should expand the RIGHT panel
+- "<" should expand the LEFT panel
+
+Current implementation does the opposite.
+
+--------------------------------------------------
+REQUIRED BEHAVIOR
+--------------------------------------------------
+
+In split mode:
+- clicking "<" => left-expanded
+- clicking ">" => right-expanded
+
+In left-expanded mode:
+- clicking ">" => restore to split
+
+In right-expanded mode:
+- clicking "<" => restore to split
+
+If needed, update icon rendering and click handlers so the visual direction always matches the result of the action.
+
+--------------------------------------------------
+SCOPE
+--------------------------------------------------
+
+Only fix:
+- divider arrow semantics
+- related button handlers
+- any icon flipping logic tied to divider state
+
+Do NOT change:
+- layout
+- spacing
+- panel styling
+- header
+- tabs
+- data
+- routing
+- services
+- role/provider logic
+
+--------------------------------------------------
+REUSABLE COMPONENT
+--------------------------------------------------
+
+Apply the fix in the reusable LayoutSplit component so both:
+- Case Detail
+- Lien Detail
+
+inherit the corrected behavior automatically.
+
+--------------------------------------------------
+VALIDATION
+--------------------------------------------------
+
+Verify:
+
+1. Split mode
+- "<" expands left
+- ">" expands right
+
+2. Left-expanded mode
+- ">" restores split
+
+3. Right-expanded mode
+- "<" restores split
+
+4. Behavior is identical on Case and Lien pages
+
+--------------------------------------------------
+REPORTING
+--------------------------------------------------
+
+Update the existing report or create:
+- /analysis/LS-LIENS-UI-013-03-report.md
+
+Include:
+- bug summary
+- handler logic changed
+- validation results
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Divider directions match user expectation
+- Fix is implemented in LayoutSplit
+- Case and Lien pages both behave correctly
+- No regressions

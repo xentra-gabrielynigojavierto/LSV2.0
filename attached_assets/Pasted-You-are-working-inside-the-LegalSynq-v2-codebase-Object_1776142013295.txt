@@ -1,0 +1,287 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the core repositories and query layer for the approved Liens entities so the `liens` service can perform real database-backed reads and writes against `LiensDbContext`.
+
+This feature creates the first production-grade data access layer for Liens. It is NOT for API endpoints, frontend work, ETL scripts, or new domain entities yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Do NOT introduce cross-service joins
+- Do NOT mix permission/capability enforcement into persistence
+- Do NOT add new domain entities in this feature
+- Keep the data access layer aligned with the existing v2 layering style
+
+DATABASE OWNERSHIP RULE:
+- Liens-owned tables remain `liens_*`
+- Identity-owned tables remain external references only
+- Documents-owned tables remain external references only
+- Audit-owned tables remain external references only
+- Notifications-owned tables remain external references only
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING V2 DATA ACCESS PATTERNS
+--------------------------------------------------
+
+Inspect how existing v2 services implement repositories / query access.
+
+Look at relevant services such as:
+- Fund
+- CareConnect
+- Identity
+
+Identify:
+- where repository interfaces are placed
+- where implementations are placed
+- whether the codebase uses:
+  - repository interfaces + implementations
+  - query services
+  - direct DbContext injection in application services
+  - unit-of-work style save semantics
+- DI registration conventions
+- read vs write patterns
+- use of `AsNoTracking()`
+
+Follow the existing v2 pattern as closely as possible.
+Do NOT invent a brand-new architecture for Liens.
+
+--------------------------------------------------
+STEP 2 — DEFINE THE DATA ACCESS ABSTRACTIONS
+--------------------------------------------------
+
+Create repository and/or query abstractions for the currently approved Liens entities only:
+
+- `Case`
+- `Contact`
+- `Facility`
+- `LookupValue`
+- `Lien`
+- `LienOffer`
+- `BillOfSale`
+
+The abstractions should be practical and workflow-aware, not just generic CRUD wrappers.
+
+At minimum, support methods such as:
+
+### Case
+- get by id
+- get by case number
+- list by tenant/org
+- list by status
+- add/update
+- existence checks if useful
+
+### Contact
+- get by id
+- list by tenant/org
+- list by contact type
+- lookup by email if useful
+- add/update
+
+### Facility
+- get by id
+- list by tenant/org
+- lookup by code
+- search/list by name
+- add/update
+
+### LookupValue
+- get by category/code
+- list by category
+- list system + tenant values
+- add/update if current model allows it
+
+### Lien
+- get by id
+- get by lien number
+- list by tenant/org
+- list by seller org
+- list by holder org
+- list by status
+- foundation queries for:
+  - marketplace
+  - my liens
+  - portfolio
+- add/update
+
+### LienOffer
+- get by id
+- list by lien
+- list by buyer org
+- list by seller org
+- list by status
+- add/update
+
+### BillOfSale
+- get by id
+- get by bill of sale number
+- list by lien
+- list by seller org
+- list by buyer org
+- list by status
+- add/update
+
+--------------------------------------------------
+STEP 3 — KEEP QUERIES ALIGNED TO PRODUCT WORKFLOWS
+--------------------------------------------------
+
+The methods should support the product flows already established.
+
+Examples:
+- marketplace view
+- seller’s own liens
+- holder portfolio view
+- offers received by seller
+- offers submitted by buyer
+- BOS records by seller/buyer
+
+Do NOT overbuild every imaginable query.
+Implement the queries that clearly support the next phase of APIs/application services.
+
+--------------------------------------------------
+STEP 4 — USE LIENSDBCONTEXT CORRECTLY
+--------------------------------------------------
+
+Implement the repositories/query layer on top of `LiensDbContext`.
+
+Requirements:
+- use async methods consistently
+- use `AsNoTracking()` for read-only queries where appropriate
+- use tracked entities for updates where appropriate
+- keep save semantics explicit and consistent with the current codebase pattern
+
+If the platform pattern uses:
+- a unit-of-work style save
+- repository-level save
+- application service-level save
+
+follow that existing pattern exactly.
+
+Do NOT guess. Inspect the platform first.
+
+--------------------------------------------------
+STEP 5 — NO CROSS-SERVICE JOINS
+--------------------------------------------------
+
+Do NOT join directly to:
+- Identity tables/services
+- Documents tables/services
+- Audit tables/services
+- Notifications tables/services
+
+Return Liens-owned data plus scalar reference IDs only.
+
+Examples:
+- return `SellerOrgId`, not org name
+- return `DocumentId`, not document metadata
+- return `CreatedByUserId`, not user profile
+
+Cross-service enrichment belongs in later API/application layers.
+
+--------------------------------------------------
+STEP 6 — KEEP PERMISSION/CAPABILITY LOGIC OUT OF PERSISTENCE
+--------------------------------------------------
+
+Do NOT:
+- filter by JWT claims inside repositories
+- enforce permissions in repository methods
+- embed `LIENS_SELL` / `LIENS_MANAGE_INTERNAL` logic into persistence
+
+The repository layer should expose the data access patterns.
+Capability-aware branching belongs in application services and endpoints.
+
+--------------------------------------------------
+STEP 7 — REGISTER IN DI
+--------------------------------------------------
+
+Register the repository/query implementations in DI following the existing v2 pattern.
+
+Keep registration localized to the proper Liens Infrastructure/Application wiring.
+
+Do NOT modify unrelated services.
+
+--------------------------------------------------
+STEP 8 — VALIDATE WITH REAL QUERY EXECUTION
+--------------------------------------------------
+
+Run validation to ensure the repositories work against the current schema and DbContext.
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. Repositories resolve in DI
+4. Core queries compile and execute without schema mismatch
+5. No regression to identity integration
+6. No regression to gateway behavior
+
+If you need a lightweight smoke test or a minimal temporary validation path, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 9 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add API endpoints
+- add controllers/minimal API handlers
+- add ETL scripts
+- add new domain entities (`ServicingTask`, `CaseNote`, etc.)
+- add advanced reporting/read models
+- add cross-service enrichment logic
+- add permission enforcement logic
+
+This feature is only:
+- repositories / query layer
+- DI registration
+- validation
+
+--------------------------------------------------
+STEP 10 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-05-001-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 data access pattern identified and followed
+3. Exact files created/changed
+4. Repository/query abstractions added
+5. Where interfaces live
+6. Where implementations live
+7. Method inventory by entity
+8. Supported workflow query patterns
+9. Save/persistence coordination model used
+10. DI registration changes
+11. Validation performed
+12. Confirmation:
+    - no cross-service joins introduced
+    - no permission/capability logic mixed into persistence
+    - no new domain entities added
+13. Build results:
+    - Liens
+    - relevant solution/workspace
+14. Risks / assumptions
+15. Final readiness statement:
+    - Is the core repository/query layer established?
+    - Is the service ready for the next feature?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Create the core Liens repository/query layer over `LiensDbContext` so the next features can build real application services and APIs without redesigning persistence access.
+
+Proceed.

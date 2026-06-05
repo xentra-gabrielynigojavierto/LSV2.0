@@ -1,0 +1,253 @@
+You are implementing BLK-TS-01 — Tenant Core Foundation for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-TS-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block creates the new canonical tenant/company source of truth in the Tenant service.
+   It does NOT yet refactor CareConnect or Identity behavior.
+
+5. Do NOT modify onboarding flows yet.
+   This block is foundation only.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Implement the core Tenant service capabilities so that Tenant becomes the system of record for:
+
+- tenant/company creation
+- tenant code validation
+- subdomain assignment
+- canonical tenant metadata
+
+At the end of this block:
+
+- Tenant service can validate tenant codes
+- Tenant service can create tenants
+- Tenant service stores canonical tenant/company records
+- Tenant service persists tenant code/subdomain ownership
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- Tenant domain/data model
+- code normalization + uniqueness rules
+- provision API
+- code-check API
+- persistence + migrations
+- minimal validation/testing
+
+This block does NOT include:
+
+- DNS provisioning
+- product activation
+- CareConnect refactor
+- Identity refactor
+- migration/backfill from Identity
+
+--------------------------------------------------
+
+PART A — DOMAIN MODEL
+
+--------------------------------------------------
+
+Create or align canonical Tenant service entities for:
+
+1. Tenant
+   - Id
+   - Name / DisplayName
+   - Code
+   - Subdomain
+   - Status
+   - CreatedAtUtc
+   - UpdatedAtUtc
+
+2. Optional supporting entities if the repo structure expects them:
+   - TenantDomain
+   - TenantSettings
+
+Keep the model pragmatic.
+Do NOT overbuild.
+
+Rules:
+- Tenant code must be normalized
+- Subdomain should align to tenant code unless there is already a platform pattern that separates them
+- Code/subdomain must be unique
+
+--------------------------------------------------
+
+PART B — TENANT CODE VALIDATION
+
+--------------------------------------------------
+
+Implement:
+
+GET /api/tenants/check-code?code=acme
+
+Behavior:
+- normalize input
+- validate format
+- check uniqueness
+- return structured response
+
+Recommended response shape:
+
+{
+  "available": true,
+  "normalizedCode": "acme"
+}
+
+Validation rules:
+- lowercase
+- alphanumeric + hyphen
+- no leading/trailing hyphen
+- reasonable length (match current platform slug rules if present)
+
+Do NOT put this logic in Identity.
+
+--------------------------------------------------
+
+PART C — TENANT PROVISION API
+
+--------------------------------------------------
+
+Implement:
+
+POST /api/tenants/provision
+
+Suggested request:
+
+{
+  "tenantName": "Acme Medical",
+  "tenantCode": "acme"
+}
+
+Suggested response:
+
+{
+  "tenantId": "...",
+  "tenantCode": "acme",
+  "subdomain": "acme"
+}
+
+Behavior:
+1. validate request
+2. normalize tenantCode
+3. verify uniqueness
+4. create tenant
+5. persist canonical tenant/company data
+6. return created tenant metadata
+
+Do NOT:
+- create users
+- create Identity memberships
+- assign JWT roles
+- provision DNS yet
+
+This is Tenant service ownership only.
+
+--------------------------------------------------
+
+PART D — PERSISTENCE / MIGRATIONS
+
+--------------------------------------------------
+
+Add required persistence:
+
+- EF model updates
+- migrations
+- indexes / uniqueness constraints where practical
+
+At minimum ensure:
+- tenant code uniqueness
+- subdomain uniqueness
+
+If the repo already has Tenant service tables, align and extend them instead of duplicating.
+
+--------------------------------------------------
+
+PART E — API / SERVICE LAYER
+
+--------------------------------------------------
+
+Implement clean service/repository separation consistent with the repo patterns.
+
+Suggested service responsibilities:
+- normalize tenant code
+- validate uniqueness
+- create tenant
+
+Suggested repository responsibilities:
+- existence checks
+- persistence
+- retrieval by code/subdomain/id
+
+--------------------------------------------------
+
+PART F — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST test and document:
+
+1. valid tenant code returns available
+2. invalid tenant code rejected
+3. duplicate code rejected
+4. tenant provision succeeds with valid input
+5. created tenant persists correctly
+6. duplicate provision attempt fails cleanly
+7. dotnet build succeeds
+
+If unit/integration tests fit the current repo patterns, add them.
+If not, document manual validation clearly.
+
+--------------------------------------------------
+
+PART G — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-TS-01-report.md
+
+# BLK-TS-01 Report
+
+## 1. Summary
+## 2. Domain Model
+## 3. API Endpoints
+## 4. Persistence / Migrations
+## 5. Validation Rules
+## 6. Test Results
+## 7. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- refactor Identity yet
+- refactor CareConnect yet
+- add DNS provisioning
+- add product activation
+- add tenant membership logic
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- Tenant service can validate codes
+- Tenant service can provision tenants
+- canonical tenant/company data is stored in Tenant service
+- report saved at:
+  /analysis/BLK-TS-01-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

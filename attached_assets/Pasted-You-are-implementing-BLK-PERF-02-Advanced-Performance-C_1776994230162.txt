@@ -1,0 +1,344 @@
+You are implementing BLK-PERF-02 — Advanced Performance (Caching, Read Optimization, Response Efficiency) for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-PERF-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block builds on BLK-PERF-01.
+   - BLK-PERF-01 optimized queries and indexing
+   - BLK-PERF-02 introduces SAFE performance scaling patterns
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - introduce cross-tenant data leakage via caching
+   - cache authorization decisions across users
+   - weaken tenant isolation, governance, or trust-boundary logic
+   - introduce distributed caching unless explicitly justified and safe
+   - redesign APIs or response contracts
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Improve runtime performance under load by introducing:
+
+- safe, tenant-aware caching patterns
+- read-path optimizations for frequently accessed data
+- response shaping improvements
+- elimination of redundant compute and repeated DB access
+
+At the end of this block:
+
+- repeated read-heavy endpoints avoid unnecessary DB hits
+- tenant-aware caching is safe and deterministic
+- response payloads are efficient
+- no correctness, security, or governance regressions exist
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- in-memory caching for safe read scenarios
+- response-level optimization
+- hotspot endpoint caching strategy
+- repeated computation elimination
+- lightweight read-model shaping (WITHOUT new data stores)
+
+This block does NOT include:
+
+- Redis or distributed caching (unless already scaffolded)
+- CQRS/event sourcing redesign
+- schema redesign
+- breaking API changes
+- background processing systems
+
+--------------------------------------------------
+
+PART A — IDENTIFY CACHEABLE READ PATHS
+
+--------------------------------------------------
+
+Audit endpoints for safe caching candidates.
+
+Prioritize:
+
+1. Public endpoints
+   - `/api/public/network/*`
+   - provider lists / markers
+   - network summaries
+
+2. Tenant read endpoints
+   - static reference data (network config, provider metadata)
+   - low-frequency-changing data
+
+3. Admin dashboards (bounded caching)
+   - summary metrics (short TTL)
+
+DO NOT CACHE:
+
+- user-specific data
+- authorization-sensitive results
+- write-heavy or rapidly mutating data
+- anything dependent on request identity unless cache key includes it
+
+For each candidate, document:
+- cache key shape
+- tenant dependency
+- expected TTL
+- invalidation considerations
+
+--------------------------------------------------
+
+PART B — IMPLEMENT TENANT-AWARE IN-MEMORY CACHING
+
+--------------------------------------------------
+
+Use IMemoryCache (or existing abstraction if present).
+
+Rules:
+
+1. Cache key MUST include tenant context:
+   Example:
+   - `network:list:{tenantId}`
+   - `provider:markers:{tenantId}:{networkId}`
+
+2. Cache must NOT mix tenants under any condition.
+
+3. Cache entries must include:
+   - absolute expiration (TTL)
+   - optional size/priority if supported
+
+4. Suggested TTLs:
+   - public network data: 30–120 seconds
+   - admin summaries: 10–30 seconds
+   - provider metadata: 60–180 seconds
+
+5. Use helper methods if needed:
+   - GetOrCreateAsync pattern
+   - small wrapper around IMemoryCache for consistency
+
+6. Ensure cache population happens AFTER tenant validation.
+
+--------------------------------------------------
+
+PART C — SAFE CACHE INVALIDATION STRATEGY
+
+--------------------------------------------------
+
+You are NOT building a full invalidation system.
+
+Instead:
+
+- rely on short TTLs
+- invalidate manually where trivial and safe
+
+Optional (only if trivial):
+- after write operations (e.g. provider activation), remove affected cache keys
+
+DO NOT:
+- introduce complex pub/sub invalidation
+- attempt cross-service invalidation
+
+Document limitations clearly.
+
+--------------------------------------------------
+
+PART D — RESPONSE SHAPING OPTIMIZATION
+
+--------------------------------------------------
+
+Review high-traffic responses.
+
+Optimize:
+
+- remove unnecessary fields in list endpoints
+- ensure projections are minimal (already partly done in PERF-01)
+- avoid sending large nested objects unless required
+- ensure DTOs are purpose-specific where already separated
+
+DO NOT:
+- change public contracts
+- break frontend expectations
+
+--------------------------------------------------
+
+PART E — ELIMINATE REDUNDANT COMPUTATION
+
+--------------------------------------------------
+
+Identify repeated logic per request:
+
+Examples:
+- repeated aggregation queries
+- repeated mapping logic
+- repeated service calls within same request
+
+Optimize by:
+- computing once per request
+- reusing intermediate results
+- combining queries where safe
+
+--------------------------------------------------
+
+PART F — ADMIN DASHBOARD OPTIMIZATION (CACHED READS)
+
+--------------------------------------------------
+
+Apply short-lived caching to:
+
+- dashboard summaries
+- funnel metrics
+- performance stats
+
+Requirements:
+
+- cache key must include tenantId OR platform scope
+- TTL must be short (10–30 seconds)
+- PlatformAdmin vs TenantAdmin behavior must remain correct
+
+--------------------------------------------------
+
+PART G — VALIDATION / SAFETY CHECKS
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. No cross-tenant cache leakage
+2. TenantId always included in cache keys where applicable
+3. Cached data respects governance rules
+4. Public trust-boundary logic remains intact
+5. Cached endpoints return correct results across tenants
+6. Cache does not bypass authorization checks
+7. Cache TTL behavior works as expected
+8. dotnet build succeeds (all touched services)
+9. No regression in tests
+
+If feasible, add tests for:
+- cache key correctness
+- tenant isolation in cache
+- cache hit/miss behavior
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-PERF-02-report.md
+
+# BLK-PERF-02 Report
+
+## 1. Summary
+
+## 2. Cacheable Endpoint Audit
+- endpoints selected
+- justification
+
+## 3. Cache Implementation
+- cache keys
+- TTL strategy
+- code patterns used
+
+## 4. Cache Safety (Tenant Isolation)
+- how tenant isolation is enforced in cache keys
+
+## 5. Cache Invalidation Strategy
+- TTL vs manual invalidation
+
+## 6. Response Optimization
+- payload improvements
+
+## 7. Redundant Computation Removal
+- optimizations applied
+
+## 8. Admin Dashboard Optimization
+- caching behavior
+
+## 9. Validation Results
+
+## 10. Changed Files
+- full file paths
+
+## 11. Methods / Endpoints Updated
+
+## 12. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 13. Issues / Gaps
+
+--------------------------------------------------
+
+PART I — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-PERF-02-commit.diff.txt
+
+--------------------------------------------------
+
+PART I.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-PERF-02-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- caching layer
+- tenant-aware cache keys
+- response optimization
+- admin dashboard improvements
+
+--------------------------------------------------
+
+PART I.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 14. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-PERF-02-commit.diff.txt
+- Summary: /analysis/BLK-PERF-02-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- performance improvements are safe and tenant-aware
+- no regression in security, governance, or trust boundary
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

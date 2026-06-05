@@ -1,0 +1,140 @@
+You are implementing CC2-INT-B08 — Public Referral Initiation + Interaction Layer for CareConnect.
+
+CRITICAL:
+
+1. Create report FIRST:
+   /analysis/CC2-INT-B08-report.md
+
+2. Update incrementally.
+
+3. This builds on:
+   - B06-01 (provider registry)
+   - B06-02 (provider lifecycle)
+   - B07 (public network surface)
+
+4. DO NOT change provider or network data models.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Turn the public network directory into an actionable surface:
+
+- allow users (law firms) to initiate referrals
+- connect public provider directory → referral creation flow
+- maintain compatibility with URL-stage providers
+
+--------------------------------------------------
+
+PART A — REFERRAL INITIATION
+
+--------------------------------------------------
+
+Add action to provider cards:
+
+- "Request Referral"
+- "Refer Patient"
+
+Behavior:
+
+- opens referral form
+- collects:
+    - patient name
+    - contact info
+    - case notes (optional)
+    - service type (if available)
+
+--------------------------------------------------
+
+PART B — BACKEND ENDPOINT
+
+--------------------------------------------------
+
+Create public-safe endpoint:
+
+POST /api/public/referrals
+
+Behavior:
+
+- validates input
+- resolves provider
+- creates referral
+- triggers notification
+- generates provider access token URL
+
+--------------------------------------------------
+
+PART C — TOKEN FLOW
+
+--------------------------------------------------
+
+Ensure:
+
+- URL-stage providers receive:
+    - signed referral link
+
+- COMMON_PORTAL providers:
+    - email + portal visibility
+
+--------------------------------------------------
+
+PART D — UI FLOW
+
+--------------------------------------------------
+
+Public:
+
+- modal or page for referral submission
+- success screen:
+    "Referral sent successfully"
+
+--------------------------------------------------
+
+PART E — SECURITY
+
+--------------------------------------------------
+
+- rate limit endpoint
+- validate input strictly
+- prevent abuse
+
+--------------------------------------------------
+
+PART F — TESTING
+
+--------------------------------------------------
+
+1. Referral can be created from public directory
+2. Provider receives notification
+3. URL-stage provider can access referral
+4. COMMON_PORTAL provider sees referral in portal
+5. No auth required for public submit
+6. No cross-tenant leakage
+
+--------------------------------------------------
+
+REPORT FORMAT
+
+/analysis/CC2-INT-B08-report.md
+
+# CC2-INT-B08 Report
+
+## 1. Summary
+## 2. Referral Flow
+## 3. Backend Changes
+## 4. UI Changes
+## 5. Security
+## 6. Test Results
+## 7. Issues
+
+--------------------------------------------------
+
+DO NOT:
+
+- change provider registry
+- introduce auth requirements for public flow
+- break existing referral flows
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

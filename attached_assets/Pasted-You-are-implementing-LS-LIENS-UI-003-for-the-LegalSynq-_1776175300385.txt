@@ -1,0 +1,354 @@
+You are implementing LS-LIENS-UI-003 for the LegalSynq Liens v2 migration.
+
+Feature ID: LS-LIENS-UI-003  
+Feature Title: Cross-Entity Cases ↔ Liens Integration with Enforced Service Layer Pattern
+
+Objective:
+Wire the Liens module to real backend APIs and establish full cross-entity integration between Cases and Liens. This must strictly follow the frontend architecture pattern established in LS-LIENS-UI-002 and enable real navigation and data consistency between Cases and Liens.
+
+This is the first cross-entity integration feature and must serve as the standard for all future domain relationships.
+
+---
+
+# 🔴 Critical Architecture Rules (Non-Negotiable)
+
+1. Preserve the v2 shell (top nav + side nav).
+2. Preserve existing UI layout and flow from UI-01 unless minimal adaptation is required.
+3. Enforce strict layering:
+   - API client layer
+   - Service layer
+   - Mapper/adapter layer
+   - UI state layer
+   - Presentation layer
+4. NO direct HTTP calls in pages/components.
+5. NO DTO-to-UI transformation inside components.
+6. NO production mock/static lien data.
+7. MUST reuse the exact architectural pattern from LS-LIENS-UI-002.
+8. MUST NOT invent backend APIs — use only what exists.
+9. MUST preserve donor SynqLiens behavior where supported.
+10. Cross-entity data must come ONLY from backend truth.
+
+---
+
+# 🧱 Required Frontend Architecture
+
+You MUST replicate the same structure used in Cases:
+
+Layer 1 — API Client (`liens.api.ts`)
+- raw HTTP only
+- endpoints, params, headers
+- typed DTOs
+- NO UI shaping
+
+Layer 2 — Service Layer (`liens.service.ts`)
+- business-facing methods
+- only entry point for UI
+- calls API client
+- applies mappers
+
+Layer 3 — Mapper Layer (`liens.mapper.ts`)
+- DTO → UI model transformation
+- normalization
+- status/display mapping
+- NO duplication across components
+
+Layer 4 — Types (`liens.types.ts`)
+- DTOs
+- query models
+- UI models
+- cross-entity types (minimal)
+
+Layer 5 — UI State (Zustand or existing pattern)
+- UI state only (filters, pagination, selection, loading)
+- NOT source of truth for data
+
+Layer 6 — Presentation (pages/components)
+- rendering only
+- receives typed models
+- no HTTP
+- no raw response handling
+
+---
+
+# 🔍 Implementation Scope
+
+## A. Analyze Existing Liens UI
+- Inspect `/lien/liens` list page
+- Inspect `/lien/liens/[id]` detail page
+- Identify:
+  - mock data usage
+  - Zustand dependencies
+  - static values
+  - fake relationship indicators
+  - unsupported actions
+
+## B. Analyze Backend APIs
+Identify available endpoints for:
+- list liens
+- get lien by ID
+- get liens by case
+- update lien (if available)
+- status updates (if available)
+- offers/history (if available)
+
+DO NOT invent missing APIs.
+
+---
+
+# 🧩 C. Implement Liens API Client
+
+Create or refine:
+- `liens.api.ts`
+
+Example methods (only if supported):
+- list(query)
+- getById(id)
+- listByCase(caseId)
+- update(...)
+- updateStatus(...)
+- getOffers(...)
+- getHistory(...)
+
+Rules:
+- raw HTTP only
+- typed DTOs
+- no UI mapping
+
+---
+
+# 🧠 D. Implement Liens Service Layer
+
+Create:
+- `liens.service.ts`
+
+Responsibilities:
+- expose clean UI-facing methods:
+  - getLiens(query)
+  - getLien(id)
+  - getLiensByCase(caseId)
+  - updateLien(...)
+  - updateLienStatus(...)
+- call API client
+- apply mapper transformations
+- isolate backend quirks
+
+---
+
+# 🔄 E. Implement Mapper Layer
+
+Create:
+- `liens.mapper.ts`
+
+Must map:
+- lien list item
+- lien detail model
+- linked case summary
+- status/progress display
+- amount formatting-safe values
+- nullable fields
+
+Rules:
+- NO mapping in components
+- NO duplication
+
+---
+
+# 🧾 F. Implement Types
+
+Create:
+- `liens.types.ts`
+
+Include:
+- backend DTOs
+- UI models
+- query models
+- pagination model
+- minimal shared case reference type
+
+---
+
+# 📊 G. Wire Liens List Page
+
+File:
+`/lien/liens/page.tsx`
+
+Replace:
+- mock/store data
+
+With:
+- `liensService.getLiens()`
+
+Must support:
+- load
+- refresh
+- search
+- filter
+- sorting
+- pagination
+- open detail
+
+Ensure:
+- layout unchanged
+- empty state
+- error state
+- loading state
+
+---
+
+# 📄 H. Wire Lien Detail Page
+
+File:
+`/lien/liens/[id]/page.tsx`
+
+Replace:
+- mock/store data
+
+With:
+- `liensService.getLien()`
+
+Must support:
+- route load
+- refresh
+- not found
+- unauthorized
+
+Ensure:
+- layout preserved
+- real data displayed
+
+---
+
+# 🔗 I. Cross-Entity Integration (CRITICAL)
+
+## Case → Liens
+In Case Detail:
+- Use `liensService.getLiensByCase(caseId)`
+- Replace any mock lien references
+- Show real related liens
+- Enable navigation:
+  → `/lien/liens/[id]`
+
+## Lien → Case
+In Lien Detail:
+- Display linked case:
+  - case number
+  - basic summary if available
+- Enable navigation:
+  → `/lien/cases/[id]`
+
+## Consistency Rules
+- Case ↔ Lien relationship must match backend truth
+- No duplicate or inferred data
+- No mismatch between modules
+
+---
+
+# ⚠️ J. Unsupported Actions
+
+For any lien actions without API support:
+- disable OR hide OR label clearly
+
+Examples:
+- create lien from case (if missing API)
+- assign workflows
+- document uploads if not wired
+
+DO NOT leave fake interactive UI.
+
+---
+
+# 🧠 K. State Management Rules
+
+Allowed:
+- filters
+- pagination
+- sorting
+- UI flags
+
+NOT allowed:
+- mock data storage
+- API response mutation in components
+
+---
+
+# 🚨 L. Error / Loading States
+
+Must handle:
+- loading
+- refetch
+- empty results
+- API error
+- unauthorized
+- not found
+
+No blank states.
+
+---
+
+# 🔁 M. Pattern Consistency Validation
+
+Ensure Liens implementation:
+- matches Cases structure exactly
+- does not introduce a new pattern
+
+---
+
+# 📁 Files to Create / Modify
+
+Expected (adapt to repo conventions):
+
+- `liens.api.ts`
+- `liens.service.ts`
+- `liens.mapper.ts`
+- `liens.types.ts`
+- liens list page
+- lien detail page
+- case detail page (for cross-link)
+
+---
+
+# 📄 Report Output
+
+Create:
+
+`/analysis/LS-LIENS-UI-003-report.md`
+
+Must include:
+
+- Executive summary
+- Before vs after data flow
+- API endpoints used
+- Service layer design
+- Mapper structure
+- Cross-entity integration details
+- Unsupported actions
+- Schema mismatches
+- Files changed
+- Risks / blockers
+- Pattern consistency vs UI-002
+- Recommended next module
+
+---
+
+# 🚀 Execution Instructions
+
+- DO the implementation (not just analysis)
+- Make real code changes
+- If APIs are missing → complete partial and document
+- Do NOT stop at planning
+- Save report before finishing
+
+---
+
+# ✅ Success Criteria
+
+- Liens list uses real API
+- Lien detail uses real API
+- NO direct HTTP in components
+- Service layer enforced
+- Mapper layer enforced
+- No mock data remains
+- Case ↔ Liens navigation works
+- Relationship data consistent
+- UI layout unchanged
+- Report complete

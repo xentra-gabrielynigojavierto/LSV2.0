@@ -1,0 +1,397 @@
+You are implementing BLK-OPS-01 — Runtime & Environment Hardening for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-OPS-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block hardens runtime configuration AFTER security, tenant isolation, observability, governance, and performance baseline are complete.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new product features
+   - redesign UX
+   - weaken existing security controls
+   - remove fail-fast behavior
+   - hardcode production secrets
+   - introduce insecure local-development shortcuts into production paths
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Make the platform safer to run in production by enforcing environment, secret, and runtime configuration correctness.
+
+At the end of this block:
+
+- required production secrets/configs are validated at startup
+- insecure placeholder values fail fast outside Development
+- gateway/BFF/service trust-boundary config is consistent
+- runtime misconfiguration is visible and diagnosable
+- local development remains usable without weakening production behavior
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- production environment validation audit
+- secret/config fail-fast enforcement
+- placeholder/default value detection
+- trust-boundary secret validation
+- gateway route/runtime config validation
+- service dependency URL validation
+- production readiness checklist generation
+
+This block does NOT include:
+
+- secret rotation implementation
+- infrastructure provisioning
+- cloud deployment scripts
+- new monitoring dashboards
+- new business features
+
+--------------------------------------------------
+
+PART A — AUDIT CURRENT RUNTIME CONFIGURATION
+
+--------------------------------------------------
+
+Audit required runtime configuration across:
+
+1. Gateway
+   - JWT config
+   - YARP routes/clusters
+   - PublicTrustBoundary.InternalRequestSecret
+   - auth policies / anonymous routes
+
+2. CareConnect
+   - JWT config
+   - TenantService.BaseUrl
+   - TenantService.ProvisioningToken
+   - IdentityService.BaseUrl
+   - IdentityService.ProvisioningToken
+   - PublicTrustBoundary.InternalRequestSecret
+   - Audit service config
+   - database connection string
+
+3. Tenant service
+   - database connection string
+   - TenantService.ProvisioningSecret
+   - JWT/AdminOnly config
+   - public resolution settings
+
+4. Identity service
+   - database connection string
+   - TenantService.ProvisioningSecret
+   - JWT config
+   - NotificationsService config
+   - Audit service config
+
+5. Web / BFF
+   - GATEWAY_URL
+   - INTERNAL_REQUEST_SECRET
+   - tenant resolution settings
+   - auth/session settings
+
+Document:
+- required keys
+- current default values
+- which keys are dev-only
+- which keys must never be empty in production
+- which placeholders must fail fast
+
+--------------------------------------------------
+
+PART B — CENTRALIZE CONFIG VALIDATION WHERE PRACTICAL
+
+--------------------------------------------------
+
+If the repo already has config validation patterns, reuse them.
+
+Otherwise, add minimal startup validation helpers.
+
+Preferred direction:
+
+- create lightweight validation helper(s), for example:
+  - RuntimeConfigValidation.RequireNonEmpty(...)
+  - RuntimeConfigValidation.RequireNotPlaceholder(...)
+  - RuntimeConfigValidation.RequireAbsoluteUrl(...)
+  - RuntimeConfigValidation.RequireConnectionString(...)
+
+Rules:
+- keep it simple
+- avoid overbuilt framework
+- use in services where it reduces duplicate code
+- validation should throw clear InvalidOperationException at startup
+
+--------------------------------------------------
+
+PART C — FAIL-FAST PRODUCTION SECRET VALIDATION
+
+--------------------------------------------------
+
+Ensure non-Development environments fail fast when required secrets are:
+
+- missing
+- empty
+- whitespace
+- known placeholder values such as:
+  - REPLACE_VIA_SECRET
+  - CHANGE_ME
+  - dev-only
+  - localhost-only production URL where invalid
+
+At minimum validate:
+
+Gateway:
+- Jwt:SigningKey
+- PublicTrustBoundary:InternalRequestSecret
+
+CareConnect:
+- Jwt:SigningKey
+- TenantService:ProvisioningToken
+- IdentityService:ProvisioningToken
+- PublicTrustBoundary:InternalRequestSecret
+- ConnectionStrings default / CareConnectDb if applicable
+
+Tenant:
+- Jwt:SigningKey if used
+- TenantService:ProvisioningSecret
+- DB connection string
+
+Identity:
+- Jwt:SigningKey
+- TenantService:ProvisioningSecret
+- NotificationsService settings needed for production user flows
+- DB connection string
+
+Web/BFF:
+- INTERNAL_REQUEST_SECRET must be documented as required for production
+- GATEWAY_URL must be configured outside local dev
+
+Do NOT commit real secrets.
+
+--------------------------------------------------
+
+PART D — TRUST BOUNDARY CONFIG CONSISTENCY
+
+--------------------------------------------------
+
+Validate consistency between:
+
+- Gateway `PublicTrustBoundary:InternalRequestSecret`
+- CareConnect `PublicTrustBoundary:InternalRequestSecret`
+- Web/BFF `INTERNAL_REQUEST_SECRET`
+
+Requirements:
+- document that all three must match
+- fail fast where services can validate local presence
+- do not attempt to compare across services at startup unless existing infrastructure supports it
+- add clear error messages if missing/placeholder
+
+--------------------------------------------------
+
+PART E — SERVICE DEPENDENCY URL VALIDATION
+
+--------------------------------------------------
+
+Validate required service URLs in production:
+
+CareConnect:
+- TenantService.BaseUrl
+- IdentityService.BaseUrl
+- Audit service URL if used
+
+Web/BFF:
+- GATEWAY_URL
+
+Rules:
+- must be absolute URL
+- must not be empty
+- must not default to localhost in production unless explicitly allowed
+- error messages should identify config key
+
+--------------------------------------------------
+
+PART F — GATEWAY ROUTE HARDENING CHECK
+
+--------------------------------------------------
+
+Audit gateway route configuration.
+
+Validate:
+
+- internal routes are denied externally
+- public routes are intentionally anonymous
+- catch-all routes require auth
+- careconnect public route uses trust-boundary flow
+- no accidental anonymous admin/internal route exists
+
+If config validation can detect dangerous route setup, add it.
+Otherwise document verified route posture.
+
+--------------------------------------------------
+
+PART G — PRODUCTION READINESS CHECKLIST
+
+--------------------------------------------------
+
+Generate a checklist inside the report for deployment.
+
+At minimum include:
+
+- secrets required
+- env vars required
+- services that must share same values
+- database migration requirement
+- gateway route assumptions
+- public endpoint trust-boundary assumptions
+- rollback notes
+- smoke tests after deploy
+
+--------------------------------------------------
+
+PART H — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Development startup remains usable
+2. Production startup fails when required secrets are missing
+3. Production startup fails when placeholder values are used
+4. Valid production-like config passes validation
+5. Gateway builds
+6. CareConnect builds
+7. Tenant builds if touched
+8. Identity builds if touched
+9. Web/Next.js builds if touched
+10. Existing security controls remain intact
+11. Public trust-boundary flow still works
+
+If feasible, add unit tests for config validation helper(s).
+
+--------------------------------------------------
+
+PART I — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-OPS-01-report.md
+
+# BLK-OPS-01 Report
+
+## 1. Summary
+
+## 2. Runtime Config Audit
+- required keys by service
+- dev vs production behavior
+
+## 3. Config Validation Implementation
+- helpers added or existing patterns reused
+- services updated
+
+## 4. Production Secret Fail-Fast Rules
+- missing/empty/placeholder validation
+
+## 5. Trust Boundary Config Consistency
+- Gateway/CareConnect/Web requirements
+
+## 6. Service URL Validation
+- production URL rules
+
+## 7. Gateway Route Hardening Review
+- anonymous/auth/deny route posture
+
+## 8. Production Readiness Checklist
+- deploy requirements
+- smoke tests
+
+## 9. Validation Results
+
+## 10. Changed Files
+- full file paths
+
+## 11. Methods / Endpoints Updated
+
+## 12. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 13. Issues / Gaps
+
+--------------------------------------------------
+
+PART J — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-OPS-01-commit.diff.txt
+
+--------------------------------------------------
+
+PART J.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-OPS-01-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- runtime config validation
+- fail-fast secret enforcement
+- placeholder detection
+- URL validation
+- production readiness checklist
+
+--------------------------------------------------
+
+PART J.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 14. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-OPS-01-commit.diff.txt
+- Summary: /analysis/BLK-OPS-01-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- production misconfiguration fails fast
+- development remains usable
+- no production secrets are committed
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

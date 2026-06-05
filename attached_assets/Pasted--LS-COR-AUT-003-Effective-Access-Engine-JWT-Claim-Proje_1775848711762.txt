@@ -1,0 +1,313 @@
+# LS-COR-AUT-003 — Effective Access Engine + JWT Claim Projection
+
+## Objective
+
+Implement the **effective access computation layer and JWT claim projection** for LS-COR-AUT.
+
+This feature must connect the **source-of-truth model (LS-COR-AUT-002)** with the **runtime enforcement layer (LS-COR-AUT-001)** by:
+
+* computing a user’s effective product access and roles
+* projecting that access into JWT claims (including `product_roles`)
+* ensuring downstream services continue to function without modification
+* introducing token freshness/invalidation controls
+
+At completion, **JWT claims must be derived from the new source-of-truth model**, not legacy or static mappings.
+
+---
+
+## Architectural Constraints
+
+### Identity ownership
+
+* JWT issuance remains in Identity
+* This feature extends claim generation, not authentication
+* Do NOT change login flow structure beyond adding claim computation
+
+### Synq Audit
+
+* Do NOT log read operations
+* Only log access mutation (already handled in LS-COR-AUT-002)
+
+### Compatibility
+
+* Must remain compatible with LS-COR-AUT-001 filters:
+
+  * `RequireProductAccessFilter`
+  * `RequireProductRoleFilter`
+* Must continue to emit `product_roles` claim in compatible format
+
+---
+
+## In Scope
+
+### 1. Effective Access Engine
+
+Implement a service that computes effective access from:
+
+* TenantProductEntitlement
+* UserProductAccess
+* UserRoleAssignment
+
+### Service
+
+Create:
+
+```
+IEffectiveAccessService
+```
+
+### Method
+
+```
+GetEffectiveAccessAsync(tenantId, userId)
+```
+
+### Output Model
+
+Must include:
+
+* List of accessible product codes
+* Mapping of product → roles
+* Flattened `product_roles` (for JWT)
+* Optional: tenant-level roles
+
+Example structure:
+
+```
+EffectiveAccessResult
+- Products: [ "SYNQ_CARECONNECT", "SYNQ_FUND" ]
+- ProductRoles:
+    SYNQ_CARECONNECT: [ "CareCoordinator", "ProviderAdmin" ]
+    SYNQ_FUND: [ "FundManager" ]
+- ProductRolesFlat:
+    [ "SYNQ_CARECONNECT:CareCoordinator", "SYNQ_FUND:FundManager" ]
+```
+
+---
+
+### 2. Access Resolution Rules
+
+Implement the following logic:
+
+#### Product access
+
+User has access to a product if:
+
+* TenantProductEntitlement = Active
+  AND
+* UserProductAccess = Granted
+
+#### Role access
+
+* Only include roles where:
+
+  * assignment is Active
+  * product matches entitlement (if scoped)
+
+#### Deny conditions
+
+* Disabled entitlement → no access
+* Revoked user access → no access
+* Invalid role-product mismatch → exclude role
+
+---
+
+### 3. JWT Claim Projection
+
+Modify JWT generation in Identity to:
+
+* call `IEffectiveAccessService`
+* populate claims based on computed access
+
+### Required Claims
+
+* `tenant_id`
+* `product_codes` (array)
+* `product_roles` (array)
+
+### Format (must match LS-COR-AUT-001 expectations)
+
+```
+product_roles:
+[
+  "SYNQ_CARECONNECT:CareCoordinator",
+  "SYNQ_CARECONNECT:ProviderAdmin",
+  "SYNQ_FUND:FundManager"
+]
+```
+
+### Important
+
+* Do NOT break existing claim parsing logic
+* Maintain string format compatibility
+
+---
+
+### 4. Token Freshness / Invalidation
+
+Introduce a mechanism to prevent stale access.
+
+### Add field
+
+In Identity user or session model:
+
+```
+AccessVersion (int or timestamp)
+```
+
+### Rules
+
+Increment version when:
+
+* TenantProductEntitlement changes
+* UserProductAccess changes
+* UserRoleAssignment changes
+
+### Token behavior
+
+* Embed `access_version` in JWT
+* On request:
+
+  * validate token version vs current version
+  * if mismatch → reject or require re-auth
+
+---
+
+### 5. Integration with Login Flow
+
+Update login / token issuance pipeline:
+
+* after user authenticated
+* before JWT issued:
+
+  * call effective access service
+  * attach claims
+
+Do NOT:
+
+* introduce new login endpoints
+* change authentication logic
+
+---
+
+### 6. Backward Compatibility
+
+Must support:
+
+* existing tokens still valid until expiry
+* existing LS-COR-AUT-001 filters unchanged
+* existing services unchanged
+
+This feature must be **drop-in enhancement**
+
+---
+
+### 7. Performance Considerations
+
+* Avoid multiple DB calls per request
+* Use aggregation queries or batching
+* Optional: introduce short-lived caching (e.g. 5 min)
+
+---
+
+## Out of Scope
+
+Do NOT implement:
+
+* groups or inheritance
+* UI
+* audit enhancements
+* permission/capability expansion
+* cross-tenant aggregation
+* external identity providers
+
+---
+
+## Required Services
+
+### IEffectiveAccessService
+
+* GetEffectiveAccessAsync(tenantId, userId)
+
+### AccessVersionService (or extend existing user service)
+
+* IncrementAccessVersion(userId)
+* GetAccessVersion(userId)
+
+---
+
+## Required Updates
+
+### Identity JWT generation
+
+* integrate effective access
+* include new claims
+
+### LS-COR-AUT-002 services
+
+* call AccessVersion increment on mutations
+
+---
+
+## Validation Rules
+
+* Only active entitlements included
+* Only granted product access included
+* Only active role assignments included
+* Roles must match product context
+
+---
+
+## Testing Requirements
+
+### Unit Tests
+
+* effective access calculation
+* role-product matching
+* denied access scenarios
+
+### Integration Tests
+
+* login returns correct claims
+* product_roles correctly formatted
+* revoked access removes claims
+
+### Token Tests
+
+* version mismatch invalidates access
+* updated access reflected after re-login
+
+### Regression Tests
+
+* LS-COR-AUT-001 filters still pass
+* existing endpoints continue working
+
+---
+
+## Acceptance Criteria
+
+* Effective access correctly computed from source-of-truth
+* JWT contains correct `product_roles`
+* LS-COR-AUT-001 enforcement works with new claims
+* Access changes reflected after token refresh
+* Token freshness mechanism prevents stale access
+* No breaking changes to existing services
+
+---
+
+## Output Report
+
+Create:
+
+/analysis/LS-COR-AUT-003-report.md
+
+Include:
+
+* summary
+* effective access logic implemented
+* JWT changes
+* token invalidation approach
+* test results
+* build status
+* known gaps
+* assumptions

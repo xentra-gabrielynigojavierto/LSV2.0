@@ -1,0 +1,635 @@
+You are building the next UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase continues the Tenant Portal track.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-008 — Tenant Template Override
+==================================================
+
+GOAL:
+Allow tenant users to create and manage tenant-specific template overrides for product-scoped notification templates, while preserving the platform’s global template and branding architecture.
+
+This phase adds:
+- tenant override list/view
+- create tenant override flow
+- edit tenant override draft flow
+- branded preview for tenant override
+- publish tenant override
+- fallback visibility to global template when no override exists
+
+This phase is tenant-facing, but still controlled.
+
+Do NOT overbuild.
+Do NOT expose Control Center capabilities.
+Do NOT allow tenants to edit global templates directly.
+Do NOT break product scoping.
+Do NOT redesign the tenant portal shell.
+
+==================================================
+CRITICAL DOMAIN RULES (MANDATORY)
+==================================================
+
+1. Templates are ALWAYS product-scoped
+2. Tenant overrides are ALWAYS product-scoped
+3. A tenant override never edits the global template directly
+4. Tenant overrides layer on top of the global template model
+5. Branding tokens remain system-controlled and cannot be overridden by tenant content
+6. Tenant users must never see or affect other tenants' overrides
+7. Product selection must happen BEFORE templates are displayed
+
+Required conceptual model:
+
+Global Template (product-scoped)
+    ↓
+Tenant Override (same product + same template key)
+    ↓
+Tenant Branding
+    ↓
+Render
+
+The UI must reflect this clearly.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Completed:
+- NOTIF-008 — backend global templates + branding foundation
+- NOTIF-UI-005 — Control Center WYSIWYG template admin
+- NOTIF-UI-006 — Tenant Branding Self-Service
+- NOTIF-UI-007 — Tenant Template Visibility (Read-Only)
+
+This task adds tenant customization safely on top of that foundation.
+
+==================================================
+ASSUMPTIONS / BACKEND EXPECTATION
+==================================================
+
+This UI phase assumes the backend either already supports or will support tenant template override APIs and data resolution.
+
+Expected backend capability model:
+- tenant-scoped template or version records
+- override resolution by:
+  - tenantId
+  - productType
+  - templateKey
+  - channel
+- branded preview for tenant overrides
+- published override lifecycle
+
+If specific tenant override endpoints differ from the expected routes below, inspect the actual backend and adapt carefully.
+Do NOT invent fake behavior and hide it.
+If a backend capability is missing, document it clearly in the report and implement the cleanest partial UI possible.
+
+==================================================
+TENANT PORTAL SCOPE
+==================================================
+
+Audience:
+- tenant admins
+- tenant operations/configuration users
+
+Allowed capabilities:
+- select product
+- view templates for that product
+- see whether each template uses:
+  - global template only
+  - tenant override
+- create tenant override draft
+- edit tenant override draft
+- preview override with tenant branding
+- publish tenant override
+- fall back to global when no override exists
+
+Not allowed:
+- editing global templates directly
+- deleting global templates
+- cross-tenant access
+- platform-wide template administration
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. PRODUCT-FIRST TENANT OVERRIDE ENTRY
+--------------------------------------
+
+Entry route:
+- /tenant/notifications/templates
+or the equivalent tenant portal notifications route already in use
+
+Requirements:
+- product selection is required before templates load
+- route-based product pages are preferred:
+  - /tenant/notifications/templates/[productType]
+
+Do NOT show templates across multiple products at once.
+Do NOT load templates without productType.
+
+==================================================
+2. TEMPLATE LIST WITH OVERRIDE STATUS
+==================================================
+
+Route:
+- /tenant/notifications/templates/[productType]
+
+Display templates for the selected product only.
+
+For each template, show:
+- template name
+- template key
+- channel
+- whether the tenant has an override:
+  - using global
+  - override draft exists
+  - override published
+- last updated
+- actions:
+  - view
+  - create override (if none exists)
+  - manage override (if one exists)
+
+The page must clearly distinguish:
+- platform/global template
+- tenant override state
+
+This is critical for user understanding.
+
+==================================================
+3. TEMPLATE DETAIL WITH GLOBAL VS OVERRIDE VIEW
+==================================================
+
+Route:
+- /tenant/notifications/templates/[productType]/[templateId]
+
+Display:
+- global template metadata
+- versions summary for the global template
+- current active tenant override state (if any)
+
+Show clearly:
+- what comes from the platform/global template
+- what has been overridden by the tenant
+- whether the tenant is currently using:
+  - no override
+  - draft override
+  - published override
+
+If no tenant override exists:
+- show "Using Global Template"
+- show a clear CTA:
+  - Create Override
+
+==================================================
+4. TENANT OVERRIDE CREATE FLOW
+==================================================
+
+Allow tenants to create an override draft for a specific global template.
+
+Expected backend capability:
+- create tenant-scoped override template/version associated with:
+  - templateKey
+  - productType
+  - channel
+  - tenantId
+
+Preferred endpoint patterns (adapt if backend differs):
+- POST /notifications/v1/templates/tenant-overrides
+or
+- POST /notifications/v1/templates/global/:id/tenant-overrides
+
+Requirements:
+- create flow must start from a specific global template
+- productType comes from route/context, not user freeform input
+- tenantId comes from session, never user input
+- initial content should be pre-populated from the current global template version
+- tenant can edit allowed content fields:
+  - subject
+  - body
+  - text
+  - editorJson if WYSIWYG-backed
+- branding tokens remain reserved/system-owned
+
+On success:
+- override draft exists
+- UI reflects override status
+- user is taken to override edit/manage view
+
+==================================================
+5. TENANT OVERRIDE EDIT FLOW
+==================================================
+
+Allow editing of tenant override drafts only.
+
+Expected backend capability:
+- PATCH tenant override draft/version
+
+Requirements:
+- only editable if override is still a draft
+- published overrides should not be edited directly unless backend lifecycle explicitly supports draft-after-publish
+- if backend uses immutable version lifecycle, preserve that truthfully:
+  - editing published override should require creating a new draft version
+
+The UI must present lifecycle honestly.
+Do NOT imply mutable published content if that is false.
+
+==================================================
+6. WYSIWYG-COMPATIBLE OVERRIDE EDITOR
+==================================================
+
+Tenant override editing must support the same constrained content model as the admin/global template system where appropriate.
+
+Requirements:
+- if the template/editorType is WYSIWYG:
+  - use a constrained WYSIWYG-compatible editor
+  - preserve editorJson + compiled HTML/body + text fallback
+- if the template/editorType is html:
+  - use structured textareas for HTML/text
+- do NOT expose arbitrary script or unsafe content editing
+
+Tenant users may customize content, but:
+- must not override brand tokens themselves
+- must not alter product scope
+- must not change template identity fields like templateKey/productType/channel in unsafe ways
+
+==================================================
+7. TENANT OVERRIDE PREVIEW
+==================================================
+
+Provide preview for tenant overrides using real backend rendering.
+
+Expected backend capability:
+- preview endpoint for tenant override render
+- if not available, use a compatible preview route that resolves tenant override + branding correctly
+
+Requirements:
+- preview must use:
+  - tenantId from session
+  - productType from route
+  - override content
+  - template variables/sample data
+- preview result must show:
+  - subject
+  - rendered HTML
+  - text version
+  - branding indicator
+
+If no tenant-specific branding exists:
+- show that default branding is applied
+
+Do NOT simulate preview if the backend already supports real rendering.
+
+==================================================
+8. TENANT OVERRIDE PUBLISH FLOW
+==================================================
+
+Allow tenants to publish an override draft.
+
+Expected backend capability:
+- publish tenant override version
+
+Requirements:
+- explicit publish action
+- confirmation required
+- clearly indicate after success:
+  - tenant override is now active
+  - tenant is no longer using global-only for that template
+- if prior tenant override version exists, reflect lifecycle truthfully
+
+Do NOT let tenants publish accidentally.
+
+==================================================
+9. FALLBACK / RESET TO GLOBAL VISIBILITY
+==================================================
+
+Even if delete/revert is not implemented yet, the UI must clearly show fallback behavior.
+
+Requirements:
+- if no tenant override is active:
+  - label: Using Global Template
+- if tenant override is active:
+  - label: Using Tenant Override
+- if backend supports revert/deactivate override safely, you may expose it
+- if not supported, do NOT fake it
+
+At minimum, the UI must make fallback state visible.
+
+==================================================
+10. TENANT CONTEXT / AUTH (MANDATORY)
+==================================================
+
+Tenant users must never enter tenantId manually.
+
+Requirements:
+- derive tenant from session (requireOrg or equivalent)
+- inject x-tenant-id automatically
+- all reads and writes tenant-scoped
+- if tenant context missing:
+  - safe failure state
+  - no backend calls
+
+Do NOT reuse Control Center admin assumptions.
+
+==================================================
+11. TENANT-SAFE API CLIENT / ACTIONS
+==================================================
+
+Reuse or extend the tenant-side notifications API wrapper.
+
+Requirements:
+- Authorization token/session preserved
+- x-tenant-id injected from real tenant context
+- server actions for mutations:
+  - create override
+  - update override
+  - publish override
+  - preview override
+- return structured action results
+- keep tenant-only boundaries clear
+
+==================================================
+12. UI COMPONENTS
+==================================================
+
+Create reusable components as useful, such as:
+- ProductSelector
+- OverrideStatusBadge
+- TenantOverrideForm
+- OverridePreviewPanel
+- GlobalVsOverrideComparisonCard
+- TemplateSourceIndicator
+- UsingGlobalState
+- OverrideEmptyState
+
+Requirements:
+- loading state
+- success state
+- validation state
+- error state
+- empty state
+
+==================================================
+13. GLOBAL VS OVERRIDE CLARITY (CRITICAL UX)
+==================================================
+
+This is one of the most important parts of the feature.
+
+The UI must make it obvious:
+- which content is global
+- which content is tenant override
+- which version is currently active
+- whether the tenant is still inheriting the global version
+
+Avoid ambiguous labels like "template" with no source context.
+
+Use explicit wording such as:
+- Global Template
+- Tenant Override Draft
+- Tenant Override Published
+- Using Global Template
+- Using Tenant Override
+
+==================================================
+14. ERROR / EMPTY / UNSUPPORTED STATES
+==================================================
+
+Handle clearly:
+- no templates for product
+- no override exists yet
+- override create failed
+- preview failed
+- unsupported backend edit/publish lifecycle
+- missing branding
+- invalid product type
+- missing tenant context
+- unsupported route/capability if backend is incomplete
+
+Do NOT let backend gaps masquerade as normal empty data.
+
+==================================================
+15. WHAT NOT TO BUILD IN NOTIF-UI-008
+==================================================
+
+Do NOT build:
+- global template editing from tenant portal
+- provider editing
+- billing editing
+- contact policy editing
+- drag-and-drop builder
+- campaign management
+- cross-tenant tools
+- asset uploader
+- analytics dashboard
+- advanced approval workflows
+
+This phase is strictly tenant template override.
+
+==================================================
+16. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. product must be selected before templates load
+2. template list shows override status clearly
+3. template detail clearly distinguishes global vs tenant override
+4. tenant override create flow works
+5. tenant override draft edit flow works, or backend lifecycle limitation is clearly and honestly represented
+6. override editor is constrained and safe
+7. override preview works with real backend rendering
+8. override publish flow works
+9. tenant never enters tenantId manually
+10. tenant context is enforced correctly
+11. no global template edit capability is exposed in tenant portal
+12. no cross-tenant data is exposed
+13. loading / success / error states are handled
+14. UI compiles/runs cleanly
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-008-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+- What was built
+- Scope completed vs requested scope
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+List all files:
+- New files with purpose
+- Modified files with description of changes
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+Break down all implemented features:
+- product-first entry
+- override status visibility
+- override create/edit/publish
+- preview
+- global vs override distinction
+- any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+List all endpoints used, grouped by:
+- template reads
+- override reads/writes
+- preview
+- publish
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed / unavailable)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+Explain:
+- request flow
+- tenant context flow
+- server action flow
+- editor data flow
+- preview flow
+- cache/revalidation flow
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+Describe:
+- form validation
+- preview failures
+- backend error handling
+- lifecycle limitation handling
+- empty states
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT
+--------------------------------------
+- how tenant context is derived
+- how auth is enforced
+- how x-tenant-id is injected
+- behavior when tenant context is missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE
+--------------------------------------
+- cache/revalidation approach
+- performance considerations
+- known inefficiencies
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+List all gaps:
+- backend limitations
+- missing features
+- assumptions made
+- technical debt if any
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+List problems during implementation:
+- route/contract mismatches
+- lifecycle constraints
+- editor constraints
+- tenant-context issues
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+Provide exact steps:
+- how to start the system
+- how to access/test the feature
+- any tenant requirements
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+Answer clearly:
+- Is NOTIF-UI-008 complete? (Yes / Mostly / Partial)
+- Is tenant template customization now in place? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+List:
+- next tenant portal features to build
+- remaining backend dependencies
+- whether tenant notification activity or provider visibility should come next
+
+==================================================
+CRITICAL: REPORT GENERATION IS REQUIRED
+==================================================
+
+You MUST generate the report file after completing the implementation.
+
+This is NOT optional.
+
+If the report is not generated, the task is considered incomplete.
+
+File path must be:
+
+/analysis/NOTIF-UI-008-report.md
+
+Do NOT skip sections.
+Do NOT claim features that are not implemented.
+Do NOT hide limitations.
+
+==================================================
+EXECUTION
+==================================================
+
+Build NOTIF-UI-008 now.
+
+STRICTLY preserve:
+- product-first access
+- tenant safety
+- global vs override separation
+- backend lifecycle truth
+
+Use real backend APIs where available.
+If a backend capability is missing, represent that honestly and implement the cleanest partial flow possible.
+
+Generate the required report at the end.

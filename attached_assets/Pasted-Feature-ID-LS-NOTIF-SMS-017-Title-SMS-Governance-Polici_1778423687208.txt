@@ -1,0 +1,595 @@
+Feature ID: LS-NOTIF-SMS-017
+
+Title:
+SMS Governance Policies, Compliance Controls, and Operational Guardrails
+
+Objective:
+Add enterprise governance controls to the SMS platform including tenant-level governance policies, quiet-hour enforcement, geographic delivery restrictions, provider governance rules, operational throttling, escalation guardrails, and governance audit visibility.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- SMS governance policy evaluation
+- SMS governance policy persistence
+- quiet-hour enforcement
+- geographic delivery restrictions
+- SMS rate limiting/throttling
+- provider governance rules
+- governance decision auditability
+- governance analytics APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance visibility. Do not duplicate governance evaluation, throttling, or compliance logic in Control Center.
+
+Requirements:
+- Implement SMS governance policy evaluation inside Notification Service.
+- Evaluate governance before outbound SMS execution and before automated SMS retry execution.
+- Preserve existing compliance/preference enforcement.
+- Preserve existing recipient intelligence/suppression behavior.
+- Preserve existing provider routing/adaptive routing behavior.
+- Governance must be additive and must not rewrite the delivery pipeline.
+- Do not store raw phone numbers in governance persistence.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-016 behavior.
+
+Implementation Requirements:
+1. Add SMS governance policy persistence.
+2. Add governance decision persistence.
+3. Add governance policy evaluation service.
+4. Add quiet-hour enforcement.
+5. Add geographic allow/block restrictions.
+6. Add rate limiting/throttling controls.
+7. Add provider allow/block governance.
+8. Add retry governance controls.
+9. Add escalation guardrails if safe and consistent with existing escalation architecture.
+10. Add governance admin APIs.
+11. Add governance analytics/audit APIs.
+12. Add Control Center governance UI if feasible.
+13. Ensure governance decisions degrade safely when telemetry or policy data is unavailable.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, Notification, TenantId, ProviderRoutingService, SmsRoutingEngine, SmsRecipientIntelligenceService, SmsRetrySuppressionService, SmsRegionalInferenceService, SmsOperationalAlert, SmsAlertEscalationService, audit/logging, endpoint, migration, worker, and Control Center patterns where appropriate.
+- Do NOT rewrite the Notification Service delivery pipeline.
+- Do NOT bypass existing contact enforcement, preference checks, recipient suppression intelligence, routing decision persistence, audit, retry/dead-letter handling, or cost recording.
+- Do NOT implement AI/ML compliance scoring.
+- Do NOT call external compliance, telecom, phone validation, or enrichment APIs.
+- Do NOT persist raw phone numbers in governance tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-017-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing compliance/preference enforcement findings
+3. Existing retry/dead-letter findings
+4. Existing recipient intelligence/suppression findings
+5. Existing adaptive routing/regional inference findings
+6. Existing alert/escalation findings
+7. Existing Control Center SMS operational UI findings
+8. Files added
+9. Files modified
+10. Database/schema/config changes
+11. API/interface changes
+12. UI/route changes, if implemented
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Governance-Relevant Architecture
+- Identify:
+  - SMS preference/compliance enforcement flow
+  - ContactEnforcementService behavior
+  - SmsRetrySuppressionService behavior
+  - ProcessAutoRetryAsync flow
+  - DispatchAllRoutesAsync / send pipeline location for pre-send evaluation
+  - SmsRegionalInferenceService and country inference behavior
+  - ProviderRoutingService and SmsRoutingEngine provider selection behavior
+  - SmsOperationalAlert and SmsAlertEscalationService escalation flow
+  - existing audit/logging conventions
+  - existing admin endpoint conventions
+  - existing Control Center SMS dashboard/routing/intelligence UI patterns
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Governance Policy Entity
+Add a Notification Service-local governance policy entity.
+
+Suggested entity:
+SmsGovernancePolicy
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- Name string
+- PolicyType string
+- Enabled bool
+- Priority int
+- PolicyJson string
+- EmergencyOverrideAllowed bool
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested PolicyType values:
+- quiet_hours
+- geographic_restriction
+- rate_limit
+- provider_governance
+- retry_governance
+- escalation_guardrail
+
+Requirements:
+- TenantId nullable means platform/global policy.
+- Tenant-specific policies should override or take precedence over global policies where appropriate.
+- PolicyJson must contain structured policy configuration but no credentials or secrets.
+- Policies must support priority ordering.
+- Disabled policies must not evaluate.
+- Use existing EF/migration conventions.
+- Add indexes:
+  - TenantId, PolicyType, Enabled
+  - PolicyType, Enabled, Priority
+  - UpdatedAt
+
+STEP 3 — Define SMS Governance Decision Entity
+Add a governance decision/audit entity.
+
+Suggested entity:
+SmsGovernanceDecision
+
+Suggested fields:
+- Id Guid
+- NotificationId Guid? nullable
+- AttemptId Guid? nullable
+- TenantId Guid? nullable
+- PolicyId Guid? nullable
+- PolicyType string
+- DecisionType string
+- ReasonCode string
+- ProviderType string? nullable
+- ProviderConfigId Guid? nullable
+- CountryCode string? nullable
+- Region string? nullable
+- EffectiveAt DateTime? nullable
+- DecisionMetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested DecisionType values:
+- allow
+- delay
+- throttle
+- block
+- review_required
+- override_allowed
+
+Suggested ReasonCode values:
+- quiet_hours_active
+- geographic_blocked
+- geographic_not_allowed
+- tenant_rate_limit_exceeded
+- provider_blocked
+- provider_not_allowed
+- retry_limit_exceeded
+- escalation_rate_limit_exceeded
+- no_applicable_policy
+- policy_evaluation_error
+- emergency_override
+
+Requirements:
+- Do not store raw phone numbers.
+- Do not store provider credentials.
+- Store safe operational metadata only.
+- Persist decisions when a policy affects behavior or when auditing is useful.
+- Use existing EF/migration conventions.
+- Add indexes:
+  - TenantId, CreatedAt
+  - DecisionType, CreatedAt
+  - PolicyType, CreatedAt
+  - NotificationId
+
+STEP 4 — Define Governance Configuration
+Add safe configuration defaults.
+
+Suggested config section:
+SmsGovernance:
+- Enabled bool default true
+- DefaultTimezone string default UTC
+- DecisionAuditEnabled bool default true
+- FailOpenOnEvaluationError bool default true
+- MaxPolicyEvaluationMs int default 100
+- RateLimitWindowMinutes int default 60
+- EmergencyOverrideEnabled bool default false
+
+Requirements:
+- Safe defaults.
+- If evaluation fails, default behavior should be fail-open unless an explicit policy requires fail-closed.
+- Document fail-open/fail-closed behavior.
+- No secrets in governance config.
+
+STEP 5 — Add Governance Policy Evaluation Service
+Add central service for governance evaluation.
+
+Suggested interface:
+ISmsGovernancePolicyService
+
+Suggested methods:
+- EvaluatePreSendAsync(SmsGovernanceEvaluationRequest request, CancellationToken ct)
+- EvaluateRetryAsync(SmsGovernanceEvaluationRequest request, CancellationToken ct)
+- EvaluateEscalationAsync(SmsGovernanceEvaluationRequest request, CancellationToken ct)
+
+Suggested request:
+- tenantId
+- notificationId
+- attemptId nullable
+- recipientPhoneForInferenceOnly nullable/transient
+- providerType nullable
+- providerConfigId nullable
+- retryCount
+- isRetry
+- isEscalation
+- nowUtc
+
+Suggested result:
+- DecisionType
+- ReasonCode
+- PolicyId nullable
+- EffectiveAt nullable
+- CountryCode nullable
+- Region nullable
+- Metadata safe dictionary
+- ShouldProceed bool
+- ShouldDelay bool
+- ShouldThrottle bool
+- ShouldBlock bool
+
+Requirements:
+- Use local policies only.
+- No external API calls.
+- Use recipient phone transiently only for country inference.
+- Never persist raw phone.
+- Support global and tenant-specific policies.
+- Evaluate policies by priority.
+- Return clear decision results.
+- Persist governance decision where useful.
+- If no policy applies, return allow/no_applicable_policy.
+- Evaluation failures must not crash delivery pipeline.
+
+STEP 6 — Implement Quiet-Hour Enforcement
+Implement quiet-hour policy type.
+
+Suggested PolicyJson:
+{
+  "timezone": "America/New_York",
+  "quietStart": "21:00",
+  "quietEnd": "08:00",
+  "daysOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+  "action": "delay",
+  "nextAllowedWindow": true
+}
+
+Behavior:
+- If current local time is within quiet hours:
+  - action = delay or block based on policy.
+  - if delay, compute next allowed time.
+- If outside quiet hours:
+  - allow.
+
+Requirements:
+- Use tenant/global timezone from policy or default.
+- Handle overnight quiet windows.
+- Handle invalid timezone safely.
+- Persist decision when delay/block occurs.
+- Do not send SMS during delay/block.
+- For delay, set NextRetryAt or equivalent deferred scheduling field where existing Notification model supports it.
+- If no scheduling field exists for initial sends, document and safely block/review rather than creating unsafe delivery behavior.
+
+STEP 7 — Implement Geographic Restrictions
+Implement geographic restriction policy type.
+
+Suggested PolicyJson:
+{
+  "allowedCountries": ["US", "CA"],
+  "blockedCountries": ["RU", "CN"],
+  "action": "block"
+}
+
+Behavior:
+- Infer country using SmsRegionalInferenceService.
+- If country is blocked: block.
+- If allowedCountries exists and country is not listed: block or review_required.
+- If country unknown: allow/review based on policy.
+
+Requirements:
+- Do not persist raw phone.
+- Country inference must be transient.
+- If country unavailable, degrade according to policy.
+- Persist decision for block/review outcomes.
+
+STEP 8 — Implement Rate Limiting / Throttling
+Implement tenant/platform SMS rate limit policy.
+
+Suggested PolicyJson:
+{
+  "windowMinutes": 60,
+  "maxMessages": 500,
+  "scope": "tenant",
+  "action": "throttle"
+}
+
+Supported scopes:
+- platform
+- tenant
+- provider
+- tenant_provider
+
+Behavior:
+- Count SMS attempts/notifications in window using local operational data.
+- If limit exceeded:
+  - throttle or delay/block based on action.
+- If under limit:
+  - allow.
+
+Requirements:
+- Use bounded queries.
+- Do not store raw phone.
+- Rate evaluation must be efficient.
+- Persist decisions when threshold exceeded.
+- For throttle/delay, use existing scheduling fields where practical.
+- If exact throttling queue not available, defer retry/send safely or document limitation.
+
+STEP 9 — Implement Provider Governance
+Implement provider allow/block policy type.
+
+Suggested PolicyJson:
+{
+  "allowedProviders": ["twilio", "vonage"],
+  "blockedProviders": ["provider_x"],
+  "action": "block"
+}
+
+Behavior:
+- Evaluate selected or candidate provider.
+- If provider blocked: block or remove from candidate list where feasible.
+- If allowedProviders exists and provider not in list: block/review.
+- Provider governance should integrate before provider execution and ideally before final route selection if practical.
+
+Requirements:
+- Do not hardcode provider rules in adapters.
+- Do not expose provider credentials.
+- Preserve routing engine behavior.
+- If provider governance cannot alter candidate list cleanly, block selected provider before execution and document limitation.
+
+STEP 10 — Implement Retry Governance
+Implement retry governance policy type.
+
+Suggested PolicyJson:
+{
+  "maxRetriesPerRecipientPerDay": 3,
+  "maxRetriesPerNotification": 2,
+  "blockAfterDeadLetters": 2,
+  "action": "review_required"
+}
+
+Behavior:
+- Evaluate before automated retry.
+- If retry limits exceeded:
+  - block/review/dead-letter according to policy.
+- If within limits:
+  - allow.
+
+Requirements:
+- Preserve existing retry/dead-letter semantics.
+- Integrate with SmsRetrySuppressionService without conflict.
+- Governance should run after or before recipient intelligence consistently; document order.
+- Persist decision when retry is blocked/reviewed.
+
+STEP 11 — Implement Escalation Guardrails
+Implement escalation guardrail policy if low-risk with existing escalation architecture.
+
+Suggested PolicyJson:
+{
+  "maxEscalationsPerHour": 20,
+  "maxEscalationsPerAlertTypePerHour": 5,
+  "action": "throttle"
+}
+
+Behavior:
+- Evaluate before escalation delivery.
+- If limit exceeded:
+  - suppress/throttle escalation and persist governance decision.
+- If under limit:
+  - allow.
+
+Requirements:
+- Do not break LS-NOTIF-SMS-011 escalation behavior.
+- Escalation guardrail failure must not crash alert pipeline.
+- If integration is too risky, implement policy persistence/API only and document escalation integration as future.
+
+STEP 12 — Integrate Governance Into Send and Retry Flow
+Integrate governance safely.
+
+Expected send flow order:
+1. Existing preference/compliance/contact enforcement.
+2. Existing recipient intelligence/suppression if applicable.
+3. Governance pre-send evaluation.
+4. Provider routing/adaptive routing.
+5. Runtime provider execution.
+
+Expected retry flow order:
+1. Existing retry eligibility.
+2. Existing recipient intelligence/retry suppression.
+3. Governance retry evaluation.
+4. Dispatch retry if allowed.
+
+Requirements:
+- Governance must not bypass preference enforcement.
+- Governance must not bypass recipient intelligence.
+- Governance must not bypass routing decision persistence.
+- Governance decisions must be auditable.
+- Failure in governance evaluation must not crash delivery.
+- Delay/block/review outcomes must be handled clearly.
+
+STEP 13 — Add Governance APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/policies
+- GET /v1/admin/sms/governance/policies/{id}
+- POST /v1/admin/sms/governance/policies
+- PUT /v1/admin/sms/governance/policies/{id}
+- POST /v1/admin/sms/governance/policies/{id}/disable
+- GET /v1/admin/sms/governance/decisions
+- GET /v1/admin/sms/governance/summary
+- GET /v1/admin/sms/governance/rate-limits
+- GET /v1/admin/sms/governance/geo
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Responses must not expose raw phone, credentials, provider payloads, or secrets.
+- PolicyJson may be returned only if it contains safe operational config.
+- Validate policy types and actions.
+- Validate quiet-hour formats.
+- Validate country codes where practical.
+- Validate rate limit numeric bounds.
+- Use pagination for decision list.
+
+STEP 14 — Extend Control Center UI If Feasible
+Add or extend Control Center SMS operational UI.
+
+Suggested route:
+- /notifications/sms-governance
+
+Suggested sections:
+- Governance policy table
+- Create/edit policy form
+- Governance decision audit table
+- Rate-limit status panel
+- Geographic restriction summary
+- Quiet-hours overview
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate governance logic.
+- No raw phones/credentials displayed.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 15 — Documentation
+Update documentation/report notes for:
+- policy types
+- policy JSON structures
+- evaluation order
+- quiet-hour behavior
+- geographic behavior
+- rate limiting behavior
+- provider governance behavior
+- retry governance behavior
+- escalation guardrail behavior
+- fail-open/fail-closed behavior
+- Control Center UI if implemented
+
+Documentation must explain:
+- governance uses local Notification Service data only.
+- no external compliance APIs are used.
+- governance policies are operational controls, not a legal compliance substitute.
+- governance outcomes are auditable.
+- raw recipient phone numbers are not persisted in governance tables.
+
+STEP 16 — Validation
+Perform validation/testing for:
+
+Policies:
+- create/update/disable policies.
+- invalid policy type rejected.
+- invalid policy JSON rejected.
+- disabled policies ignored.
+- tenant-specific policy precedence works.
+
+Quiet hours:
+- within quiet window delays/blocks.
+- outside quiet window allows.
+- overnight windows work.
+- invalid timezone handled safely.
+
+Geographic restrictions:
+- blocked country blocks.
+- allowed country allows.
+- unknown country follows configured behavior.
+- raw phone not persisted.
+
+Rate limits:
+- below limit allows.
+- above limit throttles/delays/blocks.
+- tenant/provider scopes work.
+- bounded queries used.
+
+Provider governance:
+- blocked provider not used or blocked before execution.
+- allowed provider proceeds.
+- no credential exposure.
+
+Retry governance:
+- retry within limit proceeds.
+- retry above limit blocks/review/dead-letters according to policy.
+- existing retry/dead-letter behavior preserved.
+
+Escalation guardrails:
+- under limit allows escalation.
+- above limit suppresses/throttles if implemented.
+- escalation pipeline does not crash.
+
+APIs:
+- all endpoints require PlatformAdmin/admin authorization.
+- pagination works.
+- filters work.
+- no credentials/raw phones/payloads exposed.
+
+Control Center UI if implemented:
+- governance route renders.
+- policy CRUD works.
+- decisions table renders.
+- no sensitive data displayed.
+
+Regression validation:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-016 behavior preserved.
+- outbound SMS unchanged when no governance policy exists.
+- adaptive routing unchanged when governance allows.
+- recipient intelligence unchanged.
+- cost analytics unchanged.
+- alerting/escalation unchanged.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsGovernancePolicy entity/table
+- SmsGovernanceDecision entity/table
+- Governance policy service
+- Quiet-hour enforcement
+- Geographic restriction enforcement
+- Rate limit/throttling evaluation
+- Provider governance evaluation
+- Retry governance evaluation
+- Optional escalation guardrails
+- Governance admin APIs
+- Optional Control Center governance UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external compliance/phone validation APIs
+- Implement AI/ML compliance scoring
+- Rewrite delivery or retry pipeline
+- Bypass preference/compliance enforcement
+- Break adaptive routing
+- Break recipient intelligence
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-016 behavior

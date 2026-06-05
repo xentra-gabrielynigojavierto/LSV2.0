@@ -1,0 +1,183 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Integrate the `liens` microservice with the v2 Identity/authentication pattern so the service can resolve authenticated request context in a platform-aligned way.
+
+This feature is foundational. It is NOT for business permissions or lien workflows yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+For the Liens build, all shared platform concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+For this feature specifically:
+- Use v2 Identity only
+- Do NOT introduce any v1 session/auth logic
+- Do NOT copy code from v1
+- Do NOT implement business rules yet
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING V2 AUTH / IDENTITY PATTERN
+--------------------------------------------------
+
+Inspect how existing v2 services currently implement authenticated request context.
+
+Look for:
+- auth setup in Program.cs
+- JWT bearer configuration or equivalent
+- any shared request-context abstraction
+- how user id / tenant id / org id / product scope / roles / permissions are resolved
+- any shared BuildingBlocks helpers, middleware, services, or interfaces already used by existing services
+
+Use the existing v2 platform pattern as the source of truth.
+Do NOT invent a separate Liens-only auth model.
+
+--------------------------------------------------
+STEP 2 — INTEGRATE LIENS SERVICE WITH THE SAME PATTERN
+--------------------------------------------------
+
+Update the Liens service so it follows the same identity integration pattern used by the relevant v2 services.
+
+Requirements:
+- add only the minimum auth setup needed
+- authenticate protected requests
+- resolve the current request context from incoming claims / token / shared context model
+- keep /health and /info anonymous
+- keep the implementation consistent with platform conventions
+
+If an existing shared abstraction already exists for request context, reuse it.
+If a thin Liens-specific adapter is needed, keep it minimal and aligned to platform standards.
+
+--------------------------------------------------
+STEP 3 — ESTABLISH CURRENT REQUEST CONTEXT ACCESS
+--------------------------------------------------
+
+Make the current authenticated request context available to downstream Liens code.
+
+The resulting context should support future access to values such as:
+- user id
+- tenant id
+- organization id
+- product code / product scope
+- roles / permission claims if available in the current v2 pattern
+
+IMPORTANT:
+- Follow the actual claim names and context model already used in v2
+- Do NOT guess or invent new claim conventions if platform conventions already exist
+- Do NOT put auth/http concerns into the Domain layer
+
+--------------------------------------------------
+STEP 4 — ADD A SAFE VALIDATION ENDPOINT
+--------------------------------------------------
+
+Add a minimal diagnostic endpoint to prove identity context is flowing correctly.
+
+Suggested route:
+- `/context`
+or equivalent if another pattern is more consistent with existing services
+
+Requirements:
+- endpoint must be protected
+- endpoint should return a safe, minimal response showing resolved identity/request context
+- do not expose secrets or unnecessary internals
+- response should be enough to prove:
+  - the request is authenticated
+  - the Liens service can read the current request context correctly
+
+Also confirm:
+- unauthenticated request to this endpoint is rejected
+- authenticated request succeeds
+
+--------------------------------------------------
+STEP 5 — PRESERVE CLEAN SERVICE BOUNDARIES
+--------------------------------------------------
+
+Do NOT add:
+- business permissions
+- product access enforcement rules beyond the standard shared pattern
+- case/lien/task/settlement APIs
+- database schema
+- repository implementation
+- documents integration
+- notifications integration
+- audit integration
+- frontend changes
+- v1 compatibility/session logic
+
+This feature is only about identity context integration.
+
+--------------------------------------------------
+STEP 6 — VALIDATE GATEWAY + SERVICE BEHAVIOR
+--------------------------------------------------
+
+Validate the full flow in local/dev:
+
+1. Build Liens service
+2. Build gateway if any changes are required
+3. Start Liens service
+4. Start gateway if required for testing
+5. Confirm:
+   - `/health` still works anonymously
+   - `/info` still works anonymously
+   - protected context endpoint rejects unauthenticated requests
+   - protected context endpoint succeeds with authenticated request
+   - the authenticated response shows the resolved request context
+
+If generating a valid test token is required, follow the same dev/testing pattern already used elsewhere in v2.
+Do NOT invent a fake auth path if a platform test pattern already exists.
+
+--------------------------------------------------
+STEP 7 — DOCUMENT EXACT PLATFORM PATTERN USED
+--------------------------------------------------
+
+The report must clearly explain:
+- which existing service(s) were used as reference
+- what shared auth/context pattern was reused
+- what claim/context fields are now available in Liens
+- where the current request context is accessed from
+- how future Liens features should consume it
+
+--------------------------------------------------
+STEP 8 — GENERATE REPORT
+--------------------------------------------------
+
+Create this report file in the root `/analysis` folder:
+
+`/analysis/LS-LIENS-02-001-report.md`
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 auth/identity pattern identified and followed
+3. Exact files changed
+4. Auth setup added to Liens
+5. Current request context abstraction used or introduced
+6. What identity/context fields are now resolvable in Liens
+7. Validation endpoint details
+8. Build results
+   - liens service
+   - gateway, if applicable
+9. Run results
+10. Test results:
+   - anonymous `/health`
+   - anonymous `/info`
+   - unauthenticated protected context endpoint
+   - authenticated protected context endpoint
+11. Any required dev token/testing setup used
+12. Confirmation that no v1 auth/session logic was introduced
+13. Any deviations, assumptions, or residual risks
+14. Final readiness statement:
+   - Is Liens now identity-context aware?
+   - Is the service ready for the next feature?
+
+Be detailed and evidence-based. The report should be sufficient for architectural review without opening the code.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+The goal is to integrate Liens into the v2 identity model in a clean, reusable way so all future Liens features can rely on trusted platform request context.
+
+Proceed.

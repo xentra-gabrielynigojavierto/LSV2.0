@@ -1,0 +1,374 @@
+```text
+# LS-ID-TNT-022-001 — Define Insights Permission Codes
+
+## FEATURE OBJECTIVE
+
+Define and implement the missing **Insights permission-code foundation** so SynqInsights can join the same authorization model already used by CareConnect, Fund, Liens, Tenant Portal, and Control Center.
+
+This feature establishes the canonical permission codes, backend catalog entries, mapping scaffolding, and frontend constants required for future:
+- backend enforcement
+- permission-aware UI
+- platform governance in Control Center
+- tenant assignment and effective resolution
+
+This feature is a **foundation feature**. It defines the permission vocabulary and wiring surface. It does NOT attempt full Insights enforcement or full Insights UI gating yet.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- Identity lifecycle is complete
+- Access enforcement is complete
+- Tenant governance is complete
+- Platform governance is complete
+- Broad product UI coverage is complete
+- **Insights is the remaining product without defined permission codes**
+
+This means Insights is currently the one product outside the unified authorization model.
+
+This feature fixes that by making Insights a first-class authorization participant.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- full Insights backend permission enforcement
+- full Insights permission-aware UI rollout
+- ABAC/policy activation
+- broad redesign of Insights pages
+- speculative permission codes not grounded in actual codebase actions
+- tenant or platform governance UI redesign
+- fake placeholder enforcement
+
+ONLY IMPLEMENT:
+- codebase analysis of actual Insights actions/surfaces
+- canonical Insights permission code definitions
+- backend permission catalog additions for Insights
+- product role → permission mapping scaffolding for Insights roles that already exist
+- frontend `PermissionCodes.Insights.*` constants
+- minimal inspection/verification support if needed
+- documentation of mapping and intended usage
+- report-first incremental implementation
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental authorization foundation feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, access, authorization, governance, and UI behavior
+- define Insights permissions based on actual current Insights features in the codebase
+- keep backend, frontend, and governance concerns clearly separated
+- include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- validate the actual current codebase before implementing
+- document the final permission set and its intended meaning clearly
+- keep backend authority and future enforcement paths intact
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-022-001-report.md
+
+Initialize with:
+
+# LS-ID-TNT-022-001 — Define Insights Permission Codes
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Insights Product / Role / API Analysis
+## 4. Existing Authorization Model Alignment
+## 5. Proposed Insights Permission Catalog
+## 6. Role-Permission Mapping Strategy
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Frontend / Shared Constant Implementation
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL INSIGHTS CODEBASE
+
+Inspect the actual current Insights implementation in the repo.
+
+You must identify and document:
+- actual product code used for Insights (for example `SYNQ_INSIGHTS` if that is confirmed)
+- actual Insights routes/pages
+- actual backend endpoints/services supporting Insights
+- actual user actions visible in UI
+- actual product roles, if defined
+- actual reports/schedules/export/execute/customization actions present in code
+- whether there are override, admin, or configuration flows
+- whether any existing permissions or capability rows for Insights already exist
+
+Look at:
+- frontend pages/components under Insights
+- backend APIs/services for Insights
+- identity seed/configuration for products, permissions, product roles, role mappings
+- control center permission catalog output shape if useful for validation
+
+Do NOT invent action names. Use what exists in code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Insights Product / Role / API Analysis
+## 4. Existing Authorization Model Alignment
+
+---
+
+## STEP 2 — DEFINE THE CANONICAL INSIGHTS PERMISSION SET
+
+Based on actual codebase analysis, define the smallest coherent permission set for Insights.
+
+Use the same naming conventions already established in the system:
+- `SYNQ_INSIGHTS.<domain>:<action>` in JWT/effective permission form if that is how the backend emits codes
+- underlying capability codes should align with the existing product-capability model used by other products
+
+You must only define permissions grounded in real Insights actions.
+
+Typical categories may include, if validated by code:
+- report view
+- report execute/run
+- report export
+- report schedule
+- report manage/configure
+- dashboard view
+- dashboard customize
+- override/correction actions
+- administration actions
+
+Document:
+- each permission code
+- its human-readable name
+- its intended scope
+- the UI/API action(s) it maps to
+
+Update report:
+## 5. Proposed Insights Permission Catalog
+
+---
+
+## STEP 3 — IMPLEMENT BACKEND PERMISSION CATALOG ENTRIES
+
+Add the Insights permission codes to the backend permission catalog using the same architecture used for other products.
+
+Requirements:
+- use the actual Insights product record/code
+- add only validated permission entries
+- include category/name/description where the current model supports them
+- ensure they appear in the same catalog/query surfaces as other product permissions
+- preserve migration/seed conventions already used in identity service
+- do not break existing migrations or startup behavior
+
+If the current system uses:
+- EF seed data
+- migration-based inserts
+- config-backed registration
+follow the existing pattern exactly and document it.
+
+Update report:
+## 7. Files Changed
+## 8. Backend Implementation
+
+---
+
+## STEP 4 — DEFINE / IMPLEMENT INSIGHTS ROLE → PERMISSION MAPPING SCAFFOLDING
+
+Validate whether Insights product roles already exist.
+
+If they do exist:
+- map those roles to the new Insights permissions using the existing role-permission mapping architecture
+- keep mappings conservative and aligned to actual role names/purpose
+
+If they do NOT exist:
+- do NOT invent a full new role lifecycle unless the codebase already supports it
+- document the role gap clearly
+- add only the minimal mapping scaffolding possible if required by existing patterns
+
+Examples of acceptable outcomes:
+- existing roles mapped to new permissions
+- partial mappings with documented gaps
+- no mappings because no Insights product roles exist yet, clearly documented
+
+Update report:
+## 6. Role-Permission Mapping Strategy
+## 8. Backend Implementation
+
+---
+
+## STEP 5 — ADD FRONTEND SHARED PERMISSION CONSTANTS
+
+Update the shared frontend permission constants so product UI can reference Insights permissions in the same way other products do.
+
+Requirements:
+- extend `PermissionCodes` (or equivalent shared constant file)
+- add a coherent `Insights` section
+- match backend codes exactly
+- ensure types remain valid and TypeScript-safe
+- do not add codes that do not exist in backend
+
+Update report:
+## 9. Frontend / Shared Constant Implementation
+
+---
+
+## STEP 6 — VERIFY CATALOG / RESOLUTION INTEGRATION
+
+Validate that the new Insights permission codes integrate with the existing authorization model.
+
+At minimum verify:
+- permission catalog surfaces can return/show the new Insights permissions
+- backend builds/runs cleanly
+- frontend builds cleanly with new shared constants
+- effective permission resolution path remains valid for Insights once mappings exist
+- no existing products regress
+
+If possible, verify via existing inspection endpoints or queries that the new permissions appear in the catalog.
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 7 — DO NOT OVER-REACH INTO ENFORCEMENT
+
+This feature is about defining permission codes, not fully enforcing them.
+
+Do NOT:
+- start wiring all Insights endpoints with permission filters
+- start gating all Insights UI
+unless a tiny amount of verification plumbing is absolutely required
+
+Instead, clearly document the next follow-on work that this feature enables:
+- backend enforcement for Insights
+- permission-aware UI for Insights
+- control center governance for Insights role mappings if needed
+
+Update report:
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 8 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- existing product permission catalog
+- tenant permission UI
+- control center governance UI
+- permission-aware UI for CareConnect/Fund
+- identity lifecycle
+- invite flow
+- role loading
+- existing migrations/startup behavior
+- TypeScript/build/runtime stability
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Catalog / backend
+- identity service builds successfully
+- migrations/seed path valid
+- Insights permissions appear in the catalog or seed output
+- no duplicate/invalid permission entries
+
+### Frontend
+- shared `PermissionCodes` compiles cleanly
+- no TypeScript regressions
+- existing permission-aware components still compile
+
+### Mapping / resolution
+- if Insights roles exist and were mapped, verify mapping records are created correctly
+- if no roles exist, verify catalog still remains valid and document the limitation clearly
+
+### Regression
+- no regression to tenant portal
+- no regression to control center
+- no regression to other product permission constants
+- no regression to invite or user-management flows
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what Insights product code and real action surfaces were found
+- what permission codes were defined
+- what backend catalog entries were added
+- what frontend shared constants were added
+- whether role mappings were created
+- what remains deferred for Insights enforcement/UI coverage
+- whether the platform now has a valid Insights authorization foundation
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Actual Insights actions/surfaces were analyzed from code
+✔ A coherent Insights permission catalog was defined based on real functionality
+✔ Backend permission catalog entries were added using the existing architecture
+✔ Frontend shared permission constants were added and match backend codes
+✔ Role-permission mappings were created if valid Insights roles exist, or the gap was documented honestly
+✔ Existing identity/access/governance features do not regress
+✔ Verification/build results are documented clearly
+✔ The system now has a valid permission-code foundation for Insights
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working Insights permission catalog foundation in backend
+2. Working shared frontend `PermissionCodes.Insights.*`
+3. Any valid Insights role-permission mapping scaffolding supported by the current codebase
+4. Completed report:
+/analysis/LS-ID-TNT-022-001-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

@@ -1,0 +1,210 @@
+Implement LegalSynq CareConnect Phase 2 — Step 3: lightweight referral workflow rules.
+
+Context:
+- CareConnect service already exists and is working
+- Gateway is already routing /careconnect/*
+- Identity and JWT are already working
+- MySQL + EF Core are already configured
+- CareConnect already supports tenant-scoped CRUD for:
+  - Providers
+  - Categories
+  - Referrals
+- Referral status history support already exists
+- Standardized exception handling, tenant context, role-based auth, and audit field patterns already exist
+
+Goal:
+Add lightweight referral workflow rules so referral status changes follow valid business transitions.
+
+Scope for this step:
+1. define allowed referral status transitions
+2. validate transitions during referral update
+3. create history rows only for valid status changes
+4. reject invalid transitions with clean 400 errors
+5. keep tenant isolation strict
+
+Important:
+Keep this implementation minimal, clean, production-minded, and consistent with the current architecture.
+
+==================================================
+PART 1 — REFERRAL STATUS CONSTANTS
+==================================================
+
+1. Use or refine the existing ReferralStatuses constants class
+Allowed statuses:
+- New
+- Received
+- Contacted
+- Scheduled
+- Completed
+- Cancelled
+
+2. Ensure there is a clean helper for valid status values
+Expose:
+- all allowed statuses
+- status validation helper if useful
+
+==================================================
+PART 2 — ALLOWED WORKFLOW TRANSITIONS
+==================================================
+
+3. Implement lightweight workflow rules
+Allow only these transitions:
+
+- New -> Received
+- Received -> Contacted
+- Contacted -> Scheduled
+- Scheduled -> Completed
+- New -> Cancelled
+- Received -> Cancelled
+- Contacted -> Cancelled
+- Scheduled -> Cancelled
+
+Rules:
+- Completed is terminal
+- Cancelled is terminal
+- same-status update is allowed if other mutable fields are changing
+- same-status update must NOT create a history row
+- invalid transitions must return HTTP 400 with a clean validation/business error
+
+4. Create a small workflow helper/service
+Create something like:
+- ReferralWorkflowRules
+or equivalent
+
+Responsibilities:
+- check if a status value is valid
+- check whether a transition is allowed
+- provide a clear error message for invalid transitions
+
+Example invalid transition message:
+- Invalid referral status transition from New to Completed.
+
+==================================================
+PART 3 — REFERRAL UPDATE FLOW
+==================================================
+
+5. Enhance PUT /api/referrals/{id}
+Refactor the existing update flow so that it:
+- loads the referral tenant-scoped
+- compares existing status with incoming status
+- if status changed:
+  - validate new status value
+  - validate allowed transition
+  - create ReferralStatusHistory row
+- if status did not change:
+  - allow update of other mutable fields
+  - do not create history row
+
+6. Keep mutable fields limited
+For this step, continue to allow updates only to the current mutable referral fields such as:
+- RequestedService
+- Urgency
+- Status
+- Notes
+
+Do not allow ProviderId or TenantId to change.
+
+7. Save update and history together
+Persist the referral update and history insert in the same DbContext save operation so they commit together.
+
+8. Tenant isolation
+All update logic must remain tenant-scoped:
+- find referral by Id + TenantId
+- if not found within tenant scope, return 404
+
+9. Audit behavior
+Continue using the existing audit pattern:
+- UpdatedAtUtc should change on update
+- UpdatedByUserId should come from ICurrentRequestContext
+- CreatedAtUtc / CreatedByUserId must remain unchanged
+
+==================================================
+PART 4 — HISTORY BEHAVIOR
+==================================================
+
+10. History row creation rules
+When a valid status change occurs:
+- create a ReferralStatusHistory row
+- set:
+  - Id = new Guid
+  - ReferralId
+  - TenantId
+  - OldStatus
+  - NewStatus
+  - ChangedByUserId
+  - ChangedAtUtc = DateTime.UtcNow
+  - Notes if appropriate
+
+11. No-op status update rule
+If status remains the same:
+- do not create history row
+- still allow other field updates
+
+==================================================
+PART 5 — VALIDATION AND ERROR HANDLING
+==================================================
+
+12. Validate incoming status
+If an incoming status is not one of the allowed statuses:
+- return HTTP 400 using the existing standardized exception handling pattern
+
+13. Invalid transition behavior
+If the new status is valid but transition is not allowed:
+- return HTTP 400
+- use existing centralized exception handling
+- message should clearly state old and new status
+
+14. Keep exception handling centralized
+Do not add ad hoc error JSON in endpoints.
+Continue using the shared exception pattern already in the solution.
+
+==================================================
+PART 6 — AUTHORIZATION
+==================================================
+
+15. Keep authorization rules unchanged
+- GET /health -> anonymous
+- GET /info -> anonymous
+- GET /api/referrals -> AuthenticatedUser
+- GET /api/referrals/{id} -> AuthenticatedUser
+- GET /api/referrals/{id}/history -> AuthenticatedUser
+- POST /api/referrals -> PlatformOrTenantAdmin
+- PUT /api/referrals/{id} -> PlatformOrTenantAdmin
+
+Do not broaden access.
+
+==================================================
+PART 7 — OUTPUT REQUIRED
+==================================================
+
+16. After implementation, output:
+- files created/updated
+- allowed referral statuses
+- allowed transitions
+- how invalid transitions are handled
+- sample curl requests for:
+  - valid transition
+  - invalid transition
+  - terminal state transition attempt
+  - history retrieval
+
+17. Code quality expectations
+- clean namespaces
+- async EF Core access
+- minimal duplication
+- no breaking changes to existing provider/category/referral CRUD
+- keep code production-minded
+- UTC timestamps everywhere
+- preserve tenant isolation strictly
+
+18. Do NOT add yet
+Do not implement:
+- workflow engine
+- notifications
+- documents
+- payments
+- maps
+- geo search
+- scheduling
+- background jobs
+- advanced sorting

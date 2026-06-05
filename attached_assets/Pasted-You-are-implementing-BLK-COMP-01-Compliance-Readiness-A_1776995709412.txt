@@ -1,0 +1,162 @@
+You are implementing BLK-COMP-01 — Compliance Readiness & Audit Integrity for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-COMP-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block builds on completed layers:
+   - Security (SEC)
+   - Tenant Isolation (SEC-02)
+   - Trust Boundary (SEC-02-02)
+   - Observability (OBS-01)
+   - Governance (GOV-02)
+   - Performance (PERF-01, PERF-02)
+   - Runtime Hardening (OPS-01)
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - redesign core architecture
+   - weaken existing controls
+   - introduce fake “checkbox compliance”
+   - add external tooling (SIEM, DLP, etc.)
+   - change product behavior unless required for audit/compliance correctness
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Establish compliance-grade audit integrity and traceability aligned to:
+
+- SOC 2 (Security, Availability, Confidentiality)
+- HIPAA (audit trail, access traceability, data access control — where applicable)
+
+At the end of this block:
+
+- all sensitive actions are auditable
+- audit events are complete, structured, and traceable
+- access decisions are reconstructable
+- data access paths are attributable to users/tenants
+- system behavior is defensible under audit
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- audit coverage validation
+- audit completeness enforcement
+- traceability validation (who did what, when, where)
+- access decision traceability
+- sensitive data interaction visibility
+- audit consistency across services
+
+This block does NOT include:
+
+- legal certification
+- external audit integrations
+- encryption-at-rest changes (unless trivial)
+- data retention policies (only document gaps)
+- PII classification system redesign
+
+--------------------------------------------------
+
+PART A — AUDIT EVENT COVERAGE REVIEW
+
+--------------------------------------------------
+
+Audit all major flows and confirm audit coverage exists:
+
+1. Identity
+   - login / authentication
+   - role assignment
+   - tenant assignment
+   - user invitation / activation
+
+2. Tenant
+   - tenant creation
+   - tenant configuration changes
+
+3. CareConnect
+   - provider onboarding
+   - provider activation
+   - referral creation
+   - referral updates
+   - network/provider associations
+
+4. Admin actions
+   - dashboard access (optional but recommended)
+   - activation approvals
+   - provider linking/unlinking
+   - blocked provider actions
+
+5. Security events
+   - trust-boundary rejection
+   - invalid provisioning tokens
+   - cross-tenant access denial
+   - governance denial
+
+For each:
+- confirm audit event exists OR
+- document missing coverage
+
+--------------------------------------------------
+
+PART B — AUDIT EVENT STANDARDIZATION
+
+--------------------------------------------------
+
+Ensure audit events follow a consistent structure.
+
+Minimum required fields:
+
+- EventType
+- Timestamp (UTC)
+- UserId (if applicable)
+- TenantId (if applicable)
+- CorrelationId (from OBS-01)
+- SourceService (CareConnect / Identity / Tenant / Gateway)
+- ActionResult (Success / Denied / Failed)
+- TargetEntity (e.g., ReferralId, ProviderId)
+- Metadata (safe, non-sensitive context)
+
+If inconsistencies exist:
+- normalize event shape
+- reuse existing Audit service patterns
+- DO NOT create parallel audit formats
+
+--------------------------------------------------
+
+PART C — ACCESS DECISION TRACEABILITY
+
+--------------------------------------------------
+
+Ensure every sensitive access decision is traceable.
+
+At minimum verify:
+
+- governance denials (GOV-02) → logged ✔
+- cross-tenant denial → logged ✔
+- trust-boundary rejection → logged ✔
+- product-role denial → logged or auditable
+
+Enhance if needed:
+
+- include:
+  - role
+  - tenant context
+  - endpoint
+  - reason
+
+Goal:
+
+```text
+Given an incident → reconstruct WHY access was allowed or denied

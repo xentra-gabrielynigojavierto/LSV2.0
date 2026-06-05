@@ -1,0 +1,230 @@
+Implement feature LS-COR-PRD-001 — Product Provisioning Engine.
+
+Context:
+The platform currently has fragmented product provisioning behavior. Tenant creation, tenant product enablement, organization product access, and downstream product-specific setup are not governed by a single reusable engine. This causes onboarding gaps, duplication, and makes multi-product expansion harder. We need a centralized Product Provisioning Engine that standardizes tenant product enablement, organization product provisioning, eligibility enforcement, and product-specific provisioning hooks.
+
+Goal:
+Create a reusable provisioning engine so all product enablement flows through one orchestration path. This engine must support tenant-level provisioning, organization-level provisioning, eligibility rules by org type, and product-specific handlers such as CareConnect provider provisioning. Onboarding and admin product enablement must use this engine rather than embedding or duplicating logic.
+
+==================================================
+FEATURE ID
+LS-COR-PRD-001
+Report file: /analysis/LS-COR-PRD-001-report.md
+==================================================
+
+FUNCTIONAL REQUIREMENTS
+
+1. Create centralized Product Provisioning Engine
+- Introduce a dedicated service, for example:
+  ProductProvisioningService
+- Core responsibility:
+  - validate product eligibility
+  - enable/create TenantProduct
+  - cascade/create OrganizationProducts
+  - execute product-specific provisioning hooks
+- Keep the engine cohesive and reusable from multiple entry points.
+
+2. Standardize tenant product enablement
+- Refactor current tenant product enablement logic so it flows through ProductProvisioningService.
+- Reuse existing logic where appropriate, but remove duplication.
+- Any existing EnableTenantProduct path should call the centralized service rather than keeping separate provisioning logic.
+- Must be idempotent.
+- Must not create duplicate TenantProduct records.
+
+3. Standardize organization product provisioning
+- When a product is provisioned for a tenant, automatically provision OrganizationProduct records for all eligible organizations under that tenant.
+- Respect org type eligibility rules.
+- Must be idempotent.
+- Must not create duplicate OrganizationProduct records.
+
+4. Introduce centralized product eligibility rules
+- Create a single centralized mapping or configuration that governs:
+  OrgType -> AllowedProducts
+- Example approach:
+  - PROVIDER -> CARECONNECT
+  - LAW_FIRM -> CARECONNECT, FUND
+- Keep this configurable and easy to extend.
+- Do not scatter eligibility rules across multiple unrelated files or services.
+- All provisioning validation should rely on this centralized rule source.
+
+5. Introduce product-specific provisioning hook contract
+- Add a product provisioning handler abstraction, for example:
+  IProductProvisioningHandler
+- The engine should resolve and run the appropriate handler(s) for the provisioned product.
+- Handlers must be idempotent and safe to retry.
+
+6. Implement CareConnect product provisioning handler
+- Add a CareConnect-specific provisioning handler.
+- For eligible provider organizations, it must create or link the appropriate CareConnect Provider record.
+- The result must ensure the provider appears in CareConnect provider search/list without requiring manual post-provisioning actions.
+- If a matching provider already exists, link/update instead of duplicating.
+- Prefer current architecture-aligned matching rules, especially OrganizationId-first if supported.
+
+7. Hook execution behavior
+- Provisioning hooks must execute through the centralized engine.
+- They should only run when relevant to the product being provisioned.
+- They must not create duplicates on retry.
+- They must be safe if called more than once.
+
+8. Onboarding integration
+- Update tenant onboarding/create-tenant flow so it uses ProductProvisioningService rather than implementing embedded provisioning logic directly.
+- Onboarding should become a caller of the engine, not the owner of provisioning logic.
+
+9. Admin/API integration
+- Update existing admin product enablement APIs and any related service paths so they use ProductProvisioningService.
+- Remove duplicate provisioning branches where possible.
+- Preserve current API behavior unless a small request/response adjustment is required.
+
+10. Extensibility for future products
+- Design the engine so new products can be added by:
+  - updating product eligibility config
+  - adding a product-specific handler where needed
+- Avoid requiring changes to onboarding orchestration or core engine flow for each new product.
+
+11. Idempotency
+- Re-running provisioning must not duplicate:
+  - TenantProducts
+  - OrganizationProducts
+  - Provider records
+- Explicitly guard against duplicates in code.
+
+12. Safe consistency behavior
+- Use existing transaction and unit-of-work patterns where available.
+- If full atomicity across all involved stores/databases is not possible, implement the safest practical consistency approach and document it clearly in the report.
+- Do not leave obviously inconsistent states if a recoverable safeguard can prevent them.
+
+==================================================
+IMPLEMENTATION GUIDANCE
+==================================================
+
+Architecture:
+- Keep the core provisioning path centralized.
+- Prefer focused helpers and service boundaries.
+- Example internal methods are acceptable, such as:
+  - ProvisionProductForTenant(...)
+  - ProvisionOrganizationProducts(...)
+  - ExecuteProvisioningHandlers(...)
+- Avoid embedding product-specific branching all over controllers or endpoints.
+
+Reuse:
+- Reuse existing enablement and org-product creation logic where appropriate.
+- Refactor instead of duplicating.
+- Keep changes as small as possible while still making the engine real and reusable.
+
+Eligibility:
+- Implement a single source of truth for org-type/product compatibility.
+- Keep it configurable and maintainable.
+
+CareConnect:
+- Trace current provider creation, linking, activation, and listing behavior.
+- Align the CareConnect handler with current repository/service patterns.
+- Ensure newly provisioned provider orgs appear in the list immediately.
+
+Performance:
+- Avoid obvious N+1 or repetitive per-org inefficiencies where a batched approach is reasonable.
+- Keep the implementation practical and aligned to current codebase patterns.
+
+Backward compatibility:
+- Existing tenants must remain unaffected unless they pass through newly updated enablement flows.
+- Do not introduce breaking changes to unrelated functionality.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+AC1. Centralized provisioning path
+- Product enablement uses ProductProvisioningService rather than duplicated scattered logic.
+
+AC2. TenantProduct creation works
+- Enabling a product for a tenant creates the expected TenantProduct record if missing.
+
+AC3. OrganizationProduct creation works
+- Eligible organizations under the tenant receive expected OrganizationProduct records.
+
+AC4. Eligibility is enforced
+- Invalid org/product combinations are prevented according to centralized rules.
+
+AC5. CareConnect provisioning hook works
+- Provisioning CARECONNECT for a provider org results in provider creation/linking and immediate visibility in CareConnect list/search.
+
+AC6. Onboarding uses engine
+- CreateTenant flow calls the centralized provisioning engine rather than embedding product provisioning logic.
+
+AC7. No duplicates on retry
+- Re-running provisioning does not duplicate TenantProduct, OrganizationProduct, or Provider records.
+
+AC8. Existing behavior does not regress
+- Standard tenant creation and product enablement still work for supported cases.
+
+==================================================
+TEST SCENARIOS TO EXECUTE
+==================================================
+
+1. Admin product enablement flow
+- Enable CARECONNECT for a tenant
+- Verify TenantProduct created
+- Verify eligible OrganizationProducts created
+- Verify provider orgs are provisioned into CareConnect as needed
+
+2. Onboarding integration flow
+- Create a tenant through onboarding path that results in CARECONNECT provisioning
+- Verify onboarding uses the centralized engine
+- Verify resulting product access works as expected
+
+3. Idempotency test
+- Re-run or simulate duplicate provisioning calls
+- Verify no duplicate TenantProduct / OrganizationProduct / Provider records
+
+4. Eligibility validation test
+- Attempt provisioning for an invalid org-type/product combination where practical
+- Verify provisioning is blocked or skipped according to centralized rules
+- Document exact behavior in the report
+
+5. Existing provider handling test
+- Provision a provider organization where a matching provider already exists
+- Verify existing record is linked/updated instead of duplicated
+
+6. Regression check
+- Verify existing tenant/product-related flows still behave correctly for supported scenarios
+
+7. Consistency/failure handling test
+- Validate or simulate a partial failure where practical
+- Confirm the safest implemented consistency behavior
+- Document rollback/compensation or bounded limitation clearly in the report
+
+==================================================
+DELIVERABLES
+==================================================
+
+1. Implement ProductProvisioningService
+2. Centralize tenant product enablement through it
+3. Centralize organization product provisioning through it
+4. Add centralized org-type/product eligibility configuration
+5. Add product provisioning hook abstraction
+6. Implement CareConnect provisioning handler
+7. Integrate onboarding and admin product enablement paths with the engine
+8. Run validation/tests
+9. Save a detailed report here:
+   /analysis/LS-COR-PRD-001-report.md
+
+The report must include:
+- Summary of what was implemented
+- Confirmed root cause / current gap
+- Architecture changes
+- Files changed
+- API/service integration points updated
+- Config additions
+- How eligibility is enforced
+- How duplication was removed
+- How idempotency is ensured
+- How consistency/transaction handling is approached
+- Test scenarios executed
+- Test results
+- Limitations and follow-up recommendations
+
+Important:
+- Make the smallest correct change set that satisfies the feature.
+- Reuse existing architecture and patterns unless change is necessary.
+- Do not do unrelated cleanup.
+- Do not stop at analysis only; implement the feature.
+- If any requirement cannot be fully completed due to current architecture constraints, implement the safest practical version and document the exact limitation in the report.

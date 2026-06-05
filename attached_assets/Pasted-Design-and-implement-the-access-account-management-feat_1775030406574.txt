@@ -1,0 +1,197 @@
+Design and implement the access/account-management feature set for both the LegalSynq Control Center and the Tenant Portal.
+
+Context:
+- LegalSynq has a tenant-aware, multi-organization, product-role platform model
+- Tenant is the account/subdomain boundary
+- Organization is the business actor
+- Control Center is the separate admin portal
+- Tenant Portal is the operator-facing tenant/product portal
+- Existing auth/session model already includes:
+  - tenant-aware login
+  - JWT/session context
+  - system roles like TenantAdmin and PlatformAdmin
+  - product roles for product workflows
+- Backend remains the security boundary
+- Frontend should shape UX, but access enforcement stays in backend/services
+
+Goal:
+Define the full feature set and implementation plan for:
+1. Control Center access/account features
+2. Tenant Portal access/account features
+3. Shared identity/account features used by both
+
+Focus specifically on:
+- login
+- logout
+- forgot password
+- reset password
+- change password
+- profile display
+- profile editing
+- profile picture/avatar upload
+- update/remove photo
+- account security basics
+- admin account management capabilities
+- user self-service capabilities
+
+Also generate a structured report artifact for later review and validation.
+
+Feature ID:
+- UIX-001
+
+Generate the output in these exact sections:
+
+1. Shared Features (Both Control Center and Tenant Portal)
+List and describe the necessary shared features, including:
+- login
+- logout
+- session restore
+- invalid session handling
+- forgot password
+- reset password
+- change password
+- password policy
+- profile display
+- profile edit
+- profile picture/avatar upload/update/remove
+- security/session management basics
+- MFA recommendation
+- audit/security history basics
+
+For each feature, explain:
+- purpose
+- who uses it
+- whether it is MVP or Phase 2
+
+2. Control Center Features
+List and describe the necessary features specific to the separate admin portal, including:
+- admin login
+- admin forgot/reset/change password
+- admin profile page
+- admin profile photo
+- user management related to access/accounts
+- activate/deactivate users
+- lock/unlock accounts
+- resend invite
+- trigger password reset
+- force logout
+- membership and role visibility
+- admin security controls
+- platform admin vs tenant admin scope differences
+
+For each feature, explain:
+- purpose
+- TenantAdmin vs PlatformAdmin behavior
+- whether it is MVP or Phase 2
+
+3. Tenant Portal Features
+List and describe the necessary features specific to the tenant/operator portal, including:
+- tenant-branded login
+- tenant forgot/reset/change password
+- my profile page
+- org/role/product display
+- profile photo management
+- notification/preferences basics
+- account security basics
+- self-service features only
+
+For each feature, explain:
+- purpose
+- who uses it
+- whether it is MVP or Phase 2
+
+4. Feature Matrix
+Provide a clean matrix with rows for features and columns:
+- Shared
+- Control Center
+- Tenant Portal
+- MVP
+- Phase 2
+
+5. Required API/Backend Capabilities
+List the backend/API capabilities needed to support these features, including:
+- login
+- logout
+- auth/me
+- forgot password
+- reset password
+- change password
+- profile get/update
+- profile photo upload/update/remove
+- account/session listing
+- account deactivate/lock
+- admin-triggered reset password
+- invite/resend invite
+
+Do not implement the APIs yet; just define what is required.
+
+6. Data Model / Storage Considerations
+Explain what account/profile/security data likely needs to exist, including:
+- user profile fields
+- avatar/photo storage reference
+- password reset tokens
+- email verification state
+- MFA enrollment state
+- session/device tracking
+- security event log
+- audit metadata
+
+7. Recommended MVP Scope
+Give the exact recommended MVP scope for:
+- Control Center
+- Tenant Portal
+
+Keep MVP realistic and focused on what is needed to start managing accounts.
+
+8. Implementation Sequence
+Give the recommended implementation order for building these features across backend + frontend, starting from the highest-value/lowest-risk items first.
+
+9. Validation Report Generation
+Generate a structured validation report for Feature ID UIX-001 that I can review later.
+The report must be included in the same response and use this exact structure:
+
+- Report Title
+- Feature ID
+- Summary
+- Scope Covered
+- Out of Scope
+- Shared Features Identified
+- Control Center Features Identified
+- Tenant Portal Features Identified
+- MVP Recommendations
+- Phase 2 Recommendations
+- Required API/Backend Capabilities
+- Data Model Considerations
+- Open Questions / Risks
+- Validation Checklist
+- Recommended Next Prompts
+
+In the Validation Checklist, include checkbox-style items for:
+- login
+- logout
+- forgot password
+- reset password
+- change password
+- profile display
+- profile edit
+- profile photo upload/update/remove
+- admin account controls
+- tenant self-service controls
+- API dependency coverage
+- MVP clarity
+
+10. Replit Delivery Guidance
+At the end, provide a suggested breakdown of follow-up implementation prompts in this order:
+- backend auth/account APIs
+- Control Center frontend account features
+- Tenant Portal frontend account features
+- profile photo/avatar support
+- password reset flow
+- advanced security/MFA/session management
+
+Important constraints:
+- treat Control Center and Tenant Portal as separate interfaces
+- keep tenant-aware architecture intact
+- do not collapse admin features into the operator portal
+- keep the answer implementation-oriented and product-structured
+- ensure the generated report is explicit enough that it can be validated later against Feature ID UIX-001

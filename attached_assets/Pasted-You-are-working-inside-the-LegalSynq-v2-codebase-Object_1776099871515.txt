@@ -1,0 +1,169 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Register the existing `liens` microservice in the v2 gateway so it becomes reachable through the platform entry point using the standard v2 routing pattern.
+
+IMPORTANT ARCHITECTURE RULE:
+For this Liens build, all shared platform concerns must use v2 services only. Do NOT introduce or reuse v1 equivalents for:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+IMPORTANT IMPLEMENTATION RULES:
+- Do NOT add any business logic.
+- Do NOT implement cases, liens, contacts, settlements, tasks, or reports.
+- Do NOT add identity enforcement yet.
+- Do NOT add documents, notifications, or audit integrations yet.
+- Do NOT copy any code from v1.
+- Follow the existing gateway conventions already used in v2.
+- Keep changes minimal, focused, and consistent with existing service registration patterns.
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING GATEWAY PATTERN
+--------------------------------------------------
+
+Inspect the current gateway implementation and identify how existing services are registered and routed.
+
+Look for:
+- service route configuration
+- downstream URL/service registration
+- environment/config patterns
+- route transforms/path rewriting rules
+- how health/info endpoints are exposed for other services
+
+Use the existing pattern as the source of truth.
+Do NOT invent a new gateway approach if one already exists.
+
+--------------------------------------------------
+STEP 2 — REGISTER THE LIENS SERVICE
+--------------------------------------------------
+
+Add the `liens` service to the gateway using the same pattern used for other v2 services.
+
+Requirements:
+- Service name must be `liens`
+- The gateway must know how to route requests to the Liens service
+- The configuration must support local/dev execution
+- Use the Liens service’s existing port/configuration
+- Do not hardcode brittle values if the gateway already uses env/config-based registration
+
+--------------------------------------------------
+STEP 3 — DEFINE THE ROUTE CONTRACT
+--------------------------------------------------
+
+Establish the canonical external route prefix for the Liens service as:
+
+/api/liens/*
+
+Validate forwarding for baseline endpoints such as:
+- /api/liens/health
+- /api/liens/info
+
+If the gateway pattern requires path transforms, implement them according to the existing conventions.
+
+IMPORTANT:
+The external contract should clearly establish `liens` under `/api/liens/*` even if an internal rewrite is needed.
+
+--------------------------------------------------
+STEP 4 — KEEP THE SERVICE BOUNDARY CLEAN
+--------------------------------------------------
+
+This feature is only about gateway registration.
+
+Do NOT add:
+- auth policies
+- identity integration
+- permission filters
+- product access filters
+- business endpoints
+- frontend changes
+- database work
+- v1 compatibility logic unless already mandated by existing gateway conventions
+
+--------------------------------------------------
+STEP 5 — VALIDATE LOCAL/DEV EXECUTION
+--------------------------------------------------
+
+Run validation for both gateway and Liens service.
+
+Confirm:
+1. Gateway builds successfully
+2. Liens service builds successfully
+3. Gateway starts successfully
+4. Liens service starts successfully
+5. Requests sent to the gateway route are forwarded correctly to Liens
+6. The routed health/info endpoints return successful responses
+
+Capture:
+- route tested
+- HTTP status returned
+- response payload returned
+
+--------------------------------------------------
+STEP 6 — DOCUMENT CONFIGURATION CHANGES
+--------------------------------------------------
+
+Clearly document:
+- files changed in gateway
+- files changed in Liens service, if any
+- config keys added or updated
+- route mapping behavior
+- any transform/rewrite behavior used
+
+Keep the configuration consistent with existing v2 style.
+
+--------------------------------------------------
+STEP 7 — DO NOT OVERREACH
+--------------------------------------------------
+
+Do not:
+- refactor unrelated gateway behavior
+- introduce new gateway architecture
+- modify other services beyond what is necessary for registration/validation
+- add placeholder business routes
+- add auth scaffolding prematurely
+
+This must remain a tight infrastructural change.
+
+--------------------------------------------------
+STEP 8 — GENERATE REPORT
+--------------------------------------------------
+
+Create this report file in the root /analysis folder:
+
+/analysis/LS-LIENS-01-002-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing gateway pattern identified and followed
+3. Exact files changed
+4. Gateway registration details for `liens`
+5. External route contract established
+6. Any internal path transforms or rewrite logic
+7. Config/environment changes made
+8. Build results
+   - gateway
+   - liens service
+9. Run results
+   - gateway
+   - liens service
+10. Gateway forwarding test results
+   - /api/liens/health
+   - /api/liens/info
+11. Any deviations from the requested route shape and why
+12. Confirmation that no v1 services or logic were introduced
+13. Final readiness statement:
+   - Is Liens now reachable through the gateway?
+   - Is the system ready for the next feature?
+
+Be detailed. The report must contain enough evidence for architectural and functional review.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+The goal is to make `liens` a first-class v2 service reachable through the gateway, while preserving the clean microservice boundary and the v2-only shared services rule.
+
+Proceed.

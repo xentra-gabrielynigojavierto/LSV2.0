@@ -1,0 +1,246 @@
+Implement feature LS-COR-ROL-001 — Product Role Resolution Engine.
+
+Context:
+The platform now has a centralized Product Provisioning Engine that governs what products are enabled and provisioned at the tenant and organization levels, enforces org-type/product eligibility, and supports product-specific provisioning hooks. The next required layer is centralized role resolution: determining what effective product role/access a user gets from that provisioned state. Today, this behavior is implicit or fragmented. We need a single engine that resolves user product roles consistently for login, session/user context, and downstream authorization readiness.
+
+Goal:
+Create a centralized Product Role Resolution Engine that determines a user’s effective product roles and access context based on tenant product state, organization product state, org membership, org type eligibility, system role context, and product-specific mapping rules. Authentication and user-context generation must consume this engine rather than deriving product roles ad hoc.
+
+==================================================
+FEATURE ID
+LS-COR-ROL-001
+Report file: /analysis/LS-COR-ROL-001-report.md
+==================================================
+
+FUNCTIONAL REQUIREMENTS
+
+1. Create centralized Product Role Resolution Engine
+- Introduce a dedicated service, for example:
+  ProductRoleResolutionService
+- Core responsibilities:
+  - load user memberships
+  - load tenant product state
+  - load organization product state
+  - validate org/product eligibility
+  - apply product role mapping rules
+  - produce a normalized effective-access result
+- Keep the engine reusable from login/auth flows and future authorization helpers.
+
+2. Create a normalized access result model
+- Define a single output contract for effective access, for example:
+  EffectiveAccessContext
+- It should be sufficient to answer:
+  - which products the user can access
+  - what effective role(s) the user has per product
+  - which organization context produced those roles
+  - whether the access is org-scoped or tenant-wide where applicable
+  - why the access was granted or blocked
+- Keep the structure practical for both token/context generation and diagnostics.
+
+3. Introduce centralized product role mapping rules
+- Create a single source of truth for product role mapping.
+- It should map inputs such as:
+  - system role(s)
+  - org type
+  - product code
+  - membership context
+  to effective product role(s).
+- Do not scatter mapping logic across auth endpoints/controllers.
+- Keep it code-based/config-based for now unless the existing architecture clearly supports a better pattern.
+- Make it easy to extend later.
+
+4. Provisioning-aware role resolution
+- The role engine must never grant usable product access unless all of the following are true:
+  - product is enabled for the tenant
+  - product is enabled for the user’s organization
+  - org type is eligible for that product
+  - user has valid membership in the organization
+- Disabled or missing provisioning state must block effective product access, even if the user has a broad system role.
+
+5. Multi-organization membership support
+- If a user belongs to multiple organizations:
+  - evaluate each membership independently
+  - resolve product roles per org context
+  - avoid accidental role escalation from merging
+  - deduplicate equivalent roles where appropriate
+- Preserve organization context in the result.
+
+6. Deterministic precedence rules
+- Define and implement explicit precedence behavior, including at minimum:
+  - disabled product state overrides any role
+  - invalid org/product eligibility blocks access
+  - product-specific explicit mappings override generic fallback mappings
+  - duplicate roles collapse to distinct normalized output
+  - broader system roles only elevate product access where policy explicitly allows
+- Document the implemented precedence rules in the report.
+
+7. Product-specific role mapper abstraction
+- Add a product-specific role mapper abstraction, for example:
+  IProductRoleMapper
+- The core engine should orchestrate resolution while each product may supply specialized role mapping logic if needed.
+- Implement at least a CareConnect role mapper now.
+- Design so future products like Fund and Liens can add mappers without changing the engine flow.
+
+8. Implement CareConnect role mapper
+- Add CareConnect-specific role mapping behavior.
+- Support correct effective access mapping for at least:
+  - provider org context
+  - law firm org context
+  - tenant/platform admin context where policy allows
+- Keep the result aligned with existing CareConnect access expectations in the current codebase.
+
+9. Auth/login integration
+- Update current authentication/login/user-context generation to use ProductRoleResolutionService.
+- Remove duplicated or implicit product role derivation from the auth flow where practical.
+- Ensure current login still works.
+- Prefer additive/backward-compatible response changes over breaking changes.
+
+10. Authorization readiness
+- The output from the role engine must be suitable for downstream access checks.
+- At minimum, it must support answering:
+  - does this user have access to this product?
+  - what effective product role(s) do they have?
+  - for which organization(s) do those roles apply?
+- Do not implement a full permissions engine here unless a minimal helper is necessary.
+
+11. Auditability / explainability
+- Make it possible to understand why a role was granted or denied.
+- Implement this through practical means such as:
+  - structured debug metadata
+  - access reason/source fields
+  - log messages for blocked cases
+- Keep the solution safe and not overly verbose in normal runtime behavior.
+
+12. Stateless / idempotent resolution
+- Role resolution should be computed from current state, not provisioned into duplicate records.
+- Re-running resolution with the same underlying state should return the same result.
+- Do not create duplicate persisted role rows as part of normal resolution unless the current architecture absolutely requires a bounded compatibility mechanism.
+
+==================================================
+IMPLEMENTATION GUIDANCE
+==================================================
+
+Architecture:
+- Build a true centralized role-resolution path.
+- Keep the core engine generic and product-aware.
+- Example components may include:
+  - IProductRoleResolutionService
+  - ProductRoleResolutionService
+  - ProductRoleMappingConfig
+  - IProductRoleMapper
+  - CareConnectRoleMapper
+- Keep controllers/endpoints thin.
+
+Provisioning alignment:
+- Align role resolution with the existing Product Provisioning Engine.
+- Respect TenantProduct, OrganizationProduct, org membership, and eligibility state.
+- Do not bypass the provisioning model.
+
+Reuse:
+- Reuse current auth/user-loading/membership-loading patterns where appropriate.
+- Refactor duplicated role-derivation logic instead of copying it.
+
+Performance:
+- Avoid obvious N+1 loading patterns.
+- Batch-load memberships, orgs, tenant products, org products, and roles where practical.
+- Keep the implementation efficient enough for login-time use.
+
+Backward compatibility:
+- Existing login/auth flows must continue to work.
+- Avoid breaking response contracts unless absolutely necessary.
+- If you add fields, keep prior behavior intact as much as possible.
+
+Security:
+- Deny by default when state is ambiguous or incomplete.
+- Never emit usable product access for disabled or ineligible contexts.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+AC1. Centralized resolution path
+- Auth/login or user-context flow uses ProductRoleResolutionService rather than implicit/scattered role derivation.
+
+AC2. Provisioning-aware access
+- A user does not receive usable product access unless tenant product and organization product state both allow it.
+
+AC3. Multi-org correctness
+- A user with memberships in multiple orgs gets the correct org-scoped product roles without duplication or unintended escalation.
+
+AC4. Deterministic mapping
+- Given the same memberships and provisioning state, the engine returns the same effective roles consistently.
+
+AC5. CareConnect mapping works
+- CareConnect users receive correct effective roles for provider and law-firm contexts according to implemented rules.
+
+AC6. Authorization-ready output
+- The engine output can be used to answer whether the user has access to a product and under which org context.
+
+AC7. Backward compatibility
+- Existing login/auth flow still succeeds and current consumers remain functional.
+
+AC8. Auditability
+- The implementation can explain, at least in logs or result metadata, why a role was granted or denied.
+
+==================================================
+TEST SCENARIOS TO EXECUTE
+==================================================
+
+1. Provider user with CareConnect enabled
+- Verify effective CareConnect role resolves correctly for provider org context.
+
+2. Law firm user with CareConnect enabled
+- Verify effective CareConnect role resolves correctly for law firm org context.
+
+3. User with product disabled at org level
+- Verify no usable product role is returned for that product.
+
+4. User with product disabled at tenant level
+- Verify no usable product role is returned for that product.
+
+5. User with multiple org memberships
+- Verify roles resolve correctly per org context and do not escalate incorrectly.
+
+6. Admin/elevated user scenario
+- Verify any elevated product access only occurs according to explicit mapping rules.
+
+7. Determinism/repeatability
+- Resolve the same user multiple times against unchanged data and verify stable output.
+
+8. Backward compatibility regression
+- Verify existing login/auth flow still succeeds after integration.
+
+==================================================
+DELIVERABLES
+==================================================
+
+1. Implement ProductRoleResolutionService
+2. Implement normalized effective access model
+3. Add centralized product role mapping rules
+4. Add IProductRoleMapper abstraction
+5. Implement CareConnect role mapper
+6. Integrate auth/login or user-context flow with the engine
+7. Run validation/tests
+8. Save a detailed report here:
+   /analysis/LS-COR-ROL-001-report.md
+
+The report must include:
+- Summary of what was implemented
+- Confirmed current gap / root cause
+- Architecture changes
+- Files changed
+- Auth/user-context integration points updated
+- Mapping rules introduced
+- Precedence rules implemented
+- How provisioning state is enforced
+- How multi-org resolution is handled
+- Test scenarios executed
+- Test results
+- Limitations and follow-up recommendations
+
+Important:
+- Make the smallest correct change set that satisfies the feature.
+- Reuse existing architecture and patterns unless change is necessary.
+- Do not do unrelated cleanup.
+- Do not stop at analysis only; implement the feature.
+- If any requirement cannot be fully completed due to current architecture constraints, implement the safest practical version and document the exact limitation in the report.

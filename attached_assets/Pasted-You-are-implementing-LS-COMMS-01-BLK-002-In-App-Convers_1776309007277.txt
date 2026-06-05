@@ -1,0 +1,496 @@
+You are implementing LS-COMMS-01-BLK-002 — In-App Conversation Operations for SynqComm as an INDEPENDENT SERVICE with its OWN PHYSICALLY SEPARATE DATABASE.
+
+OBJECTIVE:
+Extend the existing SynqComm service to support real in-app conversation operations, including message ordering, internal vs external visibility enforcement, participant-based access control, read/unread tracking, reply permissions, and improved conversation lifecycle behavior.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+
+ARCHITECTURE REQUIREMENTS:
+- Continue using SynqComm as an independent service under /apps/services/synqcomm
+- Continue using the dedicated SynqComm physical database only
+- Do not piggyback on another service database
+- Do not introduce cross-database joins for core logic
+- Follow the existing .NET 8, Clean Architecture, EF Core, minimal API, and BuildingBlocks patterns established in BLK-001
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-01-BLK-002-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-01-BLK-002-report.md
+
+Initialize it with:
+
+# LS-COMMS-01-BLK-002 — In-App Conversation Operations Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support usable in-app conversation operations including visibility enforcement, participant-based access, read/unread tracking, reply permissions, ordered thread retrieval, and improved conversation lifecycle behavior.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- Preserve Clean Architecture layering from BLK-001
+
+## Steps Completed
+- [ ] Step 1: Review existing BLK-001 implementation
+- [ ] Step 2: Design BLK-002 domain extensions
+- [ ] Step 3: Add read/unread and access-control data model
+- [ ] Step 4: Extend application contracts and services
+- [ ] Step 5: Implement visibility and participant access rules
+- [ ] Step 6: Implement read/unread tracking APIs
+- [ ] Step 7: Improve conversation lifecycle behavior
+- [ ] Step 8: Add/update migrations
+- [ ] Step 9: Add automated tests
+- [ ] Step 10: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING BLK-001 IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the existing SynqComm implementation and confirm:
+- current project structure
+- current entities, enums, repositories, services, endpoints, migrations
+- current auth/context flow using ICurrentRequestContext or equivalent
+- current audit integration hooks
+- actual API route prefix currently implemented
+- whether route prefix should remain /api/synqcomm or be normalized now
+
+Update the report with:
+- BLK-001 alignment findings
+- any inconsistencies found
+- exact approach selected for BLK-002
+
+IMPORTANT:
+Do not rewrite BLK-001 structure unless necessary.
+Build incrementally on top of it.
+
+--------------------------------------------------
+STEP 3 — DESIGN BLK-002 DOMAIN EXTENSIONS
+--------------------------------------------------
+
+This block must add operational behavior for in-app messaging.
+
+Required capabilities:
+- ordered thread retrieval
+- participant-based access enforcement
+- internal-only vs shared-external visibility enforcement
+- reply permission enforcement
+- read/unread tracking per participant
+- last-read tracking per participant
+- unread counts per conversation for current user where feasible
+- improved conversation status transitions
+- correct handling of system notes vs user messages
+
+Update the report with the chosen implementation design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum new persistent model needed for read tracking.
+
+Preferred model:
+ConversationReadState
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- participantId and/or userId (choose the best fit based on current architecture)
+- lastReadMessageId nullable
+- lastReadAtUtc
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+If the architecture supports a cleaner naming convention, align to that convention.
+
+Rules:
+- one active read-state record per conversation/user (or conversation/participant)
+- must support tracking unread status for internal users
+- external contacts do not need active portal-based read tracking in this block unless already naturally supported
+
+Also review whether these existing entities need safe extension:
+- Conversation
+- Message
+- ConversationParticipant
+
+Possible additions if needed:
+- sequence/order field on Message if required for deterministic ordering
+- IsSystemGenerated or equivalent if needed to distinguish system notes cleanly
+- closed/resolved timestamps if useful and consistent
+
+Document any schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUM / RULE DEFINITIONS
+--------------------------------------------------
+
+Review and extend rules, not necessarily enums, for:
+
+Visibility:
+- INTERNAL_ONLY
+- SHARED_EXTERNAL
+
+Message/channel rules:
+- IN_APP messages may be INTERNAL_ONLY or SHARED_EXTERNAL depending on sender permissions
+- SYSTEM_NOTE must always be INTERNAL_ONLY
+- external participants must never see INTERNAL_ONLY messages
+- internal participants can see both INTERNAL_ONLY and SHARED_EXTERNAL messages subject to authorization
+
+Participant/reply rules:
+- only active participants may post
+- INTERNAL_USER participants may reply if canReply = true
+- EXTERNAL_CONTACT participants should not post in-app messages in this block unless there is already an authenticated external portal pattern in the repo
+- SYSTEM participants cannot post interactive user messages
+
+Conversation status rules:
+- NEW -> OPEN
+- OPEN -> PENDING_INTERNAL
+- OPEN -> PENDING_EXTERNAL
+- PENDING_INTERNAL -> OPEN
+- PENDING_EXTERNAL -> OPEN
+- OPEN -> RESOLVED
+- RESOLVED -> CLOSED
+- CLOSED -> OPEN (reopen allowed if explicitly supported)
+- invalid transitions should be rejected
+
+If the repo already has a pattern for domain validation, use it.
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Add/extend DTOs and response models as needed.
+
+Required DTOs/endpoints to support:
+1. MarkConversationReadRequest
+2. MarkConversationUnreadRequest if useful and easy
+3. Possibly GetConversationThreadRequest or query parameters for pagination/sorting if needed
+4. Any status transition request updates needed
+
+Add or update response DTOs so conversation retrieval can include where feasible:
+- unread indicator for current user
+- lastReadAt
+- lastReadMessageId
+- lastMessageAt or lastActivityAt
+- participant visibility metadata if needed
+
+Do not overload the response contracts with speculative future email fields.
+
+--------------------------------------------------
+STEP 7 — EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- conversation read state persistence/retrieval
+- retrieving ordered messages by conversation
+- checking participant membership/access
+- retrieving active participant for current user in a conversation
+- retrieving unread state for current user where feasible
+
+Possible interfaces:
+- IConversationReadStateRepository
+- methods added to existing participant/message repositories
+
+Requirements:
+- stay within SynqComm-owned database only
+- no cross-service DB access
+- optimize for conversation retrieval by tenant/user/conversation
+- include useful indexes in the migration step
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT SERVICE-LAYER OPERATIONS
+--------------------------------------------------
+
+Update or add services to support these operations:
+
+A. Conversation access validation
+Implement centralized checks to ensure:
+- current tenant matches conversation tenant
+- current user is allowed to access the conversation
+- only active participants can interact
+- INTERNAL_ONLY visibility is enforced correctly
+- SHARED_EXTERNAL messages are not leaked to unauthorized users
+
+B. Ordered thread retrieval
+MessageService must return messages in deterministic ascending order using:
+- SentAtUtc then Id
+or
+- explicit sequence/order field if implemented
+
+C. Add message with operational rules
+When adding a message:
+- verify sender is an active participant
+- verify sender has canReply = true where applicable
+- reject SYSTEM_NOTE from user-driven external/shared contexts if invalid
+- enforce visibility rules
+- update conversation.lastActivityAt
+- optionally auto-transition conversation status from NEW to OPEN on first real message if appropriate
+
+D. Read tracking
+Implement:
+- MarkConversationRead(conversationId, currentUser)
+- GetReadState(conversationId, currentUser)
+- update lastReadMessageId and lastReadAtUtc to the latest visible message for that user
+
+E. Unread calculations
+Where feasible for this block:
+- mark conversation unread if latest visible message is newer than current user’s lastReadAtUtc
+- expose per-conversation unread state
+A full unread-count dashboard is not required unless easy to support cleanly.
+
+F. Conversation lifecycle behavior
+Implement valid status transition enforcement.
+If conversation is CLOSED and a new message is added by an authorized internal participant, optionally reopen to OPEN if consistent with the chosen rules. If you implement this, document it clearly.
+
+--------------------------------------------------
+STEP 9 — API EXTENSIONS
+--------------------------------------------------
+
+Add or extend endpoints to support BLK-002.
+
+Keep existing endpoints working.
+
+Required endpoint additions:
+
+GET /api/synqcomm/conversations/{id}/thread
+- Returns conversation details + ordered messages + participants + current-user read state if feasible
+
+POST /api/synqcomm/conversations/{id}/read
+- Marks conversation as read for current authenticated user
+
+Optional if clean:
+POST /api/synqcomm/conversations/{id}/unread
+- Resets/unsets read state for current user
+
+You may also enhance:
+GET /api/synqcomm/conversations/{id}
+GET /api/synqcomm/conversations?contextType=&contextId=
+to include unread metadata if this can be done cleanly.
+
+Preserve minimal API style and RequireAuthorization patterns already used in BLK-001.
+
+--------------------------------------------------
+STEP 10 — AUTHORIZATION AND PARTICIPANT-BASED ACCESS ENFORCEMENT
+--------------------------------------------------
+
+This is a core requirement for BLK-002.
+
+Implement and enforce:
+- authenticated user must belong to the same tenant
+- authenticated user must be an active participant, or meet an existing platform admin/service rule if such a rule already exists
+- inactive participants cannot send messages
+- users without canReply cannot send messages
+- INTERNAL_ONLY messages are visible only to internal participants with access
+- SHARED_EXTERNAL messages are visible only where allowed by participant role and visibility rules
+- SYSTEM_NOTE remains internal-only
+
+Do not invent a broad admin bypass unless it already exists in the platform conventions.
+If a proper admin bypass pattern exists, document and apply it carefully.
+
+--------------------------------------------------
+STEP 11 — AUDIT ALIGNMENT
+--------------------------------------------------
+
+Extend the existing audit hook/integration for:
+- conversation marked as read
+- message rejected due to authorization/visibility rules if audit pattern supports business security logging
+- participant deactivated/reactivated if touched
+- conversation status transitioned
+- conversation reopened due to new message if implemented
+
+Do not create a fake audit subsystem.
+Use the existing audit publisher pattern or document the gap cleanly.
+
+--------------------------------------------------
+STEP 12 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-002.
+
+Expected changes:
+- new table for read states if implemented
+- new indexes needed for read-state lookup and ordered message retrieval
+- any safe column additions required for lifecycle/read behavior
+
+Possible indexes:
+- IX_ReadStates_TenantId_ConversationId_UserId
+- IX_Messages_ConversationId_SentAt
+- IX_Participants_ConversationId_UserId_IsActive
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 13 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real tests. This block must include automated tests.
+
+Minimum required test coverage:
+
+Test 1 — Ordered Thread Retrieval
+- create conversation
+- add multiple messages
+- verify returned order is deterministic
+
+Test 2 — Participant Access Enforcement
+- non-participant access is rejected
+- inactive participant cannot post
+- participant with canReply = false cannot post
+
+Test 3 — Visibility Enforcement
+- INTERNAL_ONLY messages are not exposed to unauthorized viewers
+- SYSTEM_NOTE cannot be posted as shared external
+
+Test 4 — Read Tracking
+- mark conversation read
+- verify read state persists
+- verify unread becomes false after latest visible message is marked read
+
+Test 5 — Unread After New Message
+- mark as read
+- add a new visible message
+- verify conversation becomes unread for the participant
+
+Test 6 — Status Transition Validation
+- valid transitions succeed
+- invalid transitions fail
+
+Test 7 — Closed Conversation Behavior
+- if reopen-on-new-message is implemented, verify it works
+- if not implemented, verify the chosen closed-conversation rule works as documented
+
+If full integration testing is too heavy, use service-layer tests plus focused persistence tests.
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 14 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- no email functionality added yet
+- no outbound email functionality added yet
+- no notifications integration added yet
+- no documents integration added yet
+- participant-based access is enforced
+- read/unread works
+- ordered thread retrieval works
+- valid lifecycle transitions are enforced
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how BLK-002 extends BLK-001 without breaking service boundaries.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-01-BLK-003 — Documents and Audit Integration
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from BLK-001
+- MUST implement real automated tests in this block
+- NO email support yet
+- NO outbound email yet
+- NO notifications yet
+- NO documents integration yet
+- NO UI
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- participant-based conversation access
+- deterministic ordered thread retrieval
+- read/unread tracking for internal users
+- reply permission enforcement
+- visibility enforcement for internal vs shared messages
+- valid conversation lifecycle transitions
+- automated tests proving these behaviors
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-01-BLK-002-report.md

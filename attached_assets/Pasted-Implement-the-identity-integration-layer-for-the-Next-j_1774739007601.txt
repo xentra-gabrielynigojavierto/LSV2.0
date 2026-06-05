@@ -1,0 +1,118 @@
+Implement the identity integration layer for the Next.js frontend and Identity service so the frontend scaffold becomes functional.
+
+Use the current frontend scaffold as already completed:
+
+- Next.js 14 App Router
+- SessionProvider uses GET /identity/api/auth/me
+- TenantBrandingProvider uses GET /identity/api/tenants/current/branding
+- middleware checks for platform_session and portal_session cookies
+- frontend expects HttpOnly cookie-based auth
+- frontend does not trust raw browser JWT decode as the primary session source
+
+Use the current backend/platform rules:
+
+- Identity service currently issues JWT in JSON on login
+- Gateway is the only public API entry point
+- Tenant is resolved from subdomain in production
+- Login should be tenant-aware
+- Session cookies must be subdomain-scoped only, never wildcard root-domain shared
+- JWT contains:
+  - sub
+  - email
+  - tenant_id
+  - tenant_code
+  - org_id
+  - org_type
+  - product_roles
+  - system roles
+
+Generate the output in these exact sections:
+
+1. Identity API Contract
+Design the exact API contracts for:
+- POST /identity/api/auth/login
+- POST /identity/api/auth/logout
+- GET /identity/api/auth/me
+- GET /identity/api/tenants/current/branding
+
+For each endpoint include:
+- request shape
+- response shape
+- auth requirement
+- cookie behavior
+- error responses
+
+2. Next.js BFF Login Flow
+Design the Next.js-side login route or server action that:
+- accepts login form input
+- forwards to Identity login endpoint
+- receives JWT response
+- sets `platform_session` as HttpOnly cookie
+- redirects correctly
+- never exposes the raw token to browser JS
+
+Include cookie attributes for:
+- development
+- production
+
+3. Logout Flow
+Design the logout implementation:
+- frontend call
+- Next.js BFF route
+- cookie clearing
+- redirect behavior
+
+4. `/auth/me` Implementation
+Design the Identity service implementation for GET /identity/api/auth/me:
+- validate current JWT/cookie
+- return PlatformSession-compatible response
+- return null/401 when invalid
+- include productRoles and systemRoles in response
+
+5. Tenant Branding Endpoint
+Design GET /identity/api/tenants/current/branding:
+- how tenant is resolved
+- what fields are returned
+- anonymous access rules
+- caching guidance
+
+6. Cookie Strategy
+Define the exact cookie settings for:
+- platform_session
+- portal_session (reserved for later)
+Include:
+- HttpOnly
+- Secure
+- SameSite
+- Path
+- Domain behavior
+Explain clearly why root-domain cookie sharing is forbidden.
+
+7. Session Refresh / Expiry Strategy
+Define:
+- what happens when the cookie expires
+- how SessionProvider should react to 401 from /auth/me
+- whether refresh tokens exist now or later
+- recommended short-term behavior
+
+8. Frontend Integration Steps
+Give the exact implementation sequence for:
+- login page wiring
+- auth route wiring
+- session provider final wiring
+- branding provider final wiring
+- logout button wiring
+
+9. Risks and Edge Cases
+Cover:
+- wrong subdomain with valid cookie
+- tenant branding loads but auth fails
+- user with no org membership
+- stale cookie after backend role changes
+- secure cookies in local development
+
+10. Minimal Code Artifacts
+List the concrete files/routes that should be created or updated in:
+- Next.js app
+- Identity service
+- Gateway if needed

@@ -1,0 +1,264 @@
+Implement feature LS-COR-AUT-001 — Product Authorization Enforcement Layer.
+
+Context:
+The platform now has:
+1. LS-COR-PRD-001 — centralized product provisioning (tenant products, organization products, eligibility, product hooks)
+2. LS-COR-ROL-001 — centralized product role resolution integrated into AuthService.LoginAsync
+
+The current role-resolution implementation is in the Identity service and already:
+- resolves effective product roles through ProductRoleResolutionService
+- supports IProductRoleMapper plugins
+- has a CareConnectRoleMapper
+- evaluates tenant-level product enablement, org memberships, org products, and eligibility
+- feeds the resolved flat productRoles list into JwtTokenService.GenerateToken()
+- preserves backward compatibility for JWT/login response shape
+
+Goal:
+Build a centralized authorization enforcement layer that uses the resolved product-role/access model to protect APIs and product routes consistently. It must support product-level access enforcement, role-based enforcement, and org-scoped enforcement where required. Keep the implementation aligned to the current Identity/Auth architecture and avoid introducing a separate parallel access model.
+
+==================================================
+FEATURE ID
+LS-COR-AUT-001
+Report file: /analysis/LS-COR-AUT-001-report.md
+==================================================
+
+CURRENT IMPLEMENTATION BASELINE (IMPORTANT)
+- ProductRoleResolutionService already exists and is integrated into AuthService.LoginAsync
+- JWT product_roles claim is already populated from accessContext.GetEffectiveProductRoles()
+- EffectiveAccessContext and ProductAccessEntry already exist
+- CareConnectRoleMapper already exists
+- Membership loading is tenant-scoped and org-aware
+- Product roles are currently resolved centrally but not yet enforced consistently at route level
+
+Build AUT on top of this existing implementation. Do NOT replace PRD or ROL architecture.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement a centralized authorization enforcement layer that:
+- enforces product access on protected routes
+- enforces required product roles on protected actions
+- supports org-scoped authorization checks
+- reuses ProductRoleResolutionService / resolved role model
+- avoids ad hoc scattered checks in endpoints/controllers
+- preserves backward compatibility while enabling incremental rollout
+
+==================================================
+FUNCTIONAL REQUIREMENTS
+==================================================
+
+1. Create reusable authorization helpers / middleware
+- Introduce reusable authorization building blocks, for example:
+  - requireProductAccess(productCode)
+  - requireProductRole(productCode, requiredRoles)
+  - requireOrganizationProductAccess(productCode)
+  - requireOrganizationProductRole(productCode, requiredRoles)
+- These may be middleware, endpoint filters, policy helpers, extension methods, or another pattern consistent with the current .NET service architecture.
+- Keep route handlers/controllers thin.
+
+2. Reuse the current role-resolution model
+- Authorization checks must reuse the existing ProductRoleResolutionService and/or the JWT product_roles claim where appropriate.
+- Do not create a second independent product access model.
+- Use the most appropriate source depending on the check:
+  - JWT claim may be sufficient for coarse product-role checks
+  - EffectiveAccessContext / ProductAccessEntry should be used for org-scoped validation and deeper checks
+- Document the chosen strategy clearly in the report.
+
+3. Support product-level access enforcement
+- Implement a standard way to deny access when the user lacks any effective access to a required product.
+- Example:
+  - CareConnect endpoints require access to SYNQ_CARECONNECT
+- Access denial must return HTTP 403 with a consistent response structure.
+
+4. Support role-based authorization
+- Implement a standard way to require one or more product roles for protected operations.
+- Example:
+  - create/update actions require admin/provider-admin type roles
+  - read-only routes may allow viewer roles
+- Role checks must be deterministic and centralized.
+
+5. Support org-scoped authorization
+- For operations tied to an organization, validate that:
+  - the user has access to the product
+  - the user has access in the specific org context
+  - the user has the required role in that org if applicable
+- Org context may come from route params, request body, header, or resolved entity path — use a pattern appropriate to current route design.
+- Do not allow a flat tenant-wide role to implicitly authorize actions for an unrelated org unless that behavior is explicitly intended by current policy.
+
+6. Standardize access denied responses
+- Return a consistent 403 structure for authorization failures.
+- Include practical details such as:
+  - error code
+  - product code
+  - required role(s) if applicable
+  - orgId if relevant
+  - denial reason where safe to expose
+- Keep it implementation-safe and not overly verbose.
+
+7. Request-scope reuse / no redundant recalculation
+- Avoid resolving EffectiveAccessContext multiple times in the same request.
+- Add request-scoped caching or attachment of resolved context where practical.
+- If middleware resolves access context once, downstream checks should reuse it.
+
+8. Backward-compatible incremental rollout
+- Do not break existing routes that are not yet protected by the new layer.
+- Add authorization protection incrementally to a defined initial set of routes.
+- Prefer the smallest correct rollout that proves the pattern.
+
+9. Initial route integration (minimum)
+- Apply the new authorization layer to at least the most appropriate initial product routes for CareConnect or current product APIs in this codebase.
+- Choose a representative set that demonstrates:
+  - product access only
+  - product role requirement
+  - org-scoped requirement
+- Document exactly which routes were protected.
+
+10. Admin/elevated access behavior
+- Respect the current role-resolution behavior for owner/admin/elevated roles.
+- Do not introduce blanket superuser bypasses unless they already exist or are explicitly required.
+- Any elevated access handling must still flow through centralized checks.
+
+11. Deny-by-default behavior
+- If product access is missing, org context is invalid, membership is absent, or role is insufficient:
+  - deny access
+- No silent fallback access.
+
+12. Auditability / observability
+- Add useful structured logs for denied authorization checks.
+- Make it possible to trace why a request was denied without scattering debug code in handlers.
+- Keep logs safe for production.
+
+==================================================
+IMPLEMENTATION GUIDANCE
+==================================================
+
+Architecture:
+- Follow the current Identity/Auth .NET architecture and dependency injection patterns.
+- Keep the authorization layer centralized and reusable.
+- Suitable implementation patterns may include:
+  - ASP.NET endpoint filters
+  - authorization services
+  - extension methods over HttpContext / ClaimsPrincipal
+  - custom policy handlers
+  - middleware plus helper methods
+Choose the least disruptive option that fits the current codebase.
+
+Recommended practical strategy:
+- Use JWT product_roles claim for coarse, fast checks where org context is not needed.
+- Use ProductRoleResolutionService / EffectiveAccessContext for org-scoped checks and precise authorization.
+- Attach resolved EffectiveAccessContext to request scope if resolved during the request.
+
+Org context:
+- Define a practical pattern for extracting orgId where needed.
+- Support at least the current route shapes you protect first.
+- If exact orgId extraction is not possible for all routes, implement the best pattern for the chosen initial routes and document limitations.
+
+Error handling:
+- Standardize 403 responses from the new authorization layer.
+- Avoid duplicating ad hoc forbidden responses in individual handlers.
+
+Performance:
+- Do not call ProductRoleResolutionService repeatedly in the same request.
+- Reuse claims/context whenever possible.
+
+Backward compatibility:
+- Keep login, token format, and existing successful flows working.
+- Avoid large-scale route rewrites.
+- Protect a focused set of routes first, proving the pattern.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+AC1. Centralized enforcement exists
+- Protected routes use the new authorization layer rather than ad hoc inline checks.
+
+AC2. Product-level access is enforced
+- A user without effective product access receives 403 on protected product routes.
+
+AC3. Role-based access is enforced
+- A user without the required product role receives 403 on protected actions.
+
+AC4. Org-scoped access is enforced
+- A user cannot act on an org they do not have access to for the relevant product.
+
+AC5. Consistent error response
+- Authorization failures return a standardized 403 response structure.
+
+AC6. No redundant per-request resolution
+- Effective access is not recalculated multiple times within the same request when avoidable.
+
+AC7. Initial protected routes are working
+- At least a representative set of real routes is protected and validated.
+
+AC8. Backward compatibility preserved
+- Existing login/auth flow still works and unprotected routes are not regressed.
+
+==================================================
+TEST SCENARIOS TO EXECUTE
+==================================================
+
+1. Product access denial
+- Call a protected CareConnect/product route as a user without SYNQ_CARECONNECT access
+- Verify 403 with standardized response
+
+2. Product role denial
+- Call a protected write/admin route with insufficient product role
+- Verify 403
+
+3. Successful access
+- Call a protected route with correct product role
+- Verify access succeeds
+
+4. Org-scoped denial
+- Call an org-scoped protected route for an org the user is not authorized for
+- Verify 403
+
+5. Org-scoped success
+- Call the same type of route for an authorized org
+- Verify success
+
+6. Request-scope reuse
+- Validate/log that access context is not redundantly resolved multiple times in one request path
+
+7. Backward compatibility regression
+- Verify login still succeeds and existing auth responses remain compatible
+
+8. Representative route coverage
+- Verify all newly protected routes behave correctly for allow/deny cases
+
+==================================================
+DELIVERABLES
+==================================================
+
+1. Implement centralized authorization enforcement layer
+2. Implement reusable helpers / middleware / filters
+3. Reuse current role-resolution model and JWT claims appropriately
+4. Add standardized 403 access-denied responses
+5. Add request-scope access context reuse where appropriate
+6. Protect an initial representative set of real routes
+7. Run validation/tests
+8. Save a detailed report here:
+   /analysis/LS-COR-AUT-001-report.md
+
+The report must include:
+- Summary of what was implemented
+- Confirmed gap / root cause
+- Architecture/design chosen for enforcement
+- Files changed
+- Which routes were protected
+- How JWT claims vs EffectiveAccessContext are used
+- How org-scoped checks are handled
+- Standardized 403 response structure
+- Request-scope caching/reuse behavior
+- Test scenarios executed
+- Test results
+- Limitations and follow-up recommendations
+
+Important:
+- Make the smallest correct change set that satisfies the feature.
+- Reuse existing architecture and patterns unless a change is necessary.
+- Do not do unrelated cleanup.
+- Do not stop at analysis only; implement the feature.
+- If some routes cannot yet support org-scoped enforcement cleanly, protect the best representative routes now and document the exact limitation and next step.

@@ -1,0 +1,444 @@
+LSCC-01-002-01 — Acceptance Model Lockdown
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-002-01
+
+Report path:
+- /analysis/LSCC-01-002-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Lock CareConnect referral acceptance to a single authenticated acceptance path so providers must log in before they can view or accept a referral.
+
+This feature must:
+
+1. eliminate unauthenticated provider acceptance as a supported mutation path
+2. preserve secure token-based referral identification and routing
+3. require login before provider referral detail access and acceptance
+4. preserve safe returnTo redirect behavior
+5. keep provider acceptance, law firm notification, and client notification working through the authenticated path
+6. improve audit and analytics consistency by ensuring one canonical acceptance mechanism
+
+Do NOT expand into booking, appointments, scheduling, provider onboarding redesign, or broader notification work.
+
+This is a security, consistency, and product-model hardening pass on top of LSCC-01-002.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Disable or retire public token-only acceptance mutation
+B. Preserve token validation for secure routing/context
+C. Enforce authenticated-only provider referral access/acceptance path
+D. Preserve login + safe returnTo referral redirect flow
+E. Align copy/messaging to auth-required acceptance
+F. Verify notifications still fire from authenticated acceptance path
+G. Tests
+H. Report
+
+Do NOT implement:
+- new referral features
+- new appointment/scheduling logic
+- new onboarding features
+- analytics expansion
+- admin queue changes unless absolutely required for consistency
+- broad auth redesign
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. There must be one canonical provider acceptance mechanism after this feature:
+   - authenticated provider action from referral detail
+2. Token links may still be used for:
+   - referral identification
+   - secure routing
+   - returnTo preservation
+   but NOT for unauthenticated state mutation
+3. Keep secure token validation behavior intact
+4. Keep open-redirect protections intact
+5. Preserve LSCC-01-002 referral handshake behavior except where this feature explicitly hardens it
+6. Centralize backend acceptance enforcement
+7. Do NOT duplicate acceptance logic between public and authenticated paths
+8. Keep changes minimal, focused, and testable
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+- only minimal auth integration already used by login / referral routing
+
+Frontend:
+- apps/web/src/app/referrals/...
+- apps/web/src/app/login/...
+- apps/web/src/app/(platform)/careconnect/referrals/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/components/auth/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT use this feature to redesign unrelated infrastructure or product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-01-002 completed the referral handshake but left dual acceptance behavior in place:
+
+1. authenticated provider referral access + accept
+2. public token-based accept path / AcceptByToken-style behavior
+
+This feature must standardize to:
+
+Email Link → Token Validation → Login → Referral Detail → Accept
+
+The public path may still exist for token validation / redirect handling, but it must not mutate referral state unauthenticated.
+
+==================================================
+FINAL PRODUCT RULE
+==================================================
+
+A provider may accept a referral ONLY after authentication.
+
+Canonical acceptance flow:
+
+1. provider receives referral email
+2. provider clicks secure link
+3. system validates token/referral context
+4. if not authenticated:
+   - redirect to login
+   - preserve safe returnTo
+5. after login:
+   - redirect to authenticated referral detail
+6. provider accepts referral from authenticated UI
+7. backend applies New → Accepted
+8. law firm + client notifications fire from this authenticated path
+
+No unauthenticated state mutation is allowed.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. DISABLE PUBLIC TOKEN-ONLY ACCEPTANCE MUTATION
+--------------------------------------------------
+
+Identify any existing public acceptance mutation path, for example behavior equivalent to:
+
+- AcceptByTokenAsync
+- public accept endpoint/page action that directly changes referral state without login
+
+This feature must ensure that path no longer directly mutates referral state without authentication.
+
+Acceptable implementations:
+1. remove the public mutation path entirely
+2. keep token-processing code only for validation/routing, but not for mutation
+3. redirect old public accept flow into login + authenticated referral detail flow
+
+Recommended:
+- preserve token validation and routing
+- remove unauthenticated acceptance mutation
+
+Not allowed:
+- token-only direct acceptance that changes referral state while unauthenticated
+
+--------------------------------------------------
+B. TOKEN VALIDATION FOR SECURE ROUTING
+--------------------------------------------------
+
+Secure token links from provider emails must continue to work as referral entry points.
+
+Token usage may still support:
+- referral identification
+- validation that the email link is legitimate
+- safe routing into login or referral detail
+- safe invalid/expired/revoked handling
+
+Requirements:
+- invalid/expired/revoked token fails safely
+- valid token does not by itself grant unauthenticated mutation rights
+- if a public landing page still exists, it should act as a routing/validation layer, not a mutation surface
+
+--------------------------------------------------
+C. LOGIN + RETURNTO FLOW
+--------------------------------------------------
+
+When an unauthenticated provider clicks a valid referral email link:
+
+1. redirect to login
+2. preserve safe returnTo
+3. after successful login, redirect to the correct referral detail page
+
+Requirements:
+- use existing login redirect guard behavior
+- no open redirect
+- preserve referral context deterministically
+- if already authenticated, go directly to referral detail when allowed
+
+Example desired flow:
+- /referrals/view?token=...
+  → /login?returnTo=/careconnect/referrals/{id}&reason=referral-view
+  → /careconnect/referrals/{id}
+
+--------------------------------------------------
+D. AUTHENTICATED PROVIDER REFERRAL ACCESS
+--------------------------------------------------
+
+After login, the provider must be able to view the referral detail only if authorized.
+
+Requirements:
+- authenticated provider must be the correct receiving participant / authorized actor
+- wrong authenticated account must not gain access
+- invalid access must fail safely
+- referral detail must be the only place acceptance action is offered
+
+If referral is already accepted:
+- show accepted state
+- do not show duplicate acceptance action
+
+--------------------------------------------------
+E. SINGLE ACCEPTANCE AUTHORITY
+--------------------------------------------------
+
+Provider acceptance must now happen only from the authenticated referral detail page (or the authenticated API path behind it).
+
+Requirements:
+- backend must remain final authority
+- only valid state transition allowed:
+  - New → Accepted
+- duplicate acceptance blocked
+- wrong provider blocked
+- repeated click/retry must not duplicate side effects
+- acceptance emails must fire only on first successful acceptance
+
+All acceptance notifications and audit/history should now originate from this single canonical path.
+
+--------------------------------------------------
+F. NOTIFICATION CONTINUITY
+--------------------------------------------------
+
+Ensure the following still work from the authenticated acceptance path:
+
+1. law firm acceptance email
+2. client acceptance email
+3. any existing provider-side acceptance confirmation behavior that is still valid
+
+Rules:
+- only first successful acceptance triggers notifications
+- repeated accept attempts must not duplicate sends
+- missing client email must still not block acceptance (preserve LSCC-01-002 behavior)
+
+--------------------------------------------------
+G. UI / COPY ALIGNMENT
+--------------------------------------------------
+
+Update user-facing copy where needed so the product clearly communicates the locked model.
+
+Examples of acceptable updated copy:
+- "Log in to view and accept this referral"
+- "Continue to login to access your referral"
+
+Requirements:
+- do not present public direct acceptance as a normal path
+- if a public landing page still exists, it should drive the user into authentication
+- no duplicate/conflicting CTAs
+
+On referral detail page:
+- Accept button visible only when:
+  - authenticated
+  - authorized
+  - referral is New
+
+--------------------------------------------------
+H. LEGACY PUBLIC URL HANDLING
+--------------------------------------------------
+
+If old emails or old links point to a public accept endpoint/page, they must still behave safely.
+
+Recommended behavior:
+- validate token if possible
+- redirect to login + referral detail if valid
+- render invalid page if invalid/expired/revoked
+
+Not allowed:
+- unauthenticated acceptance mutation
+- raw errors
+- broken dead-end experience for valid legacy links
+
+--------------------------------------------------
+I. AUDIT / ANALYTICS CONSISTENCY
+--------------------------------------------------
+
+After this change, acceptance should always be attributable to an authenticated actor.
+
+Requirements:
+- acceptance history should reflect authenticated user identity where available
+- no split “some accepts by token, some by logged-in user” model going forward
+- preserve existing history/audit patterns where possible
+- do not expand analytics beyond what is necessary for consistency
+
+--------------------------------------------------
+J. DATA INTEGRITY / SECURITY RULES
+--------------------------------------------------
+
+Must enforce:
+
+1. no unauthenticated referral acceptance
+2. no invalid provider access to referral
+3. no duplicate acceptance side effects
+4. no stale/revoked token bypass
+5. no cross-account acceptance
+6. no open redirect
+7. no public direct mutation through legacy accept URLs
+
+--------------------------------------------------
+K. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. old email link / legacy public accept URL
+- still resolves safely
+- redirects into login flow if valid
+
+2. already accepted referral
+- provider lands on referral detail / accepted state
+- no duplicate accept
+
+3. wrong logged-in user
+- safe access denial
+- no unnecessary data leakage
+
+4. expired / revoked / invalid token
+- safe invalid page
+
+5. repeat click / retry
+- no duplicate state mutation
+- no duplicate email notifications
+
+--------------------------------------------------
+L. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+Backend:
+1. unauthenticated token-only acceptance no longer mutates referral
+2. legacy public accept path redirects or fails safely instead of mutating
+3. authenticated provider can still accept normally
+4. wrong provider access blocked
+5. duplicate acceptance blocked
+6. law firm/client notifications still fire from authenticated acceptance path
+7. invalid/expired/revoked token handled safely
+
+Frontend:
+1. valid email link redirects unauthenticated provider to login
+2. returnTo preserved safely
+3. authenticated provider lands on correct referral detail
+4. accept CTA shown only in valid authenticated state
+5. no public accept CTA exposed as standard path
+
+If full auth-flow testing is difficult:
+- test redirect helpers / URL builders
+- test backend acceptance path thoroughly
+- test component visibility logic separately
+- document limitations in the report
+
+--------------------------------------------------
+M. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-002-01-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Public acceptance path changes
+- what was disabled/redirected/retained
+- how legacy links are handled
+
+3. Token validation and routing
+- how valid links resolve
+- how invalid links fail
+
+4. Login/returnTo flow
+- how authenticated redirect works
+- open redirect safeguards
+
+5. Authenticated acceptance path
+- where acceptance now occurs
+- how duplicate acceptance is prevented
+
+6. Notification continuity
+- how law firm/client notifications are preserved
+- missing client email behavior
+
+7. UI/copy changes
+- what changed in public and authenticated flows
+
+8. Tests
+- what scenarios are covered
+- what gaps remain
+
+9. Known limitations / deferred items
+- anything intentionally left for future work
+
+10. Recommended next step
+- smallest logical follow-up after model lockdown
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. identify and neutralize public token-only acceptance mutation
+2. preserve token validation + secure routing behavior
+3. verify login + returnTo path is canonical and safe
+4. verify authenticated referral detail acceptance path
+5. align UI/copy with auth-required acceptance
+6. add tests
+7. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-002-01 is complete ONLY if:
+
+1. providers can no longer accept referrals without authentication
+2. email links still work as secure referral entry points
+3. login redirect preserves referral context
+4. acceptance happens only from authenticated referral detail
+5. law firm and client notifications still work
+6. audit trail now reflects one canonical acceptance mechanism going forward
+7. no regressions to LSCC-01-002 referral handshake
+8. report exists at:
+   /analysis/LSCC-01-002-01-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this tight, security-focused, and product-consistent.
+Do not drift into booking, appointments, or broader onboarding changes.
+This feature exists to eliminate the dual acceptance model and lock CareConnect to one secure, authenticated provider acceptance path.

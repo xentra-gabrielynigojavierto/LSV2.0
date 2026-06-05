@@ -1,0 +1,301 @@
+You are implementing feature MON-INT-04-003 — Availability Timeline Bars.
+
+OBJECTIVE
+Add availability timeline bars to the public status page so external users can see historical availability at a glance for each monitored component, using the real uptime history data produced by the uptime aggregation engine.
+
+This is a presentation-layer feature built on top of MON-INT-04-002 and must use real Monitoring Service uptime data only.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Availability bars must be driven by the uptime history endpoint
+- Do NOT fabricate timeline bars from current status
+- Do NOT modify Monitoring Service aggregation formulas unless an actual blocker is proven
+- Do NOT expose internal-only identifiers or admin controls on the public page
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-04-003-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT redesign the entire public status page
+- Prefer minimal, reversible changes
+- Keep public presentation concerns clearly separated from operator/admin concerns
+- Maintain the existing public-safe architecture through Control Center BFF paths
+
+CURRENT CONTEXT
+- Public `/status` page exists
+- Monitoring summary is already displayed publicly
+- Uptime aggregation engine exists
+- Monitoring Service exposes uptime rollups/history endpoints
+- The next value is visualizing historical availability buckets on the public page
+
+GOAL OF THIS FEATURE
+By the end of this feature:
+- the public status page shows historical availability bars per component
+- bars are derived from real uptime history data
+- the visualization is safe, external-friendly, and easy to scan
+- no fake uptime or fake history is introduced
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-04-003-report.md
+
+Initialize with:
+
+# MON-INT-04-003 — Availability Timeline Bars
+
+## 1. Task Summary
+## 2. Existing Uptime History API Analysis
+## 3. Availability Bar Design
+## 4. Data Fetching / BFF Design
+## 5. Implementation
+## 6. Public Data Exposure Review
+## 7. Validation
+## 8. Files Changed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE THE EXISTING UPTIME HISTORY API
+
+Inspect the currently implemented uptime endpoints and determine exactly what data is available for bar rendering.
+
+At minimum inspect:
+- Monitoring Service uptime history endpoint
+- gateway route(s) for uptime history
+- any existing Control Center BFF routes for monitoring / uptime
+- current public `/status` page data flow
+
+Document:
+- endpoint path(s)
+- query requirements (entityId, window, etc.)
+- response shape
+- whether the endpoint already returns dominant status per bucket
+- whether the data is sufficient to render bars without backend changes
+
+Important:
+- prefer reuse of existing uptime history endpoint
+- if the public page cannot consume it directly, add the smallest BFF layer needed
+- do NOT add new Monitoring Service endpoints unless an actual blocker is found
+
+---
+
+STEP 3 — DEFINE THE AVAILABILITY BAR DESIGN
+
+Design an external-facing availability bar visualization.
+
+The timeline should:
+- show historical availability for each component
+- use simple color-coded bars
+- be easy to scan on desktop and acceptable on mobile
+
+Recommended default:
+- 24 hourly bars for the last 24h
+OR
+- daily bars for a longer window if the current API shape supports it better
+
+Choose the most credible version based on actual available data, and document why.
+
+Color mapping must be explicit:
+- Healthy / Operational → green
+- Degraded → amber/yellow
+- Down / Outage → red
+- Unknown / insufficient data → gray
+
+Each component row should still show:
+- component name
+- current status
+- availability bar strip
+- optional compact uptime % if safely derivable from existing rollup data
+
+Do NOT add charts yet.
+Do NOT add hover-only interactions as the only way to understand the bars.
+Public users should get value without needing hidden UI.
+
+Document:
+- chosen time window
+- bar count
+- color mapping
+- any labels / legend
+- why the design is appropriate for a public status page
+
+---
+
+STEP 4 — DATA FETCHING / BFF DESIGN
+
+Determine the safest and simplest way for `/status` to obtain timeline data.
+
+Preferred order:
+1. existing public-safe BFF route in Control Center, if available
+2. add a new public-safe Control Center BFF route that proxies uptime history
+3. do NOT call Monitoring Service directly from browser code
+
+If a new BFF route is needed, create something like:
+- /api/monitoring/uptime/history
+
+Requirements:
+- public-safe
+- only exposes sanitized fields needed for public timeline bars
+- no service tokens exposed to browser
+- no internal UUIDs exposed in the page HTML unless absolutely necessary and justified
+
+You must explicitly decide how component identity is passed:
+- entityId
+- entityName
+- other key
+
+Prefer the most stable key available from current read contracts. If current public page only has names and not entityIds, document the tradeoff clearly and implement the safest practical path.
+
+---
+
+STEP 5 — IMPLEMENT THE UI
+
+Extend the public status page to display availability bars.
+
+Likely files:
+- apps/control-center/src/app/status/page.tsx
+- new presentational component(s), such as:
+  - public-availability-bars.tsx
+  - public-status-component-row.tsx
+- optional public-safe BFF route(s)
+
+Requirements:
+- keep the page public and read-only
+- do not add admin controls
+- do not disturb the overall page structure more than necessary
+- integrate the bars into the public component list cleanly
+
+If per-component history requires async fetching:
+- prefer server-side aggregation in the page/BFF path
+- avoid a noisy client waterfall if possible
+- document the chosen approach clearly
+
+Do NOT rebuild the whole public page.
+
+---
+
+STEP 6 — HANDLE STATES CLEANLY
+
+Explicitly handle:
+
+A. No uptime history available
+- show "History unavailable" or similar calm fallback
+- do not fabricate bars
+
+B. Partial history / sparse data
+- show available bars
+- unknown buckets should be gray
+- optionally show “Limited history” if appropriate
+
+C. Endpoint failure
+- keep the status page usable
+- component still renders with current status even if historical bars cannot be loaded
+- do not crash the page
+
+D. Local mode differences
+- if local mode cannot provide meaningful historical uptime, degrade gracefully and document it
+
+---
+
+STEP 7 — PUBLIC DATA EXPOSURE REVIEW
+
+Before finalizing, verify the public page does NOT expose:
+- internal alert IDs
+- internal entity IDs in visible UI unless absolutely necessary
+- raw backend URLs
+- admin routes
+- service tokens
+- stack traces
+- internal debugging info
+
+If the implementation requires entity IDs behind the scenes, avoid rendering them visibly and avoid leaking them unnecessarily in client HTML.
+
+Document exactly what uptime/history fields are now publicly exposed and why they are acceptable.
+
+---
+
+STEP 8 — VALIDATION
+
+Validate as far as environment permits.
+
+At minimum validate:
+A. `/status` still loads without authentication
+B. component rows still render correctly
+C. availability bars render using real data
+D. color mapping matches bucket status
+E. sparse/unknown data is shown correctly
+F. public page does not expose admin controls or sensitive identifiers
+G. existing public status functionality is not broken
+H. internal monitoring page is not broken
+
+Capture:
+- exact routes tested
+- sample response shapes
+- sample rendered behavior
+- what was runtime-tested vs code-verified only
+
+If runtime data is limited (for example only ~24h history exists), document that honestly and still validate the bar rendering against available data.
+
+---
+
+STEP 9 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- removed (if any)
+- purpose
+
+Be explicit.
+
+---
+
+STEP 10 — KNOWN GAPS / RISKS
+
+Document clearly:
+- whether bars are based on hourly buckets or daily buckets
+- whether window size is fixed
+- whether tooltips / hover details are absent
+- any sparse-history limitations
+- any local-mode limitations
+- whether public uptime % is included now or deferred
+- any performance concerns in the chosen data-fetch pattern
+
+---
+
+STEP 11 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+
+Option A:
+- MON-INT-04-004 — Response Time Charts
+Use this if the availability bars are complete and the next value is latency visualization.
+
+Option B:
+- Stabilization / production validation
+Use this if the public status experience is feature-complete enough and the best next step is confidence-building.
+
+Option C:
+- MON-INT-04-003-01 — Availability Bar Hardening
+Use this only if the bars work but need a tightly scoped follow-up.
+
+Choose based on actual implementation outcome.
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+- /analysis/MON-INT-04-003-report.md exists and was created FIRST
+- the public status page shows real availability bars
+- bars are derived from Monitoring uptime history data
+- no fake data was introduced
+- the page remains public and read-only
+- no sensitive internal details are exposed
+- validation has been performed and documented

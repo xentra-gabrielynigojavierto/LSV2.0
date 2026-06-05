@@ -1,0 +1,507 @@
+You are implementing LS-COMMS-01-BLK-003 — Documents and Audit Integration for SynqComm as an INDEPENDENT SERVICE with its OWN PHYSICALLY SEPARATE DATABASE.
+
+OBJECTIVE:
+Extend the existing SynqComm service to support document attachments and stronger auditability for conversation operations. This block must integrate SynqComm with the platform Documents service and enhance audit coverage for key communication events, while preserving SynqComm’s independent service boundary and separate database.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+
+ARCHITECTURE REQUIREMENTS:
+- Continue using SynqComm as an independent service under /apps/services/synqcomm
+- Continue using the dedicated SynqComm physical database only
+- Do not piggyback on another service database
+- Do not introduce cross-database joins for core logic
+- Follow the existing .NET 8, Clean Architecture, EF Core, minimal API, and BuildingBlocks patterns established in BLK-001 and BLK-002
+- Documents must remain owned by the Documents service; SynqComm must store only attachment linkage metadata and external document IDs
+- Audit must use the existing audit integration pattern already present in the platform and SynqComm
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-01-BLK-003-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-01-BLK-003-report.md
+
+Initialize it with:
+
+# LS-COMMS-01-BLK-003 — Documents and Audit Integration Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support document attachments and enhanced audit integration for conversation operations while preserving independent service boundaries and SynqComm-owned persistence.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- Documents remain owned by Documents service
+- SynqComm stores attachment/linkage metadata only
+- Preserve Clean Architecture layering from BLK-001 and BLK-002
+
+## Steps Completed
+- [ ] Step 1: Review existing BLK-001 and BLK-002 implementation
+- [ ] Step 2: Design attachment and audit extensions
+- [ ] Step 3: Add attachment domain model and contracts
+- [ ] Step 4: Implement Documents service integration seam/client
+- [ ] Step 5: Implement message attachment operations
+- [ ] Step 6: Extend audit coverage
+- [ ] Step 7: Add/update migrations
+- [ ] Step 8: Add/extend APIs
+- [ ] Step 9: Add automated tests
+- [ ] Step 10: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the current SynqComm implementation from BLK-001 and BLK-002 and confirm:
+- current service structure
+- current entities, repositories, services, endpoints, migrations
+- current audit integration points
+- current request/auth context flow
+- existing patterns for service-to-service calls in the monorepo
+- whether there is already a Documents service client, shared contract, HTTP client factory pattern, or service agent pattern used elsewhere
+- whether attachment handling conventions already exist in other services
+
+Update the report with:
+- BLK-001 / BLK-002 alignment findings
+- how Documents integration should be implemented based on existing platform conventions
+- how Audit integration should be extended based on existing platform conventions
+- any assumptions or gaps discovered
+
+IMPORTANT:
+Build incrementally on top of the current implementation.
+Do not restructure working BLK-001 / BLK-002 behavior unless required.
+
+--------------------------------------------------
+STEP 3 — DESIGN BLK-003 EXTENSIONS
+--------------------------------------------------
+
+This block must add:
+- document attachment linkage for messages
+- optional attachment linkage for conversations if that fits current design cleanly
+- enhanced audit coverage for key conversation/message/read/status events
+- attachment retrieval metadata in thread responses
+- attachment validation and authorization rules
+
+Required design principles:
+- SynqComm must NOT store binary files directly
+- Documents service must remain the system of record for document binaries
+- SynqComm must store document linkage metadata only
+- Message attachments must be linked to a specific message
+- Attachment access must respect conversation visibility and participant access rules
+- Audit events must be emitted for key operations without inventing a separate audit subsystem
+
+Update the report with the chosen design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent model needed for attachment linkage.
+
+Preferred model:
+MessageAttachment
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- messageId
+- documentId
+- fileName
+- contentType
+- fileSizeBytes nullable if not always available
+- attachmentRole or attachmentType if cleanly useful
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Rules:
+- documentId is the external ID returned by the Documents service
+- no binary/blob storage in SynqComm DB
+- one message can have multiple attachments
+- attachments must belong to the same tenant as the conversation/message
+- attachment access is governed by the parent message/conversation visibility rules
+
+Also review whether these existing entities need safe extension:
+- Message
+- Conversation
+- ConversationReadState
+
+Possible additions if needed:
+- AttachmentCount on Message or Conversation only if it adds clear value and stays consistent
+- Metadata fields for upload state if asynchronous upload handling is necessary
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required request/response support:
+1. AddMessageAttachmentRequest
+2. AttachmentResponse
+3. ConversationThreadResponse enhancement to include message attachments
+4. MessageResponse enhancement to include attachment metadata where appropriate
+
+Possible request fields for AddMessageAttachmentRequest:
+- documentId
+- fileName
+- contentType
+- fileSizeBytes
+
+If upload-through-SynqComm is implemented in this block, add a second request model only if the existing platform pattern clearly supports service upload orchestration. Otherwise prefer document-linking using an existing documentId.
+
+Do not add speculative email-attachment fields yet.
+
+--------------------------------------------------
+STEP 6 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for attachment linkage.
+
+Possible interface:
+- IMessageAttachmentRepository
+
+Required behaviors:
+- create attachment link
+- list attachments by message
+- list attachments by conversation where needed
+- delete/deactivate attachment link only if clean and required
+- enforce tenant-aware retrieval
+
+Also ensure existing repositories can support thread retrieval with attachments efficiently.
+
+Stay within SynqComm-owned database only.
+Do not access Documents service DB directly.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 7 — IMPLEMENT DOCUMENTS SERVICE INTEGRATION
+--------------------------------------------------
+
+Integrate SynqComm with the platform Documents service using the existing platform conventions.
+
+Requirements:
+- inspect the repo for existing Documents service contracts/client patterns
+- if a shared client or HTTP abstraction exists, reuse it
+- if no reusable pattern exists, implement a clean integration seam/client for the Documents service without overbuilding
+
+Supported integration patterns for this block:
+A. Preferred: link existing documentId returned by Documents service
+B. Optional if clean and already supported by platform conventions: SynqComm endpoint accepts upload metadata or upload request and forwards to Documents service
+
+At minimum, this block must support:
+- associating a valid Documents service documentId to a message
+- returning attachment metadata as part of thread/message retrieval
+- clear error handling if document validation/linking fails
+
+If feasible and supported by current platform patterns, validate that:
+- the document exists
+- the document belongs to the same tenant
+- the current user is allowed to link it
+
+If full live validation is too coupled or not yet supported cleanly, add a clean abstraction and document the exact gap.
+
+Do NOT:
+- store files in SynqComm DB
+- create fake document storage inside SynqComm
+- call another service database directly
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT MESSAGE ATTACHMENT OPERATIONS
+--------------------------------------------------
+
+Implement service-layer operations for attachments.
+
+Required operations:
+- add attachment link to message
+- list attachments for message/thread retrieval
+- enforce participant-based access before linking/retrieving attachments
+- enforce visibility rules based on parent message/conversation
+- emit audit events for attachment link actions
+
+Rules:
+- only authorized active participants may attach documents
+- only participants with canReply = true may add attachments to a message if the operation is part of message contribution flow
+- SYSTEM_NOTE attachment rules must remain internal-only
+- external participants must not gain access to INTERNAL_ONLY attachments
+- attaching a document should update conversation lastActivityAt only if this matches the chosen operational design; if implemented, document it clearly
+- if message does not exist or conversation access is invalid, reject the request
+
+If cleanly supported, add a combined operation:
+- create message with attachment links in one service call
+Otherwise implement attachment linking as a separate operation against an existing message.
+
+--------------------------------------------------
+STEP 9 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for the following events where feasible:
+
+Required audit events:
+- conversation created
+- message added
+- conversation marked read
+- conversation marked unread if implemented
+- conversation status changed
+- conversation reopened due to new message if that rule exists
+- participant added
+- participant deactivated if applicable
+- document linked to message
+- document link removed/deactivated if implemented
+
+If the current audit system supports structured payloads, include relevant metadata such as:
+- tenantId
+- conversationId
+- messageId
+- participantId or userId
+- documentId
+- contextType
+- contextId
+- previousStatus and newStatus where relevant
+
+Do not create a fake audit subsystem.
+Use the existing audit publisher pattern or extend it cleanly.
+
+If some events cannot yet be emitted due to platform gaps, document that honestly in the report.
+
+--------------------------------------------------
+STEP 10 — API EXTENSIONS
+--------------------------------------------------
+
+Add or extend APIs to support BLK-003.
+
+Keep existing endpoints working.
+
+Required endpoint additions or enhancements:
+
+POST /api/synqcomm/conversations/{conversationId}/messages/{messageId}/attachments
+- Links a document to an existing message
+
+GET /api/synqcomm/conversations/{conversationId}/messages/{messageId}/attachments
+- Lists attachments for a message
+
+Enhance:
+GET /api/synqcomm/conversations/{id}/thread
+- Include attachment metadata in message payloads
+
+Optional only if clean and aligned to existing patterns:
+DELETE /api/synqcomm/conversations/{conversationId}/messages/{messageId}/attachments/{attachmentId}
+- Remove/deactivate attachment link
+
+If you implement removal, enforce strict authorization and audit it.
+
+Preserve minimal API style and RequireAuthorization patterns already used in BLK-001 and BLK-002.
+
+--------------------------------------------------
+STEP 11 — AUTHORIZATION, VISIBILITY, AND TENANT ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement in BLK-003.
+
+Implement and enforce:
+- authenticated user must belong to the same tenant
+- authenticated user must be an active participant or meet an existing authorized admin rule already present in the platform
+- only authorized participants can link documents
+- only authorized participants can view attachments
+- INTERNAL_ONLY message attachments are visible only to authorized internal participants
+- SHARED_EXTERNAL message attachments follow the same visibility boundary as their parent message
+- SYSTEM_NOTE attachments remain internal-only
+
+Do not invent a new admin bypass unless one already exists and fits platform conventions.
+
+--------------------------------------------------
+STEP 12 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-003.
+
+Expected changes:
+- new table for message attachments
+- indexes needed for attachment lookups and thread retrieval
+
+Possible indexes:
+- IX_MessageAttachments_TenantId_MessageId
+- IX_MessageAttachments_TenantId_ConversationId
+- IX_MessageAttachments_TenantId_DocumentId
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 13 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — Link Attachment to Message
+- authorized participant links a documentId to a message
+- verify attachment metadata persists correctly
+
+Test 2 — Unauthorized Attachment Link Rejected
+- non-participant or inactive participant cannot link attachment
+- participant with canReply = false cannot link if reply permission applies to the operation
+
+Test 3 — Visibility Enforcement for Attachments
+- INTERNAL_ONLY attachment is not exposed to unauthorized/external viewer
+- SHARED_EXTERNAL attachment is visible only where allowed
+
+Test 4 — Thread Retrieval Includes Attachments
+- retrieve thread
+- verify message attachment metadata is present and correctly associated
+
+Test 5 — Audit Emission on Attachment Link
+- verify audit publisher is invoked for document link action using existing/no-op/mockable audit pattern
+
+Test 6 — Documents Integration Seam
+- verify client/service integration is called correctly when linking/validating documents
+- verify failure path is handled cleanly
+
+Test 7 — Existing BLK-002 Behavior Still Works
+- at least one regression test proving read/unread or visibility behavior still works after BLK-003 changes
+
+If full integration tests are too heavy, use service-layer tests plus targeted repository tests and client mocks.
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 14 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Documents service remains the owner of document binaries
+- SynqComm stores only attachment/linkage metadata
+- audit coverage is extended using existing patterns
+- no email functionality was added yet
+- no outbound email functionality was added yet
+- no notifications integration was added yet
+- participant-based access is still enforced
+- attachment visibility is enforced
+- thread retrieval includes attachments
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how BLK-003 extends BLK-001 and BLK-002 without breaking service boundaries.
+
+## Documents Integration
+Explain exactly how SynqComm integrates with the Documents service and what assumptions/gaps remain.
+
+## Audit Integration
+Explain which audit events are now emitted and how they are integrated.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-02-BLK-001 — Email Intake and Threading
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from BLK-001 and BLK-002
+- MUST use the platform Documents service rather than building local file storage
+- MUST extend the existing audit pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- NO email support yet
+- NO outbound email yet
+- NO notifications yet
+- NO UI
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- linking Documents service document IDs to messages
+- retrieving attachment metadata in thread/message responses
+- enforcing attachment access based on participant and visibility rules
+- emitting audit events for key communication and attachment operations
+- automated tests proving these behaviors
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-01-BLK-003-report.md

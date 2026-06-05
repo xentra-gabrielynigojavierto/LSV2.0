@@ -1,0 +1,222 @@
+You are working inside the LegalSynq repository.
+
+Goal:
+Analyze the uploaded legacy Synq frontend/backend code and migrate the useful CareConnect provider discovery functions into the new LegalSynq codebase, with a specific focus on:
+- map display
+- provider marker rendering
+- map-based provider selection
+- list/map filter parity
+- referral entry from a selected provider
+
+Source repos to analyze:
+- legacy frontend: /mnt/data/inspect_old_frontend/artifacts/medlegal
+- legacy backend: /mnt/data/inspect_old_backend/artifacts/api-server
+- new LegalSynq repo: /mnt/data/inspect_new
+
+Primary target code in the new repo:
+- apps/web
+- apps/services/careconnect
+- apps/gateway
+- shared/building-blocks if needed
+
+What I need from you:
+1. analyze both old and new code
+2. determine exactly which legacy functions should be migrated
+3. determine what already exists in the new backend and should be reused
+4. identify what frontend code must be added/changed
+5. identify any API mismatches or missing endpoints
+6. produce a concrete migration plan
+7. generate implementation-ready guidance for the map display and selection flow
+
+Important constraints:
+- treat the new LegalSynq backend as the source of truth
+- do NOT recommend porting the old backend wholesale
+- prefer migrating old frontend behavior/patterns into the new Next.js app
+- preserve the new LegalSynq route structure and auth model
+- focus on practical migration, not generic architecture discussion
+
+Specific analysis tasks:
+
+A. Legacy feature inventory
+Inspect the legacy frontend and identify all functions related to:
+- provider search
+- provider filtering
+- geolocation
+- radius search
+- map rendering
+- marker popups
+- provider selection
+- provider detail navigation
+- referral creation from selected provider
+
+Inspect at least:
+- src/components/ProviderMap.tsx
+- src/pages/providers.tsx
+- src/pages/provider-detail.tsx
+- src/pages/new-referral.tsx
+- any related auth/api usage
+
+Also inspect the legacy backend to understand old query behavior and DTO shapes, especially:
+- Controllers/ProvidersController.cs
+- Controllers/ReferralsController.cs
+- DTOs/ProviderDtos.cs
+- DTOs/ReferralDtos.cs
+- Models/Provider.cs
+- any distance or geo helpers
+
+B. New LegalSynq capability inventory
+Inspect the new LegalSynq code and identify what already exists for:
+- provider search
+- provider markers
+- geo filtering
+- viewport filtering
+- provider detail
+- referral creation
+- list rendering
+- product-role restrictions
+- BFF proxy routes
+
+Inspect at least:
+- apps/services/careconnect/CareConnect.Api/Endpoints/ProviderEndpoints.cs
+- apps/services/careconnect/CareConnect.Application/DTOs/ProviderMarkerResponse.cs
+- apps/services/careconnect/CareConnect.Application/DTOs/GetProvidersQuery.cs
+- apps/services/careconnect/CareConnect.Application/Services/ProviderService.cs
+- apps/services/careconnect/CareConnect.Infrastructure/Repositories/ProviderRepository.cs
+- apps/web/src/lib/careconnect-api.ts
+- apps/web/src/types/careconnect.ts
+- apps/web/src/app/(platform)/careconnect/providers/page.tsx
+- apps/web/src/app/(platform)/careconnect/providers/[id]/page.tsx
+- apps/web/src/components/careconnect/provider-search-filters.tsx
+- apps/web/src/components/careconnect/provider-card.tsx
+- apps/web/src/components/careconnect/create-referral-form.tsx
+
+C. Migration mapping
+Produce a function-by-function mapping:
+- old feature
+- old file
+- new destination file
+- migrate as-is / adapt / discard
+- reason
+
+Be explicit about:
+- which old frontend behaviors are worth preserving
+- which legacy backend patterns should be ignored
+- what DTO transformations are required
+- whether the new backend already supports the old behavior
+
+D. Map display and selection design
+Design the exact migration plan for:
+1. provider map component
+2. marker DTO usage
+3. marker click behavior
+4. list/map toggle
+5. viewport-driven search
+6. geolocation button
+7. radius-based search
+8. selecting a provider from map or list
+9. deep-linking to provider detail
+10. launching referral creation from provider selection
+
+The design must specify:
+- whether to use Leaflet again or another library
+- where the component should live in apps/web
+- whether it should be a client component
+- how it should call the BFF or server/client API
+- what query params should be synchronized with the URL
+- how marker selection state should be managed
+- how selected provider should connect to the existing provider detail and referral flow
+
+E. Implementation delta
+Identify the exact files that likely need to be created or changed in the new repo, for example:
+- apps/web/src/components/careconnect/provider-map.tsx
+- apps/web/src/components/careconnect/provider-map-shell.tsx
+- apps/web/src/components/careconnect/provider-search-filters.tsx
+- apps/web/src/app/(platform)/careconnect/providers/page.tsx
+- apps/web/src/lib/careconnect-api.ts
+- apps/web/src/types/careconnect.ts
+- any BFF route if needed
+
+For each file, explain:
+- create vs modify
+- what should be added
+- dependencies required
+- risk level
+
+F. API and DTO alignment
+Check whether the new frontend currently has all needed API methods.
+Specifically verify whether apps/web/src/lib/careconnect-api.ts includes:
+- provider map markers endpoint
+- geo search params
+- viewport search params
+
+If missing, specify exactly what needs to be added.
+
+Also compare:
+- legacy provider DTO fields
+- new ProviderSummary / ProviderDetail / ProviderMarkerResponse fields
+- referral create payloads in old vs new code
+
+Call out any field name changes that affect migration, such as:
+- clientName -> clientFirstName/clientLastName
+- address/zip -> addressLine1/postalCode
+- categoryId -> categoryCode
+- numeric ids -> GUID ids
+
+G. Final recommendation
+Provide the recommended migration approach in this form:
+1. best path
+2. fastest safe path
+3. things not worth migrating
+4. prerequisites
+5. implementation order
+
+Deliverable:
+Write a report to:
+
+/mnt/data/inspect_new/analysis/step3_map_selection_migration.md
+
+Report format:
+1. Executive summary
+2. Files inspected
+3. Legacy feature inventory
+4. New capability inventory
+5. Migration mapping table
+6. Map display and selection design
+7. API and DTO alignment
+8. Required file changes
+9. Recommended implementation order
+10. Risks / assumptions
+11. Exact next coding step
+
+Additional required section:
+Add a section titled:
+"Implementation Blueprint"
+
+In that section include:
+- the exact components to build
+- props for each component
+- state ownership strategy
+- server vs client component split
+- URL/query param strategy
+- API calls per interaction
+- marker click -> provider selection flow
+- selected provider -> referral flow
+
+Additional required section:
+Add a section titled:
+"Copy-Paste Build Prompt"
+
+In that section, generate the next Replit prompt that would actually implement the migration in code, including:
+- file creation/modification targets
+- package installs if needed
+- coding constraints
+- expected report file output
+
+Rules:
+- be concrete
+- use actual file paths from the repo
+- do not hand-wave
+- do not propose generic pseudo-work
+- base conclusions on the code that is actually present
+- if something is missing, say exactly what is missing
+- if something already exists, say exactly where it exists

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!--
+      LS-FLOW-HARDEN-A1.1 — full WebApplicationFactory<Program> integration host.
+      Pinning JwtBearer to 8.0.26 mirrors the unit-test project and avoids the
+      MSB3277 conflict warning observed in A1.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.26" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Flow.Api\Flow.Api.csproj" />
+    <ProjectReference Include="..\..\src\Flow.Application\Flow.Application.csproj" />
+    <ProjectReference Include="..\..\src\Flow.Infrastructure\Flow.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Flow.Domain\Flow.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\..\..\shared\building-blocks\BuildingBlocks\BuildingBlocks.csproj" />
+  </ItemGroup>
+
+</Project>

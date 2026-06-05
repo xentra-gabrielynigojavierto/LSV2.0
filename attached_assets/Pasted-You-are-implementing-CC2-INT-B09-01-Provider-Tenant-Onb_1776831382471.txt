@@ -1,0 +1,241 @@
+You are implementing CC2-INT-B09-01 — Provider Tenant Onboarding (Iteration) for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B09-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. This is an ITERATION of CC2-INT-B09.
+   You are NOT introducing new architecture — you are stabilizing and correcting the onboarding flow.
+
+4. This builds on:
+   - CC2-INT-B06-01 (shared provider registry)
+   - CC2-INT-B06-02 (provider lifecycle: URL → COMMON_PORTAL → TENANT)
+   - CC2-INT-B07 (public network surface)
+   - CC2-INT-B08 (public referral flow)
+   - CC2-INT-B09 (initial tenant onboarding implementation)
+
+5. DO NOT:
+   - create duplicate provider records
+   - create duplicate Identity users
+   - modify provider registry structure
+   - modify referral core logic
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Harden, validate, and correct the provider onboarding flow that transitions:
+
+COMMON_PORTAL → TENANT
+
+This iteration ensures:
+
+- Identity + tenant linkage is correct and stable
+- login behavior works reliably after onboarding
+- no regressions exist in provider lifecycle or referral flows
+- edge cases are handled properly
+
+--------------------------------------------------
+
+PART A — FLOW VALIDATION & HARDENING
+
+--------------------------------------------------
+
+Validate and correct the onboarding flow:
+
+1. Provider (COMMON_PORTAL) initiates onboarding
+2. Submits tenant creation request
+3. Identity service:
+   - creates tenant
+   - updates User.TenantId
+   - assigns roles
+4. CareConnect:
+   - links provider to tenant
+   - calls:
+       provider.MarkTenantProvisioned()
+5. Provider redirected to:
+   https://[tenant-subdomain].[baseurl]
+6. Provider logs in successfully
+
+--------------------------------------------------
+
+PART B — IDENTITY ALIGNMENT (CRITICAL)
+
+--------------------------------------------------
+
+Ensure the following is correct:
+
+1. Identity user is NOT duplicated
+2. IdentityUserId remains unchanged
+3. User.TenantId is updated to new tenant
+4. Login works at new subdomain
+5. JWT contains correct tenant/org claims
+
+Add defensive validation:
+
+- if User.TenantId update fails → fail onboarding (no partial success)
+- if tenant already exists → return proper error
+
+--------------------------------------------------
+
+PART C — DATA CONSISTENCY
+
+--------------------------------------------------
+
+Validate and enforce:
+
+1. Provider record remains single/shared
+2. Provider.TenantId updated correctly
+3. Provider.AccessStage = TENANT
+4. Existing OrganizationId is preserved (COMMON_PORTAL history)
+5. No orphaned or duplicate records created
+
+--------------------------------------------------
+
+PART D — UX CORRECTIONS
+
+--------------------------------------------------
+
+Ensure:
+
+1. Onboarding CTA:
+   - only visible for COMMON_PORTAL providers
+   - hidden for URL and TENANT stages
+
+2. Onboarding form:
+   - validates tenant code format
+   - checks availability
+   - handles duplicate code gracefully
+
+3. Post-submit:
+   - shows success state
+   - redirects correctly
+   - handles DNS delay messaging
+
+--------------------------------------------------
+
+PART E — ERROR HANDLING
+
+--------------------------------------------------
+
+Add/validate handling for:
+
+- duplicate tenant code
+- Identity service failure
+- DNS provisioning delay
+- provider not in COMMON_PORTAL stage
+- missing IdentityUserId
+
+Ensure user-friendly responses.
+
+--------------------------------------------------
+
+PART F — SECURITY VALIDATION
+
+--------------------------------------------------
+
+Ensure:
+
+1. Endpoint requires authenticated provider
+2. Only COMMON_PORTAL providers can onboard
+3. TenantId is never taken from client input
+4. Identity service calls use service-level auth
+5. No cross-tenant escalation possible
+
+--------------------------------------------------
+
+PART G — EDGE CASES
+
+--------------------------------------------------
+
+You MUST test:
+
+1. Provider attempts onboarding twice
+2. Provider already in TENANT stage
+3. Invalid tenant code
+4. Identity service partial failure
+5. DNS not ready immediately
+6. Session mismatch after onboarding
+
+--------------------------------------------------
+
+PART H — REGRESSION CHECK
+
+--------------------------------------------------
+
+Confirm onboarding does NOT break:
+
+- public referral flow (B08)
+- provider lifecycle transitions (B06-02)
+- provider registry (B06-01)
+- network management (B06)
+- public network surface (B07)
+
+--------------------------------------------------
+
+PART I — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. COMMON_PORTAL provider can start onboarding
+2. Tenant creation succeeds
+3. Identity user reused
+4. Provider transitions to TENANT
+5. Provider.TenantId updated correctly
+6. Login works at tenant subdomain
+7. CareConnect visible in tenant portal
+8. No duplicate provider created
+9. No duplicate Identity user created
+10. Existing referrals remain accessible
+11. No cross-tenant leakage
+
+--------------------------------------------------
+
+PART J — REPORT FORMAT (MANDATORY)
+
+/analysis/CC2-INT-B09-01-report.md
+
+# CC2-INT-B09-01 Report
+
+## 1. Summary
+## 2. Flow Validation
+## 3. Identity Alignment
+## 4. Data Consistency
+## 5. UX Adjustments
+## 6. Error Handling
+## 7. Security Validation
+## 8. Edge Cases
+## 9. Regression Check
+## 10. Test Results
+## 11. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- introduce new onboarding models
+- change provider lifecycle design
+- bypass Identity service
+- add new features outside onboarding stabilization
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- onboarding flow is stable and repeatable
+- provider correctly transitions to TENANT
+- login works reliably across subdomains
+- no duplication or data corruption occurs
+- report saved at:
+  /analysis/CC2-INT-B09-01-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

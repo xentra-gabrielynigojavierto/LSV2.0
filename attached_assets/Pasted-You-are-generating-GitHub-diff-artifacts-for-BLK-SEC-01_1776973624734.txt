@@ -1,0 +1,130 @@
+You are generating GitHub diff artifacts for BLK-SEC-01.
+
+CRITICAL:
+
+- DO NOT modify any source code
+- DO NOT create new commits
+- ONLY extract and document the existing commit
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Generate:
+
+1. Full commit diff file
+2. Commit summary file
+3. Update existing report with diff references
+
+--------------------------------------------------
+
+PART A — IDENTIFY COMMIT
+
+--------------------------------------------------
+
+Identify the BLK-SEC-01 commit.
+
+If multiple commits exist for this block:
+- use the latest commit that contains all BLK-SEC-01 changes
+
+If commit cannot be identified:
+- STOP and report error
+
+--------------------------------------------------
+
+PART B — GENERATE DIFF FILE
+
+--------------------------------------------------
+
+Run:
+
+git show <commit-id> > /analysis/BLK-SEC-01-commit.diff.txt
+
+Verify:
+- file exists
+- file is not empty
+
+--------------------------------------------------
+
+PART C — GENERATE COMMIT SUMMARY
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-SEC-01-commit-summary.md
+
+Content:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list ALL files from git show output
+
+## Key Changes
+- token enforcement (Tenant + Identity)
+- fail-fast startup validation
+- removal/restriction of anonymous access
+- CareConnect client updates (ProvisioningToken)
+- config updates (appsettings, Program.cs)
+
+--------------------------------------------------
+
+PART D — UPDATE REPORT
+
+--------------------------------------------------
+
+Open:
+
+/analysis/BLK-SEC-01-report.md
+
+Replace:
+
+## 9. GitHub Commits (MANDATORY)
+*(Populated after commit)*
+
+With:
+
+## 9. GitHub Commits (MANDATORY)
+
+- <commit-id> — BLK-SEC-01 security hardening
+
+Append at the end:
+
+## 11. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-SEC-01-commit.diff.txt
+- Summary: /analysis/BLK-SEC-01-commit-summary.md
+
+--------------------------------------------------
+
+PART E — VALIDATION
+
+--------------------------------------------------
+
+Verify:
+
+- diff file exists
+- summary file exists
+- report updated correctly
+- commit ID is present
+- no code was modified
+- no new commits created
+
+--------------------------------------------------
+
+FINAL OUTPUT
+
+Return:
+
+- commit ID used
+- number of files changed
+- confirmation that files were created
+
+--------------------------------------------------
+
+END

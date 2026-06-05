@@ -1,0 +1,234 @@
+Project: E13.3
+Title: Control Center Timeline UI — Workflow Detail Drawer Rendering
+
+You are implementing the Control Center timeline UI layer using the E13.1 (audit aggregation API) and E13.2 (timeline model) foundation.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E13.3-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around existing Control Center drawer structure (E9.2), UI framework patterns, API integration, loading/error states, and styling conventions.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - UI components added
+   - API integration details
+   - state management approach
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: production-ready or needs iteration
+
+REPORT FORMAT
+
+# E13.3 Report
+
+## Scope Executed
+## Assumptions
+## Repository / UI Architecture Notes
+## Timeline UI Component Notes
+## API Integration Notes
+## State Management Notes
+## UX / Interaction Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Render a workflow timeline inside the Control Center workflow detail drawer using the E13.2 timeline model so operators can visually inspect workflow history (workflow events, admin actions, SLA transitions, etc.).
+
+This must be a read-only, non-invasive UI enhancement that integrates cleanly with existing E9.2 drawer behavior.
+
+SCOPE INCLUDES
+
+- timeline UI component(s)
+- integration into workflow detail drawer
+- API consumption (E13.1)
+- rendering grouped events (date-based)
+- event styling (icon, severity, labels)
+- loading / empty / error states
+- basic UX polish
+
+DO NOT BUILD
+
+- task timeline (E11 dependency)
+- filtering UI
+- pagination UI
+- editing or mutation actions
+- workflow control logic
+- notification UI
+- advanced analytics
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep UI read-only
+- consume E13.1/E13.2 outputs (do NOT reprocess raw audit)
+- integrate cleanly into existing Control Center drawer
+- maintain performance and responsiveness
+- preserve existing UI behavior
+- handle empty and error states gracefully
+
+CURRENT CONTEXT
+
+Already completed:
+- E9.1 → workflow list
+- E9.2 → workflow detail drawer
+- E13.1 → audit aggregation API
+- E13.2 → timeline model
+
+This phase is strictly UI rendering.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. TIMELINE COMPONENT
+
+Create a reusable timeline component.
+
+Requirements:
+- vertical timeline layout
+- chronological display (oldest → newest)
+- each item shows:
+  - icon
+  - title
+  - timestamp
+  - description
+  - actor (if available)
+- visually distinct categories (workflow, admin, SLA, etc.)
+- use consistent spacing and hierarchy
+
+2. GROUPING (DATE-BASED)
+
+Group events by date.
+
+Example:
+
+Today
+- Event 1
+- Event 2
+
+Yesterday
+- Event 3
+
+Requirements:
+- grouping logic should use E13.2 model
+- avoid complex logic in UI
+- fallback if grouping not available
+
+3. EVENT STYLING
+
+Requirements:
+- icon comes from E13.2
+- severity uses visual indicator:
+  - info → neutral
+  - warning → highlighted
+  - critical → strong highlight
+
+Example indicators:
+- colored dot or icon tint
+- subtle background for critical events
+
+4. CONTROL CENTER DRAWER INTEGRATION
+
+Extend existing workflow detail drawer.
+
+Requirements:
+- add new section or tab: Timeline
+- do NOT break existing sections/tabs
+- timeline loads when tab/section is opened OR on drawer load (choose and document)
+- preserve existing drawer open/close behavior
+
+5. API INTEGRATION
+
+Use:
+GET /api/v1/admin/workflow-instances/{id}/timeline
+
+Requirements:
+- fetch on demand
+- avoid duplicate requests
+- cache per workflow instance if reasonable
+- handle:
+  - loading state
+  - empty state
+  - error state
+
+6. STATES
+
+Loading:
+- spinner or skeleton
+
+Empty:
+- "No activity yet"
+
+Error:
+- compact message
+- do not crash drawer
+
+7. PERFORMANCE
+
+Requirements:
+- avoid blocking drawer rendering
+- lazy load timeline if needed
+- render efficiently for up to approximately 1000 events
+
+8. UX DETAILS
+
+Requirements:
+- timestamps readable (relative or formatted)
+- consistent typography
+- compact but scannable layout
+- avoid visual clutter
+
+9. NON-INTERFERENCE
+
+You MUST confirm:
+- workflow list still works
+- workflow detail drawer still works
+- admin actions still work
+- no regression in navigation
+
+VALIDATION REQUIREMENTS
+
+UI
+- timeline renders correctly
+- grouping works
+- icons/severity visible
+
+API
+- data loads successfully
+- errors handled
+
+Performance
+- no noticeable slowdown
+
+Build
+- frontend builds successfully
+- no runtime errors
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E13.3-report.md
+2. Inspect Control Center drawer structure (E9.2)
+3. Create timeline component
+4. Integrate API call
+5. Add grouping and rendering
+6. Add states (loading/empty/error)
+7. Integrate into drawer
+8. Validate UI behavior
+9. Finalize report
+
+SUCCESS CONDITION
+
+- timeline visible in Control Center drawer
+- events clearly readable and grouped
+- UI stable and responsive
+- no regression in existing UI
+
+FAILURE CONDITION
+
+- UI breaks drawer behavior
+- raw audit data leaks into UI logic
+- poor performance
+- missing states (loading/error)
+- inconsistent styling

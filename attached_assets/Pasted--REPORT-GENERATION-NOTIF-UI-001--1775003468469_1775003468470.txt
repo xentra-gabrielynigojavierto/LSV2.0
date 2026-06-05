@@ -1,0 +1,221 @@
+==================================================
+REPORT GENERATION — NOTIF-UI-001
+==================================================
+
+After completing the NOTIF-UI-001 implementation, you MUST generate a detailed report.
+
+Create the file:
+
+analysis/notifications/NOTIF-UI-001-report.md
+
+==================================================
+REPORT CONTENT REQUIREMENTS
+==================================================
+
+The report must include ALL of the following sections:
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+
+- What was built
+- Which pages/routes are functional
+- What is read-only vs interactive
+- Overall implementation completeness vs requirements
+
+--------------------------------------
+2. ROUTES / PAGES IMPLEMENTED
+--------------------------------------
+
+List all UI routes implemented:
+
+- /notifications
+- /notifications/log
+- /notifications/log/[id] (if implemented)
+- /notifications/templates
+- /notifications/templates/[id]
+- /notifications/providers
+- /notifications/billing
+- /notifications/contacts/health
+- /notifications/contacts/suppressions
+- /notifications/contacts/policies
+- /notifications/delivery-issues
+
+For each route:
+- describe what it displays
+- list backend endpoints used
+- note any missing data or fallback behavior
+
+--------------------------------------
+3. COMPONENTS CREATED
+--------------------------------------
+
+List all reusable components created, including:
+
+- status badges (NotificationStatusBadge, ChannelBadge, etc.)
+- layout components
+- tables
+- filter bars
+- detail panels
+- empty states / error states
+
+For each:
+- describe purpose
+- where it is used
+
+--------------------------------------
+4. API INTEGRATION DETAILS
+--------------------------------------
+
+Document all backend endpoints used, grouped by domain:
+
+Notifications:
+- /v1/notifications
+- /v1/notifications/:id/events
+- /v1/notifications/:id/issues
+
+Templates:
+- /v1/templates
+- /v1/templates/:id/versions
+- /v1/templates/:id/versions/:versionId/preview
+
+Providers:
+- /v1/providers/catalog
+- /v1/providers/configs
+- /v1/providers/channel-settings
+
+Billing:
+- /v1/billing/usage
+- /v1/billing/usage/summary
+- /v1/billing/plans
+- /v1/billing/rate-limits
+
+Contacts:
+- /v1/contacts/suppressions
+- /v1/contacts/health
+- /v1/contacts/policies
+
+For each group:
+- confirm if endpoint is working
+- note any assumptions or limitations
+
+--------------------------------------
+5. TENANT CONTEXT HANDLING
+--------------------------------------
+
+Explain exactly how tenant context is handled:
+
+- how `getTenantContext()` is used
+- how `x-tenant-id` is injected
+- what happens when tenant is missing
+- which components/pages enforce tenant gating
+
+Confirm:
+- no requests are made without tenant context
+- consistent behavior across pages
+
+--------------------------------------
+6. DATA LIMITATIONS / MOCKS
+--------------------------------------
+
+List any areas where:
+- data is empty (due to no DB seed)
+- mock/fallback data is used
+- backend limitations exist (e.g. webhook ingestion not active)
+
+Be explicit about:
+- what is real vs placeholder
+
+--------------------------------------
+7. KNOWN GAPS (NON-BLOCKING)
+--------------------------------------
+
+List items intentionally deferred to later phases:
+
+Examples:
+- provider editing flows
+- template editing flows
+- rate limit editing
+- policy editing
+- webhook ingestion limitations
+- audit integration not visible
+
+Each item must include:
+- reason it was deferred
+- which phase it belongs to (NOTIF-UI-002 or NOTIF-UI-003)
+
+--------------------------------------
+8. ISSUES ENCOUNTERED
+--------------------------------------
+
+List any issues during implementation:
+
+- API mismatches
+- missing fields
+- routing problems
+- auth/tenant edge cases
+- UI layout issues
+
+Include:
+- file references if relevant
+- how the issue was resolved (or if still open)
+
+--------------------------------------
+9. RUN INSTRUCTIONS
+--------------------------------------
+
+Provide exact steps to run the UI:
+
+- install steps
+- dev server command
+- required environment variables
+- how to set tenant context
+- how to access notifications pages
+
+--------------------------------------
+10. VALIDATION CHECKLIST
+--------------------------------------
+
+Confirm:
+
+- UI loads without crash
+- navigation works
+- tenant gating works
+- API calls succeed (or fail correctly)
+- tables render correctly
+- empty states display correctly
+- detail views open correctly
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+11. READINESS ASSESSMENT
+--------------------------------------
+
+Provide a clear conclusion:
+
+- Is NOTIF-UI-001 complete? (Yes / Mostly / Partial)
+- Is UI ready for internal use? (Yes / No)
+- Can development proceed to NOTIF-UI-002? (Yes / No)
+
+--------------------------------------
+12. NEXT STEPS
+--------------------------------------
+
+List the next logical steps:
+
+- items for NOTIF-UI-002 (enhancements)
+- items for NOTIF-UI-003 (config/admin)
+- any backend dependencies discovered
+
+==================================================
+IMPORTANT RULES
+==================================================
+
+- Be accurate — do not claim features that are not implemented
+- Do not hide limitations — document them clearly
+- Do not include unnecessary verbosity — be structured and precise
+- Focus on operational correctness and completeness
+
+Generate the report after implementation is complete.

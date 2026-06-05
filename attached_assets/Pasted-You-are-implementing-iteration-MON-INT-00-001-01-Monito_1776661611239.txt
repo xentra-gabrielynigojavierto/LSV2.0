@@ -1,0 +1,262 @@
+You are implementing iteration MON-INT-00-001-01 — Monitoring Service Availability & Architecture Alignment.
+
+OBJECTIVE
+Resolve the pre-integration blockers identified in MON-INT-00-001 so the platform can proceed cleanly into Monitoring integration.
+
+This iteration is NOT the full integration yet.
+It is a blocker-resolution and architecture-alignment task only.
+
+ARCHITECTURE DECISION (LOCKED)
+Treat this as non-negotiable:
+
+- Monitoring Service is the source of truth
+- Control Center is a read-only consumer
+
+That means:
+- status, alerts, and monitoring summaries must ultimately come from Monitoring Service
+- Control Center must not remain the monitoring engine
+- any existing Control Center monitoring logic should be assessed for transition, not expanded as a parallel backend
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-00-001-01-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT fabricate success
+- Do NOT use placeholders
+- Do NOT proceed into full feature integration yet
+- Do NOT expand standalone Monitoring functionality
+- Keep backend, API, config, and UI concerns clearly separated
+- Prefer minimal, reversible changes only
+
+PRIMARY GOALS
+1. Verify whether the Monitoring Service source is actually available anywhere in the current workspace/environment
+2. If found, unpack and inventory it
+3. If not found, prove that clearly with evidence
+4. Align the codebase and documentation to the architectural rule:
+   - Monitoring Service = source of truth
+   - Control Center = read-only consumer
+5. Identify exactly what existing Control Center monitoring logic must later be redirected or reduced
+6. Validate the required DB/config prerequisites for the next real feature
+
+AVAILABLE CONTEXT
+Prior onboarding found:
+- platform workspace is present
+- Control Center already has a monitoring UI and some monitoring-related logic
+- monitoring_db is intended to exist
+- MonitoringService-source.zip was not found at /mnt/data in that environment
+
+You must now re-check thoroughly before concluding it is unavailable.
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-00-001-01-report.md
+
+Initialize it immediately with:
+
+# MON-INT-00-001-01 — Monitoring Service Availability & Architecture Alignment
+
+## 1. Task Summary
+## 2. Architecture Rule Confirmed
+## 3. Monitoring Source Discovery
+## 4. Monitoring Source Intake Result
+## 5. Platform Monitoring Consumer Analysis
+## 6. Control Center Logic Reclassification
+## 7. Database / Config Prerequisite Assessment
+## 8. Files Added / Moved / Examined
+## 9. Validation Performed
+## 10. Known Gaps / Risks / Blockers
+## 11. Recommendation for Next Feature
+
+Explicitly write that the report was created FIRST.
+
+STEP 2 — RE-DISCOVER THE MONITORING SOURCE THOROUGHLY
+
+Search thoroughly for the Monitoring source archive or unpacked source in all plausible locations, including but not limited to:
+- current repo root
+- parent directories if accessible
+- attached assets folders
+- temp/work directories if accessible
+- uploaded file mount locations if accessible
+- any archive files whose names suggest monitoring source
+- any unpacked folders whose names suggest monitoring service
+
+Use command-line inspection to look for:
+- filenames containing monitoring
+- .zip / .tar.gz / .tgz archives
+- folders containing Monitoring.Api, Monitoring.Application, Monitoring.Domain, Monitoring.Infrastructure
+- solution/project names containing Monitoring
+
+Document in the report:
+- every location checked
+- evidence of what was found
+- exact archive/file/folder names
+- whether the Monitoring source is available or still missing
+
+If it is found:
+- stop saying it is unavailable
+- unpack or inspect it in a clean temp workspace
+- inventory top-level structure
+- identify entry points and project files at a high level
+
+If it is NOT found:
+- document precise proof, not a vague statement
+
+STEP 3 — MONITORING SOURCE INTAKE RESULT
+
+If source is found:
+- create a clean analysis folder such as /tmp/mon_int_00_001_01/
+- unpack or inspect it without disturbing the main workspace
+- identify:
+  - solution file
+  - csproj files
+  - API host project
+  - architecture layers
+  - appsettings files
+  - EF migrations if present
+- update the report with concrete paths
+
+If source is not found:
+- explicitly state that MON-INT-01-001 cannot begin implementation until the source is available
+- still continue with architecture alignment analysis below
+
+STEP 4 — PLATFORM MONITORING CONSUMER ANALYSIS
+
+Analyze the existing platform, especially Control Center, from the perspective of the new architecture rule.
+
+You must identify all existing Control Center monitoring-related logic and classify each item as one of:
+
+- KEEP AS UI CONSUMER
+- REDIRECT TO MONITORING SERVICE
+- DEPRECATE / REMOVE LATER
+- TEMPORARY BRIDGE ONLY
+
+At minimum inspect and classify:
+- apps/control-center/src/app/monitoring/page.tsx
+- apps/control-center/src/app/monitoring/services/page.tsx
+- apps/control-center/src/app/api/monitoring/summary/route.ts
+- apps/control-center/src/app/api/monitoring/... any other related routes
+- apps/control-center/src/lib/system-health-store.ts
+- apps/control-center/src/lib/system-health-audit.ts
+- apps/control-center/src/lib/system-health-audit-outbox.ts
+- apps/control-center/src/components/monitoring/*
+- apps/control-center/src/lib/nav.ts
+- any related monitoring types/utilities
+
+For each, document:
+- current role
+- whether it conflicts with the source-of-truth rule
+- what should happen later
+- whether it blocks MON-INT-01-001
+
+STEP 5 — CONTROL CENTER LOGIC RECLASSIFICATION
+
+Produce a precise reclassification summary:
+
+A. What Control Center should continue to own:
+- UI pages
+- navigation
+- display components
+- API client/proxy layer if needed
+
+B. What Control Center should stop owning over time:
+- direct health aggregation logic
+- alert truth logic
+- persistent monitoring engine logic
+- duplicate backend responsibility
+
+C. What Monitoring Service should own:
+- check execution
+- persisted results
+- summaries
+- alerts
+- status read APIs
+
+This section must be explicit and implementation-oriented.
+
+STEP 6 — DATABASE / CONFIG PREREQUISITE ASSESSMENT
+
+Validate the readiness of the configuration required for the next feature.
+
+Inspect and report on:
+- whether ConnectionStrings__MonitoringDb is present in accessible configuration/secrets patterns
+- whether SYSTEM_HEALTH_DB_* variables are present or absent
+- whether existing Control Center monitoring store is currently dependent on direct DB access
+- whether that direct DB dependency should remain, be reduced, or be temporary only
+- what minimum config the next feature actually requires
+
+Classify:
+- READY
+- PARTIALLY READY
+- BLOCKED
+
+Do NOT run destructive DB operations.
+Do NOT invent secret values.
+If secrets cannot be inspected directly, document the observable evidence from the codebase and environment behavior.
+
+STEP 7 — OPTIONAL MINIMAL CODE/DOC ALIGNMENT
+
+You may make ONLY minimal, safe, reversible changes if they materially improve architectural clarity for future work.
+
+Allowed examples:
+- add/update a small note or TODO in a clearly appropriate place
+- add/update internal documentation comments
+- add/update an analysis note file if useful
+
+Not allowed:
+- implementing Monitoring service
+- rewriting Control Center monitoring backend behavior
+- adding placeholder proxy APIs
+- making irreversible architectural changes
+
+If you make any change, document it precisely in the report.
+
+STEP 8 — VALIDATION
+
+Validate and document:
+- source discovery results
+- Control Center monitoring responsibilities
+- architectural conflicts
+- config readiness
+- whether the workspace is ready to proceed to MON-INT-01-001
+- if not ready, exactly what single blocker remains
+
+STEP 9 — RECOMMEND NEXT FEATURE
+
+Based on findings, recommend one of the following:
+
+Option A:
+- MON-INT-01-001 — Monitoring Read API Integration
+Use this only if the Monitoring source is now found and the blocker is resolved.
+
+Option B:
+- MON-INT-00-001-02 — Monitoring Source Intake Resolution
+Use this only if the Monitoring source is still unavailable and that remains the single hard blocker.
+
+Your recommendation must be explicit and justified.
+
+OUTPUT REQUIREMENTS
+The final report must clearly include:
+- proof of source discovery attempts
+- whether Monitoring source is available
+- concrete classification of current Control Center monitoring logic
+- architectural ownership split
+- DB/config readiness assessment
+- exact blocker status
+- recommended next feature
+
+FALLBACK RULES
+If the Monitoring source still cannot be found:
+- do not fabricate availability
+- do not proceed into fake integration
+- complete the report fully anyway
+- recommend the correct next step
+
+DONE CONDITION
+This iteration is complete when:
+- /analysis/MON-INT-00-001-01-report.md exists
+- the report was created FIRST
+- Monitoring source availability has been re-checked thoroughly and evidenced
+- Control Center monitoring logic has been reclassified against the source-of-truth rule
+- DB/config prerequisites have been assessed
+- the next correct feature is recommended based on evidence

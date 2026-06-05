@@ -1,0 +1,295 @@
+Feature ID: UIX-003-02
+Feature Title: Access Control Admin UX Completion
+
+Implement UIX-003-02 for the LegalSynq Control Center.
+
+Context:
+- UIX-003 is complete
+- UIX-003-01 is complete:
+  - TenantAdmin is now enabled for tenant-scoped access control management
+  - PlatformAdmin behavior is preserved
+  - tenant isolation is enforced in BFF + backend
+- Current state:
+  - access management operations work
+  - role assignment / revocation works
+  - org membership add / remove / set-primary works
+  - group add / remove works
+  - but the UX can still be improved to feel more complete, clearer, and more operational for admins
+- This feature is a UX completion pass, not a new authorization model
+- Do NOT redesign the backend architecture
+- Do NOT add new security domains like MFA or sessions here
+
+Objective:
+Improve the Control Center access-control experience so it is clearer, more polished, and more actionable for admins using the existing UIX-003 functionality.
+
+This feature should focus on:
+- clearer access state visibility
+- better admin feedback
+- stronger read-only summaries
+- more complete user detail experience
+- better handling of conflict / success / empty states
+
+========================================
+CORE RULES
+========================================
+
+1. Reuse the existing UIX-003 user detail structure
+2. Do NOT rewrite the page architecture
+3. Do NOT invent new backend behavior if it does not already exist
+4. Where backend support is missing, show clear read-only or placeholder states
+5. Keep the feature focused on admin UX completion
+
+========================================
+MVP SCOPE FOR UIX-003-02
+========================================
+
+Implement a UX completion pass for the existing user-management / access-control screens.
+
+1. User Detail Experience
+Improve `/tenant-users/[id]` so it provides a more complete admin control view:
+- stronger section hierarchy
+- clearer account status presentation
+- clearer primary organization presentation
+- better role / group / membership summaries
+- improve effective access summary readability
+- add success/error feedback around mutations
+- make empty states more informative
+
+2. Access Management UX
+Improve the role/group/membership panels:
+- clearer labels
+- better helper text
+- clearer distinction between editable and informational sections
+- more obvious confirmation flows
+- more polished disabled/loading states
+- friendlier inline conflict messages
+
+3. Admin Activity / Access Context
+If the data already exists, surface:
+- last login
+- invite status
+- active/inactive state
+- locked state if already available
+- group count / role count / org count
+- access tier summary
+
+Do not add a new backend audit system in this feature. Use only what already exists or is already available from the current fetches.
+
+4. Users List UX
+Improve `/tenant-users`:
+- clearer status badges
+- better action visibility
+- clearer empty state
+- clearer “invited vs active vs inactive” meaning
+- preserve existing search/filter/pagination behavior
+
+5. Invite Flow UX
+Improve the invite flow experience:
+- better success state
+- clearer tenant context display
+- better validation/help text
+- clearer post-submit behavior
+
+========================================
+DO NOT IMPLEMENT IN UIX-003-02
+========================================
+
+Do NOT implement unless trivially available:
+- new backend endpoints
+- audit event APIs
+- MFA/session tooling
+- permission editor
+- scoped role redesign
+- custom role creation
+- org switching
+- platform-wide analytics dashboards
+
+========================================
+FRONTEND — CONTROL CENTER
+========================================
+
+Focus on the existing admin UI.
+
+1. Pages to Update
+Update as needed:
+- /tenant-users
+- /tenant-users/[id]
+- /tenant-users/invite
+
+2. Components to Improve or Add
+Build or refine as needed:
+
+- UserDetailHeader
+- AccountStatusCard
+- AccessSummaryCard
+- RoleAssignmentPanel
+- OrganizationMembershipPanel
+- GroupMembershipPanel
+- InlineSuccessMessage
+- InlineErrorMessage
+- EmptyStateBlock
+- InviteUserForm
+- StatusBadge helpers
+
+You do not need to use these exact names if the existing component structure suggests a better additive implementation, but the resulting UX must cover these responsibilities.
+
+3. User Detail UX Requirements
+The user detail page should clearly show:
+
+A. Identity / Header
+- full name
+- email
+- active/inactive/invited state
+- tenant/org context if appropriate
+- top-level actions where useful
+
+B. Access Summary
+- account state
+- access tier summary
+- role count
+- group count
+- membership count
+- primary organization
+- invite status if applicable
+- last login if available
+
+C. Memberships
+- clearer visual primary membership
+- org type and member role shown clearly
+- better empty state if none exist
+
+D. Roles
+- clearer distinction between assigned roles and assignable roles
+- helper text explaining what roles do in current MVP
+- better message when no assignable roles remain
+
+E. Groups
+- clearer distinction between current memberships and available groups
+- link to group detail when available
+- better empty state
+
+4. Mutation UX Requirements
+For all existing mutations:
+- assign role
+- revoke role
+- add membership
+- remove membership
+- set primary
+- add group
+- remove group
+- invite user
+- activate/deactivate
+- resend invite
+
+Improve the UX with:
+- visible success message after completion
+- better inline error message handling
+- clear loading state while action is running
+- conflict messages translated into human-readable guidance where possible
+
+5. Users List UX Requirements
+Improve:
+- status pill styling and clarity
+- invited/active/inactive legend or meaning
+- result count presentation
+- empty state when no users exist
+- empty state when filters remove all results
+- action affordance clarity
+
+6. Invite UX Requirements
+Improve:
+- tenant context display
+- required field guidance
+- success state after invite
+- explanation of what happens next
+- error message clarity
+
+========================================
+BACKEND / API USAGE
+========================================
+
+Use existing endpoints and existing response data only.
+
+Do NOT invent fake data.
+
+If the existing backend does not provide a field, either:
+- omit it
+- or show a graceful placeholder
+- or explicitly label it as unavailable in current MVP
+
+========================================
+TENANTADMIN / PLATFORMADMIN UX
+========================================
+
+Ensure UX remains safe and clear for both:
+- TenantAdmin
+- PlatformAdmin
+
+Rules:
+- do not expose cross-tenant controls to TenantAdmin
+- if PlatformAdmin is still operating inside tenant-context UX, document that clearly in the report
+- preserve current access gating
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation, an admin should be able to:
+
+1. open the users list and understand user status quickly
+2. open a user detail page and immediately understand the user’s access posture
+3. perform access mutations and receive clear feedback
+4. understand when a section is editable vs informational
+5. invite a new user and understand what happens next
+6. distinguish primary org, assigned roles, and group memberships clearly
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-003-02-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Pages Updated
+6. Components Updated / Created
+7. UX Improvements to User List
+8. UX Improvements to User Detail
+9. Mutation Feedback Improvements
+10. Invite Flow UX Improvements
+11. Read-only vs Editable Clarifications
+12. TenantAdmin / PlatformAdmin UX Notes
+13. Known Issues / Remaining Gaps
+14. Manual Test Results
+15. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- user status is clearer in list view
+- user detail access summary is clearer
+- primary org is clearly labeled
+- roles section is clearer
+- groups section is clearer
+- memberships section is clearer
+- success feedback shown after mutations
+- error/conflict feedback improved
+- invite flow UX improved
+- empty states improved
+- editable vs informational areas are clear
+- tenant admin UX remains safe
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend existing UIX-003 implementation; do not rewrite
+- keep it UX-focused
+- do not add new backend surface unless absolutely required and clearly documented
+- preserve all working access-control functionality
+- save the report to /analysis/UIX-003-02-report.md

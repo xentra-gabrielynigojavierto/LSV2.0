@@ -1,0 +1,112 @@
+Implement the first real Next.js product vertical slice for CareConnect in the existing tenant-aware platform frontend.
+
+Current state already working:
+- Next.js 14 App Router scaffold exists
+- SessionProvider works via /api/auth/me BFF
+- TenantBrandingProvider works
+- platform_session cookie flow works end-to-end
+- AppShell, guards, nav builder, and placeholder pages already exist
+- Gateway is the only API entry point
+- Frontend is tenant-aware and org-aware
+- Backend enforces capabilities and org-participant access
+
+Target vertical slice:
+search provider -> open provider -> create referral -> view referral detail
+
+Use these business rules:
+- Law firm users with CARECONNECT_REFERRER can search providers and create referrals
+- Provider users with CARECONNECT_RECEIVER can view received referrals
+- Referrals are actor-aware:
+  - ReferringOrganizationId
+  - ReceivingOrganizationId
+  - SubjectPartyId
+- The frontend should not enforce capabilities as security, but should shape UX by productRoles
+- Use the existing app shell and route groups
+
+Generate the output in these exact sections:
+
+1. CareConnect Frontend Scope
+- define what will be implemented in this vertical slice
+- define what remains stubbed for later
+
+2. API Contract Assumptions
+List the frontend-facing API contracts assumed for:
+- GET /careconnect/api/providers
+- GET /careconnect/api/providers/{id}
+- POST /careconnect/api/referrals
+- GET /careconnect/api/referrals/{id}
+- GET /careconnect/api/referrals
+For each include:
+- request params/body
+- response shape needed by frontend
+
+3. TypeScript Models
+Generate the TS models for:
+- ProviderSummary
+- ProviderDetail
+- ReferralSummary
+- ReferralDetail
+- CreateReferralRequest
+- PartyBriefResponse
+- ReferralSearchParams
+
+4. Frontend Data Layer
+Generate:
+- careconnect-api.ts
+- provider search methods
+- referral create/get/list methods
+- typed wrappers around apiClient
+
+5. Page Implementations
+Generate minimal but real implementations for:
+- /careconnect/providers
+- /careconnect/providers/[id]
+- /careconnect/referrals
+- /careconnect/referrals/[id]
+
+Requirements:
+- provider search page supports query + filters placeholder
+- provider detail page supports “Create Referral” CTA for CARECONNECT_REFERRER only
+- referral list page adapts label based on role:
+  - law firm sees “Sent Referrals”
+  - provider sees “Received Referrals”
+- referral detail page renders party, orgs, status, notes placeholder
+
+6. Create Referral UI
+Design and generate:
+- a CreateReferralForm component
+- support:
+  - providerId
+  - optional receivingOrganizationId
+  - subject party inline fields for Phase 1 compatibility
+  - requested service
+  - urgency
+  - case number
+  - notes
+- submit to POST /careconnect/api/referrals
+- handle success/error states
+
+7. UX Role Shaping
+Explain and implement:
+- when to show “Find Providers”
+- when to show “Create Referral”
+- when provider users should not see referral creation controls
+- how to handle backend 403 gracefully
+
+8. Guards and Route Usage
+Show how the pages should use:
+- requireOrg()
+- requireProductRole() where appropriate
+- fallback behavior for mixed-role users
+
+9. Minimal Component List
+Generate starter components for:
+- ProviderSearchFilters
+- ProviderCard
+- ProviderDetailCard
+- ReferralListTable
+- ReferralDetailPanel
+- CreateReferralForm
+
+10. Implementation Sequence
+Give the exact order to build these files in the existing repo so the slice becomes runnable quickly.

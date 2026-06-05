@@ -1,0 +1,444 @@
+diff --git a/apps/gateway/Gateway.Api/Program.cs b/apps/gateway/Gateway.Api/Program.cs
+index c926a423..d23169c4 100644
+--- a/apps/gateway/Gateway.Api/Program.cs
++++ b/apps/gateway/Gateway.Api/Program.cs
+@@ -69,6 +69,26 @@ app.MapGet("/info", () =>
+     Results.Ok(new InfoResponse(ServiceName, env, Version)))
+     .AllowAnonymous();
+ 
+-app.MapReverseProxy().RequireAuthorization();
++app.MapReverseProxy(pipeline =>
++{
++    // BLK-SEC-02-02: Public CareConnect tenant-header trust boundary enforcement.
++    // For /careconnect/api/public/* paths:
++    //   1. Strip any client-supplied X-Internal-Gateway-Secret (prevent forgery from direct callers).
++    //   2. Inject the configured gateway origin marker so CareConnect can verify the request
++    //      passed through this trusted YARP instance (Layer 1 defense).
++    // Non-public and non-CareConnect routes are unaffected.
++    pipeline.Use(async (ctx, next) =>
++    {
++        if (ctx.Request.Path.StartsWithSegments("/careconnect/api/public"))
++        {
++            ctx.Request.Headers.Remove("X-Internal-Gateway-Secret");
++            var secret = ctx.RequestServices
++                .GetRequiredService<IConfiguration>()["PublicTrustBoundary:InternalRequestSecret"];
++            if (!string.IsNullOrWhiteSpace(secret))
++                ctx.Request.Headers["X-Internal-Gateway-Secret"] = secret;
++        }
++        await next();
++    });
++}).RequireAuthorization();
+ 
+ app.Run();
+diff --git a/apps/gateway/Gateway.Api/appsettings.Development.json b/apps/gateway/Gateway.Api/appsettings.Development.json
+index fb8d67f2..4a0c87b3 100644
+--- a/apps/gateway/Gateway.Api/appsettings.Development.json
++++ b/apps/gateway/Gateway.Api/appsettings.Development.json
+@@ -5,6 +5,9 @@
+     "SigningKey": "dev-only-signing-key-minimum-32-chars-long!",
+     "ExpiryMinutes": "480"
+   },
++  "PublicTrustBoundary": {
++    "InternalRequestSecret": "dev-internal-request-secret-minimum-32-chars!!"
++  },
+   "Logging": {
+     "LogLevel": {
+       "Default": "Debug",
+diff --git a/apps/gateway/Gateway.Api/appsettings.json b/apps/gateway/Gateway.Api/appsettings.json
+index 1b227937..9e117e23 100644
+--- a/apps/gateway/Gateway.Api/appsettings.json
++++ b/apps/gateway/Gateway.Api/appsettings.json
+@@ -748,6 +748,9 @@
+       }
+     }
+   },
++  "PublicTrustBoundary": {
++    "InternalRequestSecret": "REPLACE_VIA_SECRET"
++  },
+   "Logging": {
+     "LogLevel": {
+       "Default": "Information",
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs
+index e8713016..dfcf0cf2 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs
+@@ -4,6 +4,8 @@ using CareConnect.Application.Interfaces;
+ using CareConnect.Application.Repositories;
+ using CareConnect.Domain;
+ using System.Net.Mail;
++using System.Security.Cryptography;
++using System.Text;
+ 
+ namespace CareConnect.Api.Endpoints;
+ 
+@@ -11,9 +13,17 @@ namespace CareConnect.Api.Endpoints;
+ // CC2-INT-B08 — Public Referral Initiation (POST /api/public/referrals).
+ // These endpoints are intentionally anonymous — no JWT or platform_session required.
+ // Tenant isolation is enforced via the X-Tenant-Id header, which is resolved
+-// server-side by the Next.js BFF from the request subdomain → Identity lookup.
+-// The caller (Next.js Server Component) NEVER reads this header from user input;
++// server-side by the Next.js BFF from the request subdomain → Tenant service lookup.
++// The caller (Next.js Server Component / BFF proxy) NEVER reads this header from user input;
+ // it resolves the tenant from the subdomain and forwards only the GUID.
++//
++// BLK-SEC-02-02: Trust boundary enforced via two-layer validation:
++//   Layer 1 — X-Internal-Gateway-Secret: proves request passed through the trusted YARP gateway.
++//   Layer 2 — X-Tenant-Id-Sig: HMAC-SHA256 of X-Tenant-Id signed by the BFF using
++//             PublicTrustBoundary:InternalRequestSecret; proves X-Tenant-Id was not spoofed.
++//
++// Spoofed X-Tenant-Id from direct gateway callers → rejected at Layer 2 (no valid HMAC).
++// Direct-to-service requests bypassing the gateway → rejected at Layer 1 (no gateway secret).
+ public static class PublicNetworkEndpoints
+ {
+     public static void MapPublicNetworkEndpoints(this WebApplication app)
+@@ -26,13 +36,15 @@ public static class PublicNetworkEndpoints
+         // Lists all networks for the resolved tenant.
+         // Header: X-Tenant-Id (GUID, resolved from subdomain by Next.js BFF)
+         group.MapGet("/", async (
+-            HttpContext http,
++            HttpContext    http,
++            IConfiguration config,
+             INetworkRepository repo,
+             CancellationToken  ct) =>
+         {
+-            var tenantId = ResolveTenantId(http);
++            var tenantId = ValidateTrustBoundaryAndResolveTenantId(http, config);
+             if (tenantId == null)
+-                return Results.BadRequest(new { message = "X-Tenant-Id header is required." });
++                return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
++                    detail: "Request origin could not be verified.");
+ 
+             var networks = await repo.GetAllByTenantAsync(tenantId.Value, ct);
+ 
+@@ -52,14 +64,16 @@ public static class PublicNetworkEndpoints
+ 
+         // ── GET /api/public/network/{id}/providers ──────────────────────────
+         group.MapGet("/{id:guid}/providers", async (
+-            Guid       id,
+-            HttpContext http,
++            Guid           id,
++            HttpContext    http,
++            IConfiguration config,
+             INetworkRepository repo,
+             CancellationToken  ct) =>
+         {
+-            var tenantId = ResolveTenantId(http);
++            var tenantId = ValidateTrustBoundaryAndResolveTenantId(http, config);
+             if (tenantId == null)
+-                return Results.BadRequest(new { message = "X-Tenant-Id header is required." });
++                return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
++                    detail: "Request origin could not be verified.");
+ 
+             var network = await repo.GetByIdAsync(tenantId.Value, id, ct);
+             if (network == null)
+@@ -87,14 +101,16 @@ public static class PublicNetworkEndpoints
+ 
+         // ── GET /api/public/network/{id}/providers/markers ──────────────────
+         group.MapGet("/{id:guid}/providers/markers", async (
+-            Guid       id,
+-            HttpContext http,
++            Guid           id,
++            HttpContext    http,
++            IConfiguration config,
+             INetworkRepository repo,
+             CancellationToken  ct) =>
+         {
+-            var tenantId = ResolveTenantId(http);
++            var tenantId = ValidateTrustBoundaryAndResolveTenantId(http, config);
+             if (tenantId == null)
+-                return Results.BadRequest(new { message = "X-Tenant-Id header is required." });
++                return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
++                    detail: "Request origin could not be verified.");
+ 
+             var network = await repo.GetByIdAsync(tenantId.Value, id, ct);
+             if (network == null)
+@@ -120,14 +136,16 @@ public static class PublicNetworkEndpoints
+ 
+         // ── GET /api/public/network/{id}/detail ────────────────────────────
+         group.MapGet("/{id:guid}/detail", async (
+-            Guid       id,
+-            HttpContext http,
++            Guid           id,
++            HttpContext    http,
++            IConfiguration config,
+             INetworkRepository repo,
+             CancellationToken  ct) =>
+         {
+-            var tenantId = ResolveTenantId(http);
++            var tenantId = ValidateTrustBoundaryAndResolveTenantId(http, config);
+             if (tenantId == null)
+-                return Results.BadRequest(new { message = "X-Tenant-Id header is required." });
++                return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
++                    detail: "Request origin could not be verified.");
+ 
+             var network = await repo.GetWithProvidersAsync(tenantId.Value, id, ct);
+             if (network == null)
+@@ -185,13 +203,14 @@ public static class PublicNetworkEndpoints
+         app.MapPost("/api/public/referrals", async (
+             PublicReferralRequest req,
+             HttpContext           http,
++            IConfiguration       config,
+             IProviderRepository  providerRepo,
+             IReferralService     referralSvc,
+             ILoggerFactory       loggerFactory,
+             CancellationToken    ct) =>
+         {
+             var logger = loggerFactory.CreateLogger("CareConnect.PublicReferrals");
+-            return await HandlePublicReferral(req, http, providerRepo, referralSvc, logger, ct);
++            return await HandlePublicReferral(req, http, config, providerRepo, referralSvc, logger, ct);
+         })
+         .AllowAnonymous()
+         .RequireRateLimiting("public-referral-limit");
+@@ -200,14 +219,16 @@ public static class PublicNetworkEndpoints
+     private static async Task<IResult> HandlePublicReferral(
+         PublicReferralRequest req,
+         HttpContext           http,
++        IConfiguration       config,
+         IProviderRepository  providerRepo,
+         IReferralService     referralSvc,
+         ILogger              logger,
+         CancellationToken    ct)
+     {
+-            var tenantId = ResolveTenantId(http);
++            var tenantId = ValidateTrustBoundaryAndResolveTenantId(http, config);
+             if (tenantId == null)
+-                return Results.BadRequest(new { message = "X-Tenant-Id header is required." });
++                return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
++                    detail: "Request origin could not be verified.");
+ 
+             // Input validation
+             var errors = ValidatePublicReferralRequest(req);
+@@ -282,15 +303,130 @@ public static class PublicNetworkEndpoints
+             }
+     }
+ 
++    // ── Trust Boundary Validation (BLK-SEC-02-02) ─────────────────────────
++
++    /// <summary>
++    /// Validates the two-layer public trust boundary and returns the resolved TenantId.
++    ///
++    /// Layer 1 — X-Internal-Gateway-Secret:
++    ///   Proves the request was forwarded by the trusted YARP gateway.
++    ///   The gateway strips any client-supplied value and injects its own configured secret.
++    ///   A direct caller bypassing the gateway cannot supply the correct value.
++    ///
++    /// Layer 2 — X-Tenant-Id-Sig (HMAC-SHA256):
++    ///   Proves X-Tenant-Id was signed by the trusted Next.js BFF.
++    ///   HMAC-SHA256(X-Tenant-Id, InternalRequestSecret) computed server-side by the BFF.
++    ///   A caller going through the gateway but supplying an arbitrary X-Tenant-Id
++    ///   cannot forge the signature without knowing the shared secret.
++    ///
++    /// Returns null and logs a warning if validation fails.
++    /// The fallback path (validation disabled / secret not configured) is intentionally
++    /// limited to environments where the secret is not set — logged as a warning.
++    /// </summary>
++    private static Guid? ValidateTrustBoundaryAndResolveTenantId(
++        HttpContext    http,
++        IConfiguration config)
++    {
++        var logger = http.RequestServices
++            .GetRequiredService<ILoggerFactory>()
++            .CreateLogger("CareConnect.PublicTrustBoundary");
++
++        var secret = config["PublicTrustBoundary:InternalRequestSecret"];
++
++        if (string.IsNullOrWhiteSpace(secret))
++        {
++            logger.LogWarning(
++                "PublicTrustBoundary:InternalRequestSecret is not configured — " +
++                "trust boundary validation is DISABLED. Set this value in all non-dev environments. " +
++                "Path={Path}", http.Request.Path);
++            return ResolveTenantIdRaw(http);
++        }
++
++        // Layer 1: validate gateway origin marker
++        var gatewaySecret = http.Request.Headers["X-Internal-Gateway-Secret"].FirstOrDefault();
++        if (gatewaySecret != secret)
++        {
++            logger.LogWarning(
++                "Public request rejected: X-Internal-Gateway-Secret mismatch (Layer 1). " +
++                "RemoteIp={RemoteIp} Path={Path}",
++                http.Connection.RemoteIpAddress, http.Request.Path);
++            return null;
++        }
++
++        // Layer 2: validate HMAC signature of X-Tenant-Id
++        var tenantIdRaw = http.Request.Headers["X-Tenant-Id"].FirstOrDefault();
++        var sig         = http.Request.Headers["X-Tenant-Id-Sig"].FirstOrDefault();
++
++        if (string.IsNullOrWhiteSpace(tenantIdRaw))
++        {
++            logger.LogWarning(
++                "Public request rejected: X-Tenant-Id header missing (Layer 2). " +
++                "RemoteIp={RemoteIp} Path={Path}",
++                http.Connection.RemoteIpAddress, http.Request.Path);
++            return null;
++        }
++
++        if (string.IsNullOrWhiteSpace(sig))
++        {
++            logger.LogWarning(
++                "Public request rejected: X-Tenant-Id-Sig header missing (Layer 2). " +
++                "RemoteIp={RemoteIp} Path={Path}",
++                http.Connection.RemoteIpAddress, http.Request.Path);
++            return null;
++        }
++
++        if (!TryValidateHmac(tenantIdRaw, sig, secret))
++        {
++            logger.LogWarning(
++                "Public request rejected: X-Tenant-Id-Sig HMAC validation failed (Layer 2). " +
++                "RemoteIp={RemoteIp} Path={Path}",
++                http.Connection.RemoteIpAddress, http.Request.Path);
++            return null;
++        }
++
++        if (!Guid.TryParse(tenantIdRaw, out var tenantId))
++        {
++            logger.LogWarning(
++                "Public request rejected: X-Tenant-Id is not a valid GUID. " +
++                "RemoteIp={RemoteIp} Path={Path}",
++                http.Connection.RemoteIpAddress, http.Request.Path);
++            return null;
++        }
++
++        return tenantId;
++    }
++
++    /// <summary>
++    /// Validates HMAC-SHA256(data, secret) against the provided base64-encoded signature.
++    /// Uses constant-time comparison to prevent timing side-channel attacks.
++    /// </summary>
++    private static bool TryValidateHmac(string data, string sig, string secret)
++    {
++        try
++        {
++            byte[] sigBytes;
++            try { sigBytes = Convert.FromBase64String(sig); }
++            catch { return false; }
++
++            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
++            var expected = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
++
++            if (sigBytes.Length != expected.Length) return false;
++            return CryptographicOperations.FixedTimeEquals(expected, sigBytes);
++        }
++        catch
++        {
++            return false;
++        }
++    }
++
+     // ── Helpers ──────────────────────────────────────────────────────────────
+ 
+     /// <summary>
+-    /// Reads X-Tenant-Id from the request headers.
+-    /// This is set server-side by the Next.js BFF after resolving the
+-    /// subdomain → tenant via the Identity service (anonymous branding endpoint).
+-    /// Returns null if the header is missing or malformed.
++    /// Raw tenant ID extraction — used only when trust boundary validation is disabled
++    /// (unconfigured secret, typically in local dev without the full gateway stack).
+     /// </summary>
+-    private static Guid? ResolveTenantId(HttpContext http)
++    private static Guid? ResolveTenantIdRaw(HttpContext http)
+     {
+         var raw = http.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+         if (string.IsNullOrWhiteSpace(raw)) return null;
+diff --git a/apps/services/careconnect/CareConnect.Api/appsettings.Development.json b/apps/services/careconnect/CareConnect.Api/appsettings.Development.json
+index 243e4e5f..f715e48e 100644
+--- a/apps/services/careconnect/CareConnect.Api/appsettings.Development.json
++++ b/apps/services/careconnect/CareConnect.Api/appsettings.Development.json
+@@ -1,4 +1,7 @@
+ {
++  "PublicTrustBoundary": {
++    "InternalRequestSecret": "dev-internal-request-secret-minimum-32-chars!!"
++  },
+   "Jwt": {
+     "Issuer": "legalsynq-identity",
+     "Audience": "legalsynq-platform",
+diff --git a/apps/services/careconnect/CareConnect.Api/appsettings.json b/apps/services/careconnect/CareConnect.Api/appsettings.json
+index 76ec133f..f76d7bd1 100644
+--- a/apps/services/careconnect/CareConnect.Api/appsettings.json
++++ b/apps/services/careconnect/CareConnect.Api/appsettings.json
+@@ -49,6 +49,9 @@
+     "BaseUrl": "http://localhost:5012",
+     "TimeoutSeconds": 10
+   },
++  "PublicTrustBoundary": {
++    "InternalRequestSecret": "REPLACE_VIA_SECRET"
++  },
+   "AttachmentUpload": {
+     "MaxFileSizeBytes": 52428800,
+     "AllowedContentTypes": [
+diff --git a/apps/web/src/app/api/public/careconnect/[...path]/route.ts b/apps/web/src/app/api/public/careconnect/[...path]/route.ts
+index 66289e88..079427df 100644
+--- a/apps/web/src/app/api/public/careconnect/[...path]/route.ts
++++ b/apps/web/src/app/api/public/careconnect/[...path]/route.ts
+@@ -1,10 +1,18 @@
++import { createHmac } from 'crypto';
+ import { type NextRequest, NextResponse } from 'next/server';
+ 
+ const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://127.0.0.1:5010';
+ 
++// BLK-SEC-02-02: Shared secret for public CareConnect trust boundary.
++// Used to HMAC-sign the resolved X-Tenant-Id before forwarding.
++// Must match PublicTrustBoundary:InternalRequestSecret in Gateway and CareConnect configs.
++// Empty string in unconfigured environments — validation disabled fallback in CareConnect.
++const INTERNAL_REQUEST_SECRET = process.env.INTERNAL_REQUEST_SECRET ?? '';
++
+ /**
+  * CC2-INT-B07 — Public CareConnect BFF proxy.
+  * TENANT-STABILIZATION — Tenant resolution switched from Identity to Tenant service.
++ * BLK-SEC-02-02 — Trust boundary hardening: BFF now signs X-Tenant-Id with HMAC-SHA256.
+  *
+  * Handles unauthenticated requests to the public network surface.
+  * Unlike the authenticated /api/careconnect proxy, this handler does NOT
+@@ -14,9 +22,14 @@ const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://127.0.0.1:5010';
+  * incoming request's Host header by calling the Tenant resolution endpoint.
+  * The client-supplied X-Tenant-Id header is never trusted or forwarded.
+  *
++ * Trust boundary: X-Tenant-Id is signed with HMAC-SHA256 using INTERNAL_REQUEST_SECRET.
++ * The signature is sent as X-Tenant-Id-Sig. CareConnect validates both:
++ *   - X-Internal-Gateway-Secret (injected by YARP — proves gateway origin, Layer 1)
++ *   - X-Tenant-Id-Sig HMAC (proves BFF computed the tenant ID, Layer 2)
++ *
+  * Resolution: GET /tenant/api/v1/public/resolve/by-host?host={host}
+  *   Returns { tenantId, code, displayName, ... } from Tenant service.
+- *   Falls back to Identity branding endpoint if Tenant resolution fails
++ *   Falls back to Identity branding endpoint if TENANT_RESOLUTION_FALLBACK_IDENTITY=true
+  *   and TENANT_RESOLUTION_FALLBACK_IDENTITY=true (default: false).
+  *
+  * Routing:
+@@ -92,6 +105,17 @@ async function resolveTenantIdFromHost(host: string): Promise<string | null> {
+   return null;
+ }
+ 
++/**
++ * Computes HMAC-SHA256(data, secret) and returns the result as a base64 string.
++ * Used to sign X-Tenant-Id before forwarding — CareConnect validates the signature.
++ * Returns empty string if secret is not configured (trust boundary validation
++ * disabled in CareConnect for unconfigured environments).
++ */
++function signTenantId(tenantId: string): string {
++  if (!INTERNAL_REQUEST_SECRET) return '';
++  return createHmac('sha256', INTERNAL_REQUEST_SECRET).update(tenantId).digest('base64');
++}
++
+ async function proxy(request: NextRequest, { params }: RouteContext): Promise<NextResponse> {
+   const { path: pathSegments } = await params;
+   const gatewayPath = `/careconnect/${pathSegments.join('/')}`;
+@@ -106,9 +130,14 @@ async function proxy(request: NextRequest, { params }: RouteContext): Promise<Ne
+     return NextResponse.json({ message: 'Tenant could not be resolved.' }, { status: 400 });
+   }
+ 
++  // BLK-SEC-02-02: Sign the resolved tenant ID with HMAC-SHA256.
++  // CareConnect validates this signature alongside the gateway origin marker (Layer 2).
++  const sig = signTenantId(tenantId);
++
+   const reqHeaders: Record<string, string> = {
+     'Content-Type': 'application/json',
+     'X-Tenant-Id': tenantId,
++    ...(sig ? { 'X-Tenant-Id-Sig': sig } : {}),
+   };
+ 
+   let body: string | undefined;

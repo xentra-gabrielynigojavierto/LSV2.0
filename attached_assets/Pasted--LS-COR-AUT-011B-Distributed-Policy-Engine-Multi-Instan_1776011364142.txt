@@ -1,0 +1,320 @@
+# LS-COR-AUT-011B — Distributed Policy Engine + Multi-Instance Scaling
+
+## Objective
+
+Evolve LS-COR-AUT ABAC from **single-instance hardened** to **distributed, multi-node, enterprise-scale authorization infrastructure** by introducing:
+
+* distributed policy versioning
+* distributed policy evaluation caching
+* immutable / safe cache value handling
+* logging controls for scale
+* performance benchmarking and operational tuning
+
+At completion, the policy engine must be safe and consistent across:
+
+* multiple app instances
+* rolling deployments
+* shared infrastructure environments
+
+This feature turns LS-COR-AUT-011A from **single-node production-ready** into **cluster-safe, horizontally scalable authorization infrastructure**.
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```
+/analysis/LS-COR-AUT-011B-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The build is considered **incomplete without the report**
+* The report must be generated automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Distributed Correctness First
+
+* correctness and consistency take priority over raw cache hit rate
+* stale policy decisions across nodes must be minimized and explicitly controlled
+
+### No Breaking Authorization Semantics
+
+* deny-override behavior
+* deterministic evaluation order
+* permission-first enforcement
+* debug/explainability behavior
+
+must remain unchanged
+
+### Infrastructure Replaceability
+
+* distributed cache/version provider should be abstracted
+* implementation may use Redis initially, but must not hardwire the architecture to a single vendor if avoidable
+
+---
+
+## In Scope
+
+---
+
+## 1. Distributed Policy Version Provider
+
+### Required Action
+
+Implement distributed versioning:
+
+```csharp
+IPolicyVersionProvider
+```
+
+Options:
+
+* Redis INCR (preferred)
+* DB-backed monotonic counter
+* sequence
+
+### Requirements
+
+* global monotonic version
+* shared across all instances
+* fast read path
+
+---
+
+## 2. Distributed Policy Evaluation Cache
+
+### Required Abstraction
+
+```csharp
+IPolicyEvaluationCache
+```
+
+### Backend
+
+* Redis (preferred)
+
+### Cache Key
+
+```text
+policy:{scope}:{tenantId}:{userId}:{permission}:{policyVersion}:{resourceHash}
+```
+
+### Rules
+
+* cache deterministic results only
+* fail open if cache unavailable
+* TTL default: 60s
+
+---
+
+## 3. Immutable Cache Values
+
+### Requirement
+
+Choose one:
+
+**Option A (Preferred)**
+
+* immutable DTOs
+
+**Option B**
+
+* deep clone on read/write
+
+### Outcome
+
+* no shared mutable state across requests
+
+---
+
+## 4. Distributed Invalidation
+
+Trigger version increment on:
+
+* policy create/update/deactivate
+* rule changes
+* permission-policy mapping changes
+
+### Requirement
+
+* cross-node invalidation must be immediate via versioning
+
+---
+
+## 5. Logging Controls
+
+### Add Config
+
+```json
+{
+  "Authorization": {
+    "PolicyLogging": {
+      "Enabled": true,
+      "AllowLevel": "Debug",
+      "DenyLevel": "Warning",
+      "LogRuleResultsOnAllow": false,
+      "SampleRate": 1.0
+    }
+  }
+}
+```
+
+### Requirements
+
+* configurable verbosity
+* sampling support
+* deny logs always captured
+
+---
+
+## 6. Performance Metrics
+
+Track:
+
+* policy evaluation latency
+* cache hit/miss
+* cache latency
+* version read/increment latency
+
+---
+
+## 7. Multi-Instance Validation
+
+Simulate:
+
+1. Instance A caches decision
+2. Instance B serves same request
+3. Policy changes on A
+4. B must reflect new version immediately
+
+---
+
+## 8. Resource Hashing
+
+### Requirements
+
+* deterministic
+* order-independent
+* collision-resistant
+
+Recommended:
+
+* canonical sort
+* normalized values
+* SHA-256 (truncated acceptable)
+
+---
+
+## 9. Fallback Behavior
+
+### Required
+
+* cache failure → compute directly
+* malformed cache → ignore
+* version provider failure → safe fallback (must document)
+
+---
+
+## 10. Configuration
+
+```json
+{
+  "Authorization": {
+    "PolicyCaching": {
+      "Enabled": true,
+      "Provider": "Redis",
+      "TtlSeconds": 60
+    },
+    "PolicyVersioning": {
+      "Provider": "Redis",
+      "Scope": "Global"
+    }
+  }
+}
+```
+
+---
+
+## Testing Requirements
+
+### Unit
+
+* cache keys
+* hashing
+* immutability
+* versioning
+
+### Integration
+
+* cache behavior
+* invalidation
+* serialization
+
+### Multi-instance
+
+* cross-node consistency
+* version propagation
+
+### Performance
+
+* warm vs cold cache
+* mutation impact
+
+### Security
+
+* cache corruption handling
+* no privilege escalation
+
+---
+
+## Acceptance Criteria
+
+* distributed version provider implemented
+* distributed cache implemented
+* immutable cache values ensured
+* cross-node consistency validated
+* logging controls functional
+* resource hashing deterministic
+* fallback behavior safe
+* performance benchmarks captured
+* system builds cleanly
+
+---
+
+## Output Report (MANDATORY DETAILS)
+
+The report at `/analysis/LS-COR-AUT-011B-report.md` MUST include:
+
+1. distributed version provider implementation
+2. distributed cache implementation
+3. cache key + hashing design
+4. immutability strategy
+5. invalidation behavior
+6. logging configuration
+7. fallback behavior
+8. multi-instance validation results
+9. performance benchmarks
+10. test results
+11. build status
+12. known limitations
+13. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+* multi-instance safe
+* distributed-cache aware
+* cross-node consistent
+* observable at scale
+* enterprise-ready authorization platform

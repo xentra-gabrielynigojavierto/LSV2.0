@@ -1,0 +1,206 @@
+You are implementing feature MON-INT-00-001-02 — Control Center Monitoring Realignment (Pre-Integration).
+
+OBJECTIVE
+Prepare the existing Control Center monitoring implementation to transition from being a partial monitoring engine into a read-only consumer of the Monitoring Service (which will become the source of truth).
+
+This is a SAFE TRANSITION STEP.
+You are NOT integrating the Monitoring Service yet.
+You are NOT deleting functionality.
+You are preparing the system for clean cutover.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+
+MANDATORY EXECUTION RULES
+- Create the report FIRST at: /analysis/MON-INT-00-001-02-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT delete working features
+- Do NOT break the UI
+- Do NOT introduce placeholders pretending integration exists
+- Prefer minimal, reversible changes only
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-00-001-02-report.md
+
+Initialize with:
+
+# MON-INT-00-001-02 — Control Center Monitoring Realignment
+
+## 1. Task Summary
+## 2. Existing Monitoring Implementation Inventory
+## 3. Reclassification (Keep / Redirect / Deprecate)
+## 4. Code Adjustments Performed
+## 5. Backward Compatibility Status
+## 6. Migration Readiness for Monitoring Service
+## 7. Files Changed
+## 8. Validation Performed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state the report was created FIRST.
+
+---
+
+STEP 2 — INVENTORY EXISTING MONITORING IMPLEMENTATION
+
+Inspect and document:
+
+- apps/control-center/src/app/monitoring/page.tsx
+- apps/control-center/src/app/monitoring/services/page.tsx
+- apps/control-center/src/app/api/monitoring/summary/route.ts
+- apps/control-center/src/lib/system-health-store.ts
+- apps/control-center/src/lib/system-health-audit.ts
+- apps/control-center/src/lib/system-health-audit-outbox.ts
+- apps/control-center/src/components/monitoring/*
+- apps/control-center/src/lib/nav.ts
+
+For each file:
+- describe what it currently does
+- identify whether it acts as UI, data store, or monitoring logic
+
+---
+
+STEP 3 — RECLASSIFY RESPONSIBILITIES
+
+For each component, classify:
+
+- KEEP (UI / shell)
+- REDIRECT (will call Monitoring Service later)
+- DEPRECATE (duplicate backend logic)
+- TEMPORARY (bridge until integration)
+
+Write a clear table in the report.
+
+---
+
+STEP 4 — IMPLEMENT SAFE REALIGNMENT
+
+Make ONLY the following safe changes:
+
+### 4.1 Add Monitoring Source Abstraction
+
+Create a new file:
+
+apps/control-center/src/lib/monitoring-source.ts
+
+This file must:
+- define a single interface for monitoring data access
+- support current local implementation
+- prepare for future Monitoring Service API
+
+Example structure:
+
+- getMonitoringSummary()
+- getMonitoringStatus()
+- getMonitoringAlerts()
+
+Initially:
+- wire these functions to existing local logic (NO behavior change)
+
+---
+
+### 4.2 Refactor Summary API Route
+
+File:
+apps/control-center/src/app/api/monitoring/summary/route.ts
+
+Refactor:
+- move all logic into monitoring-source.ts
+- route should call abstraction layer only
+
+NO logic should remain directly in the route.
+
+---
+
+### 4.3 Prepare Toggle for Future Cutover
+
+Add environment-based toggle:
+
+MONITORING_SOURCE=local | service
+
+- default: local
+- do NOT implement service calls yet
+- just structure the code to allow switching later
+
+---
+
+### 4.4 Mark Deprecated Logic
+
+In:
+- system-health-store.ts
+- system-health-audit.ts
+- any aggregation logic
+
+Add clear comments:
+
+// TODO: DEPRECATE — replaced by Monitoring Service (MON-INT-01)
+
+Do NOT remove logic.
+
+---
+
+STEP 5 — PRESERVE UI COMPLETELY
+
+Ensure:
+- /monitoring page still works
+- summary still loads
+- components still render
+- no regression
+
+---
+
+STEP 6 — VALIDATION
+
+Verify:
+- UI loads successfully
+- summary endpoint still returns valid data
+- no runtime errors
+- abstraction layer is used everywhere
+
+---
+
+STEP 7 — MIGRATION READINESS CHECK
+
+Confirm in report:
+
+- Control Center no longer owns monitoring logic directly
+- Monitoring data access is centralized
+- system is ready to switch to Monitoring Service without UI rewrite
+
+---
+
+STEP 8 — DOCUMENT FILES CHANGED
+
+List all:
+- new files
+- modified files
+- exact changes
+
+---
+
+STEP 9 — RECOMMEND NEXT FEATURE
+
+Always recommend:
+
+MON-INT-01-001 — Monitoring Read API Integration
+
+Justify:
+- Control Center is now ready to consume external monitoring data
+- next step is to introduce Monitoring Service backend
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+- report exists and was created FIRST
+- monitoring logic is abstracted
+- UI remains fully functional
+- no destructive changes were made
+- system is ready for Monitoring Service integration

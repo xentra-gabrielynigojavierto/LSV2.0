@@ -1,0 +1,142 @@
+Design the target identity/core schema for a tenant-aware, multi-organization, product-role platform.
+
+Use this architecture as the source of truth:
+
+1. Executive Summary
+- Tenant is currently a monolithic actor with no internal organizational structure.
+- Introduce Organization as the business actor inside a tenant.
+- This unlocks cross-product roles, cross-tenant referrals/workflows, and party portals.
+
+2. Domain Model
+- Tenant = account boundary, billing unit, subdomain anchor. Never represents a specific business type.
+- Organization = business actor inside a tenant (LAW_FIRM, PROVIDER, FUNDER, LIEN_OWNER, INTERNAL). Always owned by one tenant.
+- Product = platform-wide capability bundle (CARECONNECT, SYNQLIEN, SYNQFUND).
+- ProductRole = named participation right within a product workflow, tied to organization type.
+- Capability = fine-grained permission within a ProductRole.
+- Party = real-world individual (injured party, referred client) and is separate from User.
+
+3. Authorization Model
+- Authorization flow is: tenant authentication -> product access -> organization x product role -> capability check.
+- Subdomain routing must remain tenant-based, not organization-based.
+- Cross-tenant reads happen only through explicit workflow participation.
+
+4. Product role examples
+- CareConnect:
+  - LAW_FIRM -> CARECONNECT_REFERRER
+  - PROVIDER -> CARECONNECT_RECEIVER
+- SynqLien:
+  - PROVIDER -> SYNQLIEN_SELLER
+  - LIEN_OWNER -> SYNQLIEN_BUYER
+- SynqFund:
+  - LAW_FIRM -> SYNQFUND_REFERRER
+  - FUNDER -> SYNQFUND_FUNDER
+  - injured party is a Party and later has a separate interface
+
+5. Migration approach
+- Non-destructive
+- Backward compatible
+- Feature-flag-gated
+- Tenant-by-tenant rollout
+
+Now design the target identity/core schema.
+
+Requirements:
+- keep Tenant separate from Organization
+- Organization must reference TenantId
+- support multiple organizations per tenant
+- support one user belonging to multiple organizations in the future
+- keep Users separate from Parties
+- support product-specific roles such as:
+  - CARECONNECT_REFERRER
+  - CARECONNECT_RECEIVER
+  - SYNQLIEN_SELLER
+  - SYNQLIEN_BUYER
+  - SYNQFUND_REFERRER
+  - SYNQFUND_FUNDER
+- support capability-based authorization
+- support organization domains for subdomain and future custom domain routing
+- support system roles and organization/product-scoped roles where needed
+- preserve the idea that product access is separate from product role, and product role is separate from capability
+- roles may exist for admin/UI convenience, but authorization must resolve through organization membership, product role, and capabilities
+
+Generate the output in these exact sections:
+
+1. Target Schema Overview
+- list all proposed tables grouped by domain (tenant/org, product access, auth, supporting)
+- briefly explain what each table is for
+
+2. Table-by-Table Schema Definition
+For each table, provide:
+- table name
+- purpose
+- columns with types
+- primary key
+- foreign keys
+- unique constraints
+- indexes
+- notes
+
+The design must cover at least:
+- Tenants
+- Organizations
+- OrganizationDomains
+- Products
+- OrganizationProducts
+- ProductRoles
+- Capabilities
+- RoleCapabilities
+- Users
+- UserOrganizationMemberships
+- Roles
+- UserRoleAssignments
+
+3. Relationship Model
+- explain how the major tables relate to each other
+- explicitly describe:
+  - Tenant -> Organizations
+  - Organization -> OrganizationProducts
+  - OrganizationProduct -> ProductRoles
+  - User -> UserOrganizationMemberships
+  - UserRoleAssignments and how they differ from ProductRoles
+
+4. Authorization Resolution Model
+- explain exactly how authorization is resolved using this schema
+- distinguish:
+  - login/authentication
+  - tenant context
+  - organization membership
+  - product access
+  - product role
+  - capability
+  - UI/admin role assignment
+- explain how cross-tenant workflow participation is supported without broad cross-tenant access
+
+5. Seed Data Plan
+- propose seed data for:
+  - Products
+  - ProductRoles
+  - Capabilities
+- include example records for CareConnect, SynqLien, and SynqFund
+
+6. Backward-Compatible Migration Plan
+- explain how to migrate from the current identity schema that already has:
+  - Tenants
+  - Products
+  - TenantProducts
+  - Roles
+  - Users
+  - UserRoles
+- explain what to keep temporarily
+- explain what new tables to add first
+- explain what can be deprecated later
+- include a plan for the stale Applications table in identity_db
+
+7. EF Core Implementation Notes
+- suggest entity structure
+- suggest DbContext organization
+- note any many-to-many tables
+- note any enum vs lookup-table decisions
+
+8. Risks / Open Decisions
+- list the top schema decisions that still need confirmation
+- highlight any choices that may affect future multi-org-per-tenant, internal admin access, or custom domain support

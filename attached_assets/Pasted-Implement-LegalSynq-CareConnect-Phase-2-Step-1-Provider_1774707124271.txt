@@ -1,0 +1,128 @@
+Implement LegalSynq CareConnect Phase 2 — Step 1: Provider search.
+
+Context:
+- CareConnect service already exists and is working
+- Gateway is already routing /careconnect/*
+- Identity and JWT are already working
+- MySQL + EF Core are already configured
+- CareConnect already supports tenant-scoped CRUD for:
+  - Providers
+  - Categories
+  - Referrals
+- Standardized exception handling, tenant context, role-based auth, and audit field patterns already exist
+
+Goal:
+Enhance the Provider API so it supports search and pagination, making CareConnect a usable provider directory.
+
+Requirements
+
+1. Enhance GET /api/providers
+Add optional query parameters:
+- name
+- categoryCode
+- city
+- state
+- acceptingReferrals
+- isActive
+- page
+- pageSize
+
+2. Query behavior
+All provider queries must remain tenant-scoped.
+
+Filtering rules:
+- name: case-insensitive contains match if reasonable with current setup
+- categoryCode: filter providers linked to a category with the given code
+- city: exact or normalized exact match
+- state: exact or normalized exact match
+- acceptingReferrals: boolean filter
+- isActive: boolean filter
+
+3. Pagination rules
+- page default = 1
+- page must be >= 1
+- pageSize default = 20
+- pageSize max = 100
+
+4. Response shape
+Return a paged response like:
+{
+  "items": [...],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 42
+}
+
+Create a reusable paged response DTO if appropriate.
+
+5. Add query model
+Create a simple DTO/model for provider search, such as:
+- GetProvidersQuery
+
+Suggested fields:
+- string? Name
+- string? CategoryCode
+- string? City
+- string? State
+- bool? AcceptingReferrals
+- bool? IsActive
+- int Page
+- int PageSize
+
+6. Keep architecture clean
+- use ICurrentRequestContext for TenantId
+- keep endpoint thin
+- put query/filter logic into application service layer
+- use async EF Core
+- do not return EF entities directly
+
+7. Keep current ProviderResponse shape
+Reuse the existing ProviderResponse if possible.
+Include category names in the provider response as already established.
+
+8. Validation
+Validate:
+- page >= 1
+- pageSize >= 1
+- pageSize <= 100
+
+If invalid, return 400 using the existing standardized exception handling pattern.
+
+9. Authorization
+Keep existing rules:
+- GET /api/providers => AuthenticatedUser
+- do not change write authorization in this step
+
+10. Performance and EF query behavior
+Apply filtering at the database query level, not in-memory.
+Only materialize results after filters and pagination are applied.
+
+11. Do NOT add yet
+Do not implement:
+- geo-distance search
+- map integration
+- scheduling
+- provider availability
+- sorting across many fields unless trivial
+- external search engines
+- notifications
+- documents
+- payments
+
+12. Output required
+After implementation, output:
+- files created/updated
+- how paging works
+- how each filter works
+- sample curl requests for:
+  - filter by city
+  - filter by categoryCode
+  - filter by acceptingReferrals
+  - combined filters with paging
+
+13. Code quality expectations
+- clean namespaces
+- minimal duplication
+- production-minded implementation
+- no breaking changes to current CareConnect behavior
+- preserve strict tenant isolation

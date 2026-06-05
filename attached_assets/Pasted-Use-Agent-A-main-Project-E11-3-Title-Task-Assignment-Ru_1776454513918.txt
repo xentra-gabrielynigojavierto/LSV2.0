@@ -1,0 +1,227 @@
+Use Agent A (main)
+
+Project: E11.3
+Title: Task Assignment Rules — Deterministic Assignment Resolver
+You are implementing the next core behavior phase for Flow.
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.3-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around assignment rule sources, precedence, tenant boundaries, fallback behavior, and interaction with task creation from E11.2.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - assignment resolver changes
+   - rule source / mapping decisions
+   - precedence behavior
+   - fallback behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for E11.4 or needs iteration
+REPORT FORMAT
+# E11.3 Report
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Assignment Resolver Notes
+## Rule Source / Mapping Notes
+## Precedence / Fallback Notes
+## Tenant Boundary Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+OBJECTIVE
+Introduce a deterministic assignment layer so WorkflowTask records created by E11.2 are automatically assigned to a user, role, or organization according to simple documented rules.
+This phase must keep workflow execution authority in WorkflowInstance, keep task creation behavior stable, and avoid introducing a complex rule engine or external dependency.
+SCOPE INCLUDES
+- assignment resolver interface + implementation
+- deterministic assignment rule source
+- integration into task creation flow
+- support for assignment to:
+  - user
+  - role
+  - organization
+- precedence enforcement
+- fallback behavior
+- documentation/reporting
+DO NOT BUILD
+- manual reassignment UI
+- task APIs
+- My Tasks UI
+- notification dispatch
+- SLA-based assignment
+- external identity lookups
+- advanced routing / load balancing
+- rule authoring UI
+- workflow redesign
+CRITICAL REQUIREMENTS
+You MUST:
+- keep assignment deterministic and simple
+- keep resolver inside Flow
+- avoid external service calls
+- assign at task creation time before SaveChanges
+- enforce only one assignment target per task
+- preserve tenant boundaries
+- not overwrite existing task assignment on retry when no new task is created
+- avoid regressing workflow/task creation behavior
+CURRENT CONTEXT
+Already completed:
+- E11.1 task entity
+- E11.2 task creation from workflow
+- workflow engine / outbox / SLA / admin actions all stable
+This phase adds assignment to newly created tasks only.
+IMPLEMENTATION REQUIREMENTS
+1. ASSIGNMENT RESOLVER SERVICE
+Create a dedicated service, for example:
+- IWorkflowTaskAssignmentResolver
+Example responsibility:
+- given WorkflowInstance + StepKey (+ task context if useful)
+- return an assignment decision
+The resolver should return a structure equivalent to:
+- AssignedUserId (nullable)
+- AssignedRole (nullable)
+- AssignedOrgId (nullable)
+Requirements:
+- stateless service
+- no SaveChanges
+- reusable from task creation flow
+- easy to extend later
+2. RULE SOURCE
+Use a simple deterministic rule source.
+Acceptable first-phase approaches:
+- StepKey-based mapping
+- StepKey + ProductKey-based mapping
+- code/config mapping stored in Flow code/config
+Requirements:
+- rules must be documented clearly
+- no dynamic scripting
+- no database rule editor
+- no runtime admin editing required
+- do not depend on E12 notifications or E11.5 APIs
+Recommended:
+- start with StepKey-first rules
+- optionally allow ProductKey refinement if needed by current workflows
+3. ASSIGNMENT TYPES
+Support these assignment targets:
+- AssignedUserId
+- AssignedRole
+- AssignedOrgId
+Requirements:
+- all remain nullable on the entity
+- resolver may set only one primary target
+- no multi-target assignment in this phase
+4. PRECEDENCE
+Enforce strict precedence:
+User > Role > Organization
+Meaning:
+- if a user is resolved, role/org must remain null
+- if a role is resolved, org must remain null
+- org only used as fallback when no user or role is resolved
+Requirements:
+- precedence enforced in one place
+- documented clearly
+- no conflicting assignments written to task rows
+5. INTEGRATION WITH TASK CREATION
+Integrate resolver into the E11.2 task creation path.
+Recommended shape:
+- task object created
+- resolver called
+- assignment applied to the new task
+- caller later SaveChangeses as part of the same unit of work
+Requirements:
+- assignment happens before SaveChanges
+- no post-commit patch/update
+- no separate transaction
+- no change to duplicate-prevention behavior from E11.2
+6. DEFAULT / FALLBACK BEHAVIOR
+If no rule matches, choose one explicit fallback and document it.
+Acceptable options:
+- leave task unassigned
+- assign to a generic role if that role is already standard and safe
+Recommended:
+- leave unassigned unless there is a very clear existing standard role
+Requirements:
+- must not fail task creation if no assignment is found
+- must be documented
+- must be deterministic
+7. ADMIN RETRY INTERACTION
+Requirements:
+- assignment is evaluated only when a NEW task is created
+- if retry does not create a new task because an active task already exists, do not overwrite its assignment
+- if retry results in a new task because prior task is terminal and step is re-entered, resolver may assign normally
+8. TENANT BOUNDARY RULES
+Requirements:
+- do not assign across tenants
+- if direct user assignment is implemented, it must be tenant-safe
+- if safe tenant-aware user lookup is not available without external dependency, prefer role/org assignment or leave unassigned
+- document the exact safety assumptions
+9. NO EXTERNAL DEPENDENCY
+Requirements:
+- do not call identity service
+- do not call external directory
+- do not depend on product-service APIs
+- resolver must be fast and local
+10. LIGHT OBSERVABILITY
+Requirements:
+- add modest logging around assignment decisions if useful
+- do not over-log
+- logs should indicate:
+  - workflow instance id
+  - step key
+  - assignment type chosen
+- no sensitive data dumping
+11. VALIDATION RULES
+Requirements:
+- only one of AssignedUserId / AssignedRole / AssignedOrgId may be set
+- empty/whitespace assignments should be normalized away
+- invalid assignment must not break task creation; safe fallback should apply
+12. BACKWARD COMPATIBILITY
+You MUST confirm:
+- workflow engine behavior unchanged except assignment fields on new tasks
+- E11.2 duplicate-prevention unchanged
+- outbox unchanged
+- SLA unchanged
+- no regression in tenant portal or Control Center surfaces
+VALIDATION REQUIREMENTS
+Functional
+- task gets assignment on creation when a rule matches
+- precedence works correctly
+- fallback works when no rule matches
+- retry does not overwrite existing active-task assignment
+Data
+- only one assignment field is set on any created task
+- fields are populated consistently with documented rules
+Platform
+- build passes
+- no regression in workflow engine
+- no regression in task creation
+- outbox/SLA/background workers unaffected
+Documentation
+- rules documented
+- precedence documented
+- fallback documented
+- tenant-boundary assumptions documented
+RECOMMENDED IMPLEMENTATION ORDER
+1. Create /analysis/E11.3-report.md
+2. Inspect E11.2 task creation integration points
+3. Add resolver interface + implementation
+4. Define simple deterministic rule mapping
+5. Integrate resolver into task creation flow
+6. Enforce precedence and normalization
+7. Validate retry/non-overwrite behavior
+8. Validate build/runtime stability
+9. Finalize report
+SUCCESS CONDITION
+- new tasks are assigned automatically and deterministically
+- only one assignment target is set
+- fallback behavior is safe
+- retry does not incorrectly overwrite existing tasks
+- system remains stable
+- ready for E11.4 task lifecycle and E11.5 My Tasks API
+FAILURE CONDITION
+- assignment is inconsistent or unpredictable
+- multiple assignment fields are set
+- assignment depends on external systems
+- assignment breaks task creation or workflow execution
+- existing platform behavior regresses

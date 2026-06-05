@@ -1,0 +1,296 @@
+PUM-B05 — External User Support
+
+Objective:
+Implement external/customer user support in the LegalSynq Identity service.
+
+This block enables Identity to safely support customer-facing users for future Commerce and Support flows while preserving the internal admin and tenant user model already established in PUM-B01 through PUM-B04.
+
+External users are required for:
+- Commerce customers viewing/paying invoices
+- Support customers creating/viewing their own tickets
+- Future Common/Customer Portal access
+
+IMPORTANT:
+Create the report file FIRST before making code changes:
+
+/analysis/PUM-B05-report.md
+
+Update this report incrementally after each major step.
+
+Required report sections:
+1. Codebase Analysis
+2. Existing External User / Customer Identity Findings
+3. Database / Migration Changes
+4. Domain / Application Changes
+5. API Changes
+6. Security / Isolation Behavior
+7. Files Changed
+8. Validation Results
+9. Known Gaps / Deferred Items
+10. Final Assessment
+
+Scope:
+Implement backend external user foundation only.
+
+In Scope:
+- Inspect existing Identity user, customer, client, contact, portal, invitation, and user-type structures
+- Reuse the existing `User.UserType` model from PUM-B01
+- Support creation of `ExternalCustomer` users
+- Support listing external users
+- Support retrieving external user profile details
+- Support linking an external user to a tenant context safely
+- Support assigning product access to external users using PUM-B04 product access model
+- Support external user access checks
+- Prevent external users from receiving platform/admin roles
+- Prevent external users from receiving tenant/admin roles unless explicitly safe and documented
+- Preserve existing authentication behavior
+- Preserve existing tenant user and platform user behavior
+- Add safe additive migration only if required
+
+Out of Scope:
+- Commerce service integration
+- Support service integration
+- Customer portal UI
+- Payment UI
+- Ticket UI
+- Invitation email flow
+- Notifications integration
+- Audit integration
+- Full JWT enforcement middleware
+- Password reset or external signup UX
+- External ownership enforcement inside Commerce/Support business records
+
+Core Design Rule:
+External users must NOT be treated as tenant staff.
+
+Use this principle:
+- Tenant users operate inside a tenant organization.
+- External users are customer/client-facing identities linked to a tenant context for product access only.
+- External users must not receive broad tenant administration permissions.
+
+Functional Requirements:
+
+PUM-B05-R01:
+Identity must support `ExternalCustomer` user creation using the existing unified User model.
+
+Rules:
+- Use `UserType.ExternalCustomer`
+- Do not create a separate customer user table unless one already exists and is explicitly the canonical model
+- Existing user fields should be reused:
+  - Id
+  - TenantId or tenant context
+  - Email
+  - FirstName
+  - LastName
+  - IsActive
+  - CreatedAtUtc
+  - UpdatedAtUtc
+  - LastLoginAtUtc
+
+PUM-B05-R02:
+External users must be linked to a tenant context.
+
+Rules:
+- If the current architecture requires `User.TenantId`, create external users with the linked tenant as their `TenantId`
+- Do not attempt a risky many-to-many user/tenant rewrite in this block
+- Document the limitation clearly
+- If a customer/tenant link table already exists, reuse it
+
+PUM-B05-R03:
+Identity must expose an admin endpoint to create an external customer user.
+
+Suggested endpoint:
+POST /identity/api/admin/external-users
+
+Request body:
+{
+  "tenantId": "guid required",
+  "email": "customer@example.com",
+  "firstName": "Jane",
+  "lastName": "Customer",
+  "isActive": true,
+  "productKeys": ["commerce", "support"]
+}
+
+Rules:
+- tenantId must exist
+- email must be valid according to current Identity conventions
+- duplicate email within the same tenant should not create a duplicate user
+- duplicate handling should return existing user or a conflict according to existing conventions
+- created user must have UserType = ExternalCustomer
+- productKeys are optional
+- if productKeys are supplied, grant product access using PUM-B04 model
+- product access should be tenant-scoped to the linked tenant
+
+PUM-B05-R04:
+Identity must expose an admin endpoint to list external customer users.
+
+Suggested endpoint:
+GET /identity/api/admin/external-users
+
+Query parameters:
+- tenantId optional
+- productKey optional
+- search optional
+- isActive optional
+- page
+- pageSize
+
+Rules:
+- PlatformAdmin can list across tenants
+- TenantAdmin can only list external users linked to their own tenant
+- Results must only include UserType = ExternalCustomer
+
+PUM-B05-R05:
+Identity must expose an admin endpoint to retrieve external customer user details.
+
+Suggested endpoint:
+GET /identity/api/admin/external-users/{userId}
+
+Response should include:
+- userId
+- tenantId
+- email
+- firstName
+- lastName
+- displayName
+- userType
+- isActive
+- createdAtUtc
+- updatedAtUtc
+- lastLoginAtUtc
+- productAccess list if available
+
+Rules:
+- Must return 404 if user does not exist
+- Must return 404 or 400 if user exists but is not ExternalCustomer
+- Must enforce tenant isolation
+
+PUM-B05-R06:
+External users must be eligible for product access assignment, especially:
+- commerce
+- support
+
+Rules:
+- Reuse PUM-B04 UserProductAccess model
+- Product access must remain separate from roles
+- External users should not need tenant staff roles to access customer-facing products
+
+PUM-B05-R07:
+External users must be blocked from platform roles.
+
+Rules:
+- ExternalCustomer users must not be assigned roles with Role.Scope == Platform
+- If using an existing role assignment endpoint, add guard logic there
+- Return 400 or 403 with a clear error if attempted
+
+PUM-B05-R08:
+External users must be blocked from tenant admin/staff roles by default.
+
+Rules:
+- ExternalCustomer users must not be assigned TenantAdmin, TenantManager, TenantStaff, or equivalent tenant staff/admin roles
+- If an exception role is needed later, define a dedicated external/customer role under Product scope, not Tenant scope
+- Return 400 or 403 with a clear error if attempted
+
+PUM-B05-R09:
+External users may receive product-scoped roles only when:
+- they have active product access
+- the product role exists for that product
+- the product role is appropriate for customer-facing access
+
+Rules:
+- Do not create broad customer role logic yet unless ProductRole model supports it cleanly
+- At minimum, preserve PUM-B04 behavior requiring active product access before product role assignment
+
+PUM-B05-R10:
+External user access checks must be supported.
+
+Suggested endpoint:
+GET /identity/api/admin/external-users/{userId}/products/{productKey}/access
+
+Rules:
+- Reuse the same logic as PUM-B04 product access check
+- Must enforce userType = ExternalCustomer
+- Must enforce tenant isolation
+
+PUM-B05-R11:
+Existing tenant user, platform user, login, and product access behavior must not be broken.
+
+PUM-B05-R12:
+Database changes must be additive and safe.
+
+PUM-B05-R13:
+Backend build must complete with zero errors.
+
+Implementation Guidance:
+1. Inspect current User creation flow and User.Create factory.
+2. Confirm how email uniqueness is enforced:
+   - globally
+   - per tenant
+   - database index
+   - service logic
+3. Reuse UserType.ExternalCustomer from PUM-B01.
+4. Do not introduce separate customer authentication yet.
+5. Do not create a second customer identity system.
+6. Use the tenant context required by the current single-tenant model.
+7. Reuse PUM-B04 product access logic where possible.
+8. Add helper methods if needed to avoid duplicating product code resolution.
+9. Add guards to existing role assignment endpoints where external users could otherwise receive platform or tenant roles.
+10. Do not seed Commerce or Support-specific customer roles unless they already exist in the ProductRole catalog.
+11. Do not modify Commerce or Support services.
+12. Do not build UI.
+13. Update /analysis/PUM-B05-report.md after each major implementation step.
+
+Suggested API Routes:
+Use these only if they fit existing conventions:
+
+POST   /identity/api/admin/external-users
+GET    /identity/api/admin/external-users
+GET    /identity/api/admin/external-users/{userId}
+GET    /identity/api/admin/external-users/{userId}/products/{productKey}/access
+
+Optional if not already covered by PUM-B04:
+POST   /identity/api/admin/external-users/{userId}/products
+DELETE /identity/api/admin/external-users/{userId}/products/{productKey}
+
+API Behavior:
+- Invalid tenantId returns 404
+- Invalid productKey returns 404
+- Duplicate email in same tenant returns conflict or existing user according to existing conventions
+- External user creation with productKeys should grant valid products and reject invalid products
+- External user creation should not partially succeed silently if one requested productKey is invalid
+- External user must not receive Platform roles
+- External user must not receive Tenant admin/staff roles
+- Product access check should return 200 with hasAccess false if user exists and product exists but access is absent
+
+Validation:
+Run the appropriate validation commands for this repository, including:
+- dotnet build
+- relevant Identity tests if available
+- migration validation if applicable
+- endpoint compilation validation
+- smoke tests for unauthenticated access returning 403/401 rather than 404 where routes are secured
+
+Required Report Content:
+In /analysis/PUM-B05-report.md, include:
+- Existing external/customer identity structures found
+- Whether UserType.ExternalCustomer was reused
+- How external users are tenant-linked
+- Whether any database changes were required
+- API endpoints added/changed
+- Product access behavior for external users
+- Role guard behavior preventing platform/tenant role assignment
+- Validation commands and results
+- Known gaps, especially single-tenant limitations and customer ownership enforcement deferred to Commerce/Support
+- Final requirement-by-requirement assessment
+
+Do not stop at partial implementation unless blocked by existing codebase constraints.
+If blocked, implement the safest compatible version and document the blocker clearly in /analysis/PUM-B05-report.md.
+
+Final output:
+After implementation, provide only:
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B05-report.md was created and updated

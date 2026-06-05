@@ -1,0 +1,406 @@
+LSCC-01-003 — Admin Provider Provisioning Interface
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-003
+
+Initial implementation report:
+- /analysis/LSCC-01-003-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-01-003-YY-report.md
+
+Examples:
+- /analysis/LSCC-01-003-report.md
+- /analysis/LSCC-01-003-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Provide administrators with a focused interface and backend capability to provision providers for CareConnect so they can gain the required receiver access and successfully view and accept referrals.
+
+This feature completes the admin-controlled access model introduced in LSCC-01-002-02 by adding an operational recovery path for blocked providers.
+
+This feature must:
+
+1. allow admins to locate provider users
+2. show current CareConnect access readiness state
+3. identify missing requirements (role, linkage, access)
+4. allow admins to provision the required access
+5. re-validate readiness after provisioning
+6. ensure provisioned providers can immediately access and accept referrals
+
+Do NOT implement full user management systems or redesign onboarding.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Admin provisioning UI (single-provider)
+B. Access readiness diagnostics
+C. Provisioning action (assign required access)
+D. Readiness recheck after provisioning
+E. Safe admin-only access control
+F. Tests
+G. Report
+
+Do NOT implement:
+- bulk provisioning
+- full RBAC redesign
+- self-service provider onboarding
+- booking/appointments
+- analytics
+- full admin console expansion
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse the existing access readiness logic from LSCC-01-002-02
+2. Do NOT create a second access model — use existing roles/capabilities
+3. Provisioning must be idempotent
+4. No hidden side effects — all changes must be explicit
+5. Admin must always act on a clearly identified provider/user/org
+6. No automatic org guessing when ambiguous
+7. Backend remains the source of truth for provisioning success
+8. Keep implementation minimal and operationally focused
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Backend:
+- apps/services/careconnect/...
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/admin/...
+- apps/web/src/components/careconnect/admin/...
+- apps/web/src/lib/...
+
+Do NOT modify unrelated product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+From LSCC-01-002-02:
+
+- providers without correct provisioning are blocked
+- system shows: “contact your administrator”
+- no auto-provisioning occurs
+- readiness is based on:
+  - CareConnect receiver role
+  - correct org/provider linkage
+  - capability alignment
+
+Current gap:
+- admins have no direct UI to resolve this
+
+LSCC-01-003 fills that gap.
+
+==================================================
+CORE ADMIN WORKFLOW
+==================================================
+
+1. Admin navigates to provisioning page
+2. Admin searches/selects provider/user
+3. System displays readiness diagnostics
+4. Admin clicks “Provision for CareConnect”
+5. System assigns required access
+6. System rechecks readiness
+7. Admin sees result (Ready / Failed / Already Ready)
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. ADMIN PROVISIONING PAGE
+--------------------------------------------------
+
+Create a new admin page.
+
+Suggested route:
+- /careconnect/admin/providers/provisioning
+
+Page must include:
+
+1. Provider/User search or selection
+2. Readiness diagnostics panel
+3. Missing requirements panel
+4. Provisioning action
+5. Result/status display
+
+Keep UI minimal and operational.
+
+--------------------------------------------------
+B. PROVIDER IDENTIFICATION
+--------------------------------------------------
+
+Admin must select a clear target:
+
+- provider record
+- linked user/account
+- organization context
+
+Rules:
+- no silent assumptions
+- if ambiguous → require explicit admin selection
+- invalid combinations must fail safely
+
+--------------------------------------------------
+C. READINESS DIAGNOSTICS
+--------------------------------------------------
+
+Before provisioning, show current state.
+
+Minimum fields:
+
+- Provider Name
+- User Email / Identity
+- Organization
+- Current Roles
+- Readiness Status (Ready / Not Ready)
+- Missing Requirements
+
+Missing requirements examples:
+
+- Missing CareConnect Receiver Role
+- Missing Organization Linkage
+- Missing Provider-User Mapping
+
+This must use the SAME logic as LSCC-01-002-02 readiness checks.
+
+--------------------------------------------------
+D. PROVISIONING ACTION
+--------------------------------------------------
+
+Primary action:
+
+- “Provision for CareConnect”
+
+This must:
+
+1. assign CareConnect receiver role (if missing)
+2. ensure required capabilities are satisfied via role
+3. ensure correct provider-user-org linkage (if safe and deterministic)
+
+Rules:
+
+- must be idempotent
+- must not duplicate roles
+- must not corrupt linkage
+- must not guess ambiguous org mappings
+
+If already provisioned:
+- return success with “already ready” state
+
+--------------------------------------------------
+E. PROVISIONING SERVICE (BACKEND)
+--------------------------------------------------
+
+Implement or refine a service:
+
+Example intent:
+- ProvisionProviderForCareConnect(providerId, userId, organizationId)
+
+Responsibilities:
+
+- validate inputs
+- assign role if missing
+- ensure linkage integrity
+- re-run readiness check
+- return structured result
+
+Example result:
+
+{
+  success: boolean,
+  alreadyReady: boolean,
+  roleAssigned: boolean,
+  linkageUpdated: boolean,
+  readinessPassed: boolean,
+  reason?: string
+}
+
+--------------------------------------------------
+F. READINESS RECHECK
+--------------------------------------------------
+
+After provisioning:
+
+- immediately re-run readiness logic
+- display result clearly:
+
+States:
+- Ready
+- Still Incomplete
+- Failed (with reason)
+
+--------------------------------------------------
+G. ADMIN ACCESS CONTROL
+--------------------------------------------------
+
+Only admins can:
+
+- view provisioning page
+- execute provisioning
+
+Requirements:
+
+- enforce via backend
+- do not rely only on frontend checks
+
+--------------------------------------------------
+H. FAILURE HANDLING
+--------------------------------------------------
+
+If provisioning fails:
+
+- show clear error
+- do not leave partial ambiguous state
+- preserve system integrity
+
+Examples:
+
+- invalid provider-user link
+- org mismatch
+- missing identity
+
+--------------------------------------------------
+I. DATA INTEGRITY RULES
+--------------------------------------------------
+
+Must enforce:
+
+1. no duplicate role assignment
+2. no invalid provider-user linkage
+3. no cross-org assignment
+4. no provisioning without explicit target
+5. no divergence from canonical readiness rules
+
+--------------------------------------------------
+J. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. Provider already ready
+- return idempotent success
+
+2. Provider missing role only
+- role assigned successfully
+
+3. Provider missing linkage
+- require explicit fix or fail safely
+
+4. Multiple org candidates
+- require admin selection
+
+5. User exists but not linked to provider
+- show incomplete state clearly
+
+--------------------------------------------------
+K. FRONTEND REQUIREMENTS
+--------------------------------------------------
+
+UI must:
+
+- clearly show readiness vs missing requirements
+- show provisioning result clearly
+- not expose unnecessary complexity
+- be fast and deterministic
+
+Do NOT:
+- redesign admin systems broadly
+- add unrelated UI features
+
+--------------------------------------------------
+L. TESTING (MINIMUM)
+--------------------------------------------------
+
+Backend tests:
+
+1. missing role → provisioning assigns role
+2. already-ready → idempotent success
+3. invalid linkage → safe failure
+4. readiness recheck works
+5. admin-only enforcement
+6. no duplicate assignments
+
+Frontend tests:
+
+1. readiness diagnostics render correctly
+2. missing requirements displayed
+3. provisioning success state displayed
+4. failure state displayed
+5. repeat provisioning safe
+
+If full UI testing is limited:
+- test service layer thoroughly
+- test component rendering logic separately
+
+--------------------------------------------------
+M. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-003-report.md
+
+The report MUST include:
+
+1. Summary
+2. Admin provisioning workflow
+3. Readiness diagnostics
+4. Provisioning logic and safeguards
+5. Readiness recheck behavior
+6. Admin access control
+7. Tests implemented
+8. Known limitations
+9. Recommended next step
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+1. implement provisioning service
+2. integrate readiness diagnostics
+3. build admin provisioning UI
+4. connect UI to backend service
+5. implement readiness recheck
+6. add tests
+7. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-003 is complete ONLY if:
+
+1. admin can identify provider/user/org
+2. admin can see readiness diagnostics
+3. admin can provision required CareConnect access
+4. provisioning is idempotent and safe
+5. readiness can be rechecked immediately
+6. previously blocked providers can now access referrals
+7. no regressions to LSCC-01-002-02
+8. report exists at:
+   /analysis/LSCC-01-003-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this operational, minimal, and precise.
+
+This feature exists to complete the admin-controlled access model by giving administrators the ability to resolve blocked providers quickly and safely.
+
+Do not expand scope beyond what is necessary to make provider provisioning functional and reliable.

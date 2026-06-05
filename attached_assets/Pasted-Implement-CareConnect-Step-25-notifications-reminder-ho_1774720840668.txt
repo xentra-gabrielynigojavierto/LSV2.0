@@ -1,0 +1,259 @@
+Implement CareConnect Step 25: notifications + reminder hooks for referrals and appointments.
+
+Goal:
+Add the first notification layer for CareConnect by implementing:
+1. notification event records
+2. referral status change notification hooks
+3. appointment reminder scheduling hooks
+4. a clean path for future SynqNotify integration
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect already supports:
+  - Providers
+  - Referrals
+  - Referral status history
+  - Scheduling foundation
+  - AppointmentSlots
+  - Appointments
+  - appointment lifecycle
+  - ProviderAvailabilityExceptions
+  - Referral notes
+  - Appointment notes
+  - Attachment metadata
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+
+Important:
+This step should prepare and implement the first notification workflow only.
+Do NOT integrate external email/SMS providers yet.
+Do NOT implement actual background job infrastructure yet unless a minimal in-process approach is needed.
+Do NOT implement SynqNotify integration yet.
+Keep it minimal, clean, and production-minded.
+
+Requirements
+
+==================================================
+PART 1 — NOTIFICATION EVENT MODEL
+==================================================
+
+1. Create CareConnectNotification entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- NotificationType : string
+- RelatedEntityType : string
+- RelatedEntityId : Guid
+- RecipientType : string
+- RecipientAddress : string?
+- Subject : string?
+- Message : string?
+- Status : string
+- ScheduledForUtc : DateTime?
+- SentAtUtc : DateTime?
+- FailedAtUtc : DateTime?
+- FailureReason : string?
+- CreatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedAtUtc : DateTime
+- UpdatedByUserId : Guid?
+
+Allowed NotificationType values:
+- ReferralStatusChanged
+- AppointmentScheduled
+- AppointmentConfirmed
+- AppointmentCancelled
+- AppointmentReminder
+
+Allowed RelatedEntityType values:
+- Referral
+- Appointment
+
+Allowed RecipientType values:
+- ClientEmail
+- ClientPhone
+- InternalUser
+- Provider
+
+Allowed Status values:
+- Pending
+- Ready
+- Sent
+- Failed
+- Cancelled
+
+2. Add EF Core mapping
+
+Table name:
+- CareConnectNotifications
+
+Primary key:
+- Id
+
+Indexes:
+- (TenantId, Status, ScheduledForUtc)
+- (TenantId, RelatedEntityType, RelatedEntityId)
+- (TenantId, NotificationType)
+
+==================================================
+PART 2 — TRIGGER POINTS
+==================================================
+
+3. Add referral notification hooks
+When referral status changes, create a CareConnectNotification row for:
+- NotificationType = ReferralStatusChanged
+- RelatedEntityType = Referral
+- RelatedEntityId = Referral.Id
+- Status = Pending
+
+Do not send anything externally yet.
+Just record notification intent cleanly.
+
+4. Add appointment notification hooks
+When appointment is:
+- Scheduled
+- Confirmed
+- Cancelled
+
+Create CareConnectNotification rows:
+- AppointmentScheduled
+- AppointmentConfirmed
+- AppointmentCancelled
+
+Use:
+- RelatedEntityType = Appointment
+- RelatedEntityId = Appointment.Id
+- Status = Pending
+
+5. Add reminder generation hook
+When an appointment is first scheduled or confirmed, create a reminder notification row:
+- NotificationType = AppointmentReminder
+- RelatedEntityType = Appointment
+- RelatedEntityId = Appointment.Id
+- Status = Pending
+- ScheduledForUtc = a reasonable reminder time before appointment, such as 24 hours before, if possible and future-dated
+
+If the appointment is too close for that timing, use a simple fallback rule.
+Keep the logic straightforward and documented.
+
+==================================================
+PART 3 — NOTIFICATION ACCESS
+==================================================
+
+6. Add endpoints
+
+Implement:
+- GET /api/notifications
+- GET /api/notifications/{id}
+
+Optional filters for GET /api/notifications:
+- status
+- notificationType
+- relatedEntityType
+- relatedEntityId
+- scheduledFrom
+- scheduledTo
+- page
+- pageSize
+
+Behavior:
+- tenant-scoped
+- authenticated users can read
+- do not add create/update endpoints for direct manual notification writing in this step
+
+7. Add DTOs
+
+NotificationResponse
+- Id
+- NotificationType
+- RelatedEntityType
+- RelatedEntityId
+- RecipientType
+- RecipientAddress
+- Subject
+- Message
+- Status
+- ScheduledForUtc
+- SentAtUtc
+- FailedAtUtc
+- FailureReason
+- CreatedAtUtc
+
+==================================================
+PART 4 — SIMPLE PROCESSING PREP
+==================================================
+
+8. Add a lightweight "mark ready" or processing preparation behavior
+Keep it simple:
+- notifications can remain Pending for now
+- or move to Ready if your existing design makes that clearer
+- do NOT build a full job runner or external sender yet
+
+9. Add a small internal service such as:
+- INotificationService
+- NotificationService
+
+Responsibilities:
+- create notification rows from business events
+- query notification rows
+- keep implementation internal and clean
+
+==================================================
+PART 5 — VALIDATION AND SAFETY
+==================================================
+
+10. Validation rules
+- notification type must be valid
+- related entity type must be valid
+- status must be valid
+- ScheduledForUtc logic should be safe and non-breaking
+- all notification rows must be tenant-scoped
+
+11. Keep exception handling centralized
+Use the existing standardized exception handling pattern.
+Do not add ad hoc error JSON.
+
+==================================================
+PART 6 — AUTHORIZATION
+==================================================
+
+12. Authorization rules
+- GET /api/notifications => AuthenticatedUser
+- GET /api/notifications/{id} => AuthenticatedUser
+
+No direct write endpoints for users in this step.
+
+==================================================
+PART 7 — MIGRATION
+==================================================
+
+13. Add migration
+Create migration:
+- AddCareConnectNotifications
+
+Migration should create ONLY:
+- CareConnectNotifications
+
+==================================================
+PART 8 — OUTPUT REQUIRED
+==================================================
+
+14. After implementation, output:
+- files created/updated
+- migration command
+- notification types
+- trigger points implemented
+- sample curl requests for:
+  - listing notifications
+  - filtering notifications
+  - verifying appointment/referral actions created notification rows
+
+15. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- no breaking changes to existing CareConnect behavior
+- preserve strict tenant isolation
+- UTC timestamps everywhere
+- prepare for future SynqNotify integration without implementing it yet

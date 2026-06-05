@@ -1,0 +1,415 @@
+# LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity/access-control enforcement feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, onboarding, recovery, and access-management flows
+- Reuse existing models/endpoints/services where possible
+- Keep backend, API, and UI concerns clearly separated
+- Include explicit fallback/default behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Prefer authoritative backend enforcement over frontend-only checks
+- Preserve tenant isolation in every enforcement path
+- Be honest in the report about the exact enforcement boundary achieved
+
+---
+
+## FEATURE OBJECTIVE
+
+Transform the current access model from “defined” to “enforced” by making product access and tenant-valid role assignment authoritative across backend APIs and aligned in the frontend.
+
+This feature should make Identity the real source of access-control truth for products + roles.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Fine-grained permission engine / policy matrix
+- Role creation/editing UI
+- Audit dashboard UI
+- Product-specific permission matrices
+- SSO / federation
+- Broad auth architecture rewrite
+- Page redesign
+- Changes to Groups / Access / Simulator tabs unless directly required for this feature
+- Unvalidated product-catalog invention
+- Claims redesign unless minimally required and validated
+
+ONLY IMPLEMENT:
+- Backend product access enforcement where the current architecture supports it
+- Backend role-assignment enforcement for tenant-valid roles
+- A centralized/reusable access validation layer
+- Minimal frontend alignment for access-denied outcomes and product visibility
+- Clear and consistent error responses for denied access
+- Explicit documentation of exactly which downstream routes/services are enforced in this feature
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-009-report.md
+
+Initialize with:
+
+# LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Product Access Model
+## 4. Existing Role Assignment / Validation Contract
+## 5. Existing Product Route / Service Topology Analysis
+## 6. Existing Frontend Product Visibility Analysis
+## 7. Enforcement Design
+## 8. Enforcement Boundary / Coverage
+## 9. Files Changed
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 12. Frontend Compatibility Adjustments
+## 13. Enforcement Behavior
+## 14. Testing Results
+## 15. Known Issues / Gaps
+## 16. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Product access model
+- existing user-product assignment tables/entities/endpoints
+- how product codes are represented
+- default behavior for users with no product assignments
+- whether product access is currently checked anywhere in backend code
+- whether product information is present in JWT/session/claims or only in DB/API
+
+### Role assignment model
+- existing role assignment endpoints
+- existing backend validation rules on assign/remove
+- current tenant-valid role filtering logic in UI
+- whether backend currently distinguishes:
+  - tenant-valid system roles
+  - platform roles
+  - product roles
+
+### Product route/service topology
+- which product-specific services/apps/routes exist now
+- whether there is shared middleware or gateway enforcement already
+- where enforcement can realistically be added in this feature
+- whether YARP/gateway can enforce anything directly
+- whether each product service can consume identity/access checks today
+
+### Frontend product visibility
+- where product navigation/switcher is built
+- how product visibility is currently determined
+- whether current portal already knows tenant-enabled/user-assigned products
+
+DO NOT assume enforcement opportunities until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Product Access Model
+## 4. Existing Role Assignment / Validation Contract
+## 5. Existing Product Route / Service Topology Analysis
+## 6. Existing Frontend Product Visibility Analysis
+
+---
+
+## STEP 2 — DEFINE THE ENFORCEMENT STRATEGY
+
+Based on actual findings, design the smallest coherent enforcement layer.
+
+You must determine and document:
+
+### Product enforcement
+- where backend product checks can be enforced now
+- whether enforcement should be:
+  - middleware
+  - reusable service/helper
+  - endpoint-level guard
+  - gateway-assisted plus service-side checks
+- how the product code/context is determined for a given route/service
+
+### Role enforcement
+- how to enforce tenant-valid role assignment at the backend
+- whether to centralize the allowed-role logic in a helper/service
+- how to keep UI filtering aligned with backend truth
+
+### Frontend alignment
+- whether product nav can be filtered based on current identity data
+- how unauthorized product route access should be surfaced
+
+Preferred design principles:
+- backend is authoritative
+- reuse existing models and route patterns
+- avoid speculative cross-service abstractions unless supported by codebase
+- document exact coverage honestly
+
+Update report:
+## 7. Enforcement Design
+## 8. Enforcement Boundary / Coverage
+
+---
+
+## STEP 3 — IMPLEMENT BACKEND ROLE ASSIGNMENT ENFORCEMENT
+
+Harden role assignment in backend so tenant admins cannot assign invalid/platform-only roles through direct API calls.
+
+Requirements:
+- backend must enforce tenant-valid roles for tenant-admin-facing assignment paths
+- valid roles should be based on validated codebase truth, likely:
+  - product roles
+  - `TenantAdmin`
+  - `TenantUser`
+- invalid assignments must be rejected even if caller bypasses UI
+- keep platform-admin-specific capabilities intact if they exist and are valid in separate contexts
+- keep tenant isolation intact
+
+Return:
+- clear non-2xx error for invalid role assignment
+- meaningful message such as:
+  - “This role cannot be assigned by a tenant administrator.”
+
+Also validate remove/revoke behavior if needed so role-management rules remain coherent.
+
+Update report:
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 13. Enforcement Behavior
+
+---
+
+## STEP 4 — IMPLEMENT CENTRAL PRODUCT ACCESS CHECK
+
+Implement a reusable backend access-check mechanism using the validated architecture.
+
+Requirements:
+- determine whether the current user has granted access to the target product
+- use authoritative backend data
+- account for the current default behavior for legacy/no-assignment users
+- return clear 403 for denied access
+- keep tenant isolation intact
+
+Potential implementations (use what fits the validated codebase):
+- shared service such as `IAccessControlService`
+- middleware with route metadata/product code
+- endpoint guard/helper
+- shared extension methods
+
+Do NOT invent a broad framework if a focused reusable helper is sufficient.
+
+Update report:
+## 10. Backend Implementation
+## 13. Enforcement Behavior
+
+---
+
+## STEP 5 — ENFORCE PRODUCT ACCESS AT REAL ENTRY POINTS
+
+Apply product access enforcement at the actual routes/services supported by the current codebase.
+
+Requirements:
+- identify concrete routes/endpoints to enforce now
+- enforce only where the product context is real and validated
+- return 403 when user lacks access
+- do not over-claim platform-wide coverage if only certain services/routes can be covered in this feature
+
+Examples of acceptable enforcement targets if supported by codebase:
+- tenant portal product APIs
+- product-specific backend controllers/endpoints
+- product switcher/product bootstrap APIs
+- route groups by product
+
+IMPORTANT:
+- The report must explicitly state:
+  - what routes are enforced now
+  - what routes are not yet enforced
+  - what additional work would be needed for full platform coverage
+
+Update report:
+## 8. Enforcement Boundary / Coverage
+## 10. Backend Implementation
+## 13. Enforcement Behavior
+
+---
+
+## STEP 6 — ALIGN FRONTEND PRODUCT VISIBILITY
+
+Update the frontend only as needed to align with enforced access truth.
+
+Requirements:
+- hide or disable inaccessible products in nav/switcher if current data supports it
+- if a user directly lands on an unauthorized product route, show clear access-denied behavior based on actual current routing architecture
+- preserve current UI patterns; no redesign
+- do not rely on frontend-only enforcement
+
+If frontend visibility cannot be fully aligned in this feature due to architecture limits, document that clearly and at least ensure backend denial is handled gracefully.
+
+Update report:
+## 12. Frontend Compatibility Adjustments
+## 13. Enforcement Behavior
+
+---
+
+## STEP 7 — STANDARDIZE ACCESS-DENIED ERROR HANDLING
+
+Standardize the responses and frontend handling for denied access.
+
+Requirements:
+- Product access denied → 403 with clear message, e.g.:
+  - “User does not have access to this product.”
+- Invalid role assignment → clear non-2xx with meaningful message
+- frontend should surface access-denied states clearly without generic crashes
+- preserve existing modal/page behavior where possible
+
+Update report:
+## 11. API / Error Contract Changes
+## 12. Frontend Compatibility Adjustments
+
+---
+
+## STEP 8 — HANDLE LEGACY / DEFAULT ACCESS BEHAVIOR
+
+Explicitly implement and document the access behavior for:
+- existing users with no explicit product assignments
+- existing tenants already in production state
+- users created before LS-ID-TNT-008
+
+Requirements:
+- choose the behavior based on actual current migration/default model
+- make it explicit in backend enforcement
+- do not silently lock out legacy users unless intentionally migrated and documented
+- document the exact rule in the report
+
+Examples:
+- no assignments means all tenant-enabled products
+- no assignments means no products
+- grandfather existing users until first explicit assignment
+
+Use the validated codebase truth and prior behavior.
+
+Update report:
+## 8. Enforcement Boundary / Coverage
+## 13. Enforcement Behavior
+## 15. Known Issues / Gaps
+
+---
+
+## STEP 9 — TENANT SAFETY AND DATA INTEGRITY
+
+Validate and ensure:
+- no cross-tenant product enforcement leakage
+- no cross-tenant role assignment loopholes
+- no normal UI/API path bypass for the covered enforcement targets
+- backend remains source of truth
+- existing last-admin protection and user lifecycle flows remain intact
+
+Document any limitations honestly.
+
+Update report:
+## 13. Enforcement Behavior
+## 14. Testing Results
+## 15. Known Issues / Gaps
+
+---
+
+## STEP 10 — TESTING
+
+Test and document each scenario.
+
+### Product access enforcement
+- user with granted access to product → allowed
+- user without granted access → blocked with 403
+- user loses product access → blocked on next access attempt
+- legacy/no-assignment user behavior works exactly as documented
+- cross-tenant product check attempt → denied
+
+### Role enforcement
+- assign valid tenant role → success
+- assign invalid platform/system role via UI path → impossible or rejected
+- assign invalid role via direct API path → rejected
+- remove/reassign roles still works for valid cases
+- last-admin protection still works with role enforcement in place
+
+### Frontend alignment
+- unauthorized products hidden/disabled if implemented
+- direct route/API access denial handled clearly
+- no generic UI failure on 403
+
+### Regression
+- users list still loads
+- invite flow still works
+- accept-invite still works
+- password reset still works
+- edit/status controls still work
+- group/product assignment UI from LS-ID-TNT-008 still works
+- null-safe rendering remains intact
+
+Update report:
+## 14. Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 15. Known Issues / Gaps
+## 16. Final Status = Complete
+
+Your final report must clearly state:
+- What centralized access-check mechanism was implemented
+- Which backend routes/services now enforce product access
+- How tenant-valid role enforcement works in backend
+- What default behavior was applied for legacy/no-assignment users
+- What frontend alignment was added
+- What remains deferred for full platform-wide enforcement
+- Whether any bypass paths still exist for the covered scope
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Product access is enforced at the validated backend boundary implemented in this feature
+✔ Unauthorized product access returns 403 with clear messaging
+✔ Frontend reflects or gracefully handles access restrictions
+✔ Backend role assignment is restricted to tenant-valid roles
+✔ Invalid role assignment via direct API path is rejected
+✔ Access validation is centralized/reusable within the implemented scope
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-008 flows do not regress
+✔ Tenant isolation remains intact
+✔ Enforcement coverage and remaining gaps are documented honestly
+✔ Identity now acts as the authoritative access-control layer for the implemented scope
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working backend product access enforcement for the validated scope
+2. Working backend tenant-valid role enforcement
+3. Compatible frontend handling for enforced access-denied outcomes
+4. Completed report:
+/analysis/LS-ID-TNT-009-report.md
+
+---
+
+END OF IMPLEMENTATION

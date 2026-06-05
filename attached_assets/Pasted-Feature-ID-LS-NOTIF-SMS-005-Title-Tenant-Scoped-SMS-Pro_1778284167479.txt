@@ -1,0 +1,364 @@
+Feature ID: LS-NOTIF-SMS-005
+
+Title:
+Tenant-Scoped SMS Provider Runtime Resolution
+
+Objective:
+Enable Notification Service to resolve and execute outbound SMS sends and outbound vendor reconciliation using the correct tenant-scoped SMS provider configuration, instead of relying only on the platform-level Twilio adapter.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all tenant-scoped SMS provider runtime resolution work must remain isolated within the Notification Service boundary.
+
+Requirements:
+- Do not add SMS provider runtime resolution logic to unrelated services.
+- Do not create shared cross-service SMS abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - tenant-scoped SMS provider config lookup
+  - runtime SMS provider adapter creation
+  - tenant-owned Twilio send execution
+  - tenant-owned Twilio reconciliation lookup
+  - platform fallback logic
+  - provider config audit enrichment
+- Other services should continue interacting with Notification Service through existing notification APIs/events/contracts where possible.
+- Preserve Notification Service as the only SMS delivery, tracking, and reconciliation boundary.
+
+Implementation Requirements:
+1. Resolve outbound SMS runtime provider config by tenant, channel, provider, and active provider configuration.
+2. Use tenant-owned Twilio credentials/settings for outbound SMS sends when an active tenant SMS config exists.
+3. Use platform Twilio credentials/settings only when tenant config is absent and platform fallback is explicitly allowed by existing routing/config rules.
+4. Persist enough provider config context on SMS attempts to support later vendor reconciliation.
+5. Rehydrate the correct provider adapter during reconciliation using the original attempt/provider config context.
+6. Add structured failure handling for missing/invalid provider config.
+7. Enrich send/reconciliation audit events with provider config ID and ownership mode where available.
+8. Preserve existing SMS preference/compliance enforcement from LS-NOTIF-SMS-002 and LS-NOTIF-SMS-003.
+9. Preserve outbound vendor reconciliation from LS-NOTIF-SMS-004.
+10. Do not add or expand conversational inbound SMS behavior.
+
+Critical Constraints:
+- Reuse existing Notification Service architecture patterns.
+- Reuse existing TenantProviderConfig, provider routing, Twilio adapter, audit, attempt, worker, and repository patterns where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT hardcode Twilio-specific runtime resolution into provider-agnostic orchestration.
+- Twilio-specific adapter construction may remain in a Twilio adapter factory or provider-specific implementation.
+- Do NOT expose Twilio credentials or tenant provider secrets.
+- Tenant-owned provider config failures must not crash Notification Service.
+- Reconciliation must use the same provider config context used for the original outbound attempt when available.
+- Reconciliation must not resend SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-005-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing TenantProviderConfig model and repository findings
+3. Existing provider routing/runtime resolution findings
+4. Existing Twilio adapter construction/configuration findings
+5. Existing SMS send loop findings
+6. Existing NotificationAttempt provider metadata findings
+7. Existing reconciliation service findings
+8. Existing audit and masking findings
+9. Files added
+10. Files modified
+11. Database/schema/config changes
+12. API/interface changes
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Service Runtime Provider Architecture
+- Identify:
+  - TenantProviderConfig domain model/table
+  - Provider ownership mode fields, if present
+  - CredentialsJson and SettingsJson conventions
+  - Existing repository methods for tenant/provider lookup
+  - Existing ProviderRoutingService behavior for SMS
+  - Existing TwilioAdapter constructor/config requirements
+  - Existing DI registration for platform Twilio adapter
+  - Existing NotificationService SMS send loop
+  - Existing NotificationAttempt provider metadata fields
+  - Existing SMS reconciliation service from LS-NOTIF-SMS-004
+  - Existing audit metadata conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Runtime SMS Provider Resolution Contract
+Add or extend a Notification Service-local runtime resolution abstraction.
+
+Suggested interface:
+
+public interface ISmsProviderRuntimeResolver
+{
+    Task<SmsProviderRuntimeContext> ResolveForSendAsync(
+        Guid tenantId,
+        string providerType,
+        CancellationToken cancellationToken = default);
+
+    Task<SmsProviderRuntimeContext> ResolveForReconciliationAsync(
+        Guid tenantId,
+        string providerType,
+        Guid? providerConfigId,
+        CancellationToken cancellationToken = default);
+}
+
+Suggested context model:
+
+public sealed class SmsProviderRuntimeContext
+{
+    public bool Success { get; init; }
+    public string ProviderType { get; init; } = "";
+    public Guid? TenantId { get; init; }
+    public Guid? ProviderConfigId { get; init; }
+    public string? OwnershipMode { get; init; }
+    public bool UsedPlatformFallback { get; init; }
+    public ISmsProviderAdapter? Adapter { get; init; }
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public bool Retryable { get; init; }
+}
+
+Requirements:
+- Keep contract inside Notification Service.
+- Resolution must not expose credentials.
+- Return structured failures rather than throwing for expected config problems.
+- Support send-time resolution by tenant/provider.
+- Support reconciliation-time resolution by original providerConfigId when available.
+- Support platform fallback only where existing routing/config policy allows it.
+- Preserve future-provider extensibility.
+
+STEP 3 — Implement Twilio Adapter Factory
+Add a Notification Service-local factory capable of constructing Twilio adapters from provider configuration.
+
+Suggested interface:
+
+public interface ISmsProviderAdapterFactory
+{
+    ISmsProviderAdapter Create(TenantProviderConfig config);
+}
+
+or provider-specific:
+
+public interface ITwilioAdapterFactory
+{
+    TwilioAdapter CreateFromConfig(TenantProviderConfig config);
+    TwilioAdapter CreatePlatformDefault();
+}
+
+Requirements:
+- Read Twilio credentials from `TenantProviderConfig.CredentialsJson` for tenant-owned configs.
+- Read Twilio non-secret settings such as `fromNumber` from `TenantProviderConfig.SettingsJson`.
+- Continue supporting platform/default config from environment/config.
+- Validate required fields:
+  - accountSid
+  - authToken
+  - fromNumber
+- Do not log or return credentials.
+- Return structured config failure where possible.
+- Avoid duplicating Twilio send/status lookup logic.
+- Reuse existing TwilioAdapter implementation for send and status lookup.
+
+STEP 4 — Implement Send-Time Tenant Provider Resolution
+Update outbound SMS send execution so it resolves runtime provider context before calling the adapter.
+
+Expected flow:
+1. Existing SMS preference/contact enforcement runs first.
+2. Provider routing determines provider type, expected `twilio`.
+3. Runtime resolver loads active tenant SMS/Twilio config.
+4. If active tenant config exists:
+   - build adapter from tenant config
+   - ownership mode = tenant-owned or existing value
+   - usedPlatformFallback = false
+5. If no tenant config exists:
+   - use platform config only if existing routing/config policy allows fallback
+   - usedPlatformFallback = true
+6. If config missing/invalid:
+   - return structured provider config failure
+   - do not crash
+   - do not send SMS
+7. Execute send via resolved adapter.
+
+Requirements:
+- Do not bypass preference/suppression enforcement.
+- Do not call singleton platform Twilio adapter when tenant-owned config should apply.
+- Preserve retry/dead-letter semantics.
+- Provider config failures should be non-retryable unless caused by transient repository/config retrieval errors.
+- Preserve existing outbound SMS behavior for tenants without tenant-owned config if platform fallback is allowed.
+
+STEP 5 — Persist Provider Config Context on Attempts
+Ensure each SMS `NotificationAttempt` stores enough context for reconciliation.
+
+Preferred approach:
+- Add `ProviderConfigId` to `NotificationAttempt` if no suitable field exists.
+
+Alternative if schema change is not appropriate:
+- Store providerConfigId and ownershipMode in existing metadata/json field if available.
+
+Required attempt metadata:
+- provider = twilio
+- providerMessageId = Twilio MessageSid
+- providerConfigId where available
+- ownershipMode where available
+- usedPlatformFallback
+- tenantId
+
+Requirements:
+- Use existing migration conventions if adding a column.
+- Add an index only if useful for reconciliation lookup.
+- Do not store credentials or secrets.
+- Preserve existing attempts and historical records.
+
+STEP 6 — Update Reconciliation to Use Original Provider Context
+Update SMS reconciliation from LS-NOTIF-SMS-004 so it rehydrates the correct provider adapter.
+
+Expected flow:
+1. Load NotificationAttempt.
+2. Determine tenantId, provider, providerMessageId, providerConfigId.
+3. Resolve runtime context using `ResolveForReconciliationAsync`.
+4. If providerConfigId exists:
+   - prefer exact provider config lookup by ID
+   - verify config belongs to tenant or platform fallback context as appropriate
+5. If providerConfigId missing:
+   - fall back to tenant/provider active config only if safe
+   - otherwise return structured `missing_provider_config_context`
+6. Use resolved adapter for vendor status lookup.
+7. Reconcile local status as existing LS-NOTIF-SMS-004 behavior requires.
+
+Requirements:
+- Reconciliation must not use platform adapter for tenant-owned attempts unless the attempt originally used platform fallback.
+- Reconciliation must never resend SMS.
+- Missing or inactive provider config should return structured outcome.
+- Credentials must not be exposed in logs, audit, or API responses.
+
+Expected new reconciliation outcomes:
+- missing_provider_config_context
+- provider_config_not_found
+- provider_config_inactive
+- provider_config_invalid
+- provider_runtime_resolution_failed
+
+STEP 7 — Enrich Audit Events
+Update SMS send and reconciliation audit metadata to include provider config context where available.
+
+Audit metadata should include:
+- provider
+- providerConfigId
+- ownershipMode
+- usedPlatformFallback
+- tenantId
+- attemptId
+- notificationId
+- providerMessageId where available
+- outcome
+- errorCode where applicable
+
+Requirements:
+- Preserve existing audit conventions.
+- Do not log credentials.
+- Do not log full phone numbers unless existing masking conventions allow it.
+- Audit failures must not crash send or reconciliation.
+
+STEP 8 — Add/Update Configuration and Documentation
+Add/update documentation for:
+- tenant-owned Twilio configuration
+- required CredentialsJson structure
+- required SettingsJson structure
+- platform fallback behavior
+- providerConfigId persistence
+- reconciliation using original provider context
+- security constraints around credentials
+- operational guidance for invalid/inactive tenant provider configs
+
+Suggested tenant Twilio config shape:
+
+CredentialsJson:
+{
+  "accountSid": "AC...",
+  "authToken": "..."
+}
+
+SettingsJson:
+{
+  "fromNumber": "+15551234567"
+}
+
+Documentation must explain:
+- tenant-owned provider configs override platform default where active
+- platform fallback behavior must be explicit and controlled
+- reconciliation requires providerConfigId for accurate tenant-owned lookup
+- credentials are never returned by APIs or written to logs
+
+STEP 9 — Validation
+Perform validation/testing for:
+
+Send-time resolution:
+- active tenant Twilio config is used for outbound SMS
+- tenant-owned config uses tenant credentials and tenant fromNumber
+- no tenant config falls back to platform only when allowed
+- invalid tenant config fails safely before provider send
+- missing accountSid/authToken/fromNumber fails safely
+- preference enforcement still executes before provider resolution/send
+- existing tenants without tenant config continue to work with platform fallback if allowed
+
+Attempt persistence:
+- successful SMS attempt stores providerConfigId when tenant config used
+- successful SMS attempt records usedPlatformFallback when platform fallback used
+- providerMessageId remains stored as before
+- no credentials are stored on attempts
+
+Reconciliation:
+- tenant-owned attempt uses tenant config for Twilio status lookup
+- platform fallback attempt uses platform config for Twilio status lookup
+- missing providerConfigId returns safe structured outcome or documented fallback
+- inactive provider config returns structured failure
+- invalid provider config returns structured failure
+- reconciliation never resends SMS
+- existing terminal status protection remains unchanged
+
+Audit/security:
+- send audit includes provider config context
+- reconciliation audit includes provider config context
+- credentials are not logged
+- full phone numbers are not logged where masking convention requires masking
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS provider behavior preserved
+- LS-NOTIF-SMS-002 preference enforcement preserved
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- LS-NOTIF-SMS-004 reconciliation behavior preserved
+- email/in-app notification behavior unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Runtime SMS provider resolver
+- Twilio adapter factory or equivalent config-based adapter creation
+- Send-time tenant provider resolution
+- Reconciliation-time provider context resolution
+- Provider config context persistence on attempts
+- Structured runtime config failure outcomes
+- Enriched audit metadata
+- Updated documentation/config notes
+- Completed analysis report
+
+Do NOT:
+- Introduce placeholder implementations
+- Break existing notification flows
+- Break LS-NOTIF-SMS-001 Twilio provider integration
+- Break LS-NOTIF-SMS-002 preference enforcement
+- Break LS-NOTIF-SMS-003 inbound compliance behavior
+- Break LS-NOTIF-SMS-004 reconciliation behavior
+- Expand inbound conversational SMS behavior
+- Move SMS runtime resolution logic outside Notification Service
+- Add SMS provider logic to unrelated services
+- Hardcode Twilio-specific logic into provider-agnostic orchestration
+- Expose provider credentials or secrets
+- Store credentials on NotificationAttempt
+- Use platform Twilio credentials for tenant-owned sends unless explicit platform fallback applies
+- Resend SMS during reconciliation

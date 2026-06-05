@@ -1,0 +1,307 @@
+Feature ID: CCX-003
+Feature Title: CareConnect Appointment Lifecycle Completion
+
+Implement CCX-003 for the LegalSynq CareConnect product.
+
+Context:
+- CareConnect already supports:
+  - referral workflows (now with notifications wired via CCX-002)
+  - appointment booking (basic creation flow exists)
+- Current gap:
+  - appointments do not yet behave as a full lifecycle object
+  - missing operational states and actions (confirm, cancel, reschedule, complete)
+- This feature completes the **appointment lifecycle only**
+- Referral lifecycle is assumed partially complete and should not be redesigned here
+
+Objective:
+Implement a complete, enforceable, auditable appointment lifecycle so providers and referring orgs can manage appointments operationally.
+
+This feature must:
+- introduce/complete appointment state machine
+- enforce valid transitions
+- expose lifecycle actions via API
+- wire UI to reflect and execute lifecycle
+- preserve org/tenant boundaries and capability checks
+
+========================================
+CORE RULES
+========================================
+
+1. Backend is the source of truth for lifecycle enforcement
+2. Do NOT rely on frontend to enforce state transitions
+3. Do NOT redesign referral model
+4. Do NOT implement notifications here (already handled in CCX-002; appointment notifications are Phase 2)
+5. Preserve existing API patterns and naming conventions
+6. Keep implementation incremental and aligned with current CareConnect architecture
+
+========================================
+MVP SCOPE FOR CCX-003
+========================================
+
+Implement a complete appointment lifecycle with:
+
+States (use existing enum if present; otherwise implement minimal set):
+- Booked
+- Confirmed
+- Cancelled
+- Rescheduled
+- Completed
+
+Optional (only if already modeled):
+- NoShow
+
+Do NOT introduce additional states beyond what is needed.
+
+========================================
+BACKEND — CARECONNECT
+========================================
+
+1. Appointment State Model
+
+Verify existing appointment status model.
+
+If incomplete, implement/update:
+- enum AppointmentStatus
+- persisted status on Appointment entity
+- status history tracking (if not already present)
+
+Each status transition must:
+- validate current state
+- validate actor permissions
+- write status history entry
+- update timestamps where appropriate
+
+----------------------------------------
+
+2. Lifecycle Endpoints
+
+Implement or complete endpoints:
+
+- POST /careconnect/api/appointments/{id}/confirm
+- POST /careconnect/api/appointments/{id}/cancel
+- POST /careconnect/api/appointments/{id}/reschedule
+- POST /careconnect/api/appointments/{id}/complete
+
+If existing routes differ, preserve style and document mapping.
+
+----------------------------------------
+
+3. Transition Rules
+
+Define strict transition rules:
+
+Booked →
+  - Confirmed
+  - Cancelled
+  - Rescheduled
+
+Confirmed →
+  - Cancelled
+  - Rescheduled
+  - Completed
+
+Rescheduled →
+  - Confirmed
+  - Cancelled
+
+Completed →
+  - terminal (no further transitions)
+
+Cancelled →
+  - terminal
+
+If NoShow exists:
+  - Confirmed → NoShow (optional)
+
+Reject invalid transitions with clear error:
+- 409 INVALID_APPOINTMENT_STATE_TRANSITION
+
+----------------------------------------
+
+4. Authorization Rules
+
+Use existing:
+- ICurrentRequestContext
+- AuthorizationService
+- OrgParticipantGuard
+
+Rules:
+- Provider org can:
+  - confirm
+  - reschedule
+  - complete
+- Referring org may:
+  - view
+  - optionally cancel (if allowed by current rules)
+- PlatformAdmin bypass remains
+
+Do NOT introduce new auth model.
+
+----------------------------------------
+
+5. Reschedule Logic
+
+Reschedule must:
+- require new slot/time
+- validate availability (reuse existing availability checks)
+- prevent conflicts
+- update appointment time
+- record previous time in status history
+
+----------------------------------------
+
+6. Data Integrity
+
+Ensure:
+- booked slots cannot be double-booked
+- rescheduling releases old slot and reserves new slot
+- completed/cancelled appointments cannot be modified further
+
+----------------------------------------
+
+7. Status History
+
+If not already present, implement minimal history:
+
+Fields:
+- Id
+- AppointmentId
+- PreviousStatus
+- NewStatus
+- ChangedByUserId
+- ChangedByOrgId
+- ChangedAtUtc
+
+----------------------------------------
+
+8. Error Handling
+
+Return clear errors:
+- 404 NOT_FOUND
+- 403 FORBIDDEN
+- 409 INVALID_STATE_TRANSITION
+- 409 SLOT_CONFLICT
+
+----------------------------------------
+
+========================================
+FRONTEND — CARECONNECT
+========================================
+
+Update existing appointment pages:
+
+Routes:
+- /careconnect/appointments
+- /careconnect/appointments/[id]
+
+----------------------------------------
+
+1. Appointment Detail Page
+
+Add action panel based on:
+- current status
+- actor role
+
+Examples:
+
+If Provider:
+- Booked → Confirm / Cancel / Reschedule
+- Confirmed → Complete / Cancel / Reschedule
+
+If Referrer:
+- View-only or Cancel (if allowed)
+
+----------------------------------------
+
+2. UI Behavior
+
+- Show status badges clearly
+- Disable invalid actions
+- Show confirmation dialogs for destructive actions
+- Show success/error feedback
+- Refresh data after mutation
+
+----------------------------------------
+
+3. Reschedule UX
+
+Provide:
+- slot selection UI (reuse existing availability picker)
+- confirm reschedule action
+
+----------------------------------------
+
+4. List Page Enhancements
+
+On /appointments:
+- add status filters
+- show clear status badges
+- optional sorting (upcoming vs past)
+
+----------------------------------------
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+After implementation:
+
+1. Appointment can move from Booked → Confirmed
+2. Appointment can be Cancelled
+3. Appointment can be Rescheduled
+4. Appointment can be Completed
+5. Invalid transitions are blocked
+6. Slot conflicts are prevented
+7. Status history is recorded
+8. Provider actions work correctly
+9. Referrer access is correctly restricted
+10. Tenant/org boundaries preserved
+11. No notification logic added in this feature
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate:
+
+/analysis/CCX-003-report.md
+
+The report must include:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Appointment States Implemented
+6. Transition Rules
+7. Backend Endpoints Implemented
+8. Authorization Rules Applied
+9. Reschedule Logic
+10. Status History Implementation
+11. Frontend Changes
+12. Out-of-Scope Confirmation
+13. Known Issues / Limitations
+14. Manual Test Results
+15. Validation Checklist
+
+Checklist must include:
+- confirm works
+- cancel works
+- reschedule works
+- complete works
+- invalid transitions blocked
+- slot conflicts prevented
+- history recorded
+- UI reflects state correctly
+- no notifications implemented
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- Focus only on appointment lifecycle
+- Do not expand scope
+- Do not modify unrelated systems
+- Backend correctness first, then UI alignment
+- Save report to /analysis/CCX-003-report.md

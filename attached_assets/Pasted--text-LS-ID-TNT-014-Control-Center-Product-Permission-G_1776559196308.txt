@@ -1,0 +1,440 @@
+```text
+# LS-ID-TNT-014 — Control Center Product Permission Governance UI
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental identity/authorization governance feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation (Tenant + Product + UI Boundaries)
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, access, enforcement, and tenant-governance behavior
+- Reuse the existing permission catalog, role-permission mappings, and effective-permission model where possible
+- Keep backend, API, and UI concerns clearly separated
+- Include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Preserve platform vs tenant governance boundaries in every new UI flow and API path
+- Keep product/platform governance in Control Center only
+
+---
+
+## FEATURE OBJECTIVE
+
+Provide a Control Center UI for platform administrators to:
+- view the product permission catalog
+- view product roles grouped by product
+- manage product role → permission mappings
+- create/edit/archive product roles only if validated backend support already exists
+
+This feature completes the missing platform-side authorization governance surface without leaking tenant permission governance into Control Center.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Tenant Portal tenant-permission management UI
+- Per-user permission editing
+- Permission-aware product UI hiding/disabling
+- ABAC/policy-rule editors
+- Broad platform-shell redesign
+- Product subscription/entitlement workflows
+- Full audit UI
+- Unvalidated role-creation architecture
+- Unvalidated mutable product-permission catalog if the current system is seeded/read-only
+
+ONLY IMPLEMENT:
+- Control Center UI for product permission catalog visibility
+- Control Center UI for product roles visibility
+- Control Center UI for product role → permission mapping management
+- Minimal backend mutation endpoints only if required and validated
+- Product role create/edit/archive only if existing backend support is present or a very small extension is necessary and justified
+- Clear unauthorized/error handling
+- Clear governance separation from Tenant Portal
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-014-report.md
+
+Initialize with:
+
+# LS-ID-TNT-014 — Control Center Product Permission Governance UI
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Product Permission / Role API Analysis
+## 4. Existing Control Center UI Analysis
+## 5. UI Placement and Interaction Design
+## 6. Mutation API Design (if needed)
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Frontend / UX Implementation
+## 10. API / Error Contract Changes
+## 11. Testing Results
+## 12. Known Issues / Gaps
+## 13. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Product permission / role APIs
+- existing endpoints to list permissions
+- existing endpoints to list product roles
+- existing endpoints to get role → permission mappings
+- whether mutation endpoints already exist for:
+  - assign permission to product role
+  - revoke permission from product role
+  - create product role
+  - update product role
+  - archive/delete product role
+- whether current mutation endpoints are PlatformAdmin-only or need hardening
+
+### Data model
+- where product permissions are stored
+- where product roles are stored
+- where product role → permission mappings are stored
+- how products are identified
+- whether product permissions are seeded/read-only or mutable
+
+### Control Center UI
+- current Control Center structure
+- existing authorization/governance pages
+- existing list/detail/modal patterns
+- current navigation placement that best fits this feature
+
+DO NOT assume mutation support or UI placement until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Product Permission / Role API Analysis
+## 4. Existing Control Center UI Analysis
+
+---
+
+## STEP 2 — CHOOSE THE UI PLACEMENT
+
+Based on actual codebase structure, choose the smallest coherent platform-admin UX.
+
+Preferred options (pick what fits best):
+- new Control Center “Product Permissions” page
+- new “Authorization Governance” section in Control Center
+- product-governance page under existing identity/admin area
+
+Requirements:
+- this UI must be visibly distinct from Tenant Portal admin UI
+- it must be platform-admin only
+- it must not mix tenant-level permission editing into this surface
+- it should support at least:
+  - Product Roles view
+  - Permission Catalog view
+
+Document:
+- chosen placement
+- why it fits the current structure
+- what alternatives were rejected and why
+
+Update report:
+## 5. UI Placement and Interaction Design
+
+---
+
+## STEP 3 — IMPLEMENT / EXTEND BACKEND MUTATION PATHS (ONLY IF NEEDED)
+
+If suitable backend APIs already exist:
+- reuse them
+
+If they do NOT exist:
+- implement the smallest coherent backend extension necessary for Control Center governance
+
+Potential needs:
+- list product roles by product
+- list product permissions by product
+- assign permission to product role
+- revoke permission from product role
+- create/update/archive product role only if necessary and justified
+
+Requirements:
+- PlatformAdmin authorization must be enforced backend-side
+- tenant admins must not be able to use these APIs
+- product role → permission mapping must not allow invalid cross-product mappings unless current architecture explicitly supports and documents them
+- use clear validation and error responses
+
+Do NOT build a large governance API suite if a small focused set of endpoints is enough.
+
+Update report:
+## 6. Mutation API Design (if needed)
+## 8. Backend Implementation
+## 10. API / Error Contract Changes
+
+---
+
+## STEP 4 — IMPLEMENT PRODUCT PERMISSION CATALOG VIEW
+
+Add Control Center UI to display the product permission catalog.
+
+Requirements:
+- group permissions by product
+- group permissions by category where available
+- show:
+  - permission name
+  - code
+  - category
+  - description if available
+  - owning product
+- make it clear whether permissions are:
+  - editable
+  - read-only seeded definitions
+
+If product permission definitions are seeded/read-only:
+- the UI must clearly communicate that this page is a catalog/reference, not a freeform editor
+
+Update report:
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 5 — IMPLEMENT PRODUCT ROLES VIEW
+
+Add Control Center UI to display product roles grouped by product.
+
+Requirements:
+- show current product roles
+- show owning product
+- show permission count
+- show editable vs read-only state if applicable
+- allow selection of a role for permission management
+
+Possible patterns:
+- left roles list + right detail panel
+- product group accordion + role list
+- tabs per product if that fits the current Control Center
+
+Keep it readable and consistent with existing admin UI patterns.
+
+Update report:
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 6 — IMPLEMENT PRODUCT ROLE → PERMISSION EDITING UI
+
+Allow platform admins to manage product role → permission mappings.
+
+Requirements:
+- editing must be role-centric if practical
+- selecting a product role should show only permissions relevant to that product unless the backend model explicitly allows broader mappings
+- support add/remove permission mappings
+- grouped checklist is preferred over a dense matrix for this iteration
+- preserve clear save/cancel behavior
+- show backend validation errors clearly
+- handle loading/empty/error states cleanly
+
+Do NOT expose tenant-level `TENANT.*` permissions as editable here unless the current architecture explicitly requires a read-only cross-reference.
+
+Update report:
+## 9. Frontend / UX Implementation
+## 10. API / Error Contract Changes
+
+---
+
+## STEP 7 — IMPLEMENT PRODUCT ROLE CREATE / EDIT / ARCHIVE ONLY IF SUPPORTED
+
+Validate first:
+- does backend already support create/edit/archive for product roles?
+
+If YES:
+- implement the smallest coherent UI for:
+  - create role
+  - edit role metadata
+  - archive/delete role if safe
+- keep role metadata simple:
+  - name
+  - description if supported
+  - owning product
+
+If NO:
+- do NOT invent a large new role-management backend unless absolutely necessary
+- keep the feature focused on mapping management and document the role-maintenance gap clearly
+
+Update report:
+## 8. Backend Implementation
+## 9. Frontend / UX Implementation
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 8 — PRESERVE GOVERNANCE BOUNDARIES
+
+Ensure and document in implementation:
+
+### Editable in Control Center
+- product permission catalog visibility
+- product roles
+- product role → permission mappings
+
+### NOT editable in Control Center for this feature
+- tenant role → tenant permission mappings
+- per-user effective permission overrides
+- product entitlement/billing logic
+- ABAC/policy logic
+
+### NOT editable in Tenant Portal
+- product role → permission mappings
+- product permission catalog
+
+The UI should reinforce this boundary with:
+- labels
+- helper text
+- omission of tenant-governance controls
+
+Update report:
+## 9. Frontend / UX Implementation
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 9 — HANDLE AUTHORIZATION AND ERROR STATES
+
+Requirements:
+- only PlatformAdmin (or validated platform-governance role) can access and edit this UI
+- unauthorized attempts must fail cleanly with 403/appropriate error
+- frontend must surface clear error states
+- loading/empty/error states required for:
+  - product permission catalog load
+  - product role load
+  - role-permission mapping load
+  - mapping save/update
+  - role create/edit/archive if implemented
+
+No silent failures. No generic crashes.
+
+Update report:
+## 10. API / Error Contract Changes
+## 11. Testing Results
+
+---
+
+## STEP 10 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- Tenant Portal permission UI (LS-ID-TNT-013)
+- backend permission enforcement (LS-ID-TNT-012)
+- identity lifecycle flows
+- route-level/product-level access enforcement
+- product/group assignment flows
+- effective permission resolution logic
+- current product role assignments in the system
+
+Explicitly validate:
+- tenant governance remains isolated
+- product role mappings continue to resolve correctly
+- existing APIs still behave for current consumers
+
+Update report:
+## 11. Testing Results
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING
+
+Test and document each scenario.
+
+### Catalog / visibility
+- platform admin opens Control Center product governance UI
+- product permission catalog loads
+- permissions grouped correctly by product/category
+- product roles load correctly
+
+### Mapping update
+- add product permission to a product role
+- remove product permission from a product role
+- save persists correctly
+- reload reflects changes
+- unauthorized non-platform user cannot update
+
+### Role maintenance
+- create/edit/archive product role if supported
+- if unsupported, UI clearly reflects read-only/manage-mappings-only behavior
+
+### Regression
+- tenant portal permission UI still works
+- backend permission enforcement still works
+- product access enforcement still works
+- invite flow still works
+- roles/groups/users flows still work
+- effective permission inspection still works
+
+Update report:
+## 11. Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 12. Known Issues / Gaps
+## 13. Final Status = Complete
+
+Your final report must clearly state:
+- what Control Center placement was chosen and why
+- whether new mutation APIs were required
+- what product governance actions are supported
+- whether product roles are fully maintainable or only mappable in this iteration
+- what remains deferred from full platform governance
+- whether governance boundaries remain intact
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Platform admins can view the product permission catalog in Control Center
+✔ Platform admins can view product roles grouped by product
+✔ Platform admins can view product role → permission mappings
+✔ Platform admins can update product role → permission mappings through the UI
+✔ Only platform/product governance concepts are editable here
+✔ Tenant-level permission governance remains excluded from this UI
+✔ Backend remains authoritative for all changes
+✔ Unauthorized attempts are blocked and surfaced clearly
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-013 functionality does not regress
+✔ Governance boundaries between Control Center and Tenant Portal remain clear
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working Control Center product permission governance UI
+2. Working product role → permission mapping management UI
+3. Any minimal backend mutation API required for product governance
+4. Completed report:
+/analysis/LS-ID-TNT-014-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

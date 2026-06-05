@@ -1,0 +1,103 @@
+Design and implement the gateway/request-context propagation model for a tenant-aware, multi-organization, product-role platform.
+
+Use the existing platform foundation:
+
+- Tenant = account/subdomain boundary
+- Tenant is resolved from subdomain via TenantDomains
+- Organization = business actor
+- JWT includes:
+  - tenant_id
+  - tenant_code
+  - org_id
+  - org_type
+  - product_roles
+  - ClaimTypes.Role for system roles
+- Capabilities are resolved in downstream services, not stored in JWT
+
+Products already modeled:
+- CareConnect
+- SynqFund
+- SynqLien
+
+Core goals:
+- subdomain resolves tenant before auth
+- downstream services receive a consistent request context
+- gateway must preserve security boundaries
+- cross-tenant workflow participation must work without broad tenant access
+- services must not re-implement inconsistent claim parsing logic
+
+Generate the output in these exact sections:
+
+1. Gateway Responsibility Model
+- define what the gateway is responsible for
+- define what downstream services are responsible for
+- clearly separate:
+  - tenant resolution
+  - token validation
+  - claim propagation
+  - capability enforcement
+
+2. Tenant Resolution Flow
+- describe request flow:
+  - Host header
+  - TenantDomains lookup
+  - tenant resolution
+  - auth validation
+- include fallback behavior for local/dev and tenantCode-based login
+
+3. Request Context Contract
+Define the canonical downstream request context with fields such as:
+- user_id
+- tenant_id
+- tenant_code
+- org_id
+- org_type
+- product_roles
+- system_roles
+- correlation_id
+- request_origin
+Explain which come from JWT vs gateway-generated values.
+
+4. Context Propagation Strategy
+- define whether downstream services should read raw JWT claims directly, forwarded headers, or both
+- recommend the canonical approach
+- include security safeguards against header spoofing
+
+5. Gateway Implementation Plan
+- middleware/components needed
+- token validation flow
+- tenant resolution middleware
+- correlation ID generation
+- logging considerations
+
+6. Downstream Service Consumption Pattern
+- define a shared UserContext / RequestContext model
+- define how services should construct it
+- define what should be common library code vs per-service code
+
+7. Cross-Tenant Workflow Access Model
+- explain how a provider in Tenant B reads a CareConnect referral created by a law firm in Tenant A
+- explain how a funder in Tenant B reads an application created by a law firm in Tenant A
+- explain how a lien owner in Tenant B reads liens offered by a provider in Tenant A
+- explicitly show why downstream services must not rely on tenant-only filtering
+
+8. Authorization Boundary Rules
+- define what must always be checked in services:
+  - participant organization checks
+  - capability checks
+  - optional tenant partition checks only where appropriate
+- define a reusable guard pattern
+
+9. Observability and Audit
+- correlation IDs
+- audit fields
+- logging sensitive claims safely
+- tracing across gateway and services
+
+10. Risks and Failure Modes
+Cover:
+- tenant resolution mismatch
+- Host header spoofing
+- JWT valid but wrong tenant subdomain
+- missing org context
+- downstream service accidentally relying on tenant-only filtering

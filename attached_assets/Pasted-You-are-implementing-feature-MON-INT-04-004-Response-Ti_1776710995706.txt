@@ -1,0 +1,266 @@
+You are implementing feature MON-INT-04-004 — Response Time Charts.
+
+OBJECTIVE
+Add response time (latency) charts to the monitoring experience so operators can visualize recent latency trends per monitored component using real data from the uptime aggregation engine.
+
+This is a presentation-layer feature built on top of MON-INT-04-002 (Uptime Aggregation) and MON-INT-04-003 (Availability Bars). It must use real Monitoring Service data only and must not introduce fabricated metrics.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Charts must use uptime/history data (avgLatencyMs, maxLatencyMs)
+- Do NOT compute latency from current status snapshots
+- Do NOT modify aggregation formulas unless absolutely required
+- Do NOT expose internal identifiers or admin controls on public pages
+- Prefer internal (authenticated) monitoring page for charts
+
+MANDATORY EXECUTION RULES
+- Create the report FIRST at: /analysis/MON-INT-04-004-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Keep implementation minimal and reversible
+- Do NOT redesign entire monitoring UI
+- Do NOT introduce heavy dependencies without justification
+
+CURRENT CONTEXT
+- Monitoring summary, alerts, resolve, timeline = complete
+- Public status page = complete
+- Availability bars = complete
+- Uptime aggregation provides latency metrics
+- Charts are the final visualization layer
+
+GOAL OF THIS FEATURE
+- Display latency trends per component
+- Use real hourly data from uptime history
+- Improve operator insight (internal UX)
+- Maintain public safety boundaries
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-04-004-report.md
+
+Initialize:
+
+# MON-INT-04-004 — Response Time Charts
+
+## 1. Task Summary
+## 2. Existing Latency Data Analysis
+## 3. Chart Placement Decision
+## 4. Data Fetching / BFF Design
+## 5. Chart Design
+## 6. Implementation
+## 7. Public/Internal Exposure Review
+## 8. Validation
+## 9. Files Changed
+## 10. Known Gaps / Risks
+## 11. Recommended Next Feature
+
+Explicitly state report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE LATENCY DATA
+
+Inspect:
+- uptime history endpoint
+- rollup data structures
+- BFF routes used for uptime
+
+Identify:
+- avgLatencyMs (primary)
+- maxLatencyMs (optional)
+- hourly resolution
+- per-entity availability
+
+Document:
+- exact fields used
+- confirm data is sufficient for charts
+- confirm no new backend changes required
+
+---
+
+STEP 3 — CHOOSE CHART PLACEMENT
+
+Decision:
+- Place charts in INTERNAL monitoring page (`/monitoring`)
+
+Rationale:
+- latency is operational/internal
+- avoids exposing sensitive performance data publicly
+- aligns with operator workflows
+
+Placement:
+- inside Component Status List row OR
+- below component row as expandable section
+
+Do NOT modify `/status` page.
+
+---
+
+STEP 4 — DATA FETCHING DESIGN
+
+Use existing or add minimal BFF route:
+
+Preferred:
+- reuse `/api/monitoring/uptime/history`
+
+If needed, create:
+- `/api/monitoring/latency`
+
+Requirements:
+- authenticated
+- return only:
+  - timestamps
+  - avgLatencyMs
+  - maxLatencyMs (optional)
+- no UUID exposure to UI
+
+Avoid:
+- direct browser → Monitoring Service calls
+
+---
+
+STEP 5 — CHART DESIGN
+
+Design a lightweight chart:
+
+Preferred:
+- sparkline-style (compact)
+- 24-hour window
+- 1 line = avg latency
+
+Optional:
+- subtle indicator for max latency (hover or tooltip)
+
+Rules:
+- no heavy dashboards
+- no multi-axis charts
+- must be readable at small size
+- fallback text when no data
+
+Example fallback:
+- "No latency history available"
+
+---
+
+STEP 6 — IMPLEMENT UI
+
+Add components:
+
+- `component-latency-sparkline.tsx`
+- or `response-time-chart.tsx`
+
+Update:
+- component-status-list.tsx (preferred location)
+
+Implementation rules:
+- fetch latency data per component (server-side or batched)
+- avoid client-side waterfall where possible
+- keep rendering efficient
+- do NOT break existing layout
+
+If no chart library exists:
+- implement simple SVG-based chart
+- do NOT add large dependency without need
+
+---
+
+STEP 7 — HANDLE STATES
+
+Handle:
+
+A. No data:
+- show fallback message
+
+B. Partial data:
+- render available points
+
+C. API failure:
+- show "Latency unavailable"
+- do not crash UI
+
+D. Local mode:
+- degrade gracefully
+
+---
+
+STEP 8 — EXPOSURE REVIEW
+
+Ensure:
+
+- charts are INTERNAL ONLY
+- no latency exposed on `/status`
+- no UUIDs rendered
+- no admin leakage
+
+Document:
+- what fields are exposed
+- why exposure is safe
+
+---
+
+STEP 9 — VALIDATION
+
+Validate:
+
+- `/monitoring` loads successfully
+- charts render with real data
+- no regression in summary, alerts, bars
+- sparse data handled correctly
+- TypeScript clean
+- no API misuse
+
+Capture:
+- endpoints tested
+- sample data
+- runtime vs code validation
+
+---
+
+STEP 10 — FILES CHANGED
+
+List all:
+- created components
+- modified UI files
+- new BFF routes (if any)
+
+---
+
+STEP 11 — KNOWN GAPS
+
+Document:
+
+- 24h-only window
+- avg latency only (if max omitted)
+- no tooltips or advanced interaction
+- local mode limitations
+- possible N+1 fetch pattern
+
+---
+
+STEP 12 — RECOMMENDED NEXT STEP
+
+Choose:
+
+Option A:
+- Stabilization / production validation (RECOMMENDED)
+
+Option B:
+- MON-INT-05-001 — Public Status Page Window Selector / 7d View
+
+---
+
+DONE CONDITION
+
+Feature is complete when:
+
+- report exists and was created FIRST
+- latency charts render from real uptime data
+- no fake metrics introduced
+- charts improve internal monitoring UX
+- no public exposure of sensitive data
+- system remains stable
+- validation completed

@@ -1,0 +1,299 @@
+TASK-MIG-05 — Template + Stage Compatibility Alignment
+
+OBJECTIVE:
+Align the already-migrated Liens template and stage configuration now hosted in the Task service so template applicability, start-stage behavior, contextual filtering, and generation compatibility remain correct as the system progressively shifts from Liens-owned config reads to Task-owned config reads.
+
+This step is an **alignment step**, not a new feature build.
+
+NON-NEGOTIABLE RULES:
+- DO NOT redesign generation rules
+- DO NOT migrate Flow orchestration logic
+- DO NOT collapse Task stages into Flow stages
+- DO NOT delete any Liens tables in this step
+- DO NOT remove fallback paths in this step
+- ZERO UI behavior regression
+- MUST preserve current Liens generation and task-board behavior
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- MUST inspect actual code/schema before implementation
+- NO placeholders
+
+CRITICAL BOUNDARY:
+- Template applicability to stages in this prompt refers to **Liens task-board stages / Task stage configs**
+- It does NOT refer to Flow orchestration stages
+- Any `ApplicableWorkflowStageId` currently carried by Liens templates remains a task-board stage concept during this migration phase
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-05-report.md
+
+Initialize with:
+
+# TASK-MIG-05 Report — Template + Stage Compatibility Alignment
+
+## 1. Codebase Analysis
+## 2. Current Compatibility Gaps
+## 3. Alignment Design
+## 4. Task Schema / DTO Adjustments
+## 5. Runtime Compatibility Changes
+## 6. Dual-Read / Fallback Adjustments
+## 7. Validation Results
+## 8. Rollback Plan
+## 9. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the actual codebase for how templates and stages currently interact.
+
+Liens:
+- template entity / service / repository / endpoints
+- stage config entity / service / repository / endpoints
+- generation engine
+- contextual template filtering paths
+- governance start-stage derivation
+- any task create flows that filter templates by current stage
+- any admin UI/read APIs that return templates with stage applicability data
+
+Task:
+- `tasks_Templates`
+- `tasks_StageConfigs`
+- current template DTOs and stage DTOs
+- how `ProductSettingsJson` is used for templates
+- how `ProductSettingsJson` is used for stage configs
+- whether Task currently exposes enough data for Liens to resolve template-stage compatibility without falling back unnecessarily
+
+Document:
+- every runtime path that depends on:
+  - `ApplicableWorkflowStageId`
+  - `DefaultStartStageMode`
+  - `ExplicitStartStageId`
+  - contextual template filtering by stage
+- whether those stage IDs are now Task stage IDs, preserved Liens IDs, or mixed assumptions
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Compatibility Gaps
+
+--------------------------------------------------
+STEP 2 — IDENTIFY AND DESIGN THE ALIGNMENT MODEL
+--------------------------------------------------
+
+Define exactly how template ↔ stage compatibility should work now that:
+- templates exist in Task
+- stages exist in Task
+- stage IDs were preserved in MIG-03
+- Liens still contains fallback data and product-specific logic
+
+You MUST explicitly define:
+
+1. How a template’s `ApplicableWorkflowStageId` is stored and resolved
+2. Whether Task-side template data is now sufficient to support stage-aware filtering directly
+3. Whether Liens must still enrich/interpret Task template data during reads
+4. How governance-driven start-stage derivation and template applicability interact
+5. Which source is authoritative during this phase for:
+   - template-stage compatibility
+   - default start stage resolution
+   - contextual template filtering
+
+Decision rules:
+- preserve existing behavior exactly
+- prefer using migrated Task data where safe
+- keep Liens-only interpretation logic if Task should remain generic
+- do NOT force ownership flip yet
+
+Update:
+## 3. Alignment Design
+
+--------------------------------------------------
+STEP 3 — TASK SCHEMA / DTO / API ADJUSTMENTS (ONLY IF NEEDED)
+--------------------------------------------------
+
+Determine whether any Task-side changes are needed so Liens can resolve template-stage compatibility cleanly from Task data.
+
+Allowed changes only if necessary:
+- extend template DTOs to expose already-stored compatibility metadata
+- extend stage DTOs to expose already-stored metadata
+- add narrowly scoped query/filter support for template reads by:
+  - product code
+  - active state
+  - stage applicability
+- add or refine JSON metadata handling if current round-trip is insufficient
+
+Preferred approach:
+- reuse existing `ProductSettingsJson` metadata
+- keep Task generic
+- avoid adding Liens-specific columns unless absolutely necessary
+
+If no Task-side schema change is needed, document that clearly.
+
+If adjustments are needed:
+- add the minimum safe changes
+- apply migration only if absolutely required
+- preserve backward compatibility for existing Task consumers
+
+Update:
+## 4. Task Schema / DTO Adjustments
+
+--------------------------------------------------
+STEP 4 — RUNTIME COMPATIBILITY CHANGES
+--------------------------------------------------
+
+Implement the runtime alignment so all relevant Liens flows continue to work correctly using the migrated Task config where appropriate.
+
+This includes, as applicable:
+- template lookup for generation
+- contextual template filtering by current stage
+- start-stage derivation compatibility
+- stage-aware template visibility
+- task create/edit flows that depend on current stage context
+- any template read path currently still assuming Liens-only stage data
+
+Requirements:
+- preserve current behavior exactly
+- do not break admin/UI flows
+- do not change business semantics
+- if Liens must still interpret JSON metadata from Task responses, do so in one clean place
+- remove duplicated compatibility logic where safe, but do not over-refactor
+
+Be explicit about:
+- where Task data is used directly
+- where Liens still translates or enriches it
+- how stage IDs remain compatible end-to-end
+
+Update:
+## 5. Runtime Compatibility Changes
+
+--------------------------------------------------
+STEP 5 — DUAL-READ / FALLBACK ADJUSTMENTS
+--------------------------------------------------
+
+Review and refine the current dual-read behavior for templates and stages so compatibility remains stable during the migration window.
+
+You may need to adjust:
+- template reads for generation
+- template reads for contextual UI
+- stage reads by ID
+- stage list reads by tenant/product
+- any combined template+stage resolution paths
+
+Rules:
+- Task = primary where safely usable
+- Liens = fallback
+- no regression
+- no final ownership cutover yet
+- if a path is still intentionally Liens-only, document why
+
+Add/adjust logging so the source of truth is visible in logs, for example:
+- `template_source=task_service`
+- `stage_source=task_service`
+- `template_stage_compat_source=task_service_enriched`
+- `..._fallback=liens_db`
+
+Update:
+## 6. Dual-Read / Fallback Adjustments
+
+--------------------------------------------------
+STEP 6 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. Template-based generation still works
+2. Stage-specific template applicability still works
+3. Contextual template filtering still works for current stage
+4. Governance start-stage derivation still works
+5. Template reads from Task remain compatible with preserved stage IDs
+6. Liens fallback still works when Task data is missing
+7. Mixed state works (some tenants/templates/stages migrated, some not)
+8. No UI behavior regression in template/stage selection flows
+9. No Flow orchestration concepts are accidentally pulled into Task compatibility logic
+10. Existing Task behavior for non-Liens consumers remains unchanged
+11. Builds succeed for all changed services
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 7. Validation Results
+
+--------------------------------------------------
+STEP 7 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting any new Task-first compatibility reads back to Liens-only
+- keeping Task data untouched
+- disabling any new sync or compatibility path if needed
+- no data loss
+- no schema rollback unless strictly necessary
+
+If you added Task schema/DTO/API changes:
+- explain whether they are harmless if left in place
+- explain whether rollback requires code-only revert or DB rollback
+
+Update:
+## 8. Rollback Plan
+
+--------------------------------------------------
+STEP 8 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any remaining Liens-only compatibility logic
+- any fields still only meaningful inside Liens
+- any stage-applicability metadata that remains opaque to Task
+- any future dependency on ownership flip
+- whether a later cleanup task is required before final template/stage ownership transfer
+- whether generation-rule alignment still depends on Liens-side semantics
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-05 is complete only if:
+
+1. Template + stage compatibility remains correct using the migrated config model
+2. Template-based generation still works without regression
+3. Stage-aware template filtering still works
+4. Governance start-stage behavior still works
+5. Dual-read/fallback remains safe
+6. No Flow concepts are accidentally introduced into Task compatibility logic
+7. Safe to proceed to generation-rule alignment
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT redesign generation rules
+- Do NOT migrate Flow logic
+- Do NOT add workflow-engine semantics to Task
+- Do NOT delete Liens tables
+- Do NOT remove fallback logic
+- Do NOT force final ownership cutover yet
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens template services / DTOs / generation engine
+- Liens stage services / DTOs
+- Liens ↔ Task service client
+- Task template/stage DTOs/endpoints only if required
+- migrations only if absolutely necessary for safe compatibility alignment
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

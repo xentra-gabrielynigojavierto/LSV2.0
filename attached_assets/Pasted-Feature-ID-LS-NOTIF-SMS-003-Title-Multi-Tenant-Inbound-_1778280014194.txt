@@ -1,0 +1,340 @@
+Feature ID: LS-NOTIF-SMS-003
+
+Title:
+Multi-Tenant Inbound SMS Resolution + Compliance Hardening
+
+Objective:
+Harden SMS compliance for multi-tenant production use by resolving inbound Twilio SMS webhooks to the correct tenant/provider configuration, preserving immutable SMS preference history, and improving operational compliance traceability inside Notification Service.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all inbound SMS tenant resolution, compliance hardening, and SMS preference history work must remain isolated within the Notification Service boundary.
+
+Requirements:
+- Do not add SMS compliance logic to unrelated services.
+- Do not create shared cross-service SMS abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - inbound SMS tenant/provider resolution
+  - SMS preference history
+  - unresolved inbound webhook handling
+  - SMS compliance audit enrichment
+  - SMS preference history APIs if implemented
+- Other services should continue interacting with Notification Service through existing notification APIs/events/contracts where possible.
+- Preserve Notification Service as the only delivery execution and compliance enforcement boundary for SMS.
+
+Implementation Requirements:
+1. Resolve inbound Twilio SMS webhooks to tenant/provider configuration using the inbound Twilio `To` number.
+2. Store STOP/START/HELP processing under the resolved tenant when possible.
+3. Add immutable SMS preference history records for all preference-impacting events.
+4. Preserve the current-state SMS preference behavior implemented in LS-NOTIF-SMS-002.
+5. Safely handle unresolved inbound numbers without crashing webhook ingestion.
+6. Enrich audit records with tenant/provider context where available.
+7. Preserve existing outbound Twilio delivery-status webhook behavior.
+8. Preserve compatibility with LS-NOTIF-SMS-001 and LS-NOTIF-SMS-002.
+
+Critical Constraints:
+- Reuse existing Notification Service architecture patterns.
+- Reuse existing tenant provider configuration, webhook ingestion, SMS preference, audit, and repository patterns where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT hardcode tenant resolution logic outside Notification Service.
+- Do NOT expose Twilio credentials or tenant provider secrets.
+- All SMS compliance logic must remain provider-agnostic except Twilio-specific inbound parsing/verification.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-003-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing tenant/provider configuration findings
+3. Existing Twilio inbound webhook handling findings
+4. Existing SMS preference/current-state findings
+5. Existing audit and masking findings
+6. Files added
+7. Files modified
+8. Database/schema/config changes
+9. API/interface changes
+10. Validation/testing performed
+11. Known gaps/issues
+12. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Service Architecture
+- Identify:
+  - TenantProviderConfig or equivalent provider configuration model
+  - Existing provider routing/config repository patterns
+  - Existing Twilio webhook ingestion flow
+  - Existing SMS preference entity/service/repository from LS-NOTIF-SMS-002
+  - Existing audit metadata patterns
+  - Existing phone masking/normalization behavior
+  - Existing database migration conventions
+  - Existing API endpoint conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Add Inbound SMS Tenant/Provider Resolution
+Implement a Notification Service-local lookup that resolves inbound Twilio SMS webhooks by the Twilio `To` number.
+
+Expected behavior:
+- Twilio inbound webhook includes:
+  - `To` = platform or tenant Twilio number that received the inbound message
+  - `From` = recipient/contact phone number
+  - `Body` = inbound SMS text
+  - `MessageSid` = provider message ID
+- Lookup should attempt to resolve:
+  - tenantId
+  - provider name, expected `twilio`
+  - provider config id where available
+  - inbound/to phone number
+- Prefer using existing TenantProviderConfig or provider configuration records if available.
+- If no suitable repository/method exists, add a minimal Notification Service-local repository method for lookup by provider + phone/from number.
+- Do not expose or return provider credentials.
+- Normalize phone numbers consistently before comparison where existing normalization exists.
+
+Required lookup semantics:
+- Match provider = `twilio`
+- Match configured sender/from number or equivalent field to inbound webhook `To`
+- Support tenant-owned provider configurations if already modeled
+- Support platform/default provider config if already modeled
+- Return null/empty result if unresolved
+
+STEP 3 — Handle Unresolved Inbound Webhooks Safely
+If inbound Twilio `To` number cannot be resolved to a tenant/provider configuration:
+
+Requirements:
+- Do not crash webhook ingestion.
+- Do not create tenant-scoped current-state SMS preference with incorrect tenant.
+- Record a structured log and/or audit event for unresolved inbound SMS.
+- Do not log full phone numbers if existing masking convention requires masking.
+- Preserve Twilio webhook response behavior so Twilio does not retry unnecessarily unless the architecture intentionally returns failure.
+- Include safe metadata:
+  - provider = twilio
+  - masked from phone
+  - masked to phone
+  - provider message id
+  - keyword classification if available
+  - reason = unresolved_inbound_sms_tenant
+
+Suggested audit/log event:
+- sms.inbound.unresolved_tenant
+
+STEP 4 — Add Immutable SMS Preference History
+Add a new Notification Service-local entity/table for immutable SMS preference history.
+
+Suggested entity:
+SmsPreferenceHistory
+
+Suggested fields:
+- Id
+- TenantId nullable only for unresolved inbound events if needed
+- Phone
+- PreviousState nullable
+- NewState
+- Source
+- Reason nullable
+- KeywordReceived nullable
+- Provider nullable
+- ProviderMessageId nullable
+- ProviderConfigId nullable
+- InboundToNumber nullable
+- CreatedAt
+- CreatedBy nullable
+- MetadataJson nullable if existing patterns support JSON metadata
+
+Expected NewState values:
+- opted_in
+- opted_out
+- unknown
+- help_requested
+
+Expected Source values:
+- inbound_stop_keyword
+- inbound_start_keyword
+- inbound_help_keyword
+- manual_update
+- system_import
+- tenant_policy
+- unresolved_inbound_keyword
+
+Requirements:
+- History records must be append-only.
+- Do not update/delete prior history records during normal preference updates.
+- Preserve current-state `SmsContactPreference` behavior.
+- Current-state table remains source of current preference.
+- History table is source of preference change history.
+
+STEP 5 — Update SMS Preference Service to Write History
+Extend `ISmsPreferenceService` and implementation so every preference-related action writes history.
+
+Required cases:
+- Inbound STOP-family keyword:
+  - current state becomes `opted_out`
+  - history record appended with previous state and new state
+- Inbound START-family keyword:
+  - current state becomes `opted_in`
+  - history record appended with previous state and new state
+- Inbound HELP keyword:
+  - current state should not change
+  - history record appended with `NewState = help_requested`
+- Manual API update:
+  - current state changes to requested state
+  - history record appended with previous state and new state
+- Unknown/unresolved inbound keyword:
+  - do not create incorrect tenant-scoped current state
+  - append unresolved history only if a safe nullable-tenant pattern is supported; otherwise structured log/audit is acceptable
+
+Requirements:
+- History write should be best-effort only if existing service patterns treat audit/history as best-effort; otherwise it should be part of the same transaction as preference update.
+- Avoid partial current-state update without history if transaction patterns are available.
+- Include provider metadata for inbound events where available.
+- Include actor/user metadata for manual updates where available.
+
+STEP 6 — Update Twilio Inbound Keyword Processing
+Modify Twilio inbound handling so tenant resolution occurs before SMS preference processing.
+
+Expected flow:
+1. Verify Twilio webhook signature as existing behavior requires.
+2. Detect inbound message using `Direction` field.
+3. Extract:
+   - From
+   - To
+   - Body
+   - MessageSid
+4. Classify keyword using existing LS-NOTIF-SMS-002 keyword classification.
+5. Resolve tenant/provider using `To`.
+6. If resolved:
+   - process keyword under resolved tenant
+   - include provider/providerConfigId/inboundToNumber metadata
+   - audit using resolved tenant
+7. If unresolved:
+   - do not mutate tenant-scoped current preference
+   - log/audit unresolved inbound event safely
+8. Preserve outbound delivery status handling unchanged.
+
+Inbound detection should continue supporting:
+- Direction = inbound
+- Direction = inbound-api
+
+STEP 7 — Enrich Audit Events
+Ensure SMS preference/compliance audit events include tenant/provider metadata where available.
+
+Audit metadata should include:
+- provider = twilio
+- providerMessageId
+- providerConfigId where available
+- inboundToNumber masked where appropriate
+- source
+- keyword category
+- previousState
+- newState
+- reason
+
+Required audit events:
+- sms.preference.opted_out
+- sms.preference.opted_in
+- sms.preference.help_requested
+- sms.preference.manual_update
+- sms.inbound.unresolved_tenant
+
+Requirements:
+- Preserve existing audit conventions.
+- Preserve phone masking convention from LS-NOTIF-SMS-001 and LS-NOTIF-SMS-002.
+- Do not log Twilio credentials.
+- Do not log tenant provider secrets.
+
+STEP 8 — Add Preference History API If Consistent With Existing Patterns
+Add a read endpoint only if it fits the existing Notification Service API conventions.
+
+Suggested endpoint:
+GET /v1/sms/preferences/history?phone={phone}
+
+Expected behavior:
+- Returns immutable history records for the tenant-scoped phone number.
+- Supports reasonable pagination if existing endpoint style supports it.
+- Requires authentication/authorization consistent with existing endpoints.
+- Masks or protects phone number output according to existing API conventions.
+- Does not expose provider credentials or raw sensitive webhook payloads.
+
+If API conventions are not clear or this would require significant new framework work, document as a known gap instead of overbuilding.
+
+STEP 9 — Documentation and Configuration
+Add/update documentation for:
+- inbound tenant resolution
+- provider config lookup by Twilio `To` number
+- unresolved inbound handling
+- SMS preference history
+- audit events
+- production setup requirements for tenant-owned Twilio numbers
+- limitations when inbound tenant cannot be resolved
+
+Documentation must explain:
+- `To` number identifies the LegalSynq/Tenant Twilio number
+- `From` number identifies the external recipient/contact
+- STOP/START/HELP processing depends on resolving `To` to the correct tenant
+- unresolved inbound messages are not used to mutate tenant-scoped preference state
+
+STEP 10 — Validation
+Perform validation/testing for:
+
+Tenant resolution:
+- inbound Twilio webhook with matching `To` number resolves tenant/provider config
+- inbound Twilio webhook with unmatched `To` number is handled safely
+- provider config id is captured where available
+- Twilio credentials are not returned or logged
+
+Keyword processing:
+- STOP with resolved tenant creates/updates current preference to opted_out
+- START with resolved tenant creates/updates current preference to opted_in
+- HELP with resolved tenant creates history/audit without changing current preference
+- unresolved STOP does not create incorrect tenant-scoped preference
+- mixed-case and whitespace-padded keywords continue to work
+- non-exact phrases continue to be ignored
+
+Preference history:
+- inbound STOP appends history with previous/new state
+- inbound START appends history with previous/new state
+- inbound HELP appends help_requested history without changing current preference
+- manual preference update appends history
+- history records are not overwritten
+
+Existing behavior preservation:
+- outbound Twilio delivery-status webhook behavior remains unchanged
+- SMS outbound enforcement from LS-NOTIF-SMS-002 remains unchanged
+- Twilio provider sending from LS-NOTIF-SMS-001 remains unchanged
+- email/in-app notification behavior remains unchanged
+
+Security and boundary:
+- full phone numbers are not logged where masking convention requires masking
+- provider credentials are never logged
+- all implementation remains inside Notification Service
+- no unrelated services are modified except build/config compatibility if absolutely required
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Inbound Twilio tenant/provider resolution by `To` number
+- Safe unresolved inbound handling
+- Immutable SMS preference history entity/table/repository
+- SMS preference service history writes
+- Enriched SMS compliance audit metadata
+- Optional preference history API if consistent with existing patterns
+- Updated documentation/config notes
+- Completed analysis report
+
+Do NOT:
+- Introduce placeholder implementations
+- Break existing notification flows
+- Break LS-NOTIF-SMS-001 Twilio provider integration
+- Break LS-NOTIF-SMS-002 preference enforcement
+- Move SMS compliance logic outside Notification Service
+- Add SMS compliance or provider logic to unrelated services
+- Hardcode tenant/provider lookup outside existing provider configuration patterns
+- Expose phone numbers unnecessarily in logs
+- Expose provider credentials or secrets
+- Create tenant-scoped preference records when inbound tenant cannot be resolved
+- Treat unresolved inbound messages as provider delivery failures

@@ -1,0 +1,318 @@
+You are implementing CC2-INT-B02 — Gateway + Audit + Monitoring Wiring for CareConnect inside the main LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This work MUST build on the result of CC2-INT-B01.
+   - Do NOT create a new CareConnect service
+   - Do NOT duplicate routes
+   - Do NOT introduce standalone-only patterns
+
+5. This block is about platform wiring, not product redesign.
+
+6. Preserve the architecture rules already established:
+   - CareConnect service remains the canonical implementation
+   - Common Portal remains separate from Tenant Portal
+   - Identity is shared across the platform
+   - Lien Company tenant features remain tenant-portal scoped
+   - Provider/Law Firm shared experiences remain Common Portal scoped
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Complete the platform-level routing, audit alignment, and monitoring/telemetry wiring for CareConnect inside LegalSynq.
+
+This block must:
+
+- verify and finalize Gateway routing for CareConnect
+- align CareConnect audit behavior with platform expectations
+- strengthen monitoring/health/diagnostic hooks
+- remove or document any non-standard platform wiring that remains
+- prepare CareConnect for downstream shared-service integrations
+
+This block should NOT yet implement:
+- Documents service integration
+- Notifications service integration changes beyond routing/alignment checks
+- full Identity replacement/mapping
+- Common Portal build
+- tenant portal UI migration
+- new product features
+
+--------------------------------------------------
+
+CONTEXT FROM B01 (MUST RESPECT)
+
+B01 established that:
+
+- the current platform CareConnect service is already substantially the correct CC2 implementation
+- only three orphaned legacy email files were removed
+- Gateway routes already exist
+- Audit client is already wired
+- Monitoring is partially present via health + diagnostics
+- the largest remaining architectural gap is the missing separate Common Portal app
+- there is a non-standard internal provisioning endpoint using `X-Internal-Service-Token`
+- Documents integration is still deferred
+- some config/env gaps still exist and must be documented
+
+You MUST use B01 as the starting point, not re-audit from scratch.
+
+--------------------------------------------------
+
+SCOPE
+
+This block covers:
+
+1. Gateway routing audit and correction
+2. Audit event schema/wiring verification
+3. Correlation/traceability alignment
+4. Monitoring and health instrumentation alignment
+5. Internal-service access pattern review for platform conformity
+6. Environment/configuration verification related to routing/audit/monitoring
+
+--------------------------------------------------
+
+PART A — GATEWAY ROUTING
+
+Audit the existing LegalSynq Gateway routes related to CareConnect.
+
+You MUST verify:
+
+1. CareConnect health/info routes
+2. public CareConnect routes
+3. protected CareConnect routes
+4. internal CareConnect routes
+5. whether route patterns match platform conventions
+6. whether duplicate or stale routes exist
+
+Expected route families to validate and cleanly support:
+- health/info
+- public endpoints
+- portal endpoints
+- tenant endpoints
+- internal endpoints
+
+Tasks:
+- inspect the current Gateway config
+- confirm which routes are already correct
+- correct any stale, duplicate, or mis-scoped route definitions
+- ensure route forwarding targets the canonical CareConnect service only
+- preserve external route stability if already correct
+
+If Gateway already matches expectations:
+- do NOT churn it unnecessarily
+- document that clearly in the report
+
+--------------------------------------------------
+
+PART B — AUDIT ALIGNMENT
+
+CareConnect already emits audit events and uses the platform Audit client.
+This block must validate and align that wiring.
+
+You MUST verify:
+
+1. Audit client registration is correct
+2. event emission points are still valid after B01 cleanup
+3. event payloads remain structurally consistent
+4. non-blocking audit behavior is preserved
+5. CareConnect events can be correlated across requests/workflows
+
+Tasks:
+- inspect current audit client wiring
+- confirm canonical event flow path
+- verify existing audit event names/payload patterns
+- identify any obvious inconsistencies with platform conventions
+- add correlation id / request id propagation where practical
+- do NOT redesign the event model unless necessary
+
+If correlation IDs are already available through BuildingBlocks or request context:
+- use that
+Else:
+- add a pragmatic correlation propagation pattern and document it
+
+--------------------------------------------------
+
+PART C — MONITORING / HEALTH / DIAGNOSTICS
+
+Strengthen platform-level monitoring readiness for CareConnect.
+
+You MUST verify and improve:
+
+1. `/health` endpoint
+2. service info endpoint if present
+3. startup diagnostics
+4. migration diagnostics
+5. linkage / integrity diagnostics
+6. log messages useful for platform operations
+7. readiness for external Monitoring integration
+
+Tasks:
+- audit existing health and startup checks
+- ensure they are meaningful and not placeholder-only
+- preserve or improve diagnostics for:
+  - DB migration status
+  - required service linkage
+  - startup dependency sanity
+- add or improve structured logging where practical
+- prepare for Monitoring service integration without coupling directly if not yet available
+
+Do NOT build a new monitoring product here.
+This is about service observability readiness.
+
+--------------------------------------------------
+
+PART D — INTERNAL ACCESS PATTERN REVIEW
+
+B01 identified that:
+- `InternalProvisionEndpoints` still uses `X-Internal-Service-Token`
+- this is not aligned with the platform's service-to-service conventions
+
+In this block:
+
+1. Audit this endpoint and its auth approach
+2. Determine whether it can be safely aligned now
+3. If safe, migrate it toward the platform convention
+4. If not safe, document exact blocker and isolate clearly
+
+Preferred target:
+- platform-consistent service auth pattern
+- no standalone/custom legacy secret pattern left unless temporarily unavoidable
+
+If you cannot fully migrate because secrets/platform dependencies are missing:
+- leave it fail-closed
+- document precise next-step requirements
+- do NOT weaken security just to make it “work”
+
+--------------------------------------------------
+
+PART E — CONFIG / ENV VERIFICATION
+
+Verify configuration relevant to this block, including:
+
+- CareConnect service base identity
+- Gateway target values
+- Audit client config
+- monitoring/health-related config
+- internal service token config
+- notifications base URL defaults insofar as they affect routing sanity
+- connection string naming sanity insofar as it affects readiness
+
+You are not required to solve every config gap in this block,
+but you MUST classify each one as:
+- resolved
+- acceptable for now
+- blocker for later block
+
+--------------------------------------------------
+
+EXPECTED OUTPUTS
+
+By the end of this block, the system should have:
+
+1. a clean, validated Gateway path for CareConnect
+2. confirmed/corrected audit wiring
+3. strengthened health/diagnostic readiness
+4. documented internal auth alignment status
+5. clear platform routing/monitoring readiness for later integrations
+
+--------------------------------------------------
+
+TESTING REQUIREMENTS
+
+You MUST test and document results for:
+
+GATEWAY
+1. CareConnect health route works through Gateway if applicable
+2. public CareConnect route works through Gateway
+3. protected CareConnect route is still correctly gated
+4. tenant route family is still reachable through intended platform path
+5. no duplicate/stale CareConnect route remains active
+
+AUDIT
+6. audit events still emit for representative actions
+7. audit emission remains non-blocking
+8. correlation/request tracing is present or clearly documented
+
+MONITORING / HEALTH
+9. `/health` works
+10. service info endpoint works if applicable
+11. startup diagnostics still run correctly
+12. migration/linkage diagnostics remain valid
+
+INTERNAL ACCESS
+13. internal provision endpoint auth posture is verified
+14. if migrated, new service-auth path works
+15. if not migrated, fail-closed behavior is verified and documented
+
+BUILD / RUNTIME
+16. CareConnect service builds successfully
+17. relevant platform/Gateway build or config validation passes
+18. no routing regressions are introduced
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B02-report.md
+
+Use this exact structure:
+
+# CC2-INT-B02 Report
+
+## 1. Summary
+What was implemented
+
+## 2. Gateway Audit & Changes
+What routes existed, what changed, what remained
+
+## 3. Audit Alignment
+Audit wiring, event behavior, correlation/traceability
+
+## 4. Monitoring / Health Status
+Health endpoints, diagnostics, logging, readiness
+
+## 5. Internal Access Review
+Status of internal endpoint auth pattern and any changes
+
+## 6. Configuration Findings
+Resolved issues, acceptable temporary items, blockers
+
+## 7. Test Results
+Pass/fail with notes
+
+## 8. Issues / Gaps
+Anything incomplete, blocked, or deferred to later blocks
+
+--------------------------------------------------
+
+DO NOT:
+
+- create a second CareConnect service
+- redesign the product
+- integrate Documents or Notifications in full here
+- merge Common Portal into Tenant Portal
+- weaken security for internal endpoints
+- introduce unnecessary Gateway churn
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+- the report is complete and saved to:
+  /analysis/CC2-INT-B02-report.md
+- CareConnect routing/audit/monitoring wiring is validated
+- builds/tests pass or blockers are precisely documented
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

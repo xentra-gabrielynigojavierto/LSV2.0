@@ -1,0 +1,564 @@
+```text
+You are implementing LS-COMMS-04-BLK-001 — Advanced Filtering and Operational Views (Inbox Layer) for SynqComm.
+
+OBJECTIVE:
+Transform SynqComm into an operator-usable system by introducing advanced filtering, inbox-style views, and efficient query capabilities over conversations using existing operational data:
+- queues
+- assignment
+- SLA state
+- waiting state
+- mentions
+- unread state
+
+This block must NOT introduce new core domain behavior. It must:
+- expose and optimize access to existing data
+- enable efficient operator workflows similar to Zendesk/ServiceNow inboxes
+- remain performant and scalable
+- preserve tenant isolation and existing authorization rules
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the system of record
+- NO new service/application outside SynqComm should be created
+- NO UI logic should be embedded
+- MUST use SynqComm database only (no cross-service joins)
+- MUST push filtering into the database (NO in-memory filtering for large sets)
+- MUST preserve tenant isolation and authorization
+- MUST reuse existing domain models where possible (Conversation, Assignment, SLA, Timeline, Mentions, ReadState)
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-03-BLK-004 — Internal Collaboration Layer
+- All prior communication, SLA, escalation, timeline, and mention functionality
+
+CURRENT FOUNDATION:
+- Full communication system exists
+- Workflow/SLA/escalation exists
+- Timeline and mentions exist
+- 163 tests are already passing
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-04-BLK-001-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-04-BLK-001-report.md
+
+Initialize it with:
+
+# LS-COMMS-04-BLK-001 — Advanced Filtering and Operational Views Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Enable inbox-style filtering and operational views over conversations using database-driven query composition.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- Database-driven filtering only (no large in-memory filtering)
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Analyze current query limitations
+- [ ] Step 2: Design filtering model and inbox presets
+- [ ] Step 3: Extend repository queries
+- [ ] Step 4: Implement operational view service
+- [ ] Step 5: API implementation
+- [ ] Step 6: Performance optimization and indexes
+- [ ] Step 7: Automated tests
+- [ ] Step 8: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — ANALYZE CURRENT QUERY LIMITATIONS
+--------------------------------------------------
+
+Inspect the existing SynqComm implementation and identify:
+- current operational list/query endpoint behavior
+- where in-memory filtering is currently used
+- how assignments, SLA state, unread/read state, and mentions are currently stored
+- existing indexes relevant to operational querying
+- existing DTOs for operational summaries and lists
+- current permission model for internal operational views
+
+Update the report with:
+- current query limitations
+- which queries are currently inefficient
+- exact strategy selected for database-driven filtering
+- any assumptions required
+
+IMPORTANT:
+This block exists specifically to eliminate scaling problems from operational list queries.
+Do not keep large in-memory filtering paths if the same logic can be moved into EF query composition.
+
+--------------------------------------------------
+STEP 3 — DESIGN FILTERING MODEL
+--------------------------------------------------
+
+Design a filterable operational inbox query that supports:
+
+### Core Filters
+- queueId
+- assignedUserId
+- assignmentStatus
+- priority
+- operationalStatus
+- waitingState
+
+### SLA Filters
+- breachedFirstResponse (bool)
+- breachedResolution (bool)
+- hasWarnings (bool) if cleanly derivable
+
+### Activity Filters
+- unreadOnly (bool)
+- mentionedUserId
+- hasMentions (bool)
+
+### Time Filters
+- updatedSince
+- createdSince
+
+### Sorting
+- lastActivityAtUtc DESC (default)
+- firstResponseDueAtUtc
+- resolutionDueAtUtc
+- priority
+
+### Pagination
+- page
+- pageSize
+
+Also define logical inbox preset behaviors (implemented as query presets, not separate hardcoded endpoints):
+
+1. My Inbox
+- assignedUserId = current user
+
+2. Unassigned
+- assignedUserId = null
+
+3. My Queue
+- queueId = selected/current queue and assignedUserId = null, or document exact behavior
+
+4. Breached
+- breachedFirstResponse = true OR breachedResolution = true
+
+5. High Priority
+- priority in (HIGH, URGENT)
+
+6. Mentioned Me
+- mentionedUserId = current user
+
+Document the final filtering model in the report before coding.
+
+--------------------------------------------------
+STEP 4 — DEFINE QUERY DTOs AND RESPONSE MODELS
+--------------------------------------------------
+
+Create/extend DTOs:
+
+### OperationalQueryRequest
+Fields:
+- queueId nullable
+- assignedUserId nullable
+- assignmentStatus nullable
+- priority nullable
+- operationalStatus nullable
+- waitingState nullable
+- breachedFirstResponse nullable
+- breachedResolution nullable
+- hasWarnings nullable
+- mentionedUserId nullable
+- unreadOnly nullable
+- updatedSince nullable
+- createdSince nullable
+- page
+- pageSize
+- sortBy
+- sortDirection
+
+### ConversationOperationalListItemResponse
+Fields:
+- conversationId
+- subject
+- queueId nullable
+- queueName nullable
+- assignedUserId nullable
+- assignmentStatus nullable
+- priority nullable
+- operationalStatus
+- waitingState nullable
+- breachedFirstResponse
+- breachedResolution
+- firstResponseDueAtUtc nullable
+- resolutionDueAtUtc nullable
+- lastActivityAtUtc
+- unreadCount or isUnread (choose based on current model)
+- mentionCount nullable
+- lastMessageSnippet nullable
+
+### OperationalQueryResponse
+Fields:
+- items
+- totalCount
+- page
+- pageSize
+- hasMore
+
+Use names that match the repo conventions if they already differ.
+Do not add UI-only fields.
+
+--------------------------------------------------
+STEP 5 — QUERY STRATEGY (CRITICAL)
+--------------------------------------------------
+
+You MUST NOT:
+- load all tenant conversations and filter in memory
+- materialize full entity graphs before applying filters
+- create N+1 query patterns
+
+You MUST:
+- build EF Core queries dynamically using IQueryable
+- apply conditional filters before ToListAsync
+- use projections into list item DTOs
+- keep queries tenant-scoped
+- support pagination and total count efficiently
+
+Add/extend repository methods such as:
+
+GetOperationalConversationsAsync(tenantId, request, currentUserId, cancellationToken)
+
+or equivalent.
+
+The query should compose over:
+- Conversations
+- current Assignment (left join)
+- current SLA state (left join)
+- Read/unread state (left join or computed join)
+- Mentions (exists subquery or grouped query)
+- queue metadata where needed
+
+IMPORTANT:
+- mentions filter must be SQL-translatable
+- unread filter must be SQL-translatable
+- no broad Include chains unless absolutely required
+- use AsNoTracking for read-only list queries
+
+--------------------------------------------------
+STEP 6 — IMPLEMENT REPOSITORY / QUERY LAYER
+--------------------------------------------------
+
+Add or extend repository contracts and implementations to support efficient operational list queries.
+
+Required capabilities:
+- database-driven filtering across conversation + assignment + SLA + mention + unread state
+- pagination
+- sorting
+- total count
+- tenant isolation
+
+Suggested approach:
+- create a dedicated query repository if needed, such as:
+  IOperationalConversationQueryRepository
+or extend an existing conversation repository cleanly
+
+Required behavior:
+- apply all filters conditionally
+- support null-safe left joins where assignment/SLA/read state may not exist
+- project directly into list item DTOs
+- avoid loading timeline/message bodies unless needed for last snippet retrieval and do so efficiently
+
+If lastMessageSnippet is expensive, choose the cleanest low-risk approach and document any limitation.
+
+--------------------------------------------------
+STEP 7 — IMPLEMENT OPERATIONAL VIEW SERVICE
+--------------------------------------------------
+
+Create/extend a service layer that:
+- validates request parameters
+- applies inbox preset logic where needed
+- delegates to repository query methods
+- enforces internal-user access rules
+- returns paginated operational list responses
+
+Suggested service:
+- IOperationalViewService
+- OperationalViewService
+
+Responsibilities:
+- normalize sort inputs
+- clamp page/pageSize
+- translate preset views into filters if you choose to support presets explicitly
+- preserve authorization and tenant scoping
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT MENTION FILTERING
+--------------------------------------------------
+
+Mention filtering must be done in SQL, not in-memory.
+
+Examples of acceptable patterns:
+- EXISTS subquery on MessageMentions by ConversationId + MentionedUserId
+- grouped join if cleaner
+
+Support:
+- mentionedUserId filter
+- hasMentions boolean filter if feasible
+
+Ensure:
+- deduplication not required at query result level if using EXISTS
+- no message body parsing in list queries
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT UNREAD FILTERING
+--------------------------------------------------
+
+Reuse the current read/unread tracking model.
+
+Support:
+- unreadOnly = true
+
+Unread logic must be translated to the database query path where feasible.
+If unread is currently only computable via existing read-state join logic, reuse that path cleanly.
+
+Avoid:
+- materializing conversations first and checking unread in application memory
+
+Document exact unread query behavior in the report.
+
+--------------------------------------------------
+STEP 10 — API IMPLEMENTATION
+--------------------------------------------------
+
+Add or extend the operational list endpoint.
+
+Preferred endpoint:
+GET /api/synqcomm/operational/conversations
+
+Requirements:
+- internal users only
+- requires OperationalRead
+- tenant-scoped
+- query string maps to OperationalQueryRequest
+- returns OperationalQueryResponse
+
+If an existing endpoint already overlaps, refactor it cleanly rather than duplicating behavior.
+
+Keep existing endpoints working.
+
+--------------------------------------------------
+STEP 11 — PERFORMANCE OPTIMIZATION
+--------------------------------------------------
+
+Review and add indexes if needed for operational queries.
+
+Potential useful indexes:
+- Conversation: TenantId + LastActivityAtUtc
+- Assignment: TenantId + AssignedUserId
+- Assignment: TenantId + QueueId
+- Assignment: TenantId + AssignmentStatus
+- SLA: TenantId + BreachedFirstResponse
+- SLA: TenantId + BreachedResolution
+- SLA: TenantId + Priority
+- Mentions: TenantId + MentionedUserId
+- Read state: TenantId + UserId / ConversationId depending on current schema
+
+Also:
+- enforce pageSize max (100 or 200)
+- ensure ordering is deterministic
+- use AsNoTracking for list queries
+- ensure query does not degrade into client-side evaluation
+
+Document all index/query changes in the report.
+
+--------------------------------------------------
+STEP 12 — AUTHORIZATION, TENANT, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- endpoint is internal-user only
+- requires OperationalRead
+- query is tenant-scoped
+- external participants cannot use operational list/inbox APIs
+- no cross-tenant leakage through joins or query mistakes
+- mention/unread filters must not bypass normal conversation access assumptions
+
+Do not weaken any existing authorization rules.
+
+--------------------------------------------------
+STEP 13 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+1. Filter by assignedUserId
+- returns only conversations assigned to that user
+
+2. Filter by queueId
+- returns only conversations in that queue
+
+3. Filter by SLA breach
+- breachedFirstResponse and/or breachedResolution behaves correctly
+
+4. Filter by priority
+- returns only HIGH/URGENT etc. as requested
+
+5. Mention filter works
+- mentionedUserId returns conversations where that user was mentioned
+
+6. Unread filter works
+- unreadOnly returns only unread conversations
+
+7. Combined filters work
+- multiple filters compose correctly
+
+8. Pagination works
+- page/pageSize and totalCount/hasMore are correct
+
+9. Sorting works
+- default and alternate sorts behave correctly
+
+10. Tenant isolation enforced
+- cross-tenant records never appear
+
+11. External user blocked
+- external participant cannot access endpoint
+
+12. Regression
+- existing operational, message, email, SLA, and mention flows still work
+
+If possible, include at least one test that verifies the query path is database-driven enough for current patterns (for example, by avoiding prior in-memory service behavior), or document why that is not directly testable.
+
+--------------------------------------------------
+STEP 14 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- no large in-memory filtering remains for operational inbox queries
+- query logic is database-driven and composable
+- pagination and sorting work
+- filters are tenant-safe
+- external users are blocked
+- existing communication/workflow behavior is unaffected
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves SynqComm architecture and avoids cross-service coupling.
+
+## Filtering Model
+Explain which filters and sort modes are supported.
+
+## Query Strategy
+Explain how database-driven filtering was implemented and how in-memory filtering was removed or minimized.
+
+## Performance Considerations
+Explain indexes, pagination limits, and query safeguards.
+
+## Authorization Model
+Explain how internal-only operational views are protected.
+
+## Database Changes
+Explain any schema/index/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-04-BLK-002 — Bulk Actions and Workflow Operations
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST focus on advanced filtering and operational inbox views
+- MUST NOT add unrelated workflow automation or UI features
+- MUST implement real automated tests in this block
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- database-driven operational inbox queries
+- advanced filtering across queue/assignment/SLA/mentions/unread
+- pagination and sorting
+- internal-only operational views
+- scalable operator workflows
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-04-BLK-001-report.md
+```

@@ -1,0 +1,385 @@
+You are implementing CC2-INT-B05 — Common Portal Integration for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B05-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This work MUST build on:
+   - CC2-INT-B01 (service alignment)
+   - CC2-INT-B02 (gateway/audit/monitoring)
+   - CC2-INT-B03 (documents/notifications)
+   - CC2-INT-B04 (identity integration)
+
+5. Do NOT merge Common Portal into Tenant Portal.
+   Common Portal is a **separate application surface**.
+
+6. Do NOT introduce a second auth system.
+   Use Identity service ONLY.
+
+7. Follow LegalSynq frontend standards:
+   - Next.js 15 (App Router)
+   - TypeScript
+   - Tailwind CSS
+   - BFF pattern (HttpOnly cookie, browser does NOT see JWT)
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Build and integrate the **Common Portal** as a separate frontend application for:
+
+- Providers
+- Law Firms (initial + future expansion)
+
+The Common Portal must:
+
+- authenticate via Identity
+- consume CareConnect APIs via Gateway/BFF
+- support token-based onboarding → Identity login → session-based usage
+- provide a clean, role-aware UX for external users
+
+This is the **first user-facing integration layer**.
+
+--------------------------------------------------
+
+ARCHITECTURE RULES (MANDATORY)
+
+1. Identity is shared:
+   - all users authenticate via Identity
+   - JWT handled by BFF (not exposed to browser)
+
+2. Portal separation:
+   - Common Portal = external/shared users
+   - Tenant Portal = lien companies only
+
+3. Routing:
+   - all API calls go through Gateway or BFF
+   - no direct service-to-browser calls
+
+4. No duplication:
+   - reuse CareConnect APIs
+   - do NOT reimplement backend logic
+
+--------------------------------------------------
+
+PART A — APPLICATION SETUP
+
+--------------------------------------------------
+
+A.1 Create Common Portal App
+
+Create a new Next.js app (if not already present):
+
+- location consistent with monorepo structure (e.g. `/apps/common-portal`)
+- use:
+  - Next.js 15 (App Router)
+  - TypeScript
+  - Tailwind
+
+Ensure:
+- environment config is aligned with platform
+- base URL points to BFF/Gateway
+
+--------------------------------------------------
+
+A.2 BFF Layer Setup
+
+Implement BFF routes:
+
+- `/api/auth/*` → Identity service proxy
+- `/api/careconnect/*` → Gateway proxy
+
+Requirements:
+- HttpOnly cookie session
+- server-side token handling
+- no JWT exposed to browser
+
+--------------------------------------------------
+
+PART B — AUTHENTICATION FLOW
+
+--------------------------------------------------
+
+B.1 Login Flow
+
+Implement login via Identity:
+
+- redirect to Identity login
+- handle callback
+- store session cookie
+- hydrate user context
+
+--------------------------------------------------
+
+B.2 Session Management
+
+You MUST:
+
+- store session via HttpOnly cookie
+- maintain user state server-side
+- expose minimal user info to frontend:
+  - userId
+  - orgId
+  - orgType
+  - roles
+  - product access
+
+--------------------------------------------------
+
+B.3 Logout Flow
+
+- clear session
+- redirect to login
+
+--------------------------------------------------
+
+PART C — TOKEN → IDENTITY BRIDGE (UX LAYER)
+
+--------------------------------------------------
+
+Integrate with backend activation flow implemented in B04.
+
+--------------------------------------------------
+
+C.1 Provider Activation UX
+
+When user clicks referral link:
+
+Flow:
+
+1. User lands on activation route:
+   `/activate?token=...`
+
+2. Frontend calls:
+   `POST /api/careconnect/referrals/{id}/auto-provision`
+
+3. Backend:
+   - validates token
+   - provisions org + user
+   - sends invitation
+
+4. Frontend behavior:
+   - show success state
+   - redirect to login
+
+--------------------------------------------------
+
+C.2 Post-Login Redirect
+
+After login:
+
+- redirect to:
+  `/careconnect/referrals/{id}`
+
+--------------------------------------------------
+
+C.3 Existing User Path
+
+If user already exists:
+
+- skip provisioning
+- redirect directly to login
+- preserve `returnTo`
+
+--------------------------------------------------
+
+PART D — CORE USER EXPERIENCE
+
+--------------------------------------------------
+
+D.1 Dashboard
+
+Create role-aware dashboard:
+
+- Providers:
+  - assigned referrals
+  - status tracking
+
+- Law Firms (future-ready):
+  - submitted referrals
+  - status tracking
+
+--------------------------------------------------
+
+D.2 Referral List
+
+- list referrals relevant to user
+- filter/sort basic support
+- use CareConnect APIs
+
+--------------------------------------------------
+
+D.3 Referral Detail Page
+
+Display:
+
+- referral info
+- participants
+- status
+- documents
+
+--------------------------------------------------
+
+D.4 Document Access
+
+- retrieve signed URLs via API
+- open/download documents securely
+- no direct S3 exposure
+
+--------------------------------------------------
+
+PART E — ROLE HANDLING
+
+--------------------------------------------------
+
+You MUST differentiate behavior based on:
+
+- orgType:
+  - PROVIDER
+  - LAW_FIRM
+
+UI should:
+- conditionally render features
+- not expose unauthorized actions
+
+--------------------------------------------------
+
+PART F — ERROR HANDLING
+
+--------------------------------------------------
+
+Handle:
+
+- expired/invalid token
+- unauthorized access
+- missing session
+- backend failures
+
+Provide:
+- clear UI states
+- no silent failures
+
+--------------------------------------------------
+
+PART G — CONFIGURATION
+
+--------------------------------------------------
+
+You MUST configure:
+
+- Identity endpoints
+- BFF routes
+- Gateway base URL
+- environment variables
+
+Ensure:
+- dev and prod configs supported
+- no hardcoded URLs
+
+--------------------------------------------------
+
+PART H — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST test and document:
+
+AUTH
+
+1. User can log in via Identity
+2. Session persists via HttpOnly cookie
+3. Logout works correctly
+
+TOKEN FLOW
+
+4. Activation link provisions user
+5. Invitation email sent
+6. Redirect to login works
+7. Post-login redirect works
+
+USER EXPERIENCE
+
+8. Provider sees correct referrals
+9. Referral detail loads correctly
+10. Documents accessible via signed URLs
+
+SECURITY
+
+11. No JWT exposed to browser
+12. Unauthorized access blocked
+13. Session required for protected routes
+
+SYSTEM
+
+14. Next.js build succeeds
+15. BFF routes work correctly
+16. Gateway integration works
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B05-report.md
+
+Use this exact structure:
+
+# CC2-INT-B05 Report
+
+## 1. Summary
+What was implemented
+
+## 2. App Setup
+Structure, routing, configuration
+
+## 3. Authentication Flow
+Login, session, logout
+
+## 4. Token → Identity UX
+Activation flow behavior
+
+## 5. User Experience
+Dashboard, referral list, detail
+
+## 6. Role Handling
+Provider vs Law Firm behavior
+
+## 7. Configuration
+Environment and routing
+
+## 8. Test Results
+Pass/fail with notes
+
+## 9. Issues / Gaps
+Anything incomplete or deferred
+
+--------------------------------------------------
+
+DO NOT:
+
+- merge Common Portal into Tenant Portal
+- bypass Identity
+- expose JWT to browser
+- duplicate backend logic
+- introduce standalone patterns
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+- Common Portal app runs successfully
+- Identity login works
+- referral flows work end-to-end
+- report saved at:
+  /analysis/CC2-INT-B05-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

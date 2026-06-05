@@ -1,0 +1,402 @@
+# LS-ID-TNT-012 — Backend Permission Enforcement
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity/authorization feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation (Tenant + Product + UI Boundaries)
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, onboarding, recovery, access-management, and enforcement behavior
+- Reuse `IEffectivePermissionService` as the source of truth for permission checks
+- Keep backend, API, and UI concerns clearly separated
+- Include explicit fallback/default behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Prefer reusable permission-check patterns over one-off endpoint logic
+- Preserve tenant isolation in every new enforcement path
+- Be honest in the report about exact enforcement coverage achieved
+
+---
+
+## FEATURE OBJECTIVE
+
+Activate the permission model introduced in LS-ID-TNT-011 by enforcing tenant-level and product-level permissions in real backend APIs using `IEffectivePermissionService`.
+
+This feature turns permissions from a resolved model into an authoritative runtime enforcement layer for business actions.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Full permission-aware UI across the platform
+- Tenant Portal permission-management UI
+- Control Center permission-governance UI
+- ABAC/policy-rule activation
+- Role creation/editing UI
+- Broad endpoint architecture rewrite
+- Page redesign
+- Unvalidated full platform-wide endpoint coverage claims
+
+ONLY IMPLEMENT:
+- Backend permission enforcement for a validated initial scope
+- Reusable permission-check helper/filter/service pattern
+- Tenant-level permission enforcement on selected identity/admin endpoints
+- Product-level permission enforcement on selected product endpoints
+- Standardized 403/error behavior for permission denial
+- Minimal frontend compatibility adjustments only if required for clear error handling
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-012-report.md
+
+Initialize with:
+
+# LS-ID-TNT-012 — Backend Permission Enforcement
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Permission Model / Service Analysis
+## 4. Existing Endpoint Authorization Analysis
+## 5. Enforcement Scope Selection
+## 6. Permission Enforcement Design
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. API / Error Contract Changes
+## 10. Frontend Compatibility Adjustments
+## 11. Testing Results
+## 12. Known Issues / Gaps
+## 13. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Permission model
+- `IEffectivePermissionService` interface and implementation
+- effective permission DTO/shape
+- existing permission catalog and mapping entities
+- how tenant permissions and product permissions are represented
+
+### Current authorization patterns
+- existing endpoint filters/helpers (`RequireProductAccess`, role guards, etc.)
+- current error/response style for forbidden access
+- where tenant admin actions are currently guarded only by role
+- where product endpoints are currently guarded only by product access
+
+### Candidate endpoint coverage
+Identify a validated initial enforcement scope that is meaningful and safe.
+
+This should include:
+- selected tenant-level admin endpoints in Identity
+- selected product-level endpoints in one or more product services
+
+DO NOT assume all services are ready. Validate real endpoints first.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Permission Model / Service Analysis
+## 4. Existing Endpoint Authorization Analysis
+## 5. Enforcement Scope Selection
+
+---
+
+## STEP 2 — SELECT AND DOCUMENT THE ENFORCEMENT SCOPE
+
+Choose the initial enforcement coverage based on actual codebase reality.
+
+Requirements:
+- prioritize sensitive/high-value actions
+- choose endpoints where permission semantics are clear
+- avoid speculative coverage
+
+Suggested target categories (validate before using):
+- tenant user management mutations
+- group management mutations
+- role assignment/product assignment mutations
+- selected write/update actions in Liens/Fund/CareConnect/Insights
+
+You MUST clearly document:
+- which endpoints are covered now
+- which endpoints remain role/product-access-only
+- why that scope was selected
+
+Update report:
+## 5. Enforcement Scope Selection
+
+---
+
+## STEP 3 — IMPLEMENT A REUSABLE PERMISSION-CHECK PATTERN
+
+Implement the smallest reusable backend pattern that fits the validated architecture.
+
+Possible implementations:
+- endpoint filter
+- helper/service wrapper
+- extension methods
+- minimal attribute wrapper if the architecture already supports it
+
+Requirements:
+- must support tenant permission checks
+- must support product permission checks
+- must reuse `IEffectivePermissionService`
+- must produce consistent forbidden behavior
+- must be simple to roll out to more endpoints later
+
+Do NOT scatter ad hoc permission logic everywhere if a shared mechanism is feasible.
+
+Update report:
+## 6. Permission Enforcement Design
+## 8. Backend Implementation
+
+---
+
+## STEP 4 — IMPLEMENT TENANT-LEVEL PERMISSION ENFORCEMENT
+
+Use the reusable pattern to enforce selected `TENANT.*` permissions in the validated Identity/admin endpoint scope.
+
+Possible examples (validate exact endpoints first):
+- `TENANT.users:manage`
+- `TENANT.groups:manage`
+- `TENANT.roles:assign`
+- `TENANT.products:assign`
+- `TENANT.invitations:manage`
+- `TENANT.audit:view`
+
+Requirements:
+- backend-authoritative only
+- preserve tenant isolation
+- existing role checks may remain as outer gates if appropriate, but permission checks must become the specific action gate
+- do not weaken current security posture
+
+Return:
+- `403 Forbidden`
+- clear message explaining missing permission
+
+Update report:
+## 8. Backend Implementation
+## 9. API / Error Contract Changes
+
+---
+
+## STEP 5 — IMPLEMENT PRODUCT-LEVEL PERMISSION ENFORCEMENT
+
+Use the reusable pattern to enforce selected product permissions inside validated product APIs.
+
+Examples (validate real endpoints first):
+- `liens.view`
+- `liens.create`
+- `liens.edit`
+- `liens.approve`
+- `fund.view`
+- `fund.approve`
+- `careconnect.manage_referrals`
+- `insights.view`
+
+Requirements:
+- existing product-access enforcement remains a prerequisite gate
+- permission checks are action-level, not just product-entry-level
+- preserve tenant context
+- avoid over-claiming coverage
+
+For each covered service/endpoint, document:
+- required permission
+- pre-existing access/product gate
+- final behavior after change
+
+Update report:
+## 8. Backend Implementation
+## 9. API / Error Contract Changes
+
+---
+
+## STEP 6 — STANDARDIZE FORBIDDEN ERROR CONTRACT
+
+Standardize permission-denied responses.
+
+Requirements:
+- use `403 Forbidden`
+- include a clear human-readable message
+- include a stable machine-readable code if consistent with current patterns
+
+Suggested codes:
+- `TENANT_PERMISSION_DENIED`
+- `PRODUCT_PERMISSION_DENIED`
+
+Suggested messages:
+- “You do not have permission to manage tenant users.”
+- “You do not have permission to approve liens.”
+
+Do NOT return generic 500s or ambiguous validation errors for permission denial.
+
+Update report:
+## 9. API / Error Contract Changes
+
+---
+
+## STEP 7 — PRESERVE ENFORCEMENT LAYERING
+
+Ensure the enforcement order stays coherent:
+
+1. authenticated user
+2. tenant validity
+3. product access (for product-scoped endpoints)
+4. permission check for the specific action
+
+Requirements:
+- do not replace `RequireProductAccess` with permission checks
+- permission checks extend the current model
+- role-based outer guards may remain where appropriate, but permissions must become the action-level gate
+- document the layering clearly
+
+Update report:
+## 6. Permission Enforcement Design
+## 8. Backend Implementation
+
+---
+
+## STEP 8 — MINIMAL FRONTEND COMPATIBILITY ADJUSTMENTS
+
+This is a backend feature. Only make frontend adjustments if required for clear handling of new 403/message responses.
+
+Possible adjustments:
+- preserve/display human-readable permission-denied messages
+- avoid generic crashes when new 403 codes/messages are returned
+
+Requirements:
+- no permission-management UI
+- no product-wide button hiding yet
+- no redesign
+
+If no frontend changes are needed, say so explicitly in the report.
+
+Update report:
+## 10. Frontend Compatibility Adjustments
+
+---
+
+## STEP 9 — VALIDATE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- users list/search/filter
+- invite flow
+- accept-invite flow
+- password reset flow
+- product/group assignment
+- route-level product enforcement
+- token/session consistency
+- last-admin protection
+- permission catalog endpoints from LS-ID-TNT-011
+
+Explicitly validate that:
+- users with the right permissions still succeed
+- users without the right permissions fail correctly
+- legacy access/product behavior remains intact
+
+Update report:
+## 11. Testing Results
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 10 — TESTING
+
+Test and document each scenario.
+
+### Tenant permission enforcement
+- user with `TENANT.users:manage` performs covered user-management mutation → allowed
+- user without `TENANT.users:manage` performs same action → 403
+- user with `TENANT.groups:manage` performs covered group mutation → allowed
+- user without required tenant permission → 403
+
+### Product permission enforcement
+- user with product access + required permission performs covered action → allowed
+- user with product access but without required permission performs covered action → 403
+- user without product access still fails at the earlier access gate
+- permission checks respect tenant context
+
+### Error contract
+- forbidden responses include clear message
+- machine code is present if implemented
+- frontend surfaces errors reasonably
+
+### Regression
+- invite flow still works
+- activation still works
+- password reset still works
+- product route enforcement still works
+- users list still works
+- group/product assignment still works
+- permission inspection/catalog endpoints still work
+- null-safe rendering remains intact
+
+Update report:
+## 11. Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 12. Known Issues / Gaps
+## 13. Final Status = Complete
+
+Your final report must clearly state:
+- what reusable permission-check mechanism was implemented
+- which tenant-level endpoints now enforce permissions
+- which product-level endpoints now enforce permissions
+- what error contract is used for denied permission
+- whether frontend required any adjustment
+- what endpoints remain deferred
+- whether any current bypass paths remain for the implemented scope
+
+---
+
+## SUCCESS CRITERIA
+
+✔ A reusable backend permission-check pattern exists
+✔ Selected tenant-level endpoints enforce `TENANT.*` permissions
+✔ Selected product-level endpoints enforce product permissions
+✔ `IEffectivePermissionService` is used as the permission source of truth
+✔ Permission-denied requests return consistent 403 responses with clear messages
+✔ Existing product-access enforcement remains intact and layered correctly
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-011 flows do not regress
+✔ Tenant isolation remains intact
+✔ Enforcement coverage and remaining gaps are documented honestly
+✔ The platform now enforces permissions in real backend APIs for the validated initial scope
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working backend permission enforcement for the validated initial scope
+2. Reusable permission-check mechanism for future rollout
+3. Compatible frontend handling for permission-denied responses if needed
+4. Completed report:
+/analysis/LS-ID-TNT-012-report.md
+
+---
+
+END OF IMPLEMENTATION

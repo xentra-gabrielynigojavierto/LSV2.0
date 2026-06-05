@@ -1,0 +1,326 @@
+You are implementing BLOCK 1 of LegalSynq Support Service Platform Integration.
+
+BLOCK 1 includes:
+- SUP-INT-01 — Main Platform Shell Integration
+- SUP-INT-02 — Gateway + Auth Validation
+
+You have been provided a source code ZIP. You MUST analyze the source code before making any implementation changes.
+
+============================================================
+FEATURE ID
+============================================================
+
+SUP-INT-BLOCK-01
+
+Report file:
+ /analysis/SUP-INT-BLOCK-01-report.md
+
+============================================================
+PRIMARY OBJECTIVE
+============================================================
+
+Integrate the existing Support Service into the main LegalSynq platform shell as a first-class platform service through the existing gateway and authentication model.
+
+The integration must preserve:
+- standalone Support deployability
+- JWT/RBAC enforcement
+- tenant isolation
+- existing Support APIs
+- existing Support domain behavior
+- existing attachment reference model
+- existing Notifications and Audit integrations
+
+============================================================
+CRITICAL NON-NEGOTIABLE RULES
+============================================================
+
+1. DO NOT rewrite Support.
+2. DO NOT weaken JWT/RBAC.
+3. DO NOT weaken tenant isolation.
+4. DO NOT inject X-Tenant-Id in production.
+5. Tenant context MUST come from JWT claims in production.
+6. DO NOT store file bytes in the Support database.
+7. DO NOT change Support ticket/comment/attachment/queue domain models in this block.
+8. DO NOT add email reply, Comms, SLA, Task, customer portal, or product deep-link functionality.
+9. DO NOT create a parallel gateway/routing system.
+10. DO NOT hardcode service URLs.
+11. DO NOT bypass the existing platform authentication architecture.
+12. DO NOT break standalone Support mode.
+
+============================================================
+MANDATORY STEP 1 — CREATE REPORT FIRST
+============================================================
+
+Before making any code changes, create:
+
+ /analysis/SUP-INT-BLOCK-01-report.md
+
+Update this report incrementally after every major step.
+
+The report MUST include:
+1. Codebase analysis
+2. Gateway/YARP project discovery
+3. Existing route/config structure
+4. Auth/JWT middleware discovery
+5. Header forwarding behavior
+6. Tenant propagation behavior
+7. Service registration/config changes
+8. Database/schema assessment
+9. Files created/changed
+10. Validation results
+11. Build results
+12. Known gaps/deferred items
+
+============================================================
+MANDATORY STEP 2 — SOURCE CODE INGESTION + ANALYSIS
+============================================================
+
+Extract and inspect the attached source-code ZIP.
+
+Before implementing, identify and document in the report:
+
+- Main platform host project
+- Gateway/YARP project
+- Existing YARP route configuration location
+- Existing service registration pattern
+- Existing appsettings/environment configuration structure
+- Existing JWT/auth middleware
+- Existing claims/tenant resolution pattern
+- Existing header forwarding/correlation ID behavior
+- Existing health check pattern
+- Existing frontend/platform shell/navigation structure
+- Whether service registration/navigation/permissions are code/config-based or DB-backed
+
+Do NOT code until this analysis is completed and documented.
+
+============================================================
+DATABASE / SCHEMA RULE
+============================================================
+
+This block should not require Support domain database schema changes.
+
+You MUST inspect whether the platform stores any of the following in the database:
+- service registry
+- navigation/menu entries
+- permissions
+- gateway routes
+- health-check metadata
+
+If these are code/config-based:
+- do not create migrations
+
+If these are DB-backed:
+- add only the minimum metadata seed/migration needed for Support integration
+- do not alter Support domain tables
+- document every table touched in the report before applying changes
+
+Expected result should be one of:
+
+“Database changes: None. Gateway, service registration, navigation, and permissions are config/code-based.”
+
+OR
+
+“Database changes required only for platform shell metadata. No Support domain tables were changed.”
+
+============================================================
+SUP-INT-01 SCOPE — MAIN PLATFORM SHELL INTEGRATION
+============================================================
+
+Implement only what is necessary to register Support as a first-class platform service.
+
+Required work:
+
+1. Register Support backend service in platform runtime/config using existing platform patterns.
+
+2. Add YARP route:
+
+   /support/api/{**catch-all}
+
+3. Ensure gateway forwards to the Support backend while preserving the downstream path expected by Support.
+
+4. Forward Authorization header to Support.
+
+5. Forward existing correlation/request headers if the platform already supports them.
+
+6. Configure Support service URL through existing environment/config pattern.
+
+7. Add health route validation for:
+
+   /support/api/health
+
+8. Preserve standalone Support behavior.
+
+============================================================
+SUP-INT-02 SCOPE — GATEWAY + AUTH VALIDATION
+============================================================
+
+Validate secure gateway behavior.
+
+Required validation:
+
+1. JWT is forwarded unchanged from gateway to Support.
+
+2. Support validates JWT using existing Support authentication logic.
+
+3. Tenant claim reaches Support through JWT claims.
+
+4. Tenant is not supplied through X-Tenant-Id in production.
+
+5. Unauthorized calls return 401.
+
+6. Authenticated calls succeed.
+
+7. Forbidden role/permission cases return 403 if applicable.
+
+8. Cross-tenant access remains blocked.
+
+9. Gateway does not mutate security-sensitive claims.
+
+============================================================
+IMPLEMENTATION DETAILS
+============================================================
+
+Use existing patterns only.
+
+Allowed changes:
+- Gateway route config
+- Platform service configuration
+- Environment/appsettings entries
+- Service registration metadata
+- Header forwarding config if required
+- Health check config if required
+- Minimal DB seed/migration only if the platform already uses DB-backed metadata
+
+Not allowed:
+- Support domain model changes
+- Ticket schema changes
+- Comment schema changes
+- Attachment schema changes
+- Queue/assignment schema changes
+- New customer portal
+- New email reply/messaging features
+- New Comms integration
+- New SLA logic
+- New product deep-link model
+- New Documents Service contract
+
+============================================================
+VALIDATION REQUIREMENTS
+============================================================
+
+Run and document results for as many of these as the codebase supports:
+
+1. Build:
+   - dotnet build
+   - frontend build if frontend/config was touched
+
+2. Gateway health:
+   - GET /support/api/health through gateway
+
+3. Unauthorized request:
+   - request without Authorization must return 401 for protected Support endpoints
+
+4. Authenticated request:
+   - request with valid JWT must reach Support
+
+5. Tenant validation:
+   - verify Support receives tenant from JWT claims
+   - verify no production X-Tenant-Id injection is required
+
+6. Header forwarding:
+   - verify Authorization is forwarded
+   - verify correlation/request headers are forwarded if applicable
+
+7. Standalone regression:
+   - Support still runs in standalone mode
+   - direct Support health endpoint still works if previously supported
+
+============================================================
+REPORT REQUIREMENTS
+============================================================
+
+The final /analysis/SUP-INT-BLOCK-01-report.md MUST include:
+
+# SUP-INT-BLOCK-01 Report
+
+## 1. Codebase Analysis
+- Source ZIP extracted location
+- Platform host project
+- Gateway/YARP project
+- Support service project
+- Frontend/platform shell project, if discovered
+
+## 2. Existing Architecture Discovered
+- YARP route config location
+- Auth/JWT middleware location
+- Tenant claims resolution pattern
+- Header forwarding behavior
+- Service config pattern
+- Health check pattern
+
+## 3. Database / Schema Assessment
+- Whether DB changes were needed
+- If yes, exact tables/migrations/seeds touched
+- Confirmation that Support domain tables were not changed
+
+## 4. Files Created/Changed
+For each file:
+- file path
+- purpose of change
+- reason change was necessary
+
+## 5. Gateway / YARP Integration
+- Added route
+- Cluster/service target
+- Path preservation behavior
+- Header forwarding behavior
+
+## 6. Service Registration / Config
+- Support service URL config
+- Environment variable names
+- appsettings changes
+
+## 7. Auth / Token Forwarding
+- Authorization forwarding behavior
+- JWT validation behavior
+- 401/403 behavior
+
+## 8. Tenant Propagation Validation
+- Tenant claim source
+- No X-Tenant-Id production dependency
+- Cross-tenant protection status
+
+## 9. Health Validation
+- /support/api/health result
+- direct Support health result if applicable
+
+## 10. Test Results
+- Commands run
+- Results
+- Failures, if any
+
+## 11. Build Results
+- Backend build result
+- Frontend build result if applicable
+
+## 12. Known Gaps / Deferred Items
+Explicitly list anything not completed.
+
+============================================================
+DONE CRITERIA
+============================================================
+
+This block is complete only when:
+
+- Support is registered in the platform config/runtime
+- /support/api/{**catch-all} route exists in gateway
+- /support/api/health works through gateway or documented blocker exists
+- Authorization header is forwarded
+- Tenant claim reaches Support through JWT
+- No X-Tenant-Id production injection is introduced
+- No Support domain schema changes are made
+- Standalone Support behavior is preserved
+- Build results are documented
+- /analysis/SUP-INT-BLOCK-01-report.md is complete
+
+If any validation fails, do not claim success. Document the failure, root cause, and recommended iteration.

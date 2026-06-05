@@ -1,0 +1,251 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Define and integrate the Liens product capability model so organizations—especially Providers—can operate in different modes:
+- Sell Liens (marketplace model)
+- Manage Own Liens (internal portfolio model)
+- Both modes simultaneously
+
+This feature establishes capability modeling only. It does NOT implement full authorization enforcement or UI behavior.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+For this feature specifically:
+- Use v2 Identity for all capability modeling
+- Do NOT introduce v1 roles, permissions, or session logic
+- Do NOT hardcode behavior inside the Liens service
+
+DATABASE / OWNERSHIP RULE:
+- Follow the newly established v2 service-owned table prefix convention
+- If this feature requires any new persisted Identity-side tables or schema updates, they must follow the Identity service prefix convention already established in v2
+- Do NOT introduce any Liens-owned persistence tables in this feature
+- Do NOT use legacy v1 table names or structures as final targets for this feature
+
+--------------------------------------------------
+STEP 1 — INSPECT V2 IDENTITY PRODUCT / ROLE MODEL
+--------------------------------------------------
+
+Analyze how Identity currently handles:
+
+- organizations
+- product assignments
+- roles
+- claims
+- entitlements / feature flags (if present)
+
+Identify:
+- how product-level access is modeled
+- how roles are attached to users/orgs
+- how claims are emitted into JWT / request context
+- whether any existing persistence structures already support capability-like assignments
+
+DO NOT invent a parallel system.
+Reuse the existing Identity pattern.
+
+--------------------------------------------------
+STEP 2 — DEFINE LIENS PRODUCT CAPABILITIES
+--------------------------------------------------
+
+Define capability identifiers for Liens.
+
+At minimum:
+
+- `LIENS_SELL`
+- `LIENS_MANAGE_INTERNAL`
+
+These must:
+- be stable identifiers
+- align with Identity naming conventions
+- be usable as claims or role entitlements
+
+If the platform uses:
+- roles → define roles
+- claims → define claims
+- feature flags → define features
+- product entitlements → define entitlements
+
+Follow the existing pattern exactly.
+
+--------------------------------------------------
+STEP 3 — DEFINE PROVIDER DEFAULT ASSIGNMENT
+--------------------------------------------------
+
+Establish default capability assignment logic:
+
+For Provider organizations:
+
+- `LIENS_SELL = enabled`
+- `LIENS_MANAGE_INTERNAL = disabled`
+
+This should be:
+- applied at provisioning time
+- handled in Identity / product assignment logic
+- NOT hardcoded in Liens service
+
+Document clearly:
+- where this default is applied
+- whether it is configuration-driven, code-driven, or data-driven
+- how existing provider organizations would be handled
+
+--------------------------------------------------
+STEP 4 — SUPPORT OPTIONAL ENABLEMENT
+--------------------------------------------------
+
+Enable the ability to turn ON:
+
+- `LIENS_MANAGE_INTERNAL`
+
+Requirements:
+- can be enabled post-setup
+- does not require org type change
+- does not require Liens domain changes
+- is controlled through Identity
+
+Do NOT build UI.
+Just ensure the model supports it.
+
+If persistence changes are needed in Identity:
+- keep them minimal
+- follow the Identity service’s table prefix convention
+- document them clearly
+
+--------------------------------------------------
+STEP 5 — INTEGRATE WITH REQUEST CONTEXT
+--------------------------------------------------
+
+Ensure that capability information flows into:
+
+- `ICurrentRequestContext` (or equivalent)
+
+The Liens service must be able to determine:
+
+- does this org/user have `LIENS_SELL`?
+- does this org/user have `LIENS_MANAGE_INTERNAL`?
+
+Follow existing claim mapping patterns.
+
+Do NOT:
+- parse JWT manually
+- create a custom auth pipeline
+- bypass Identity abstractions
+
+--------------------------------------------------
+STEP 6 — DEFINE LIENS SERVICE CONSUMPTION PATTERN
+--------------------------------------------------
+
+Inside the Liens service:
+
+Define how future features will use capabilities.
+
+Examples:
+
+- can list lien for sale → requires `LIENS_SELL`
+- can create internal-only lien → requires `LIENS_MANAGE_INTERNAL`
+- if both are enabled → organization can do both
+
+You do NOT need to enforce this yet.
+
+You DO need to:
+- document how to check capabilities from context
+- optionally add a thin helper/extension method if consistent with platform patterns
+
+Example (conceptual only):
+- `context.HasCapability("LIENS_SELL")`
+- `context.HasCapability("LIENS_MANAGE_INTERNAL")`
+
+Do NOT overbuild.
+
+--------------------------------------------------
+STEP 7 — DO NOT MODIFY DOMAIN ENTITIES
+--------------------------------------------------
+
+Do NOT change:
+- Lien
+- LienOffer
+- Case
+- Facility
+- Contact
+
+Capabilities must remain:
+- external to domain
+- identity-driven
+
+--------------------------------------------------
+STEP 8 — VALIDATE NON-REGRESSION
+--------------------------------------------------
+
+Confirm:
+
+1. Identity builds successfully
+2. Liens service builds successfully
+3. Gateway builds successfully
+4. Existing identity integration still works
+5. No existing endpoint behavior is broken
+
+If schema changes are introduced in Identity:
+6. confirm they align with the service-owned table prefix convention
+7. confirm no Liens-owned tables were created for this feature
+
+--------------------------------------------------
+STEP 9 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-02-002-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing Identity model identified and reused
+3. Where capabilities are defined (roles/claims/etc.)
+4. Capability definitions:
+   - LIENS_SELL
+   - LIENS_MANAGE_INTERNAL
+5. Default Provider assignment logic
+6. How optional enablement works
+7. How capabilities flow into request context
+8. How Liens service will consume capabilities
+9. Any helper abstractions added (if any)
+10. Files changed (Identity + Liens if applicable)
+11. Build results:
+    - Identity
+    - Liens
+    - Gateway
+12. Confirmation:
+    - no v1 logic introduced
+    - no domain contamination
+    - no hardcoded behavior
+
+### REQUIRED DATABASE / OWNERSHIP SECTION
+13. Database / Ownership Alignment
+- whether any Identity persistence changes were required
+- if yes, what schema objects changed
+- confirmation they follow the service-owned prefix convention
+- confirmation that no Liens-owned persistence tables were introduced
+- confirmation that no legacy v1 table structures were adopted as final targets
+
+14. Risks / assumptions
+15. Final readiness statement:
+    - Is the capability model established?
+    - Is the system ready for capability-based workflows?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Introduce a clean, v2-aligned capability model that allows Providers to operate in both:
+- marketplace selling mode
+- internal lien management mode
+
+without breaking existing behavior or requiring future redesign, and while respecting the new service-owned database convention.
+
+Proceed.

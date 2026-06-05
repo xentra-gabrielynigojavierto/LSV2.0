@@ -1,0 +1,285 @@
+Implement a HIGH-FIDELITY UI body redesign for:
+
+Tenant Portal → Synq Liens → Case → Case Detail page
+
+Use the provided screenshot as the EXACT layout reference.
+
+--------------------------------------------------
+STRICT SCOPE (DO NOT VIOLATE)
+--------------------------------------------------
+
+- ONLY modify the BODY content area of the Case Detail page
+- DO NOT modify:
+  - top navigation
+  - side navigation
+  - global layout container
+  - fonts
+  - colors
+  - routing
+  - services
+  - APIs
+  - role-access logic
+  - provider-mode logic
+
+This is a STRUCTURAL + LAYOUT + SPACING + COMPONENT ORGANIZATION update only.
+
+--------------------------------------------------
+SCREEN REPLICATION TARGET (VERY IMPORTANT)
+--------------------------------------------------
+
+Replicate THIS EXACT screen structure:
+
+1. Page Header (inside body)
+2. Tabs row (Details, Liens, Documents, Servicing, Notes, Task Manager)
+3. Main content split:
+   - LEFT: primary content (details, related liens, activity)
+   - RIGHT: contextual panel (summary, key dates, contacts)
+
+Match:
+- spacing rhythm
+- section stacking
+- panel proportions
+- density
+- alignment
+
+Do NOT invent new sections.
+
+--------------------------------------------------
+HEADER SECTION (MATCH EXACTLY)
+--------------------------------------------------
+
+Structure:
+
+[ Title + subtitle + badge ]        [ Date of Loss | Carrier | Primary CTA ]
+
+Requirements:
+
+- Title (bold, medium-large)
+- Subtitle (smaller, muted)
+- Status badge inline with title (e.g., “Pre-Demand”)
+- Right-aligned metadata:
+  - Date of Loss
+  - Carrier
+- Primary action button (e.g., "Advance Status") aligned right
+
+Spacing:
+- Tight vertical spacing between title and subtitle
+- Clean horizontal alignment across entire header
+
+--------------------------------------------------
+TABS ROW
+--------------------------------------------------
+
+Tabs must appear directly under header:
+
+- Details (active)
+- Liens (with count badge)
+- Documents
+- Servicing
+- Notes
+- Task Manager
+
+Requirements:
+- Underline active tab
+- Compact spacing
+- No redesign of tab logic
+- Maintain routing behavior
+
+--------------------------------------------------
+MAIN BODY LAYOUT
+--------------------------------------------------
+
+Implement a split layout:
+
+LEFT PANEL (~70%)
+RIGHT PANEL (~30%)
+
+Use a reusable layout component:
+👉 SplitPanelLayout
+
+--------------------------------------------------
+SPLIT PANEL BEHAVIOR (REQUIRED)
+--------------------------------------------------
+
+Modes:
+- split (default)
+- left-expanded
+- right-expanded
+
+Behavior:
+- Default: both panels visible
+- Expand LEFT:
+  - left = full width
+  - right = hidden
+- Expand RIGHT:
+  - right = full width
+  - left = hidden
+- Provide restore to split
+
+Controls:
+- small toggle buttons between panels
+- subtle (not primary buttons)
+- vertically centered divider
+
+Rules:
+- local state only
+- no backend logic
+- no global store
+
+--------------------------------------------------
+LEFT PANEL STRUCTURE (MATCH SCREEN)
+--------------------------------------------------
+
+Stack vertically:
+
+1. Case Details Card
+   Fields:
+   - External Reference
+   - Insurance Carrier
+   - Policy Number
+   - Claim Number
+   - Demand Amount
+   - Settlement Amount
+   - Description
+
+Layout:
+- 2–3 column grid
+- labels (small, muted)
+- values (slightly stronger)
+- compact spacing
+
+2. Related Liens Card
+- header with count (right aligned)
+- empty state text:
+  "No liens linked to this case."
+- minimal height when empty
+
+3. Recent Activity Card
+- list format
+- each item:
+  - title
+  - user
+  - timestamp
+- compact vertical spacing
+- subtle separators or spacing only
+
+--------------------------------------------------
+RIGHT PANEL STRUCTURE (MATCH SCREEN)
+--------------------------------------------------
+
+Stack cards:
+
+1. Case Summary Card
+- 2x2 grid
+  - Total Liens
+  - Lien Amount
+  - Documents
+  - Open Tasks
+- values bold
+- labels small and muted
+
+2. Key Dates Card
+- vertical list:
+  - Date of Loss
+  - Date of Birth
+  - Case Opened
+  - Case Closed
+  - Last Updated
+- label left, value right
+
+3. Contacts Card
+- list of users
+- avatar initials
+- name + role
+
+--------------------------------------------------
+SECTION STYLING RULES
+--------------------------------------------------
+
+- Card style:
+  - light border
+  - white background
+  - subtle radius
+- Consistent padding across all cards
+- Section headers:
+  - medium weight
+  - left aligned
+  - optional icon
+
+--------------------------------------------------
+SPACING SYSTEM (CRITICAL FOR ACCURACY)
+--------------------------------------------------
+
+- Page padding: consistent (e.g., ~24px equivalent)
+- Card padding: consistent
+- Gap between cards: uniform vertical rhythm
+- Tight spacing inside metadata grids
+
+--------------------------------------------------
+TEMPORARY MOCK DISPLAY DATA (VISUAL ONLY)
+--------------------------------------------------
+
+Add temporary mock display data ONLY for visual completeness.
+
+Rules:
+- Do NOT override real API data
+- Use ONLY when fields are empty or missing
+- Scope ONLY to Case Detail page
+- Must be removable
+
+Mock examples:
+- Case name: "Test Case – Auto Claim"
+- Carrier: "Allstate Insurance"
+- Lien Amount: "$47,850.00"
+- Activity entries (3–5 realistic entries)
+- Contacts (2–3 entries)
+
+Add clear code comments:
+"// TEMP: UI mock data for visual review only"
+
+Document usage in report.
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze Existing Case Detail Page
+T002 — Build SplitPanelLayout
+T003 — Rebuild Header Section
+T004 — Implement Tabs Row Alignment
+T005 — Rebuild LEFT panel (3 sections)
+T006 — Rebuild RIGHT panel (3 cards)
+T007 — Add Split Panel Controls
+T008 — Add Mock Display Data (visual fallback only)
+T009 — Spacing + Alignment Refinement
+T010 — Validate Layout + Behavior
+
+--------------------------------------------------
+VALIDATION CHECKLIST
+--------------------------------------------------
+
+- Header matches layout exactly
+- Tabs aligned correctly
+- Left/right proportions correct
+- Cards match stacking order
+- Activity list readable and compact
+- Right panel visually consistent
+- Split panel works in all modes
+- No nav changes
+- No font/color changes
+- No logic broken
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- UI visually matches screenshot structure
+- Panel layout is accurate
+- Sections aligned and spaced correctly
+- Split panel interaction works
+- Mock data improves visual completeness (without breaking logic)
+- All functionality remains intact
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT modify nav, fonts, or colors.

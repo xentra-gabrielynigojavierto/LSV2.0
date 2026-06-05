@@ -1,0 +1,368 @@
+```text
+Project: E10.3
+Title: Workflow SLA / Timer Engine — Due, Overdue, and Escalation Processing
+
+You are implementing the next enterprise platform-deepening phase for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E10.3-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around SLA source-of-truth, deadline assignment precedence, timer polling behavior, escalation thresholds, notification recipients, idempotency, and any limitations in multi-instance timer evaluation.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - SLA model changes
+   - timer evaluator/worker changes
+   - outbox/event changes
+   - audit/notification changes
+   - configuration changes
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for richer escalation/ops visibility or needs iteration
+
+REPORT FORMAT
+
+# E10.3 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## SLA Model Notes
+## SLA Assignment Rules
+## Timer Evaluator Notes
+## Outbox / Event Notes
+## Audit / Notification Notes
+## Configuration Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Add a governed SLA / timer engine to Flow so workflows can carry due metadata, transition into due-soon / overdue / escalated states based on deterministic time rules, and emit durable asynchronous events through the existing outbox/worker infrastructure.
+
+This phase must build directly on the E10.2 outbox + async foundation and must not create a second execution engine or bypass Flow as the single execution authority.
+
+SCOPE INCLUDES
+
+- SLA/deadline model on workflows (and optionally current step)
+- SLA assignment on workflow creation/start and optionally step change
+- timer evaluator worker/service
+- deterministic due-soon / overdue / escalation classification
+- durable SLA/timer events via outbox
+- async audit/notification support for SLA transitions
+- configuration for thresholds/polling
+- documentation/reporting
+
+DO NOT BUILD
+
+- full BPM timer graph engine
+- holiday/business-calendar engine
+- arbitrary user-authored timer rules
+- broad Control Center redesign
+- tenant-portal redesign
+- complex escalation routing tree
+- bulk SLA admin actions
+- new distributed event bus
+- direct product-service DB access for SLA state
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep Flow as the single execution authority
+- persist SLA/deadline state explicitly and deterministically
+- ensure timer transitions are edge-triggered and do not spam duplicate events
+- use the E10.2 outbox for durable SLA event handling
+- keep notifications/audit asynchronous and resilient
+- preserve tenant isolation and service boundaries
+- avoid turning SLA evaluation into a hidden second workflow engine
+
+CURRENT CONTEXT
+
+Already completed:
+- WorkflowInstance as execution authority
+- hardened ownership / tenant isolation
+- validated tenant and admin UI surfaces
+- admin intervention actions (E10.1)
+- transactional outbox + async processor with retry/backoff/dead-letter (E10.2)
+
+Current limitation:
+- the system has no first-class time awareness
+- overdue/stuck semantics are mostly observational, not engine-driven
+- there is no durable due-soon / overdue / escalation signal
+
+This E10.3 phase should introduce time-based operational intelligence without destabilizing execution.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. SLA MODEL
+
+Add a persistent SLA model.
+
+At minimum support fields equivalent to:
+- DueAt
+- IsOverdue
+- OverdueSince
+- SlaStatus (for example: OnTrack / DueSoon / Overdue / Escalated)
+- EscalationLevel (if escalation is implemented)
+- LastSlaEvaluatedAt
+
+This may live directly on WorkflowInstance or in a tightly related SLA entity, but the chosen model must be documented clearly.
+
+Requirements:
+- state must be persisted, not only computed transiently
+- model must be simple and operational
+- explicit timestamps are preferred over opaque derived-only logic
+- the system must be able to tell whether an SLA transition already happened
+
+2. SLA ASSIGNMENT RULES
+
+Define how deadlines are assigned.
+
+Acceptable first-phase sources:
+- workflow definition default SLA
+- current-step SLA from workflow definition step/stage
+- product-default SLA
+- instance override if already supported safely
+
+Requirements:
+- document the exact precedence implemented
+- assign SLA/due metadata when a workflow is created or started
+- if step-level SLA is supported, recompute current due time on step transition
+- if only workflow-level SLA is implemented in this phase, document that clearly and do not imply step-level semantics
+
+Recommended precedence:
+1. explicit instance override
+2. workflow definition current-step SLA
+3. workflow definition default SLA
+4. product default SLA
+
+3. TIMER EVALUATOR WORKER
+
+Add a background evaluator that scans workflows and detects SLA transitions.
+
+Requirements:
+- run on configurable interval
+- scan eligible workflows (for example non-terminal workflows)
+- compute whether each is:
+  - OnTrack
+  - DueSoon
+  - Overdue
+  - Escalated (if supported)
+- persist the new SLA state if it changes
+- emit durable outbox events only when the SLA state changes
+- do not block request paths
+
+Rules:
+- if multiple app instances could run the evaluator, use the safest practical approach or document the current limitation
+- avoid duplicate transition emission for unchanged rows
+- keep the evaluator separate from the main outbox processor if that is cleaner, but reuse the same resilience patterns where possible
+
+4. DUE-SOON / OVERDUE / ESCALATION SEMANTICS
+
+Implement deterministic rules.
+
+Minimum required:
+- OnTrack
+- Overdue
+
+Strongly recommended:
+- DueSoon
+- Escalated
+
+Suggested baseline:
+- DueSoon when now >= DueAt - DueSoonThreshold
+- Overdue when now > DueAt
+- Escalated when Overdue duration exceeds EscalationThreshold
+
+Requirements:
+- thresholds must be configurable or clearly documented defaults
+- transitions must be explainable and stable
+- repeated polling must not emit the same transition endlessly
+- if escalation levels are not implemented beyond one step, document that explicitly
+
+5. DURABLE SLA / TIMER EVENTS
+
+Use the existing E10.2 outbox for timer-driven transitions.
+
+At minimum support event types such as:
+- workflow.sla.dueSoon
+- workflow.sla.overdue
+- workflow.sla.escalated
+
+Requirements:
+- timer evaluator writes outbox events when state changes
+- payload must include durable context, such as:
+  - workflowInstanceId
+  - tenantId
+  - productKey
+  - current step / currentStepKey if available
+  - dueAt
+  - previousSlaStatus
+  - newSlaStatus
+  - escalationLevel if present
+- repeated evaluator runs must not enqueue duplicate events unless the SLA state actually changes
+
+6. AUDIT INTEGRATION
+
+Add SLA-transition audit behavior via async processing.
+
+Requirements:
+- dueSoon transition creates audit event
+- overdue transition creates audit event
+- escalated transition creates audit event if implemented
+- audit metadata should include:
+  - workflowInstanceId
+  - tenantId
+  - productKey
+  - previousSlaStatus
+  - newSlaStatus
+  - dueAt
+  - overdue duration if applicable
+  - source = WorkflowSlaEngine (or equivalent)
+- preserve E10.2 async audit pattern; do not reintroduce fragile inline-only behavior
+
+7. NOTIFICATION INTEGRATION
+
+Add asynchronous notification support for SLA transitions where feasible.
+
+Requirements:
+- dueSoon and/or overdue notifications should be emitted through the existing async adapter path
+- recipient strategy must be documented clearly
+- acceptable initial targets:
+  - assigned user
+  - assigned role
+  - platform/tenant admin escalation target
+- if recipient targeting is not fully available yet, implement the maximum safe subset and document the remaining gap honestly
+
+Important:
+- do not redesign the notification platform here
+- keep this phase focused on durable timer signals and basic usable recipients
+
+8. TIMER SAFETY / IDEMPOTENCY
+
+This is mandatory.
+
+Requirements:
+- avoid duplicate SLA transition events for unchanged workflows
+- evaluator should compare previous persisted SLA state vs newly computed state
+- only emit event/outbox row when the state actually changes
+- document how idempotency is preserved across evaluator reruns and outbox retries
+- ensure retries of timer-event processing do not corrupt workflow state
+
+Acceptable strategy:
+- persist current SlaStatus and EscalationLevel
+- emit only on change
+- downstream dedupe still uses outboxId as in E10.2
+
+9. CONFIGURATION
+
+Support configuration keys for at least:
+- worker enabled/disabled
+- polling interval
+- dueSoon threshold
+- escalation threshold
+- default workflow SLA if centrally configured
+- batch size if needed
+
+Requirements:
+- use sane defaults
+- document config keys and defaults
+- startup should remain diagnosable if config is invalid
+- if some values are optional, document fallback behavior clearly
+
+10. CONTROL CENTER / VISIBILITY IMPACT
+
+This phase should support future ops visibility without requiring a full UI build.
+
+Requirements:
+- ensure SLA fields and/or transitions are available for future E9/E10 admin surfaces
+- if a minimal enhancement to existing exception/stuck views is trivial and safe, acceptable additions include:
+  - SlaStatus
+  - DueAt
+  - OverdueSince
+- do not turn this phase into a broad Control Center redesign
+- document what follow-up UI work would expose the new SLA state most effectively
+
+11. VALIDATION
+
+You MUST validate and record in the report:
+
+SLA Assignment
+- new workflows get due/SLA metadata
+- precedence rules behave as documented
+
+Timer Evaluation
+- evaluator detects dueSoon/overdue correctly
+- escalation occurs at configured threshold if implemented
+- state changes are persisted
+
+Outbox
+- SLA transitions create durable outbox events
+- duplicate polling does not spam duplicate outbox rows for unchanged state
+
+Audit / Notifications
+- at least one SLA transition produces an audit record asynchronously
+- at least one SLA transition produces a notification if wired in this phase
+- downstream failures do not corrupt workflow state
+
+Build / Runtime
+- backend builds
+- timer worker starts
+- E10.2 outbox worker still works
+- existing execution/admin actions are not regressed
+
+Documentation
+- SLA model documented
+- threshold config documented
+- timer event types documented
+- operational notes documented
+
+12. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E10.3 unless strictly required:
+- complex business-calendar rules
+- holiday/timezone-aware business schedules beyond basic defaults
+- arbitrary user-authored SLA rules
+- bulk SLA admin actions
+- advanced Control Center SLA dashboards
+- escalation chains beyond the implemented level
+- workflow-engine redesign
+- distributed event bus adoption
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current WorkflowInstance model and E10.2 outbox/worker foundation.
+2. Create /analysis/E10.3-report.md immediately and begin logging assumptions/actions.
+3. Add SLA fields/entity and migration.
+4. Implement SLA assignment on workflow creation/start and optionally step transitions.
+5. Add the timer evaluator worker/service.
+6. Emit durable SLA/timer outbox events on SLA state changes.
+7. Wire async audit/notification handling for those events.
+8. Validate idempotent transition behavior and duplicate suppression.
+9. Add configuration/documentation.
+10. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E10.3 is successful when:
+- workflows carry usable SLA/deadline data
+- a timer evaluator detects dueSoon/overdue/escalation states deterministically
+- SLA transitions emit durable outbox events only on real state changes
+- async audit/notifications react to those transitions safely
+- duplicate timer spam is prevented
+- Flow remains the single execution authority
+- the platform gains real time-based operational intelligence
+
+FAILURE CONDITION
+
+E10.3 fails if:
+- overdue logic is ad hoc or not persisted
+- timer events are emitted repeatedly without state-change control
+- SLA evaluation bypasses Flow boundaries
+- notifications/audit revert to fragile inline behavior
+- the implementation becomes a hidden second execution engine
+- existing workflow behavior regresses
+```

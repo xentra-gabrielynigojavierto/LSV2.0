@@ -1,0 +1,355 @@
+TASK-MIG-02 — Templates Migration (Liens → Task)
+
+OBJECTIVE:
+Migrate Liens task templates from `liens_TaskTemplates` into the Task service (`tasks_Templates`) so Task becomes the primary template host for Liens-generated work, while preserving Liens behavior and keeping a safe fallback path during transition.
+
+This is the SECOND safe migration step in the DB convergence plan.
+
+NON-NEGOTIABLE RULES:
+- ZERO UI behavior change
+- ZERO breaking change to Liens task generation
+- MUST be backward compatible during transition
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- DO NOT delete `liens_TaskTemplates` in this step
+- DO NOT migrate stage config in this prompt
+- DO NOT redesign generation rules in this prompt
+- MUST reconcile schema differences safely
+- NO placeholders
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-02-report.md
+
+Initialize with:
+
+# TASK-MIG-02 Report — Templates Migration
+
+## 1. Codebase Analysis
+## 2. Schema Comparison
+## 3. Migration Mapping Design
+## 4. Task Schema Adjustments
+## 5. Data Migration Execution
+## 6. Dual-Read / Fallback Logic
+## 7. Generation Flow Compatibility
+## 8. Validation Results
+## 9. Rollback Plan
+## 10. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT IMPLEMENTATION
+--------------------------------------------------
+
+Inspect:
+
+Liens:
+- `liens_TaskTemplates` table
+- entity + configuration
+- repository and service usage
+- where templates are read in:
+  - task generation
+  - admin/template endpoints
+  - default task creation flows
+- any fields used indirectly by:
+  - generation rules
+  - workflow-stage applicability
+  - duplicate-prevention semantics
+
+Task:
+- `tasks_Templates` table
+- entity + configuration
+- repository + service + API endpoints
+- how templates are currently resolved by product / tenant
+
+Document:
+- all fields in both schemas
+- current read/write paths
+- semantic mismatches
+- dependencies on template IDs in generation flows
+
+Update:
+## 1. Codebase Analysis
+## 2. Schema Comparison
+
+--------------------------------------------------
+STEP 2 — DESIGN FIELD MAPPING
+--------------------------------------------------
+
+Map Liens template fields into Task template fields.
+
+At minimum identify direct mappings such as:
+- TenantId
+- ProductCode / SourceProductCode
+- Name
+- Description
+- DefaultTitle
+- DefaultDescription
+- DefaultPriority
+- DefaultDueOffsetDays / DefaultDueInDays
+- IsActive
+
+Identify Liens-specific fields that do NOT have a direct Task equivalent, likely including things such as:
+- ContextType
+- ApplicableWorkflowStageId
+- DefaultRoleId / owner-role defaults
+- any product-specific applicability metadata
+
+Decision rule:
+- DO NOT drop Liens-specific meaning
+- Store extra Liens-specific fields in Task using:
+  - `ProductSettingsJson` / `MetadataJson` / equivalent JSON extension field, if a clean pattern exists
+  - otherwise add the smallest safe extension to Task schema
+
+Define the exact JSON shape or extension model for `SYNQ_LIENS`.
+
+Also define:
+- template code strategy
+- version behavior
+- ID preservation or translation strategy
+
+IMPORTANT:
+You MUST explicitly decide whether Task template IDs should:
+1. preserve Liens template IDs directly, OR
+2. use new Task IDs with mapping strategy
+
+Bias toward the safest option for generation compatibility.
+
+Update:
+## 3. Migration Mapping Design
+
+--------------------------------------------------
+STEP 3 — ADJUST TASK SCHEMA (IF REQUIRED)
+--------------------------------------------------
+
+If Task schema cannot safely represent Liens template semantics, add the minimum safe extension.
+
+Preferred options:
+- `ProductSettingsJson` or `MetadataJson` column on `tasks_Templates`
+- only add explicit nullable columns if there is no clean extension pattern already in use
+
+Rules:
+- MUST be backward compatible
+- MUST NOT break existing Task template consumers
+- MUST follow existing migration patterns
+- MUST keep Task generic
+
+Create migration if needed:
+- name should clearly reflect template extension for Liens migration
+
+Apply migration.
+
+Update:
+## 4. Task Schema Adjustments
+
+--------------------------------------------------
+STEP 4 — DATA MIGRATION
+--------------------------------------------------
+
+Implement migration logic to copy/upsert Liens templates into Task.
+
+For each row in:
+- `liens_TaskTemplates`
+
+Create or update row in:
+- `tasks_Templates`
+
+Requirements:
+- `SourceProductCode = SYNQ_LIENS`
+- migration must be idempotent
+- upsert behavior only — no duplicates
+- must preserve all semantics needed by current Liens generation flows
+- log:
+  - created
+  - updated
+  - skipped
+  - failed
+
+Important:
+Do NOT delete Liens templates.
+Do NOT break existing generation rule references.
+
+If ID preservation is chosen:
+- preserve IDs safely
+
+If ID preservation is NOT chosen:
+- implement a reliable mapping or lookup strategy and document it clearly
+
+Update:
+## 5. Data Migration Execution
+
+--------------------------------------------------
+STEP 5 — DUAL-READ IMPLEMENTATION
+--------------------------------------------------
+
+Modify Liens template resolution to prefer Task service while retaining Liens fallback.
+
+Read path rule:
+1. Try Task service first
+2. If not found / unavailable, fall back to Liens DB
+3. Log which source was used
+
+Apply this to all runtime template reads that matter for:
+- task generation
+- template admin retrieval
+- any template-based task creation flow
+
+Rules:
+- Task = primary
+- Liens = fallback
+- no behavior regression
+- no forced cutover yet
+
+Update:
+## 6. Dual-Read / Fallback Logic
+
+--------------------------------------------------
+STEP 6 — GENERATION FLOW COMPATIBILITY
+--------------------------------------------------
+
+This step is critical.
+
+Validate and adjust generation flows so migrating templates does NOT break:
+- template-based task creation
+- generation rules referencing templates
+- duplicate prevention
+- stage applicability behavior
+- default due-date / priority behavior
+
+Specifically inspect:
+- whether generation rules store `TaskTemplateId`
+- whether those IDs point to Liens template rows directly
+- whether Task service task creation from template can be used directly, or Liens must still resolve the template and call generic task create
+- whether `ApplicableWorkflowStageId` depends on Liens stage IDs that have NOT moved yet
+
+You must preserve behavior without prematurely migrating stages.
+
+If stage references cannot be moved yet:
+- retain them as Liens-side metadata
+- do not break template applicability checks
+
+Document exactly how compatibility is preserved.
+
+Update:
+## 7. Generation Flow Compatibility
+
+--------------------------------------------------
+STEP 7 — WRITE-THROUGH BEHAVIOR
+--------------------------------------------------
+
+For template admin updates/creates in Liens:
+
+Keep Liens DB as authoritative during migration, but implement best-effort sync to Task service, using the same pattern as governance migration if appropriate.
+
+Rules:
+- write to Liens DB first
+- sync to Task second
+- Task sync failure must NOT break admin save
+- startup/background sync may reconcile later if needed
+
+If there is no current admin template write path in scope, document that clearly and only implement what is actually needed by the codebase.
+
+Update:
+## 6. Dual-Read / Fallback Logic
+## 7. Generation Flow Compatibility
+
+--------------------------------------------------
+STEP 8 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. Existing Liens behavior unchanged in UI/admin flows
+2. Task service stores Liens templates correctly
+3. Task-first template read works
+4. Liens fallback works when Task template missing
+5. Migration is idempotent (running twice causes no duplicates)
+6. Mixed state works (some templates migrated, some not)
+7. Template-based task generation still works
+8. Rule-based generation referencing templates still works
+9. Default priority / due-date / title / description still map correctly
+10. No runtime errors if Task service temporarily unavailable
+11. If Task schema was extended, existing Task template behavior still works
+
+Verify builds for all changed services.
+
+Update:
+## 8. Validation Results
+
+--------------------------------------------------
+STEP 9 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting Liens runtime reads to Liens-only
+- keeping Task template data untouched
+- disabling sync job / sync path
+- no data loss
+- no schema rollback required unless strictly necessary
+
+If Task schema was extended, explain whether rollback requires reversing the migration or whether the added fields are harmless if left in place.
+
+Update:
+## 9. Rollback Plan
+
+--------------------------------------------------
+STEP 10 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any fields not perfectly mapped
+- any temporary duplication
+- template ID risks
+- stage applicability risks
+- generation-rule coupling risks
+- future cleanup needed before stage migration
+- whether a later cleanup task is required to remove Liens template ownership
+
+Update:
+## 10. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-02 is complete only if:
+
+1. Liens templates exist in Task service
+2. Liens can read templates from Task successfully
+3. Liens fallback still works
+4. Template-based generation still works without regression
+5. Migration is idempotent
+6. No UI/API behavior regression occurs
+7. Safe to proceed to the next migration step later
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT delete `liens_TaskTemplates`
+- Do NOT migrate stages in this prompt
+- Do NOT migrate transitions in this prompt
+- Do NOT redesign generation rules
+- Do NOT switch final template ownership completely yet
+- Do NOT remove Liens fallback logic
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens template entities / repositories / services / admin endpoints
+- Task template entities / DTOs / services / endpoints
+- Liens ↔ Task service client
+- any startup/background sync component if needed
+- migrations only if required for safe schema extension
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

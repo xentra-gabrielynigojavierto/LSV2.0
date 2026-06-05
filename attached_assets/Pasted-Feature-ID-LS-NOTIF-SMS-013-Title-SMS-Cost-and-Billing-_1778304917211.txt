@@ -1,0 +1,472 @@
+Feature ID: LS-NOTIF-SMS-013
+
+Title:
+SMS Cost and Billing Analytics
+
+Objective:
+Add SMS cost tracking, provider spend visibility, tenant usage allocation, and operational billing analytics inside Notification Service and Control Center so platform operators can analyze SMS spend, provider efficiency, tenant attribution, retry/failure spend, and usage trends.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- SMS delivery execution metadata
+- tenant/provider attribution
+- provider message identifiers
+- SMS reconciliation state
+- SMS cost metadata
+- SMS cost aggregation APIs
+
+Control Center must only consume Notification Service APIs and render cost analytics UI. Do not duplicate cost aggregation logic in Control Center.
+
+Requirements:
+- Implement SMS cost persistence and aggregation inside Notification Service.
+- Implement Control Center cost analytics UI as a consumer of Notification Service APIs only.
+- Do not introduce a real invoicing engine.
+- Do not add payment processing.
+- Do not add tax calculation.
+- Do not add external accounting integration.
+- Do not expose provider credentials, webhook URLs, CredentialsJson, SettingsJson, auth tokens, raw provider payloads, or full phone numbers.
+- Preserve existing outbound SMS delivery, reconciliation, dashboard, alerting, escalation, and incident-management behavior.
+- Keep implementation incremental and production-oriented.
+
+Implementation Requirements:
+1. Persist safe SMS cost metadata on SMS attempts or a Notification Service-local cost table.
+2. Attribute SMS costs by tenant, provider, providerConfigId, providerOwnershipMode, status, and date.
+3. Support estimated cost initially where provider actual billing data is unavailable.
+4. Support actual/reconciled cost if provider lookup returns safe billing/cost fields.
+5. Add admin cost analytics APIs inside Notification Service.
+6. Add Control Center SMS Cost Analytics UI.
+7. Support summary, trend, provider, tenant, ownership-mode, failure-cost, and retry-cost analytics.
+8. Support CSV/export-friendly reporting endpoint or export-ready JSON endpoint.
+9. Preserve all existing SMS operational APIs and UI behavior.
+10. Keep all cost analytics read-only except explicit cost metadata backfill/update operations if absolutely necessary.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, ProviderConfigId, ProviderOwnershipMode, TenantId, provider, status, reconciliation, dashboard, activity, endpoint, authorization, migration, and Control Center UI patterns where appropriate.
+- Do NOT introduce large rewrites.
+- Do NOT store provider credentials or raw provider payloads in cost fields.
+- Do NOT expose full phone numbers.
+- Do NOT call external payment/billing processors.
+- Do NOT perform FX conversion in this feature.
+- Use a single currency per cost record, preferably ISO currency code such as USD.
+- If provider actual cost is unavailable, store/use estimated cost and clearly mark costSource = estimated.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-013-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing NotificationAttempt/cost-relevant field findings
+3. Existing tenant/provider attribution findings
+4. Existing reconciliation/vendor lookup findings
+5. Existing dashboard/activity API findings
+6. Existing Control Center dashboard findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. UI/route changes
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing SMS Cost-Relevant Architecture
+- Identify:
+  - NotificationAttempt entity/table fields
+  - TenantId, Provider, ProviderConfigId, ProviderOwnershipMode fields
+  - ProviderMessageId storage
+  - AttemptNumber / retry/failover fields
+  - Status / FailureCategory / ErrorMessage fields
+  - Reconciliation status/cost metadata opportunities
+  - Twilio status lookup response parsing from LS-NOTIF-SMS-004
+  - SMS activity/dashboard repository patterns
+  - Control Center SMS dashboard page/API client from LS-NOTIF-SMS-009
+  - Existing export/download patterns if any
+  - Existing migration/startup schema safety-net conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Cost Persistence Model
+Choose the least disruptive persistence model.
+
+Preferred option:
+Add cost fields to NotificationAttempt if it already owns SMS provider execution metadata.
+
+Suggested fields:
+- EstimatedCostAmount decimal? nullable
+- ActualCostAmount decimal? nullable
+- CostCurrency string? nullable, default USD where configured
+- CostSource string? nullable
+- CostRecordedAt DateTime? nullable
+- ProviderBillingReference string? nullable
+
+Alternative option:
+Create SmsAttemptCost table if adding fields to NotificationAttempt would be inappropriate.
+
+Suggested cost source values:
+- estimated
+- provider_reconciled
+- manual
+- unavailable
+
+Requirements:
+- Cost metadata must be scoped to SMS attempts only.
+- Do not store provider credentials.
+- Do not store raw provider billing payloads.
+- Do not store phone numbers.
+- Use decimal for monetary values.
+- Use ISO currency codes.
+- Existing attempts must remain valid.
+- Default values must not imply actual spend when unknown.
+
+STEP 3 — Add Cost Estimation Configuration
+Add configuration for baseline SMS cost estimation.
+
+Suggested config:
+SmsCostAnalytics:
+- Enabled bool default true
+- DefaultCurrency string default USD
+- DefaultEstimatedOutboundSmsCost decimal default 0.00 or configurable
+- TwilioEstimatedOutboundSmsCost decimal nullable
+- FailedMessageCostPolicy string default count_estimated_when_provider_accepted
+- RetryCostPolicy string default per_attempt
+
+Environment variable examples:
+- SMS_COST_DEFAULT_CURRENCY=USD
+- SMS_COST_DEFAULT_ESTIMATED_OUTBOUND_COST=0.0000
+- SMS_COST_TWILIO_ESTIMATED_OUTBOUND_COST=0.0075
+
+Requirements:
+- Safe defaults.
+- If cost is unknown, use 0.00 or null with CostSource = unavailable; do not invent actual cost.
+- Estimated values must be configurable.
+- Documentation must clearly state estimated cost is not invoice-grade billing.
+
+STEP 4 — Populate Cost Metadata During SMS Send
+Update outbound SMS send attempt handling so successful provider acceptance can record estimated cost metadata.
+
+Requirements:
+- Cost should be recorded only for SMS attempts.
+- Use provider-specific configured estimate where available.
+- If no estimate configured, set CostSource = unavailable or EstimatedCostAmount = null.
+- Preserve existing send/retry/dead-letter behavior.
+- Do not affect delivery success/failure semantics.
+- Do not block send if cost recording fails unless existing repository patterns require it.
+- Do not store recipient phone or provider secrets.
+
+STEP 5 — Update Reconciliation to Capture Actual Cost if Available
+Review Twilio Message lookup response from vendor reconciliation.
+
+Requirements:
+- If Twilio lookup provides safe billing price/currency fields and current adapter parses them, map to ActualCostAmount / CostCurrency / CostSource = provider_reconciled.
+- If Twilio billing price is unavailable or not parsed, do not fake actual cost.
+- Preserve existing reconciliation behavior.
+- Provider lookup failures must not impact cost data except maybe CostSource remains estimated/unavailable.
+- Do not store raw vendor payloads.
+- Do not store provider credentials.
+
+Note:
+If actual provider billing fields are not available in current Twilio response parsing, document actual cost as a known gap and keep estimated-cost analytics only.
+
+STEP 6 — Add Cost Aggregation Query Models
+Add Notification Service-local DTOs/query models.
+
+Suggested filters:
+- tenantId
+- provider
+- providerConfigId
+- providerOwnershipMode
+- status
+- failureCategory
+- from
+- to
+- currency
+- costSource
+
+Suggested summary DTO:
+- totalAttempts
+- costedAttempts
+- totalEstimatedCost
+- totalActualCost
+- totalEffectiveCost
+- deliveredCost
+- failedCost
+- retryCost
+- deadLetterCost
+- tenantOwnedCost
+- platformOwnedCost
+- costPerDeliveredMessage
+- currency
+
+Effective cost rule:
+- Prefer ActualCostAmount when present.
+- Otherwise use EstimatedCostAmount.
+- Otherwise treat as 0 or exclude, but be explicit in DTO metadata.
+
+Suggested trend DTO:
+- bucketStart
+- bucketEnd
+- totalAttempts
+- totalEffectiveCost
+- deliveredCost
+- failedCost
+- retryCost
+
+Suggested provider breakdown DTO:
+- provider
+- providerConfigId
+- providerOwnershipMode
+- totalAttempts
+- deliveredAttempts
+- failedAttempts
+- totalEffectiveCost
+- costPerDeliveredMessage
+- currency
+
+Suggested tenant breakdown DTO:
+- tenantId
+- totalAttempts
+- deliveredAttempts
+- failedAttempts
+- totalEffectiveCost
+- costPerDeliveredMessage
+- currency
+
+STEP 7 — Add Notification Service Cost Repository/Service
+Add repository/service for cost analytics.
+
+Suggested interfaces:
+- ISmsCostAnalyticsRepository
+- ISmsCostAnalyticsService
+
+Suggested methods:
+- GetSummaryAsync(SmsCostQuery query, CancellationToken ct)
+- GetTrendsAsync(SmsCostQuery query, CancellationToken ct)
+- GetProviderBreakdownAsync(SmsCostQuery query, CancellationToken ct)
+- GetTenantBreakdownAsync(SmsCostQuery query, CancellationToken ct)
+- GetFailureCostBreakdownAsync(SmsCostQuery query, CancellationToken ct)
+- ExportAsync(SmsCostQuery query, CancellationToken ct)
+
+Requirements:
+- Always filter Channel == sms.
+- Support PlatformAdmin/admin scope.
+- Use database-side aggregation where practical.
+- Keep queries bounded.
+- Use date range defaults for trends/exports.
+- Do not return recipient data.
+- Do not return provider secrets.
+- Do not call external billing systems.
+- Do not call SMS providers.
+
+STEP 8 — Add Notification Service Admin Cost APIs
+Add admin-only cost analytics endpoints.
+
+Suggested endpoints:
+- GET /v1/admin/sms/costs/summary
+- GET /v1/admin/sms/costs/trends
+- GET /v1/admin/sms/costs/providers
+- GET /v1/admin/sms/costs/tenants
+- GET /v1/admin/sms/costs/failures
+- GET /v1/admin/sms/costs/export
+
+Common filters:
+- tenantId
+- provider
+- providerConfigId
+- providerOwnershipMode
+- status
+- failureCategory
+- from
+- to
+- currency
+- costSource
+
+Trend parameters:
+- bucket=hour|day|week
+
+Export requirements:
+- Return CSV if existing API patterns support file responses.
+- Otherwise return export-ready JSON rows.
+- Must not include recipient phones, credentials, raw payloads, or webhook URLs.
+
+Requirements:
+- Require existing admin authorization, e.g. Policies.AdminOnly.
+- APIs are read-only.
+- No provider calls.
+- No payment processor calls.
+- No FX conversion.
+
+STEP 9 — Add Control Center Cost Analytics API Client
+Add Control Center API client methods for cost endpoints.
+
+Requirements:
+- Reuse existing Notification Service API client pattern.
+- Add TypeScript DTOs/interfaces.
+- Support filters:
+  - window/date range
+  - tenantId
+  - provider
+  - ownership mode
+  - status
+  - costSource
+  - bucket
+- Preserve authenticated request handling.
+- Do not log sensitive data.
+
+STEP 10 — Add Control Center SMS Cost Analytics UI
+Add PlatformAdmin-only Control Center UI.
+
+Suggested route:
+- /notifications/sms-costs
+or follow existing Notification/SMS dashboard route conventions.
+
+Suggested sections:
+1. Cost KPI cards
+2. Cost trend chart
+3. Provider cost breakdown table
+4. Tenant cost breakdown table
+5. Failure/retry cost breakdown table
+6. Export/download action if API supports it
+
+Suggested KPI cards:
+- Total Effective Cost
+- Estimated Cost
+- Actual Cost
+- Costed Attempts
+- Cost per Delivered SMS
+- Failed Spend
+- Retry Spend
+- Tenant-Owned Spend
+- Platform-Owned Spend
+
+Requirements:
+- PlatformAdmin-only route.
+- Use Notification Service APIs only.
+- Do not duplicate aggregation logic.
+- No credentials or raw recipient data displayed.
+- Clearly label estimated vs actual cost.
+- Show currency.
+- Handle loading/error/empty states.
+- Preserve existing Control Center functionality.
+
+STEP 11 — Documentation
+Update documentation/report notes for:
+- cost field definitions
+- estimated vs actual cost distinction
+- effective cost calculation
+- cost source meanings
+- configuration settings
+- API endpoints
+- Control Center route
+- export behavior
+- limitations
+- non-goals such as invoicing/tax/payment/FX
+
+Documentation must explain:
+- this is operational cost analytics, not invoice-grade billing
+- actual provider cost may be unavailable until provider billing integration exists
+- estimated values are configurable assumptions
+- cost analytics do not trigger sends/retries/provider calls
+
+STEP 12 — Validation
+Perform validation/testing for:
+
+Schema/model:
+- cost fields/table created
+- existing attempts remain valid
+- decimal precision correct
+- currency stored safely
+- no credentials/raw payloads stored
+
+Cost recording:
+- SMS successful attempt records estimated cost when configured
+- no estimate configured results in unavailable/null cost safely
+- non-SMS attempts do not record SMS cost
+- retry attempts can be costed per attempt
+- send behavior unchanged if cost recording fails
+
+Reconciliation:
+- actual cost updates only if provider-safe cost fields are available
+- no fake actual cost generated
+- reconciliation behavior unchanged
+- provider lookup failures do not break cost data
+
+Cost APIs:
+- summary works
+- trends work
+- provider breakdown works
+- tenant breakdown works
+- failure/retry cost breakdown works
+- export works or export-ready JSON works
+- filters respected
+- admin authorization enforced
+- no secrets/phone numbers exposed
+
+Control Center UI:
+- route PlatformAdmin-only
+- KPI cards render
+- trend chart renders
+- provider table renders
+- tenant table renders
+- failure/retry table renders
+- estimated/actual labels clear
+- currency displayed
+- export action works if implemented
+- loading/error/empty states work
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS send unchanged except additive cost metadata
+- LS-NOTIF-SMS-002 preference enforcement unchanged
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- LS-NOTIF-SMS-004 reconciliation behavior unchanged except additive actual cost metadata if available
+- LS-NOTIF-SMS-005 tenant runtime provider resolution unchanged
+- LS-NOTIF-SMS-006 activity APIs unchanged
+- LS-NOTIF-SMS-007 reconciliation tracking unchanged
+- LS-NOTIF-SMS-008 dashboard APIs unchanged
+- LS-NOTIF-SMS-009 dashboard UI unchanged
+- LS-NOTIF-SMS-010 alerting unchanged
+- LS-NOTIF-SMS-011 escalation unchanged
+- LS-NOTIF-SMS-012 incident UI unchanged
+- email/in-app notification behavior unchanged
+
+Security:
+- no credentials exposed
+- no webhook URLs exposed
+- no raw provider payloads exposed
+- no phone numbers exposed
+- cost export contains safe operational data only
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SMS cost persistence fields or table
+- SMS cost configuration
+- Estimated cost recording on SMS attempts
+- Actual cost update from provider reconciliation if available
+- SMS cost analytics repository/service
+- Admin cost analytics APIs
+- Export/export-ready endpoint
+- Control Center SMS Cost Analytics API client
+- Control Center SMS Cost Analytics UI
+- Documentation/report
+- Completed analysis report
+
+Do NOT:
+- Build invoicing engine
+- Add tax logic
+- Add payment processing
+- Add external accounting integration
+- Add FX conversion
+- Add conversational inbound SMS
+- Add new SMS providers
+- Expose provider credentials or secrets
+- Expose webhook URLs
+- Expose full phone numbers
+- Store raw provider billing payloads
+- Duplicate cost aggregation logic in Control Center
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-012 behavior

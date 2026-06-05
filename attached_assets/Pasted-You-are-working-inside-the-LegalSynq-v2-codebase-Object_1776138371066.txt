@@ -1,0 +1,273 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Define the EF Core persistence model and entity configurations for the currently approved Liens domain entities so the v2 `liens` service has a clean, normalized, service-owned relational schema design.
+
+This feature is persistence modeling only. It is NOT for repositories, query services, ETL scripts, API endpoints, or frontend work yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION / PERSISTENCE RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Do NOT adopt legacy v1 table names as final runtime targets
+- All Liens-owned tables must use the `liens_` prefix
+- Shared-service-owned data must remain outside Liens ownership
+
+DATABASE OWNERSHIP RULE:
+- Liens-owned persistence tables → `liens_*`
+- Identity-owned persistence → `idt_*` (reference only, no FK)
+- Documents-owned persistence → `docs_*` (reference only, no FK)
+- Notifications-owned persistence → `ntf_*` (reference only, no FK)
+- Audit-owned persistence → `aud_*` (reference only, no FK)
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING V2 PERSISTENCE PATTERNS
+--------------------------------------------------
+
+Inspect the current EF Core configuration style used in v2 services such as:
+- Identity
+- Fund
+- CareConnect
+- Audit
+- Documents (if relevant pattern exists)
+
+Understand:
+- where entity configurations are placed
+- naming conventions
+- `ToTable()` usage
+- index definitions
+- FK/delete behavior conventions
+- decimal precision conventions
+- audit base field mapping conventions
+
+Follow the existing v2 pattern exactly.
+Do NOT invent a new persistence style for Liens.
+
+--------------------------------------------------
+STEP 2 — INSPECT THE CURRENT LIENS DOMAIN + MIGRATION MATRIX
+--------------------------------------------------
+
+Use as source of truth:
+- current Liens domain entities
+  - Case
+  - Contact
+  - Facility
+  - LookupValue
+  - Lien
+  - LienOffer
+  - BillOfSale
+- approved migration matrix (LS-LIENS-03-005)
+- completed capability model / capability abstraction
+
+Understand:
+- which fields must be persisted
+- which fields are cross-service references only
+- which Liens-owned relationships must be FK-mapped
+- which fields must support API compatibility and donor behavior
+
+Do NOT add new domain entities in this feature.
+
+--------------------------------------------------
+STEP 3 — ADD EF CORE CONFIGURATIONS FOR THE 7 APPROVED ENTITIES
+--------------------------------------------------
+
+Create fluent EF Core configuration classes for:
+
+1. `Case`
+2. `Contact`
+3. `Facility`
+4. `LookupValue`
+5. `Lien`
+6. `LienOffer`
+7. `BillOfSale`
+
+Use the correct Infrastructure persistence/configuration location based on existing v2 conventions.
+
+Requirements:
+- use fluent configuration
+- use explicit `ToTable("liens_*")`
+- map all required properties
+- map nullability intentionally
+- define keys and important constraints
+- do not use data annotations unless the existing v2 pattern requires them
+
+--------------------------------------------------
+STEP 4 — APPLY TABLE NAMING CONVENTION
+--------------------------------------------------
+
+Map the entities to these target tables (or exact equivalent if current naming convention prefers singular/plural consistently):
+
+- `liens_Cases`
+- `liens_Contacts`
+- `liens_Facilities`
+- `liens_LookupValues`
+- `liens_Liens`
+- `liens_LienOffers`
+- `liens_BillsOfSale`
+
+Be consistent with the service-owned prefix convention already established.
+
+Do NOT use:
+- legacy v1 table names
+- unprefixed tables
+
+--------------------------------------------------
+STEP 5 — DEFINE LIENS-OWNED RELATIONSHIPS
+--------------------------------------------------
+
+Map proper Liens-owned foreign keys where appropriate:
+
+- `Lien` → `Case`
+- `Lien` → `Facility`
+- `LienOffer` → `Lien`
+- `BillOfSale` → `Lien`
+- `BillOfSale` → `LienOffer`
+
+Choose delete behavior intentionally.
+Avoid accidental cascade chains that could cause destructive deletes.
+
+Preferred principle:
+- preserve legal/financial records
+- favor restrictive or safe delete behavior unless an existing v2 pattern clearly requires otherwise
+
+--------------------------------------------------
+STEP 6 — KEEP CROSS-SERVICE REFERENCES AS SCALAR FIELDS
+--------------------------------------------------
+
+Do NOT create SQL foreign keys to other services.
+
+Examples that must remain scalar references only:
+- `TenantId`
+- `OrgId`
+- `SellingOrgId`
+- `BuyingOrgId`
+- `HoldingOrgId`
+- `SubjectPartyId`
+- `BuyerOrgId`
+- `SellerOrgId`
+- `DocumentId`
+- any future Identity/Documents/Audit references
+
+These fields should be stored and indexed where useful, but not FK-constrained to external-service tables.
+
+--------------------------------------------------
+STEP 7 — APPLY TYPE / PRECISION / CONSTRAINT DECISIONS
+--------------------------------------------------
+
+Define persistence details intentionally.
+
+At minimum:
+- money fields should use appropriate decimal precision
+- status/type fields should have sensible max lengths
+- business-visible identifiers should have sensible max lengths and indexes
+- notes/description/terms fields should have sensible text lengths
+- dates/timestamps should map cleanly to database date/datetime types
+
+Make sure the design supports:
+- case number lookups
+- lien number lookups
+- BOS number lookups
+- marketplace filters
+- portfolio filters
+- seller/buyer/holder org queries
+- status-driven workflow queries
+
+--------------------------------------------------
+STEP 8 — ADD KEY INDEXES
+--------------------------------------------------
+
+Add intentional indexes for common access patterns.
+
+Examples likely needed:
+- business numbers (`CaseNumber`, `LienNumber`, `BillOfSaleNumber`)
+- tenant-scoped lookups
+- org-scoped lookups
+- status queries
+- `Lien.CaseId`
+- `Lien.FacilityId`
+- `LienOffer.LienId`
+- `BillOfSale.LienId`
+- `BillOfSale.LienOfferId`
+- combinations useful for marketplace / portfolio / own-liens filtering
+
+Do NOT add speculative indexes everywhere.
+Be deliberate and explain the reasoning.
+
+--------------------------------------------------
+STEP 9 — PRESERVE DOMAIN CLEANLINESS
+--------------------------------------------------
+
+Do NOT:
+- add repositories
+- add query services
+- add API endpoints
+- add migrations yet unless absolutely needed for compile-time validation
+- add ETL scripts
+- add missing entities like `ServicingTask` or `CaseNote`
+- modify Identity/Documents/Notifications/Audit schemas
+
+If a small domain adjustment is absolutely required for persistence compatibility:
+- keep it minimal
+- document it explicitly in the report
+- do not make unrelated changes
+
+--------------------------------------------------
+STEP 10 — VALIDATE BUILD + NON-REGRESSION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. Existing identity integration still builds
+4. Gateway is unaffected
+5. EF configurations compile cleanly
+6. No cross-service FK coupling was introduced
+
+--------------------------------------------------
+STEP 11 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-04-001-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 persistence pattern identified and followed
+3. Exact files created/changed
+4. Entity-to-table mapping for all 7 entities
+5. Relationship mapping summary
+6. Cross-service reference handling summary
+7. Important field constraints / max lengths / precision choices
+8. Index strategy summary
+9. Delete behavior decisions and rationale
+10. Any domain adjustments required for persistence compatibility
+11. Build results:
+    - Liens
+    - relevant solution/workspace
+12. Confirmation:
+    - all tables use `liens_` prefix
+    - no legacy v1 table names used as final targets
+    - no shared-service schema leakage
+13. Risks / assumptions
+14. Final readiness statement:
+    - Is the EF configuration layer established?
+    - Is the service ready for `LS-LIENS-04-002` (DbContext + initial migrations)?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Create the EF Core configuration layer for the approved Liens entities so the service can move directly into DbContext wiring and initial migration creation next, without redesigning persistence later.
+
+Proceed.

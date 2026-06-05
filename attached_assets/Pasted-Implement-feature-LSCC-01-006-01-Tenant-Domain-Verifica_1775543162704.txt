@@ -1,0 +1,127 @@
+Implement feature LSCC-01-006-01 — Tenant Domain Verification and Activation Hardening.
+
+Context:
+LSCC-01-006 added automatic tenant provisioning and subdomain-based login using AWS Route53 and host-based tenant resolution. However, the current implementation can mark a tenant Active immediately after Route53 accepts the DNS record change. We now need to harden activation so a tenant is only considered live after the hostname is actually verified.
+
+Goal:
+Ensure a tenant hostname is not treated as fully active merely because the DNS record was created. The system must verify DNS resolution and application reachability/host acceptance before promoting the tenant to Active for production login.
+
+Requirements:
+1. Introduce a verification-aware lifecycle that distinguishes between:
+   - DNS change accepted
+   - verification in progress
+   - verified active
+   - failed
+   Recommended statuses:
+   - Pending
+   - InProgress
+   - Provisioned
+   - Verifying
+   - Active
+   - Failed
+   Equivalent modeling is acceptable if clear.
+
+2. After Route53 provisioning succeeds, verify DNS resolution:
+   - hostname resolves publicly and/or
+   - hostname resolves to expected configured target and/or
+   - DNS response includes expected CNAME target
+   - tolerate propagation delay where practical
+
+3. After DNS verification passes, verify the application layer:
+   - add or reuse a lightweight anonymous endpoint suitable for tenant hostname verification
+   - confirm the host reaches the app
+   - confirm the app accepts the hostname
+   - confirm tenant binding works for anonymous access
+
+4. Do not mark a tenant Active until:
+   - DNS provisioning succeeded
+   - DNS verification succeeded
+   - HTTP/app verification succeeded
+
+5. If verification fails:
+   - do not promote to Active
+   - store failure reason
+   - store failure stage:
+     - DNS provisioning failure
+     - DNS verification failure
+     - HTTP/app verification failure
+
+6. Add retry support:
+   - safe and idempotent
+   - no duplicate TenantDomain records
+   - no unsafe duplicate DNS records
+   - safe after partial success
+
+7. Control Center must show:
+   - hostname/subdomain
+   - current status
+   - last verification attempt
+   - failure stage
+   - failure reason
+   - retry action where applicable
+
+8. Login behavior:
+   - production must not allow manual tenant override for non-active tenant hosts
+   - if tenant hostname exists but is not verified active, show safe setup-in-progress/unavailable state
+   - unknown/inactive hosts should continue to fail safely
+
+9. Environment-aware behavior:
+   - production enforces verification
+   - local/dev/Replit-safe mode may allow explicit bypass or mock verification
+   - bypass must be explicit via environment/config
+
+10. Add logs/audit traces for:
+   - verification started
+   - DNS verification passed/failed
+   - HTTP/app verification passed/failed
+   - tenant marked active
+   - retry requested
+
+Implementation guidance:
+- Reuse and extend the LSCC-01-006 provisioning flow and architecture.
+- Keep provisioning and verification logic server-side.
+- Keep changes incremental and shippable.
+- Do not introduce unnecessary heavyweight infrastructure unless required.
+- Add config for:
+  - verification enabled
+  - expected DNS target/CNAME
+  - verification endpoint path
+  - verification timeout
+  - dev/Replit bypass
+
+Validation checklist:
+1. Tenant is not marked Active immediately after Route53 success alone.
+2. DNS verification passes only when hostname resolves as expected.
+3. HTTP/app verification passes only when host reaches app and tenant binding succeeds.
+4. Tenant becomes Active only after full verification.
+5. Failed DNS verification stores correct failure reason/stage.
+6. Failed HTTP/app verification stores correct failure reason/stage.
+7. Retry works after partial success and is idempotent.
+8. Control Center displays verification-aware status and failure details.
+9. Production login blocks non-active/unverified tenant hosts safely.
+10. Dev/Replit bypass works only when explicitly enabled.
+11. Logs/audit traces exist for verification lifecycle events.
+12. Build succeeds cleanly.
+
+Deliverables:
+- Code changes implementing verification-aware activation
+- Any schema/model updates
+- Any endpoint additions needed for hostname verification
+- Config/env updates documented clearly
+- A concise note explaining how verification behaves in production vs dev/Replit
+- A completion report saved to:
+
+/analysis/LSCC-01-006-01-report.md
+
+The report must include:
+1. Summary
+2. Files changed
+3. Schema/model changes
+4. Verification lifecycle design
+5. DNS verification approach
+6. HTTP/app verification approach
+7. Environment/config changes
+8. What was implemented
+9. Validation results against each checklist item
+10. Known issues / follow-ups
+11. Exact manual test steps

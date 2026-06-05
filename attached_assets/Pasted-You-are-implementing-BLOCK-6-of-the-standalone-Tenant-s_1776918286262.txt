@@ -1,0 +1,498 @@
+You are implementing BLOCK 6 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B06-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1–5 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- This block is the READ-SWITCH PREPARATION + CONSUMER TRANSITION block. It must be safe, reversible, and feature-flagged.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B06 — Read Switch Planning + Gateway/Web Consumer Transition Preparation
+================================================================
+
+OBJECTIVE
+Prepare and partially execute the runtime transition so the platform can safely read tenant metadata from the Tenant service instead of Identity, while still preserving rollback/fallback safety.
+
+This block must add:
+1. a feature-flagged read-source abstraction,
+2. gateway-ready tenant resolution consumption from Tenant service,
+3. web/public branding and tenant bootstrap consumption from Tenant service,
+4. fallback logic back to Identity where appropriate,
+5. observability and validation around read-source behavior,
+6. a phased rollout mechanism so cutover can be enabled safely without forcing full production switch immediately.
+
+This block must NOT remove Identity ownership yet.
+This block must NOT force permanent cutover with no fallback.
+This block must prepare and prove the runtime read path.
+
+================================================================
+CONTEXT FROM BLOCKS 1–5 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 established:
+- standalone Tenant service
+- tenant_db
+- core tenant entity
+- base APIs
+- migration-aware mapping from Identity -> Tenant
+
+Block 2 established:
+- expanded tenant profile
+- TenantBranding entity
+- branding APIs
+- public branding endpoints
+
+Block 3 established:
+- TenantDomain entity
+- domain management APIs
+- public resolution endpoints
+- compatibility fallback with legacy Tenant.Subdomain
+
+Block 4 established:
+- TenantProductEntitlement
+- TenantCapability
+- TenantSetting
+- migration dry-run endpoint and report
+
+Block 5 established:
+- explicit migration execute endpoint
+- idempotent write-capable migration
+- migration run tracking
+- conflict detection
+- dual-write preparation scaffolding
+- Identity remains runtime source of truth for now
+
+This block now transitions consumers so they can read from Tenant service in a controlled, reversible way.
+
+================================================================
+BLOCK 6 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- READ SWITCH PLANNING
+- GATEWAY / TENANT RESOLUTION CONSUMER TRANSITION
+- WEB / PUBLIC BRANDING CONSUMER TRANSITION
+- FALLBACK / ROLLBACK-SAFE READ PATH
+- DUAL WRITE ACTIVATION PREPARATION (NOT full mandatory activation unless clearly safe)
+- OPERATIONAL OBSERVABILITY FOR READ SOURCE
+
+This block is effectively the execution of:
+- runtime read-source abstraction,
+- consumer switchover preparation,
+- phased cutover controls,
+without final Identity ownership removal.
+
+================================================================
+SCOPE
+================================================================
+
+A) Introduce a configurable read-source strategy
+
+Create an explicit read-source abstraction for tenant-related runtime reads.
+
+The platform currently reads tenant data from Identity in places such as:
+- branding bootstrap
+- tenant resolution
+- login/public branding behavior
+- possibly gateway tenant lookup
+
+In this block, introduce a controlled read-source selector with at minimum:
+- Identity
+- Tenant
+- HybridFallback
+
+Recommended config:
+- Features:TenantReadSource = Identity | Tenant | HybridFallback
+or equivalent
+
+Behavior:
+- Identity = current legacy behavior
+- Tenant = use Tenant service only
+- HybridFallback = try Tenant first, then fall back to Identity when missing/unavailable or when configured rules say so
+
+Rules:
+- default to the safest non-breaking mode for current environment unless the repo/setup clearly supports immediate tenant-first reads
+- all runtime consumers should use this abstraction instead of directly choosing their own source
+- keep the implementation centralized and observable
+
+B) Gateway / backend consumer transition
+
+Update the gateway-side or backend resolution consumption path so tenant resolution can use Tenant service public/internal resolution endpoints in a controlled way.
+
+Target behaviors:
+- when read source = Identity, preserve current behavior
+- when read source = Tenant, resolve using Tenant service endpoints
+- when read source = HybridFallback:
+  1. try Tenant resolution first
+  2. if not found / unavailable / invalid result, fall back to Identity
+  3. record which source was used
+
+Use the existing Tenant resolution endpoints from Block 3 where possible.
+Do not create redundant resolution logic in the gateway if the Tenant service already provides it cleanly.
+
+Preferred consumer paths to update:
+- host/subdomain resolution in gateway
+- any internal bootstrap route that determines tenant context from domain/code
+
+Rules:
+- do not break current gateway routing
+- do not remove Identity-based resolution yet
+- ensure a misconfigured Tenant service does not take down the platform
+
+C) Web / public branding consumer transition
+
+Update the Next.js / frontend-facing tenant branding/bootstrap path so public branding can be read from Tenant service in a controlled way.
+
+Expected current/related behavior:
+- login/public pages bootstrap tenant branding
+- a server route/provider likely calls Identity branding endpoints today
+
+In this block:
+- introduce a branding read abstraction or route-layer selector
+- support:
+  - Identity branding source
+  - Tenant branding source
+  - Hybrid fallback
+- if Tenant branding endpoint returns missing/incomplete branding, optionally fall back to Identity or platform default depending on configured mode
+
+Consumers likely include:
+- login page branding bootstrap
+- public logo / tenant display name / primary color resolution
+- any tenant bootstrap provider used before authentication
+
+Rules:
+- do not redesign frontend UX
+- keep stack aligned:
+  - Next.js
+  - TypeScript
+  - Tailwind
+  - existing provider/route conventions
+- minimal UI changes only if needed to support the source transition cleanly
+
+D) Fallback rules and resilience
+
+Define and implement explicit fallback behavior.
+
+Recommended fallback policy in HybridFallback:
+1. Try Tenant service
+2. If Tenant returns:
+   - 404 / not found
+   - missing required fields
+   - timeout / transport failure
+   - invalid payload
+   then fall back to Identity
+3. If Identity also fails, use platform default branding or unresolved-tenant behavior per existing app conventions
+
+Define required fields for “usable tenant/branding result”.
+At minimum for branding/bootstrap:
+- tenantId or code
+- displayName
+- usable logo ref OR safe fallback
+- usable primaryColor OR safe default
+
+At minimum for tenant resolution:
+- tenantId
+- code
+- displayName
+- status compatible with runtime expectations
+
+Record the source used in logs and, where practical, in non-sensitive diagnostics.
+
+E) Read-path observability
+
+Add observability so operators can see what source is being used.
+
+At minimum add:
+- structured logs indicating:
+  - source attempted
+  - source used
+  - fallback triggered
+  - reason for fallback
+- optional lightweight diagnostic endpoint if it fits existing patterns, for example:
+  - GET /info or a migration/read-source diagnostics payload enhancement
+- do NOT expose sensitive internals publicly
+
+If appropriate, add metrics counters or simple in-memory counters/log summaries for:
+- reads from Tenant
+- reads from Identity
+- fallbacks
+- Tenant read failures
+
+F) Optional phased activation controls
+
+Add feature flags/config controls so rollout can be staged.
+
+Recommended flags:
+- Features:TenantReadSource
+- Features:TenantBrandingReadSource
+- Features:TenantResolutionReadSource
+- Features:TenantDualWriteEnabled (already scaffolded; preserve)
+- optionally a strictness flag such as:
+  - Features:TenantReadStrictMode = true/false
+
+Rules:
+- do not require all consumers to switch at once
+- allow branding and resolution to be transitioned independently if cleaner
+- document final chosen config model in report
+
+G) Dual write activation preparation (limited)
+
+Do NOT force full production dual write in this block unless the current architecture clearly supports it safely and minimally.
+
+What to do now:
+- ensure the dual-write scaffolding from Block 5 can be called by Identity later
+- if safe and low-risk, add the minimal opt-in hook point in Identity tenant create/update paths behind:
+  - explicit feature flag
+  - try/catch containment
+  - no hard failure propagation from Tenant sync back into Identity runtime
+- if touching Identity is too risky in this block, keep it deferred but document exactly what hook point is needed next
+
+Important:
+- no mandatory dual write
+- no hidden write coupling
+- any activation must be disabled by default
+
+H) Compatibility with existing Blocks 1–5
+
+Ensure existing behavior still works:
+- Identity-only mode still functions
+- public branding endpoints still work
+- migration endpoints still work
+- Tenant APIs still work
+- no existing route regressions
+
+I) No final ownership removal yet
+
+In this block:
+- Identity still contains tenant fields
+- Identity is still available as fallback
+- Tenant becomes a runtime read candidate and optionally primary under config
+- final decoupling is deferred to the next block
+
+================================================================
+IMPLEMENTATION GUIDANCE
+================================================================
+
+1) Read-source abstraction
+
+Create a shared abstraction in the relevant layer(s), such as:
+- ITenantReadResolver
+- ITenantBrandingReader
+- ITenantResolutionReader
+- or equivalent application/service abstraction
+
+Implementations may include:
+- IdentityTenantReader
+- TenantServiceReader
+- HybridTenantReader
+
+Choose the minimal set that fits the current codebase.
+
+2) Gateway transition
+
+If the gateway currently proxies or computes tenant resolution:
+- replace hardcoded source logic with the new abstraction/configured source
+- use Tenant service endpoints for Tenant mode
+- preserve Identity path in Identity mode
+- implement fallback in HybridFallback mode
+
+3) Web transition
+
+If the web app uses server routes/providers:
+- centralize read-source selection in those server routes/providers
+- do not scatter feature-flag checks across many components
+- keep client-side logic unaware of the transition where possible
+
+4) Failure containment
+
+Tenant service read failure must not cascade into full platform failure in HybridFallback mode.
+Use:
+- timeout handling
+- null/invalid response handling
+- explicit fallback
+- safe default branding when all else fails
+
+5) Security
+
+Public endpoints remain anonymous/read-only.
+Admin/internal endpoints remain protected.
+Do not leak internal source/fallback diagnostics through public routes.
+
+================================================================
+NON-GOALS / MUST NOT DO
+================================================================
+
+Do NOT implement in this block:
+- permanent removal of Identity tenant fields
+- mandatory cutover with no fallback
+- DNS verification
+- notification service integration
+- hard deletion of old tenant data
+- speculative cleanup of Identity tenant records
+- broad frontend redesign
+- destructive changes to routing with no rollback switch
+
+================================================================
+TECH STACK / IMPLEMENTATION RULES
+================================================================
+
+Frontend:
+- Next.js (React)
+- TypeScript
+- Tailwind CSS
+- existing provider/route architecture
+- pnpm monorepo
+
+Backend:
+- C# / .NET only
+- ASP.NET Core only
+- EF Core only where persistence is needed
+- MySQL only where persistence is needed
+
+Architecture:
+- monorepo
+- microservices
+- API Gateway
+- Replit-compatible
+- shell-script orchestration intact
+
+================================================================
+API / CONFIG CONTRACT GUIDANCE
+================================================================
+
+Recommended config examples:
+- Features__TenantReadSource=Identity
+- Features__TenantResolutionReadSource=HybridFallback
+- Features__TenantBrandingReadSource=HybridFallback
+- Features__TenantDualWriteEnabled=false
+
+If the current config style differs, follow existing conventions.
+
+If adding new internal helper endpoints is useful, keep them minimal and protected.
+Do not create unnecessary new public APIs if the existing Tenant service APIs already suffice.
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. A configurable read-source abstraction exists for tenant-related runtime reads.
+2. Gateway/backend tenant resolution can read from Tenant service under configuration.
+3. Web/public branding bootstrap can read from Tenant service under configuration.
+4. Hybrid fallback mode exists and safely falls back to Identity when Tenant reads fail or are incomplete.
+5. Read-source behavior is observable through logs and/or diagnostics.
+6. Existing Identity-only behavior still works unchanged when configured.
+7. Existing Blocks 1–5 functionality still works.
+8. Any dual-write preparation changes remain disabled by default and non-breaking.
+9. No Identity ownership removal is attempted in this block.
+10. The system is ready for a controlled runtime cutover decision after validation.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- Tenant service startup success
+- gateway startup success
+- web app startup success (if touched)
+- read-source config behavior:
+  - Identity mode
+  - Tenant mode
+  - HybridFallback mode
+- tenant resolution behavior through gateway/backend consumer
+- branding/bootstrap behavior through web/public consumer
+- fallback behavior when Tenant service is unavailable or returns missing data
+- logs/diagnostics show source used and fallback reasons
+- backward compatibility checks for Blocks 1–5 endpoints
+- any Identity hook points added remain inactive by default
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B06-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B06 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what Blocks 1–5 established
+- where runtime reads currently come from
+- which consumers were transitioned in this block
+- why final Identity removal is still deferred
+
+## 3. Read-Source Design
+- abstraction/interfaces chosen
+- config/feature flags added
+- Identity / Tenant / HybridFallback behaviors
+- fallback policy and required-field rules
+
+## 4. Consumer Transition
+- gateway/backend resolution path changes
+- web/public branding/bootstrap path changes
+- files/components/services/routes updated
+
+## 5. Observability / Safety
+- logging added
+- diagnostics added
+- fallback triggers and reasons
+- rollback/disable strategy
+
+## 6. Dual Write Preparation
+- what hook points exist now
+- what remains deferred
+- whether Identity code was touched or intentionally deferred
+
+## 7. Implementation Summary
+- files added
+- files modified
+- configs added/changed
+- feature flags added
+
+## 8. Validation Results
+- build
+- startup
+- Identity mode
+- Tenant mode
+- HybridFallback mode
+- fallback failure tests
+- backward compatibility checks
+
+## 9. Known Gaps / Deferred Items
+- final cutover decision deferred
+- Identity ownership removal deferred
+- hard cleanup deferred
+- DNS verification deferred
+- notification integration deferred
+
+## 10. Next Recommended Block
+State that the next logical block is:
+BLOCK 7 — Identity Decoupling + Final Runtime Source Transition
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse current code patterns
+- Prefer minimal, correct, production-oriented code
+- Keep scope tight to Block 6
+- Preserve portability
+- Do not introduce breaking architectural drift
+
+Now execute this block end-to-end and write the report as you go.

@@ -1,0 +1,275 @@
+TASK-MIG-08 — Governance Ownership Flip (Liens → Task)
+
+OBJECTIVE:
+Flip governance ownership so the Task service becomes the authoritative write/read owner for task governance settings, while Liens becomes a consumer only. This completes the migration of configuration ownership from Liens to Task.
+
+This is the FINAL ownership flip before cleanup.
+
+NON-NEGOTIABLE RULES:
+- ZERO UI behavior regression
+- ZERO change to governance semantics (validation rules, defaults, enforcement)
+- MUST preserve runtime behavior exactly
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- MUST validate against actual code/schema before implementation
+- DO NOT delete `liens_TaskGovernanceSettings` in this step
+- DO NOT remove fallback logic prematurely
+- DO NOT modify Task service unnecessarily
+- NO placeholders
+
+CRITICAL GOAL:
+After this step:
+- Task service is the authoritative owner of governance configuration
+- All runtime reads use Task service as primary
+- Liens DB governance table becomes rollback-only mirror
+- Liens no longer acts as system of record for governance
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-08-report.md
+
+Initialize with:
+
+# TASK-MIG-08 Report — Governance Ownership Flip
+
+## 1. Codebase Analysis
+## 2. Current Ownership Review
+## 3. Ownership Flip Design
+## 4. Write Path Changes
+## 5. Read Path Changes
+## 6. Sync / Fallback Changes
+## 7. Validation Results
+## 8. Rollback Plan
+## 9. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT GOVERNANCE OWNERSHIP
+--------------------------------------------------
+
+Inspect current implementation after MIG-01 through MIG-07.
+
+Identify:
+- all governance write paths in Liens
+- all governance read paths (validation, task creation, enforcement)
+- which paths currently write Liens DB first
+- which paths read Task vs Liens
+- where fallback exists
+- where governance is enforced (task creation, updates, validation logic)
+- where `liens_TaskGovernanceSettings` is still authoritative
+- how startup sync behaves (`LiensGovernanceSyncService`)
+
+Document:
+- create/update governance flows
+- enforcement points (RequireAssignee, RequireStage, etc.)
+- runtime validation dependencies
+- any Liens-only assumptions
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Ownership Review
+
+--------------------------------------------------
+STEP 2 — DESIGN THE OWNERSHIP FLIP
+--------------------------------------------------
+
+Define governance ownership transition model.
+
+You MUST explicitly define:
+
+1. New write authority:
+   - Task service becomes primary owner for governance create/update
+
+2. New read authority:
+   - runtime enforcement reads from Task service first
+   - fallback to Liens DB only when necessary
+
+3. Transitional persistence strategy:
+   Choose:
+   - A. Task write first, Liens mirror best-effort (RECOMMENDED)
+   - B. Task only, Liens stale copy
+   - C. alternative (must justify)
+
+4. Startup sync:
+   - disable or modify `LiensGovernanceSyncService` so it does not overwrite Task-owned data
+
+5. Validation logic:
+   - ensure governance enforcement logic still works using Task data
+   - do NOT move enforcement logic into Task
+
+6. ID / tenant mapping:
+   - ensure tenant + product scoping remains intact
+
+Update:
+## 3. Ownership Flip Design
+
+--------------------------------------------------
+STEP 3 — WRITE PATH CHANGES
+--------------------------------------------------
+
+Flip governance write paths.
+
+Target operations:
+- create governance settings
+- update governance settings
+
+Requirements:
+- Task service is primary write target
+- Liens endpoints may proxy to Task
+- Task write failure must throw (no swallow)
+- Liens DB write becomes best-effort mirror
+- preserve all governance fields:
+  - RequireAssignee
+  - RequireStage
+  - default priority
+  - any JSON extension fields
+
+If Task service lacks capability:
+- extend minimally (prefer existing endpoints)
+
+Update:
+## 4. Write Path Changes
+
+--------------------------------------------------
+STEP 4 — READ PATH CHANGES
+--------------------------------------------------
+
+Flip governance reads to Task-first.
+
+Update:
+- task creation validation
+- task update validation
+- any enforcement logic
+- any UI/API reads
+
+Rules:
+- Task = primary
+- Liens = fallback
+- behavior must remain identical
+
+Ensure:
+- validation still enforces rules correctly
+- no missing fields due to migration
+
+Add logging:
+- `governance_read_owner=task_service`
+- `governance_read_owner=liens_db_fallback`
+
+Update:
+## 5. Read Path Changes
+
+--------------------------------------------------
+STEP 5 — SYNC / FALLBACK CHANGES
+--------------------------------------------------
+
+Modify or disable old sync.
+
+Specifically:
+- disable `LiensGovernanceSyncService` (same pattern as MIG-07)
+- prevent Liens→Task overwrites
+
+Ensure:
+- Liens mirror does NOT act as source of truth
+- fallback only used when Task unavailable
+
+Add logging:
+- `governance_write_owner=task_service`
+- `governance_mirror_target=liens_db`
+
+Update:
+## 6. Sync / Fallback Changes
+
+--------------------------------------------------
+STEP 6 — VALIDATION
+--------------------------------------------------
+
+Test and document:
+
+1. Governance create/update writes to Task first
+2. Governance write failure blocks operation
+3. Governance mirror to Liens works (or fails safely)
+4. Task creation enforces governance correctly
+5. Validation logic unchanged
+6. Runtime reads use Task
+7. Fallback works when Task unavailable
+8. No UI regression
+9. No schema break
+10. Builds succeed
+
+IMPORTANT:
+Do not mark PASS unless verified.
+
+Update:
+## 7. Validation Results
+
+--------------------------------------------------
+STEP 7 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback:
+
+- revert write order (Liens primary again)
+- re-enable sync service
+- revert read paths to Liens-first if needed
+
+Ensure:
+- no data loss
+- no schema rollback needed
+
+Update:
+## 8. Rollback Plan
+
+--------------------------------------------------
+STEP 8 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any mirror drift risk
+- any remaining Liens dependencies
+- validation logic still Liens-owned
+- readiness for cleanup phase
+- what is needed before dropping `liens_TaskGovernanceSettings`
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-08 is complete only if:
+
+1. Task service owns governance writes
+2. Task service is primary read source
+3. Liens acts as consumer only
+4. Validation behavior unchanged
+5. Fallback safe
+6. Ready for cleanup (MIG-09)
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT delete `liens_TaskGovernanceSettings`
+- Do NOT migrate validation logic into Task
+- Do NOT remove fallback prematurely
+- Do NOT redesign governance model
+- Do NOT change enforcement semantics
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+- Liens governance service / endpoints
+- Liens validation logic
+- Task service only if minimally required
+- sync services
+- logging
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

@@ -1,0 +1,148 @@
+You are working inside the LegalSynq monorepo.
+
+This is Step 19.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/analysis/step_19-context-data-scoping.md
+
+---
+
+Critical constraints:
+
+- Work ONLY inside:
+  apps/control-center
+
+- Maintain full independence
+
+- Do NOT import anything from:
+  apps/web
+
+- Use existing helpers:
+  - getTenantContext()
+  - controlCenterServerApi
+
+---
+
+Goal:
+
+Make **Tenant Context affect real data behavior**
+
+---
+
+## 1. Extend API Layer
+
+Update:
+
+apps/control-center/src/lib/control-center-api.ts
+
+Modify these methods to accept optional tenant context:
+
+- tenants.list()
+- users.list()
+- support.list()
+- audit.list()
+
+Add optional param:
+
+tenantId?
+
+Behavior:
+- if tenantId provided → filter results to that tenant only
+- if not → return global data
+
+---
+
+## 2. Auto-Apply Context in Pages
+
+Update pages:
+
+- tenants/page.tsx
+- tenant-users/page.tsx
+- support/page.tsx
+- audit-logs/page.tsx
+
+Add:
+
+const ctx = getTenantContext()
+
+Then:
+- pass ctx?.tenantId into API calls
+
+---
+
+## 3. Restrict UI When Scoped
+
+When context exists:
+
+### Tenants page:
+- disable switching tenants
+- show message:
+  "Scoped to [Tenant Name]"
+
+### Global lists:
+- hide tenant column (since already scoped)
+
+---
+
+## 4. Add Context Indicator in Tables
+
+Update table components:
+- show small badge:
+  "Scoped"
+- or remove redundant tenant info
+
+---
+
+## 5. Enforce Safe Behavior
+
+When context exists:
+
+- block creating cases for other tenants
+- block cross-tenant navigation
+
+Add UI guards:
+- disable buttons where needed
+
+---
+
+## 6. Support Detail Integration
+
+Update:
+
+support detail page
+
+- ensure case tenant matches context
+- if mismatch → show error or redirect
+
+---
+
+## 7. Backend readiness
+
+Add TODOs:
+
+// TODO: enforce tenant scoping server-side
+// TODO: validate tenant context against session
+
+---
+
+## Output
+
+1. Show file-by-file implementation plan
+2. Generate code
+3. Produce report:
+
+# Step 19 – Tenant Context Data Scoping
+
+## Files Updated
+## API Changes
+## UI Behavior Changes
+## Context Enforcement Rules
+## TODOs for Backend Integration
+## Independence Validation
+## Any Issues or Assumptions
+
+4. Save report to:
+
+/analysis/step_19-context-data-scoping.md

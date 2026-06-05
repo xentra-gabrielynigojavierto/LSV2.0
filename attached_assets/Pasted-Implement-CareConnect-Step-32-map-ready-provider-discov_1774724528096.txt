@@ -1,0 +1,179 @@
+Implement CareConnect Step 32: map-ready provider discovery responses and viewport search.
+
+Goal:
+Make the CareConnect provider search API ready for future map UI integration by adding:
+1. map marker-friendly provider responses
+2. viewport / bounding-box search
+3. a clean map-oriented query contract
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect already supports:
+  - Providers
+  - Categories
+  - Referrals
+  - Scheduling and booking
+  - Notes, attachment metadata, notifications
+  - Provider geolocation fields
+  - geo-aware provider search by latitude/longitude/radius
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+
+Important:
+This step should prepare the backend for map UI consumption only.
+Do NOT implement:
+- frontend map rendering
+- Google Maps / Mapbox / Leaflet integration
+- clustering engine
+- geocoding
+- travel time / routing
+- polygon search
+- provider portal changes
+
+Requirements
+
+==================================================
+PART 1 — VIEWPORT SEARCH
+==================================================
+
+1. Enhance provider search to support bounding-box queries.
+
+Add optional query params to GET /api/providers:
+- northLat
+- southLat
+- eastLng
+- westLng
+
+Behavior:
+- when viewport params are supplied, providers with coordinates inside the box are returned
+- provider must have Latitude and Longitude to be included
+- viewport search remains tenant-scoped
+- viewport search must combine cleanly with existing filters:
+  - name
+  - categoryCode
+  - city
+  - state
+  - acceptingReferrals
+  - isActive
+  - latitude / longitude / radiusMiles (if used)
+  - page / pageSize
+
+2. Validation rules
+- northLat must be >= southLat
+- latitudes must be between -90 and 90
+- longitudes must be between -180 and 180
+- invalid viewport params return clean 400 errors using existing exception handling
+
+==================================================
+PART 2 — MAP-FRIENDLY RESPONSE MODEL
+==================================================
+
+3. Add a map-oriented provider response DTO or extend existing ProviderResponse cleanly.
+
+Include at minimum:
+- Id
+- Name
+- OrganizationName
+- City
+- State
+- AddressLine1
+- PostalCode
+- Email
+- Phone
+- AcceptingReferrals
+- IsActive
+- Latitude
+- Longitude
+- GeoPointSource
+- Categories
+- HasGeoLocation
+
+4. Add optional lightweight summary fields useful for maps
+If cleanly available without over-engineering, include:
+- PrimaryCategory
+- DisplayLabel
+- MarkerSubtitle
+
+Keep it simple and deterministic.
+
+==================================================
+PART 3 — MAP SEARCH MODE
+==================================================
+
+5. Add a query mode option if useful
+Optionally support a parameter like:
+- responseMode = list | map
+
+Behavior:
+- list mode can continue returning the normal paged provider list
+- map mode may return a slimmer set of provider marker records if that is cleaner
+
+If this adds unnecessary complexity, keep one response shape and document it clearly.
+
+==================================================
+PART 4 — OPTIONAL MARKER ENDPOINT
+==================================================
+
+6. If cleaner, add a dedicated endpoint:
+- GET /api/providers/map
+
+This endpoint can accept the same filters and return a simplified marker response list.
+
+If you choose this route:
+- keep tenant scoping strict
+- use the same auth rules as provider reads
+- document clearly why this endpoint exists
+
+If unnecessary, enhance GET /api/providers only and skip the extra endpoint.
+
+==================================================
+PART 5 — SEARCH LOGIC
+==================================================
+
+7. Keep geo logic simple and internal
+If you already have a geo helper/service, extend it to support viewport filtering.
+Do not add external GIS dependencies.
+
+8. Query behavior
+- apply tenant filter first
+- apply non-geo filters
+- apply geo radius filter if provided
+- apply viewport filter if provided
+- if both radius and viewport are provided, either:
+  - support both together with AND logic, or
+  - reject the combination with a clean 400 if you want to keep rules simpler
+Choose one approach and document it clearly.
+
+==================================================
+PART 6 — AUTHORIZATION
+==================================================
+
+9. Authorization rules
+Keep provider reads as:
+- AuthenticatedUser
+
+Do not change write rules.
+
+==================================================
+PART 7 — OUTPUT REQUIRED
+==================================================
+
+10. After implementation, output:
+- files created/updated
+- whether GET /api/providers was enhanced or a dedicated /api/providers/map endpoint was added
+- viewport validation rules
+- map-friendly response shape
+- sample curl requests for:
+  - viewport search
+  - viewport + category filter
+  - viewport + acceptingReferrals filter
+  - invalid viewport validation
+  - map mode or dedicated map endpoint if implemented
+
+11. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- no breaking changes to existing CareConnect behavior
+- preserve strict tenant isolation
+- keep implementation simple and map-ready

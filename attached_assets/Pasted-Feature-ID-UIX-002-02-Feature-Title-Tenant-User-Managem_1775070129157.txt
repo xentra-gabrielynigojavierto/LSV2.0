@@ -1,0 +1,242 @@
+Feature ID: UIX-002-02
+Feature Title: Tenant User Management UI Expansion
+
+You are implementing UIX-002-02 for the LegalSynq Control Center.
+
+Context:
+- UIX-002 foundation already exists
+- UIX-002-01 is complete:
+  - Administration nav is exposed
+  - /admin/users is visible
+  - live user list is wired
+  - tenant scoping is enforced in the identity service
+- This iteration must extend the current user management UI
+- Do NOT rebuild what already exists
+- Reuse the current table/page structure and expand it
+
+Objective:
+Expand the Control Center user management experience so admins can:
+- invite users
+- activate/deactivate users
+- view user detail
+- view memberships
+- view roles
+- begin managing groups from the user-management flow
+
+Keep this iteration focused on UI and integration, not deep RBAC redesign.
+
+========================================
+MVP SCOPE FOR UIX-002-02
+========================================
+
+Implement the next user-management UI slice in the Control Center:
+
+1. Users list improvements
+- action column
+- activate/deactivate action
+- invite user entry point
+- row click or action to open user detail
+
+2. User detail page
+- user identity summary
+- active/inactive status
+- organization memberships
+- roles
+- groups
+- basic effective access visibility
+- admin action buttons
+
+3. Invite user flow
+- functional invite form
+- uses existing invite endpoint
+- tenant auto-resolves from admin context when possible
+- platform admin behavior may remain tenant-context-dependent if already designed that way
+
+4. Membership visibility
+- render current memberships clearly
+- identify primary membership
+- show org type / org name if available
+
+5. Role visibility
+- render admin/system roles
+- show assigned roles cleanly
+- if role assignment endpoint is already present, wire it
+- if not, keep UI read-only and clearly label it as such
+
+6. Group visibility
+- render group memberships on user detail
+- link to group detail where applicable
+
+========================================
+DO NOT IMPLEMENT IN THIS ITERATION
+========================================
+
+Do NOT implement unless already trivially available:
+- custom role builder
+- permission editor
+- advanced group permission assignment
+- audit dashboard
+- MFA/security tooling
+- org switching
+- product role assignment editor
+
+========================================
+FRONTEND — CONTROL CENTER
+========================================
+
+Extend the admin portal.
+
+1. Pages
+Update/build:
+
+- /admin/users
+- /admin/users/[id]
+- /admin/users/invite   (or existing invite path if already present)
+
+2. Components
+Build or extend these components as needed:
+
+- UserListTable
+- UserActions
+- UserDetailCard
+- MembershipList
+- RoleAssignmentPanel
+- GroupMembershipPanel
+- EffectiveAccessSummary
+- InviteUserForm
+
+3. Users List Requirements
+Show at least:
+- name
+- email
+- active/inactive
+- primary organization
+- roles summary
+- groups count
+- action buttons or dropdown
+
+Actions:
+- activate
+- deactivate
+- view detail
+
+Provide:
+- search
+- status filter
+- pagination
+Reuse existing implementations if already present
+
+4. User Detail Requirements
+Show:
+- profile/identity block
+- status
+- memberships
+- primary membership clearly labeled
+- roles
+- groups
+- effective access summary (basic)
+- invite / resend invite / activate / deactivate actions where relevant
+
+If certain data is not yet returned by backend:
+- render graceful empty/read-only placeholders
+- clearly label what is informational vs editable
+
+5. Invite User Flow
+Use existing invite endpoint.
+
+Requirements:
+- accessible from users list page
+- validate required fields
+- show success/error states
+- redirect back to users list or new user detail on success
+- tenant should auto-resolve from current admin context where possible
+- do not require manual tenant UUID for normal tenant-admin flow
+
+6. Role / Group UX
+- if role assignment is supported by backend now, wire it
+- if not, show current roles/groups read-only
+- show clear labels:
+  - “Read-only in current MVP”
+  - or “Editable”
+- groups on user detail should link to group detail page if route exists
+
+========================================
+BACKEND / API INTEGRATION
+========================================
+
+Use existing endpoints where already implemented.
+
+At minimum integrate with:
+- GET /identity/api/users
+- GET /identity/api/admin/users/{id}   (if available)
+- POST /identity/api/admin/users/invite
+- POST /identity/api/admin/users/{id}/activate
+- POST /identity/api/admin/users/{id}/deactivate
+- POST /identity/api/admin/users/{id}/resend-invite  (if already available)
+
+If some endpoints are missing:
+- do not invent fake behavior
+- clearly document the gap in the report
+- keep the UI read-only or stubbed where appropriate
+
+========================================
+UX RULES
+========================================
+
+- Keep all changes in the Control Center only
+- Non-admins must not reach these pages
+- Show correlationId on API failures where available
+- Destructive actions require confirmation
+- Status changes should refresh data immediately
+- Use empty states when no roles/groups/memberships exist
+- Keep visual style aligned to current admin app
+
+========================================
+OUTPUT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-002-02-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Pages Updated / Created
+6. Components Updated / Created
+7. Backend Endpoints Used
+8. User List Enhancements
+9. User Detail Enhancements
+10. Invite Flow Implementation
+11. Membership / Role / Group Visibility
+12. Read-only vs Editable Areas
+13. Known Issues / Missing Backend Dependencies
+14. Manual Test Results
+15. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- users list shows actions
+- activate action works
+- deactivate action works
+- user detail page loads
+- memberships visible
+- primary membership labeled
+- roles visible
+- groups visible
+- invite flow accessible
+- invite flow works
+- non-admin blocked
+- tenant scoping preserved
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend, do not rewrite
+- reuse current users page and table where possible
+- clearly distinguish real backend-backed functionality vs read-only placeholders
+- save the report to /analysis/UIX-002-02-report.md

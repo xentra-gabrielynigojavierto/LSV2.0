@@ -1,0 +1,288 @@
+Project: E9.2
+Title: Control Center Workflow Detail Drawer — Read-Only Workflow Inspection
+
+You are implementing the next Control Center workflow UI phase after E9.1.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E9.2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around the current Control Center page structure, drawer/modal conventions, available workflow-detail data, backend/API boundaries, and any gaps between list data and detail data.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - Control Center UI changes
+   - API/BFF changes
+   - detail drawer behavior
+   - permission/visibility behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for exception view or needs iteration
+
+REPORT FORMAT
+
+# E9.2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Workflow Detail Drawer Notes
+## API / BFF Notes
+## Permission / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Extend the Control Center workflow operations list with a read-only workflow detail drawer so platform/admin users can inspect an individual workflow’s current state, tenant/product/source context, timestamps, assignee, and error information without leaving the operations screen.
+
+This phase is read-only inspection only. It is not workflow execution, workflow authoring, or tenant-portal UI.
+
+SCOPE INCLUDES
+
+- a workflow detail drawer or side panel from the E9.1 workflow list
+- read-only workflow detail loading
+- richer workflow metadata display
+- deep link to the source product record if safely possible
+- loading / empty / error handling for the drawer
+- documentation/reporting
+
+DO NOT BUILD
+
+- workflow execution controls in Control Center
+- advance/complete/cancel buttons in Control Center
+- workflow template administration
+- broad Control Center redesign
+- tenant-portal changes
+- analytics dashboards
+- timeline/history if not already available cheaply from existing data
+- direct browser calls to Flow if a Control Center BFF/API pattern exists
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve E9.1 as a read-only operational surface
+- add a detail drawer/page that is read-only
+- prefer Control Center UI -> Control Center API/BFF -> Flow/backend instead of direct browser coupling to Flow
+- show enough context for admin triage without turning this into a workflow editor
+- keep tenant/platform visibility rules intact
+- avoid broad layout changes to the Control Center
+- keep the drawer reusable for future exception/stuck-workflow views
+
+CURRENT CONTEXT
+
+E9.1 already delivered:
+- Control Center route/page at /workflows
+- read-only workflow operations list
+- cross-product visibility
+- product/status/tenant/search filters
+- platform/admin visibility rules
+- a Flow admin list endpoint via the gateway
+- no detail view yet
+
+The next natural slice is a read-only detail drawer/page for a selected workflow row.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. DETAIL DRAWER / PANEL UX
+
+Add a read-only workflow detail drawer or side panel from the workflow list.
+
+Requirements:
+- clicking a row or a View/Open action should open a detail drawer (preferred) or a detail-side-panel pattern consistent with the current Control Center UI
+- the list should remain visible in the background if a drawer pattern is used
+- the drawer must be dismissible without losing the user’s list/filter state
+- no broad page redesign
+
+The drawer should show at minimum:
+- workflow name/title
+- workflow instance id (support/debug friendly, not overemphasized)
+- product
+- tenant
+- source entity type
+- source entity id/reference
+- workflow status
+- current step
+- assigned user/role if available
+- started at
+- updated at
+- completed at if available
+- last error message if available
+
+If any field is unavailable, degrade gracefully with a placeholder like “—”.
+
+2. DATA SOURCE / DETAIL API
+
+Use the appropriate admin API/BFF pattern.
+
+Requirements:
+- prefer Control Center UI -> Control Center API/BFF -> Flow/backend
+- do not directly couple the browser to Flow unless there is no viable admin API/BFF layer and you document the reason clearly
+- if the E9.1 list endpoint already includes enough data, you may open the drawer optimistically from row data and optionally hydrate additional detail
+- if richer data is needed, add a minimal read-only workflow-detail endpoint
+
+Recommended backend/API options:
+- GET /api/v1/admin/workflow-instances/{id}
+or similar read-only detail endpoint
+- preserve the same admin visibility rules as the list endpoint
+
+If a new backend endpoint is added:
+- keep it read-only
+- do not add mutation capabilities
+- align it with E9.1 auth/tenant scoping rules
+
+3. DRAWER CONTENT DESIGN
+
+The drawer should be operational, not decorative.
+
+Recommended sections:
+
+A. Summary
+- workflow title
+- status badge
+- current step
+- product
+- tenant
+
+B. Source Context
+- source entity type
+- source entity id/reference
+- correlation key if useful and already available
+- deep link to source record if safely resolvable
+
+C. Lifecycle
+- started at
+- updated at
+- completed at
+- assigned user/role
+
+D. Diagnostics
+- last error message if present
+- lightweight explanation if workflow is Failed/Cancelled
+
+Do not expose raw engine internals unless they are actually useful for operators.
+
+4. DEEP LINK TO SOURCE RECORD
+
+If feasible and safe, add a read-only deep link/action from the drawer to open the source product record.
+
+Requirements:
+- support product-aware links where route shape is known
+- for example:
+  - SynqLien case detail
+  - CareConnect referral detail
+  - SynqFund application detail
+- only add links where the route can be derived safely
+- if route derivation is not reliable for all products in this phase, support the maximum safe subset and document the rest
+
+The deep link should be secondary to the drawer, not the primary UI.
+
+5. PERMISSION / VISIBILITY MODEL
+
+Requirements:
+- preserve the same visibility model as E9.1
+- recommended:
+  - PlatformAdmin may inspect cross-tenant workflow details
+  - TenantAdmin may inspect only workflows in their tenant if the backend supports it
+- ordinary product users must not gain access through Control Center
+- the backend/API remains authoritative for workflow visibility
+- if the page is still platform-admin-only today, document that clearly and keep the drawer aligned with that guard
+
+6. LOADING / EMPTY / ERROR BEHAVIOR
+
+Requirements:
+- support loading state while the drawer detail is fetched
+- support error state if detail cannot be loaded
+- do not break the list page if detail fetch fails
+- if the selected row becomes unavailable (deleted/forbidden), show a compact error state in the drawer and allow dismissal
+- preserve the user’s list/filter state when opening/closing the drawer
+
+7. FRONTEND ARCHITECTURE
+
+Requirements:
+- follow existing Control Center component/data-fetching patterns
+- keep the drawer implementation modular so future E9.3 exception/stuck workflow views can reuse it
+- separate:
+  - list/table page
+  - detail drawer component
+  - detail data fetcher / API client
+  - formatting helpers
+- do not introduce a large new frontend state-management library
+
+8. VALIDATION
+
+You MUST validate and record in the report:
+
+Drawer UX
+- workflow list page opens a read-only detail drawer/panel
+- drawer can be dismissed without losing list/filter state
+- drawer displays the expected fields
+- loading/error states work correctly
+
+API / BFF
+- browser uses intended Control Center API/BFF path
+- auth/session handling remains consistent
+- detail endpoint/data respects admin visibility rules
+
+Permissions
+- unauthorized users do not gain visibility
+- cross-tenant access remains restricted appropriately
+- page guard and API guard remain aligned
+
+Runtime / Build
+- Control Center frontend compiles successfully
+- any backend/API project changed still compiles
+- E9.1 workflow list remains stable
+
+9. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- where the detail drawer component lives
+- what API/BFF endpoint(s) it uses
+- what fields are displayed
+- what deep-link assumptions were made
+- what remains for E9.3 (exception/stuck-workflow view)
+
+10. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E9.2 unless strictly required:
+- workflow execution actions in Control Center
+- workflow template administration
+- advanced timeline/history if not already cheaply available
+- analytics dashboards
+- tenant-portal changes
+- broad UI redesign
+- bulk actions
+- export/reporting
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current E9.1 workflow list page and determine the least-disruptive drawer interaction pattern.
+2. Create /analysis/E9.2-report.md immediately and begin logging assumptions/actions.
+3. Identify or add the minimal read-only detail API/BFF endpoint needed for a selected workflow.
+4. Build the workflow detail drawer component.
+5. Wire row click/View action to open the drawer.
+6. Add summary/source-context/lifecycle/diagnostics sections.
+7. Add deep link(s) to source records where safe.
+8. Validate permission/visibility behavior.
+9. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E9.2 is successful when:
+- the Control Center workflow list can open a read-only workflow detail drawer
+- admins can inspect workflow status, current step, tenant/product/source context, timestamps, and errors
+- list/filter state is preserved while inspecting details
+- browser/API boundaries remain correct
+- the implementation is ready for E9.3 exception/stuck-workflow follow-up
+
+FAILURE CONDITION
+
+E9.2 fails if:
+- the drawer becomes an execution surface instead of read-only inspection
+- the browser is coupled directly to Flow without justification
+- visibility rules are weakened
+- the list page becomes unstable or heavily redesigned
+- the detail view does not add meaningful triage value

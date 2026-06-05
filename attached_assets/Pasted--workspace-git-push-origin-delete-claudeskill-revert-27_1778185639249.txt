@@ -1,0 +1,24 @@
+~/workspace$ git push origin --delete claudeskill revert-27-claudeskill opsdev performance-and-maintainability- security-update-patch snyk-fix-63cddfb161993c73724aef048c098c9e snyk-fix-63eda65994d6f2400bfdf3e38553c6e8 snyk-fix-6990f3740a83a38aa39f42e946c12d2a snyk-fix-6ae880293c7e42fc5017895c422ad910 snyk-fix-8bb39cbe727d78bbcffc44f41ebfe8e4 snyk-fix-8cfad37b75c7ce9f049f9180268a6c2b snyk-fix-8e211f70a0d4b1a1680d8c6df281e07b snyk-fix-973c2102c65cbbb4106c54718c44f629 snyk-fix-a083c1fc957ff92dfbb64c894844e686 snyk-fix-c69598ee6a795070efa58c4d13500f8c snyk-fix-d76768eb1297578549ce520f3c013e9a snyk-fix-dce8f3b31c614985a1a547d8b8f853f1 snyk-fix-ec80178d822ce397495574ebb536582d snyk-fix-f86e110afb4c0b1225cd3764e8d06134 snyk-upgrade-64ab2694ec60492f30d1430e71bd5151 snyk-upgrade-e88842cbac22fe75ebc5854b82963ab0 snyk-upgrade-f2d74614c1606ba5b6c9748ac2d7178f
+To https://github.com/XentraSolutions/legalsynq-v2.0.git
+ - [deleted]           claudeskill
+ - [deleted]           opsdev
+ - [deleted]           performance-and-maintainability-
+ - [deleted]           revert-27-claudeskill
+ - [deleted]           security-update-patch
+ - [deleted]           snyk-fix-63cddfb161993c73724aef048c098c9e
+ - [deleted]           snyk-fix-63eda65994d6f2400bfdf3e38553c6e8
+ - [deleted]           snyk-fix-6990f3740a83a38aa39f42e946c12d2a
+ - [deleted]           snyk-fix-6ae880293c7e42fc5017895c422ad910
+ - [deleted]           snyk-fix-8bb39cbe727d78bbcffc44f41ebfe8e4
+ - [deleted]           snyk-fix-8cfad37b75c7ce9f049f9180268a6c2b
+ - [deleted]           snyk-fix-8e211f70a0d4b1a1680d8c6df281e07b
+ - [deleted]           snyk-fix-973c2102c65cbbb4106c54718c44f629
+ - [deleted]           snyk-fix-a083c1fc957ff92dfbb64c894844e686
+ - [deleted]           snyk-fix-c69598ee6a795070efa58c4d13500f8c
+ - [deleted]           snyk-fix-d76768eb1297578549ce520f3c013e9a
+ - [deleted]           snyk-fix-dce8f3b31c614985a1a547d8b8f853f1
+ - [deleted]           snyk-fix-ec80178d822ce397495574ebb536582d
+ - [deleted]           snyk-fix-f86e110afb4c0b1225cd3764e8d06134
+ - [deleted]           snyk-upgrade-64ab2694ec60492f30d1430e71bd5151
+ - [deleted]           snyk-upgrade-e88842cbac22fe75ebc5854b82963ab0
+ - [deleted]           snyk-upgrade-f2d74614c1606ba5b6c9748ac2d7178f

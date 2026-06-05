@@ -1,0 +1,107 @@
+Implement the authentication, JWT generation, and capability-based authorization layer for a tenant-aware, multi-organization, product-role platform.
+
+Use the existing EF Core schema and migration plan as already defined, including:
+
+- Tenants
+- TenantDomains (for subdomain routing)
+- Organizations
+- OrganizationProducts
+- ProductRoles
+- Capabilities
+- RoleCapabilities
+- Users
+- UserOrganizationMemberships
+- Roles and UserRoles (legacy)
+- UserRoleAssignments (new)
+
+Core rules:
+- Tenant is resolved from subdomain (or tenantCode fallback)
+- User logs in within a tenant context
+- Organization is resolved from UserOrganizationMemberships
+- Product roles are derived from:
+    OrganizationProducts + ProductRoles filtered by EligibleOrgType
+- Capabilities are NOT stored in JWT and must be resolved at request time
+- Legacy role checks using ClaimTypes.Role must continue to work
+- New authorization must be capability-based
+
+Generate the output in these exact sections:
+
+1. JWT Design
+- exact claim structure
+- data types for each claim
+- example JWT payload
+- size considerations and limits
+- how to encode product_roles (array vs string)
+
+2. Auth Service Implementation
+- login flow in code-level detail
+- queries required to:
+  - load tenant
+  - load user
+  - load primary organization membership
+  - load enabled organization products
+  - load applicable product roles
+- DTOs for login response
+- error handling cases
+
+3. JWT Generation Code (C#)
+- method to generate token
+- claims construction
+- signing configuration
+- expiration strategy
+
+4. Authorization Middleware / Helpers
+- how to extract:
+  - tenant_id
+  - org_id
+  - product_roles
+- how to attach them to request context
+- example middleware or service
+
+5. Capability Resolution Logic
+- how to resolve capabilities at request time:
+  - join ProductRoles → RoleCapabilities → Capabilities
+- caching strategy (very important)
+- example service method:
+  HasCapability(userContext, "referral:create")
+
+6. Authorization Usage Patterns
+Provide concrete examples:
+
+- CareConnect:
+  - create referral (requires referral:create)
+  - provider accepting referral
+- SynqFund:
+  - funder approving application
+  - law firm creating application
+- SynqLien:
+  - provider creating lien
+  - lien owner purchasing lien
+
+7. Backward Compatibility Layer
+- how existing [Authorize(Roles = "...")] continues working
+- how to combine:
+  - role-based
+  - capability-based
+- transition strategy
+
+8. Platform Admin Bypass
+- implement a clean pattern where:
+  - ClaimTypes.Role = PlatformAdmin bypasses capability checks
+- show code example
+- explain risks and safeguards
+
+9. Performance Considerations
+- caching of:
+  - role → capability mappings
+  - product roles
+- avoiding N+1 queries
+- recommended indexes usage
+
+10. Testing Strategy
+- unit tests for:
+  - JWT generation
+  - capability resolution
+- integration tests for:
+  - endpoint authorization
+  - cross-tenant access restrictions

@@ -1,0 +1,341 @@
+# LS-ID-TNT-001 — Tenant Users List Stabilization
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing a stabilization-only feature on an existing codebase.
+
+This feature MUST follow these rules:
+- Incremental changes only (NO rewrites)
+- Reuse existing services/components
+- Do NOT introduce new APIs unless absolutely necessary (and justify in report)
+- Maintain separation of concerns (UI / API / backend)
+- Handle all fallback scenarios
+- NO placeholder implementations
+
+---
+
+## FEATURE OBJECTIVE
+
+Stabilize the Authorization → Users page so it becomes a reliable, tenant-scoped user directory.
+
+This is a READ-ONLY feature.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Add User
+- Edit User
+- Activate / Deactivate
+- Reset Password
+- Role assignment changes
+- Group assignment
+- Product assignment
+- Any new backend endpoints (unless critical and justified)
+- Any redesign of UI
+
+DO NOT MODIFY:
+- Groups tab
+- Access tab
+- Simulator tab
+
+ONLY FIX / IMPLEMENT:
+- Data loading
+- Tenant scoping
+- Table rendering
+- Search
+- Filters
+- Loading state
+- Empty state
+- Error handling
+- Null-safe rendering
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-001-report.md
+
+Initialize with:
+
+# LS-ID-TNT-001 — Tenant Users List Stabilization
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing API / Data Contract
+## 4. Files Changed
+## 5. Implementation Details
+## 6. Search & Filter Behavior
+## 7. Loading / Empty / Error States
+## 8. Tenant Scope Handling
+## 9. Validation & Testing Results
+## 10. Known Issues / Gaps
+## 11. Final Status
+
+IMPORTANT:
+- Update this report AFTER EVERY STEP
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Locate:
+- Authorization → Users page
+- associated components/hooks/services
+- API call used to fetch users
+
+Identify and document:
+- endpoint used
+- data structure
+- how tenant is resolved (token/session/header)
+- current search/filter logic
+
+Update report sections:
+## 2. Codebase Analysis
+## 3. Existing API / Data Contract
+
+---
+
+## STEP 2 — TENANT SCOPE VALIDATION
+
+Ensure:
+- all user data is scoped to authenticated tenant
+- NO hardcoded tenantId/programId
+- NO UI-driven tenant switching
+
+If violations exist:
+- fix them
+- document before/after behavior
+
+Update report:
+## 8. Tenant Scope Handling
+
+---
+
+## STEP 3 — TABLE STABILIZATION
+
+Ensure table renders safely for:
+
+Columns:
+- User
+- Email
+- Status
+- Products
+- Roles
+- Groups
+- Actions
+
+User:
+- full name if available
+- fallback to partial name
+- fallback to initials
+
+Email:
+- show email
+- fallback: "—"
+
+Status:
+Normalize to:
+- Active
+- Inactive
+
+Handle:
+- boolean
+- string
+- enum
+- null
+
+Products / Roles / Groups:
+- if array → length
+- if null → 0
+- if missing → 0
+
+Actions:
+- leave unchanged
+- DO NOT add functionality
+
+Ensure:
+- NO runtime errors
+- NO undefined rendering
+
+Update report:
+## 5. Implementation Details
+
+---
+
+## STEP 4 — SEARCH IMPLEMENTATION
+
+Ensure search works:
+
+Fields:
+- firstName
+- lastName
+- fullName
+- email
+
+Behavior:
+- case-insensitive
+- partial match
+- real-time filtering
+- tenant-safe
+
+Rules:
+- DO NOT introduce new backend search unless already supported
+- Fix existing logic only
+
+Update report:
+## 6. Search & Filter Behavior
+
+---
+
+## STEP 5 — STATUS FILTER FIX
+
+Filters:
+- All
+- Active
+- Inactive
+
+Requirements:
+- default = All
+- correct filtering
+- align with normalized status
+
+Fix inconsistencies between backend values and UI
+
+Update report:
+## 6. Search & Filter Behavior
+
+---
+
+## STEP 6 — LOADING STATE
+
+While fetching:
+- show spinner or skeleton
+- DO NOT show empty state
+- DO NOT render broken rows
+
+Update report:
+## 7. Loading / Empty / Error States
+
+---
+
+## STEP 7 — EMPTY STATE
+
+Case 1:
+No users
+→ "No users found for this tenant."
+
+Case 2:
+No search/filter results
+→ "No users match your current search or filters."
+
+Ensure:
+- not shown during loading
+
+Update report:
+## 7. Loading / Empty / Error States
+
+---
+
+## STEP 8 — ERROR STATE
+
+If API fails:
+- do NOT crash
+- show:
+  "Unable to load users right now."
+
+Update report:
+## 7. Loading / Empty / Error States
+
+---
+
+## STEP 9 — NULL SAFETY HARDENING
+
+Handle:
+- null names
+- null email
+- null status
+- missing arrays
+- undefined fields
+
+Rules:
+- NEVER crash
+- ALWAYS fallback
+
+Update report:
+## 5. Implementation Details
+
+---
+
+## STEP 10 — PAGINATION (CONDITIONAL)
+
+IF pagination exists:
+- preserve behavior
+- ensure compatibility with search/filter
+
+IF not:
+- do nothing
+
+Document decision in report
+
+---
+
+## STEP 11 — VALIDATION & TESTING
+
+Test:
+
+Standard:
+- load users
+- search by name
+- search by email
+- filter active
+- filter inactive
+
+Edge:
+- zero users
+- one user
+- missing fields
+- null values
+- API failure
+- no search results
+
+Document all results:
+
+## 9. Validation & Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+
+## 1. Executive Summary
+## 10. Known Issues / Gaps
+## 11. Final Status = Complete
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Users page loads reliably  
+✔ Tenant isolation is enforced  
+✔ No crashes from null/missing data  
+✔ Search works correctly  
+✔ Filters work correctly  
+✔ Loading/empty/error states behave correctly  
+✔ No mutation features introduced  
+
+---
+
+## FINAL DELIVERABLES
+
+1. Updated Users page (stable)
+2. Completed report:
+/analysis/LS-ID-TNT-001-report.md
+
+---
+
+END OF IMPLEMENTATION

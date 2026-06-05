@@ -1,0 +1,283 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Define the `BillOfSale` domain entity for the `liens` microservice as the legal and financial transfer record created from an accepted lien sale.
+
+This feature is domain modeling only. It is NOT for repositories, EF Core mappings, database migrations, CRUD APIs, document generation, or frontend work yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+For the Liens build, all shared platform concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION RULE:
+- Preserve donor SynqLiens product behavior
+- Preserve existing APIs as much as possible
+- Use v1 as a donor for behavior and API shape, NOT as a schema to copy directly
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING LIENS DOMAIN + DONOR SALE PATTERNS
+--------------------------------------------------
+
+Inspect:
+- the current Liens domain entities already created:
+  - `Case`
+  - `Contact`
+  - `Facility`
+  - `LookupValue`
+  - `Lien`
+  - `LienOffer`
+- existing Liens enums/constants/value objects
+- donor SynqLiens concepts related to sales / bill of sale / transfer completion:
+  - frontend types
+  - mock data
+  - detail views
+  - store/state behavior if relevant
+
+Understand:
+- current Liens entity modeling conventions
+- status/type constants pattern
+- factory/update method pattern
+- multi-tenant/org scoping pattern
+- how current entities preserve donor behavior while staying v2-clean
+
+Follow these existing patterns. Do NOT invent a conflicting BillOfSale modeling style.
+
+--------------------------------------------------
+STEP 1A — DONOR BEHAVIOR & API PRESERVATION (CRITICAL)
+--------------------------------------------------
+
+Before defining the `BillOfSale` entity:
+
+1. Review donor SynqLiens sale-transfer concepts at a high level, including:
+   - bill of sale structure
+   - accepted offer linkage
+   - seller identity meaning
+   - buyer identity meaning
+   - purchase amount meaning
+   - effective/executed timestamps
+   - transfer-completion semantics
+   - any reference numbers or notes exposed through APIs/UI
+
+2. Identify:
+   - key fields that drive transfer behavior
+   - key fields exposed in APIs
+   - fields needed for future workflows:
+     - sale finalization
+     - holder transition
+     - document generation
+     - audit trail
+     - servicing handoff
+
+3. Apply these rules:
+
+### Behavior Preservation
+- Preserve meaning and purpose of core transfer fields
+- Ensure the entity can support the same ownership-transfer workflow intent as donor SynqLiens
+- Do NOT drop critical seller/buyer/purchase/execution concepts
+
+### API Compatibility Preservation
+- Prefer field names that can map cleanly to existing APIs
+- Avoid renaming important external/business properties unnecessarily
+- Design the entity so future APIs can map to donor contracts with minimal transformation
+
+### v2 Alignment
+- Use clean `TenantId` / `OrgId` / `LienId` / `LienOfferId` style identifiers
+- Normalize legacy naming where it improves the design
+- Keep the model clean and consistent with the v2 architecture
+
+4. Any field that is changed, normalized, or deferred must be documented and justified in the report.
+
+--------------------------------------------------
+STEP 2 — DEFINE THE BILLOFSALE ENTITY
+--------------------------------------------------
+
+In:
+apps/services/liens/Liens.Domain/Entities/
+
+Create:
+
+- `BillOfSale.cs`
+
+Also create supporting types if needed in:
+- `Liens.Domain/Enums`
+- `Liens.Domain/ValueObjects`
+- `Liens.Domain/Constants`
+
+Use the same style as the already-established Liens entities.
+
+--------------------------------------------------
+STEP 3 — MODEL A CLEAN V2 CANONICAL BILL OF SALE
+--------------------------------------------------
+
+Design the entity to support both donor behavior and clean v2 structure.
+
+The `BillOfSale` entity should be ready for future concepts such as:
+- creating a transfer record from an accepted offer
+- seller snapshot at time of sale
+- buyer snapshot at time of sale
+- agreed purchase amount
+- execution / issuance / effective dates
+- future document generation
+- future audit trail
+- future servicing readiness
+- possible void/cancel semantics if appropriate
+
+At minimum, the resulting model should support equivalent meaning for concepts such as:
+
+- `Id`
+- `TenantId`
+- `OrgId`
+- `LienId`
+- `LienOfferId`
+- `BillOfSaleNumber`
+- `ExternalReference`
+- `SellerOrgId`
+- `BuyerOrgId`
+- `PurchaseAmount`
+- `Status`
+- `IssuedAtUtc`
+- `ExecutedAtUtc`
+- `EffectiveAtUtc`
+- `VoidedAtUtc` if appropriate
+- `Notes`
+
+You do NOT have to use these exact names if the existing Liens/v2 patterns suggest a better structure, but the business meaning and API mapping ability must be preserved.
+
+--------------------------------------------------
+STEP 4 — SUPPORTING TYPES
+--------------------------------------------------
+
+Add supporting enums/constants/value objects if needed, such as:
+- bill of sale status constants
+- execution state constants if useful
+- small immutable value objects ONLY if they genuinely match existing Liens/v2 patterns
+
+Do NOT over-engineer.
+If plain fields + one clean status constants class are sufficient, prefer that.
+
+--------------------------------------------------
+STEP 5 — RELATIONSHIP READINESS
+--------------------------------------------------
+
+Design the `BillOfSale` entity so future relationships can be added without redesign.
+
+The model should clearly support future relationships to:
+- `Lien`
+- `LienOffer`
+- seller organization
+- buyer organization
+- future v2 Documents record for the generated bill-of-sale file
+- future audit trail
+- future settlement/disbursement workflows
+- future e-signature/approval workflow if needed
+
+Do NOT add persistence-heavy navigation complexity.
+Use the lightest clean design that preserves future extensibility.
+
+--------------------------------------------------
+STEP 6 — EXPRESS DOMAIN INTENT
+--------------------------------------------------
+
+Where useful, include:
+- factory methods
+- update methods
+- state transition methods
+- simple validation guards
+
+Examples of natural operations at this stage may include:
+- create from accepted sale
+- mark executed
+- mark effective
+- void/cancel if that concept is justified
+- update notes before execution if donor-compatible
+
+Keep the scope tight:
+- no workflow orchestration
+- no repository logic
+- no cross-entity service integrations
+
+Do NOT implement document generation inside the entity.
+Do NOT implement notifications or audit publishing here.
+
+--------------------------------------------------
+STEP 7 — KEEP DOMAIN CLEAN
+--------------------------------------------------
+
+Do NOT add:
+- EF Core attributes
+- DbContext
+- repositories
+- migrations
+- API DTOs/models
+- HTTP logic
+- auth logic
+- identity claim parsing
+- documents integration
+- notifications integration
+- audit integration
+
+This is domain modeling only.
+
+--------------------------------------------------
+STEP 8 — VALIDATE BUILD + NON-REGRESSION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. Existing identity integration still builds
+4. Gateway is unaffected
+5. No project dependency direction is violated
+
+--------------------------------------------------
+STEP 9 — GENERATE REPORT
+--------------------------------------------------
+
+Create this report file in the root `/analysis` folder:
+
+`/analysis/LS-LIENS-03-004-report.md`
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 + Liens domain patterns identified and followed
+3. Donor SynqLiens sale / bill-of-sale concepts consulted (behavior/API only)
+4. Exact files created/changed
+5. Final entity list
+   - `BillOfSale`
+   - plus any supporting enums/value objects/constants
+6. Key fields in `BillOfSale` and why they were chosen
+7. Multi-tenant / org / seller-buyer / transfer design decisions
+8. Relationship assumptions and future extensibility notes
+9. What was intentionally deferred
+10. Build results
+    - liens service
+    - relevant solution/workspace
+11. Confirmation that no persistence/API/auth concerns were added to the Domain layer
+12. Confirmation that no v1 code or v1 runtime logic was introduced
+
+### REQUIRED SECTION — API & Behavior Preservation Analysis
+13. API & Behavior Preservation Analysis
+- Which donor bill-of-sale / sale fields influenced the design
+- Which fields were preserved for compatibility
+- Any fields changed, normalized, or deferred and why
+- How easily future APIs can map to the new `BillOfSale` entity
+
+14. Risks / assumptions
+15. Final readiness statement:
+   - Is the core `BillOfSale` domain model now established?
+   - Is the service ready for the next feature?
+
+Be detailed and evidence-based. The report should be sufficient for architecture review without opening the code.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Create a clean v2 `BillOfSale` domain model that preserves SynqLiens transfer behavior and supports future API compatibility without copying legacy implementation.
+
+Proceed.

@@ -1,0 +1,199 @@
+You are implementing BLK-ID-01 — Identity Tenant Decoupling (Remove Ownership) for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-ID-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This is a REFRACTOR block.
+   You are removing tenant lifecycle ownership from Identity.
+
+5. Tenant service is now the ONLY service allowed to:
+   - create tenants
+   - validate tenant codes
+   - manage subdomains
+   - own tenant master data
+
+6. DO NOT break:
+   - authentication
+   - JWT issuance
+   - user login
+   - user ↔ tenant membership
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Remove all tenant creation and tenant validation logic from Identity service.
+
+After this block:
+
+- Identity does NOT create tenants
+- Identity does NOT validate tenant codes
+- Identity only handles users, roles, and memberships
+
+--------------------------------------------------
+
+PART A — REMOVE TENANT CREATION ENDPOINTS
+
+--------------------------------------------------
+
+Locate and remove or disable:
+
+POST /api/admin/tenants/self-provision
+
+Behavior:
+- MUST no longer create tenants
+- MUST no longer be callable
+
+Options:
+- remove endpoint entirely (preferred)
+OR
+- return 410 Gone / 501 Not Implemented with clear message:
+  "Tenant provisioning has moved to Tenant service"
+
+--------------------------------------------------
+
+PART B — REMOVE TENANT CODE CHECK ENDPOINT
+
+--------------------------------------------------
+
+Locate and remove:
+
+GET /api/admin/tenants/check-code
+
+This responsibility now belongs to Tenant service.
+
+--------------------------------------------------
+
+PART C — REMOVE TENANT CREATION LOGIC
+
+--------------------------------------------------
+
+Search Identity codebase for:
+
+- tenant creation logic
+- organization creation tied to tenant provisioning
+- subdomain assignment logic
+- DNS provisioning triggers
+
+Remove or disable all of the above.
+
+IMPORTANT:
+If logic is reused elsewhere, isolate and remove ONLY tenant creation responsibility.
+
+--------------------------------------------------
+
+PART D — PRESERVE MEMBERSHIP LOGIC
+
+--------------------------------------------------
+
+Ensure the following still works:
+
+- User.TenantId assignment
+- user ↔ tenant membership
+- role assignment (e.g., TenantAdmin)
+- JWT tenant claims
+
+DO NOT modify:
+- login flow
+- token generation
+- role resolution
+
+--------------------------------------------------
+
+PART E — ADD SAFE GUARDS
+
+--------------------------------------------------
+
+Add defensive checks:
+
+If any code path attempts to:
+- create tenant
+- validate tenant code
+
+Then:
+- throw explicit exception
+OR
+- log warning and block execution
+
+Example:
+"Tenant creation is no longer supported in Identity service. Use Tenant service."
+
+--------------------------------------------------
+
+PART F — CLEANUP / DEAD CODE
+
+--------------------------------------------------
+
+Remove:
+
+- unused services related to tenant provisioning
+- unused DTOs for tenant creation
+- obsolete interfaces (e.g., ITenantProvisioningService in Identity if no longer needed)
+
+DO NOT remove:
+- shared interfaces still used by Tenant service
+
+--------------------------------------------------
+
+PART G — VALIDATION
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. Identity no longer exposes tenant creation endpoints
+2. Identity no longer exposes tenant code check endpoint
+3. User login still works
+4. JWT issuance still works
+5. User.TenantId assignment still works
+6. Role assignment still works
+7. No compile errors
+8. dotnet build succeeds
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-ID-01-report.md
+
+# BLK-ID-01 Report
+
+## 1. Summary
+## 2. Removed Endpoints
+## 3. Removed Logic
+## 4. Preserved Behavior
+## 5. Safeguards Added
+## 6. Validation Results
+## 7. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- move onboarding flow yet
+- modify CareConnect
+- modify Tenant service
+- introduce new APIs
+- break authentication
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- Identity cannot create tenants
+- Identity cannot validate tenant codes
+- Identity still handles users and roles correctly
+- report saved at:
+  /analysis/BLK-ID-01-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

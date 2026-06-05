@@ -1,0 +1,412 @@
+You are implementing feature XNA_Core-08-008 for the Xenia v2.0 codebase.
+
+Feature Title:
+Feedback Analytics & Insights
+
+Objective:
+Transform structured feedback records into actionable, deterministic analytics for the admin by aggregating feedback signals into metrics, distributions, trends, and top requested capabilities.
+
+Critical implementation rules:
+1. Reuse the existing feedback architecture and structured fields introduced in XNA_Core-08-006 and XNA_Core-08-007.
+2. Prefer incremental, shippable changes over broad rewrites.
+3. Separate analytics aggregation logic, API wiring, and admin UI rendering cleanly.
+4. Do not introduce AI/LLM behavior.
+5. Analytics logic must be deterministic, auditable, and testable.
+6. Do not introduce a new DB schema for v1 unless absolutely necessary; prefer deriving from existing feedback_records data.
+7. Preserve existing feedback capture and inbox behavior.
+8. Save a full implementation report in the root /analysis folder named exactly:
+   XNA_Core-08-008-report.md
+
+Context:
+The system already captures structured feedback including:
+- inquiry type
+- summary
+- conversation
+- rating
+- goalAchievement
+- goalFailureReason
+- confidenceLevel
+- experienceQuality
+- requestedCapability
+
+However, this data is still reviewed one record at a time. This feature must add an analytics layer so the admin can understand patterns, trust levels, UX quality, and demand signals at a glance.
+
+Feature Scope:
+Implement Feedback Analytics & Insights with:
+- aggregated feedback metrics
+- distributions and counts
+- simple trends over time
+- top requested capabilities
+- admin-only analytics API
+- admin analytics UI
+
+==================================================
+FUNCTIONAL REQUIREMENTS
+==================================================
+
+1. Core analytics model
+
+Implement a deterministic analytics model logically equivalent to:
+
+type FeedbackAnalytics = {
+  totals: {
+    totalFeedback: number
+    byType: {
+      BUG: number
+      FEATURE_REQUEST: number
+      SUGGESTION: number
+      QUESTION: number
+      GENERAL: number
+    }
+  }
+
+  rating: {
+    average: number
+    distribution: {
+      1: number
+      2: number
+      3: number
+      4: number
+      5: number
+    }
+  }
+
+  goalAchievement: {
+    yes: number
+    partial: number
+    no: number
+  }
+
+  confidence: {
+    high: number
+    medium: number
+    low: number
+  }
+
+  experience: {
+    human: number
+    okay: number
+    robotic: number
+  }
+
+  trends: Array<{
+    date: string
+    total: number
+    avgRating: number
+  }>
+
+  featureRequests: Array<{
+    text: string
+    count: number
+  }>
+}
+
+You may extend the shape slightly for UI convenience, but the logical contract must remain.
+
+2. Data source rules
+
+Use the existing feedback_records table and structured columns as the source of truth.
+
+Required source fields:
+- inquiry_type
+- rating
+- goal_achievement
+- confidence_level
+- experience_quality
+- requested_capability
+- created_at
+
+Do not introduce a new schema for v1.
+Do not reprocess old raw conversation text with AI.
+
+3. Aggregation rules
+
+3.1 Total feedback
+- totalFeedback = total number of feedback records in scope
+
+3.2 Feedback by inquiry type
+Count records by:
+- BUG
+- FEATURE_REQUEST
+- SUGGESTION
+- QUESTION
+- GENERAL
+
+Return all five keys even if count = 0.
+
+3.3 Rating analytics
+- average = arithmetic mean of non-null rating values
+- if no ratings exist, average = 0
+- distribution = counts for ratings 1–5
+- return all five keys even if count = 0
+
+Choose and document a stable rounding rule for average rating.
+Recommended:
+- one decimal place
+or
+- nearest tenth
+Keep it consistent.
+
+3.4 Goal achievement
+Count:
+- yes = goalAchievement === YES
+- partial = goalAchievement === PARTIAL
+- no = goalAchievement === NO
+
+3.5 Confidence distribution
+Count:
+- high = HIGH
+- medium = MEDIUM
+- low = LOW
+
+3.6 Experience quality distribution
+Count:
+- human = HUMAN
+- okay = OKAY
+- robotic = ROBOTIC
+
+4. Trend rules
+
+Implement a simple v1 trend model.
+
+Recommended:
+- daily buckets based on created_at date
+- newest or oldest ordering is acceptable, but must be deterministic and documented
+
+For each date bucket compute:
+- total feedback count
+- average rating for that date (0 if no ratings)
+
+Do not introduce predictive or statistical forecasting in v1.
+
+5. Feature request aggregation
+
+Use requestedCapability as the source for feature demand signals.
+
+Rules:
+- ignore null/empty values
+- normalize by:
+  - trim whitespace
+  - lowercase for grouping
+- preserve a readable output text form
+
+Recommended approach:
+- group by normalized string
+- output sorted by:
+  1. count descending
+  2. text ascending (stable tiebreaker)
+
+Limit:
+- return top 10 requested capabilities in v1
+- if fewer than 10 exist, return all
+
+Do not use NLP clustering or semantic grouping.
+
+6. Service design
+
+Create a new service/module:
+
+FeedbackAnalyticsService
+
+Suggested path:
+artifacts/api-server/src/lib/feedback-analytics-service.ts
+
+Responsibilities:
+- load feedback records in scope
+- compute all analytics sections
+- return FeedbackAnalytics
+
+Preferred helper structure:
+- computeTotals(...)
+- computeRatingAnalytics(...)
+- computeGoalAchievement(...)
+- computeConfidence(...)
+- computeExperience(...)
+- computeTrends(...)
+- computeFeatureRequests(...)
+
+Keep helpers pure where practical.
+
+7. Workspace scope / access
+
+Analytics should be scoped consistently with the current admin feedback review behavior.
+
+Preferred v1 scope:
+- feedback records in the admin’s active workspace
+- include records with matching workspace_id
+- decide how to handle workspace_id = null consistently and document it clearly
+
+Use existing workspace resolution patterns already present in the codebase.
+
+8. API
+
+Add endpoint:
+
+GET /api/admin/feedback/analytics
+
+Requirements:
+- authenticated
+- admin-only
+- server-side RBAC enforced
+- returns FeedbackAnalytics
+
+Follow existing admin route and auth conventions.
+
+9. UI
+
+Add an admin-only analytics surface.
+
+Preferred v1 location:
+- Admin Settings area alongside / near Feedback Inbox
+- either a new “Feedback Analytics” tab
+- or a dedicated analytics section inside the feedback admin area
+
+Minimum UI requirements:
+
+9.1 Overview metrics
+Show:
+- total feedback
+- average rating
+- quick view of goal achievement or success rate if helpful
+
+9.2 Distributions
+Show clearly:
+- inquiry type counts
+- rating distribution
+- goal achievement breakdown
+- confidence breakdown
+- experience quality breakdown
+
+9.3 Trends
+Show daily feedback totals and rating trend in a simple way.
+
+v1 acceptable presentations:
+- compact table
+- simple bar rows
+- lightweight line/bar rendering if already easy
+Do not add a heavy charting dependency unless already present and justified.
+
+9.4 Top requested capabilities
+Show:
+- requested capability text
+- count
+
+10. Empty-state behavior
+
+If there is no feedback data:
+- analytics endpoint returns stable zeroed output
+- UI renders a clean empty state rather than crashing or hiding everything
+
+Recommended:
+- totalFeedback = 0
+- all distributions zeroed
+- trends = []
+- featureRequests = []
+
+11. Validation / determinism requirements
+
+- analytics must be deterministic for the same source data
+- sorting must be stable and documented
+- missing/null structured fields must not cause errors
+- all required buckets/keys must always be present in output
+
+==================================================
+NON-FUNCTIONAL REQUIREMENTS
+==================================================
+
+- deterministic only
+- no AI/LLM
+- no new DB schema in v1
+- admin-only access enforced server-side
+- efficient aggregation
+- tests required for:
+  - empty dataset
+  - totals by type
+  - rating average/distribution
+  - goal/confidence/experience distributions
+  - trend bucketing
+  - requested capability grouping and sorting
+  - admin-only route behavior if route tests are supported
+
+==================================================
+IMPLEMENTATION GUIDANCE
+==================================================
+
+1. First inspect:
+- current feedback-records schema
+- feedback capture service
+- admin feedback inbox routes/UI
+- RBAC/admin middleware
+- existing admin settings tabs/layout
+
+2. Keep constants centralized:
+- inquiry types
+- goal achievement values
+- confidence values
+- experience values
+
+3. Return stable output shapes.
+Do not omit buckets just because they are zero.
+
+4. For feature request grouping:
+- normalize for grouping
+- present readable text in output
+- keep logic explicit and simple
+
+5. Prefer deriving analytics from existing persisted structured fields.
+Do not parse conversation transcripts in v1.
+
+6. Keep admin UI lightweight and decision-oriented.
+This is an insight surface, not a BI tool.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+- Analytics endpoint returns correct aggregated data
+- Total counts and distributions are accurate
+- Average rating is computed correctly
+- Trend buckets are generated correctly
+- Top requested capabilities are grouped and sorted correctly
+- Admin-only access is enforced
+- UI displays analytics clearly
+- Empty dataset is handled gracefully
+- No new DB schema is introduced
+- Existing feedback capture/review flows continue to work
+
+==================================================
+DELIVERABLES
+==================================================
+
+1. Implement the feature in the codebase.
+2. Run relevant tests.
+3. Create a report at:
+   /analysis/XNA_Core-08-008-report.md
+
+The report must include:
+- Summary of what was implemented
+- Files added/changed
+- Analytics model implemented
+- Aggregation rules used
+- Average rating rounding rule
+- Trend bucketing rule
+- Feature request grouping rule
+- API contract summary
+- UI summary
+- Test coverage summary
+- Assumptions made
+- Known limitations or follow-up recommendations
+- Confirmation of deterministic behavior
+- Confirmation that no new DB schema was introduced
+
+4. In the report, include a final status block in this format:
+
+- Feature ID: XNA_Core-08-008
+- Status: Complete | Partial | Blocked
+- Test Status: pass/fail counts if available
+- Analytics Logic: Deterministic | Not Deterministic
+- Access Control: Enforced | Partial | Not Enforced
+- DB Schema Constraint: Met | Not Met
+- Notes: brief summary
+
+Now implement the feature.

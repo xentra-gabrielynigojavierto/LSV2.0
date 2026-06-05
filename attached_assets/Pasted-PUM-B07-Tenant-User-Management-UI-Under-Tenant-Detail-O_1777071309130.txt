@@ -1,0 +1,195 @@
+PUM-B07 — Tenant User Management UI Under Tenant Detail
+
+Objective:
+Move tenant user management into the Control Center tenant section by adding a Users tab/page under Tenant Detail.
+
+Tenant users must NOT appear in Platform User Management. Platform users remain under /platform-users only.
+
+Create the report file FIRST:
+
+/analysis/PUM-B07-report.md
+
+Update it incrementally while implementing.
+
+Required report sections:
+1. Codebase Analysis
+2. Existing Tenant Detail UI Structure
+3. API Reuse vs Gaps
+4. UI Implementation Details
+5. Backend Changes, if any
+6. Files Changed
+7. Validation Results
+8. Known Gaps / Deferred Items
+9. Final Assessment
+
+Scope:
+Implement Control Center UI for managing TenantUser users inside a selected tenant.
+
+In Scope:
+- Add Users tab/section under Tenant Detail
+- List users belonging to selected tenant
+- View tenant user profile summary
+- Assign Tenant-scoped roles
+- Remove/revoke Tenant-scoped roles
+- Remove/deprivilege user from tenant using existing backend behavior
+- Search/filter tenant users
+- Reuse PUM-B03 Identity APIs
+- Keep PlatformInternal users out of this UI
+- Keep ExternalCustomer users out unless already returned by tenant endpoint, but do not manage them here
+
+Out of Scope:
+- PlatformInternal user management
+- External customer management
+- Commerce integration
+- Support integration
+- Notifications/invites
+- Audit wiring
+- Full permission middleware enforcement
+- Customer portal UI
+- Product access management unless already safely available in existing tenant user detail panels
+
+Routes / Placement:
+Add tenant users under the existing tenant detail route.
+
+Preferred route:
+Control Center → Tenants → Tenant Detail → Users
+
+Use the existing tenant detail routing pattern.
+
+Example route if compatible:
+/tenants/[tenantId]/users
+
+Do NOT create:
+/users
+/tenant-users as a top-level navigation destination
+
+Navigation Rules:
+- Add Users as a tenant detail tab/menu item
+- Do not add tenant users to the main Control Center left nav
+- Platform Users remains separate at /platform-users
+
+API Usage:
+Use existing PUM-B03 APIs where available:
+
+GET    /identity/api/admin/tenants/{tenantId}/users
+POST   /identity/api/admin/tenants/{tenantId}/users
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}
+POST   /identity/api/admin/tenants/{tenantId}/users/{userId}/roles
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}/roles/{assignmentId}
+
+Also use:
+GET /identity/api/admin/roles?scope=Tenant
+
+UI Requirements:
+
+1. Tenant Users List
+Display:
+- Name
+- Email
+- User Type
+- Status
+- Tenant role(s)
+- Last login
+- Actions
+
+Filters:
+- Search by name/email
+- Status
+- Role if practical
+
+Must only show users for the selected tenant.
+
+2. Tenant User Detail / Side Panel
+Show:
+- Name
+- Email
+- UserType
+- Status
+- TenantId / tenant name
+- CreatedAt
+- UpdatedAt
+- LastLoginAt
+- Active tenant roles
+
+3. Tenant Role Assignment
+Allow assignment only of roles where:
+
+Role.Scope == Tenant
+
+Examples:
+- TenantAdmin
+- TenantManager
+- TenantStaff
+- TenantViewer
+- StandardUser, if still used
+
+UI must prevent:
+- Platform roles
+- Product roles
+- ExternalCustomer users receiving tenant roles
+
+4. Remove Tenant Role
+Use the assignmentId returned by tenant user listing.
+
+Must only remove the selected tenant-scoped role assignment.
+
+5. Remove / Deprivilege Tenant User
+Use:
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}
+
+Display clear UI language:
+- “Remove tenant access” or “Remove tenant roles”
+Do NOT imply the global user account is deleted.
+
+6. Optional Existing User Assignment
+If the existing backend supports it safely, provide:
+“Add Existing User to Tenant”
+
+Request:
+POST /identity/api/admin/tenants/{tenantId}/users
+
+Body:
+{
+  "userId": "...",
+  "roleKey": "TenantViewer"
+}
+
+If the current single-tenant model returns USER_IN_DIFFERENT_TENANT, surface the message clearly.
+
+Do not build a risky new cross-tenant membership model.
+
+Backend Changes:
+Avoid backend changes unless required.
+
+If a missing API gap is discovered:
+- Add only the minimal backend support needed
+- Keep changes additive
+- Do not alter existing auth/login behavior
+- Document why the backend change was required
+
+Critical Rules:
+- Do not show PlatformInternal users in Tenant Detail Users
+- Do not manage ExternalCustomer users here
+- Do not duplicate PUM-B06 Platform Users UI
+- Do not create new identity models
+- Do not rewrite User.TenantId single-tenant architecture
+- Do not add product access management in this block unless already cleanly reusable
+
+Validation:
+Run:
+- Frontend build
+- TypeScript validation
+- Backend build if backend changes are made
+- Smoke test tenant detail users route
+- Confirm Platform Users page still works
+- Confirm tenant users are not visible under /platform-users
+- Confirm PlatformInternal users are not visible under tenant users
+- Confirm role dropdown only shows Tenant-scoped roles
+
+Final output:
+After implementation, provide only:
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B07-report.md was created and updated

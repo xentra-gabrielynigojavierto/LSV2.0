@@ -1,0 +1,58 @@
+2026-04-25T00:18:33Z info: Deployment: c424708f-2471-47a1-abec-0f9b07cf77b7
+2026-04-25T00:18:33Z info: Build: a98be225-89a3-4f01-bd63-eb41230d14fa
+2026-04-25T00:18:34Z info: Running Security Scan
+2026-04-25T00:21:25Z info: Security Scan Complete
+2026-04-25T00:21:32Z info: Installing packages
+--> npm install
+
+
+added 2 packages, removed 1 package, changed 112 packages, and audited 234 packages in 7s
+
+49 packages are looking for funding
+
+  run `npm fund` for details
+
+
+2 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.13.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+npm notice To update run: npm install -g npm@11.13.0
+npm notice
+
+2026-04-25T00:21:40Z info: Starting Build
+Using next binary: /home/runner/workspace/node_modules/next/dist/bin/next
+====== Building web app ======
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /home/runner/workspace/pnpm-lock.yaml as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /home/runner/workspace/apps/web/pnpm-lock.yaml
+
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+   ▲ Next.js 15.5.15
+
+   - Environments: .env.local, .env.production
+   - Experiments (use with caution):
+     · serverActions
+
+
+   Creating an optimized production build ...
+
+Next.js build worker exited with code: null and signal: SIGBUS
+

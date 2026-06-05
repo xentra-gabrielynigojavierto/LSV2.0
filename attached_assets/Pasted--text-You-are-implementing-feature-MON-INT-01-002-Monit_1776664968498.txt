@@ -1,0 +1,271 @@
+```text
+You are implementing feature MON-INT-01-002 — Monitoring Read Model Completion.
+
+OBJECTIVE
+Extend the Monitoring Service to expose proper read endpoints for monitoring status, alerts, and summary so that the Control Center can consume real monitoring data instead of deriving it from entity metadata.
+
+This completes the Monitoring read model and removes the temporary workaround introduced in MON-INT-01-001.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- All monitoring state (status, alerts, summary) must come from Monitoring Service persistence layer
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-01-002-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT modify Control Center UI components
+- Do NOT introduce duplicate logic in Control Center
+- Do NOT break existing endpoints
+- Prefer minimal, reversible changes
+- Maintain separation of Domain, Application, Infrastructure, API layers
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-01-002-report.md
+
+Initialize with:
+
+# MON-INT-01-002 — Monitoring Read Model Completion
+
+## 1. Task Summary
+## 2. Existing Data Model Analysis
+## 3. New Read Endpoints Design
+## 4. Implementation (Domain/Application/Infrastructure/API)
+## 5. Gateway Impact
+## 6. Control Center Integration Update
+## 7. Validation
+## 8. Files Changed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING DATA MODEL
+
+Inspect Monitoring Service:
+
+- MonitoringDbContext
+- EntityCurrentStatus
+- MonitoringAlert
+- MonitoredEntity
+- CheckResultRecord
+
+Identify:
+- how current status is stored
+- how alerts are stored
+- how entity metadata relates to status
+
+Document:
+- table structure
+- relationships
+- which fields are required to build a summary
+
+---
+
+STEP 3 — DEFINE READ CONTRACTS
+
+Define response models (API layer contracts):
+
+A. MonitoringStatusResponse
+- entityId
+- name
+- status (Healthy / Degraded / Down)
+- lastCheckedAtUtc
+- latencyMs (if available)
+
+B. MonitoringAlertResponse
+- alertId
+- entityId
+- name
+- severity (Info / Warning / Critical)
+- message
+- createdAtUtc
+- resolvedAtUtc (nullable)
+
+C. MonitoringSummaryResponse
+- system:
+  - status (Healthy / Degraded / Down)
+  - lastCheckedAtUtc
+- integrations: list of MonitoringStatusResponse
+- alerts: list of active MonitoringAlertResponse
+
+These must map cleanly to Control Center existing types.
+
+---
+
+STEP 4 — IMPLEMENT APPLICATION QUERIES
+
+In Monitoring.Application:
+
+Create query handlers/services:
+
+- GetMonitoringStatusQuery
+- GetMonitoringAlertsQuery
+- GetMonitoringSummaryQuery
+
+Logic:
+
+STATUS:
+- read EntityCurrentStatus table
+- join with MonitoredEntity for name/type
+
+ALERTS:
+- read MonitoringAlert
+- filter active (resolvedAtUtc == null)
+
+SUMMARY:
+- aggregate:
+  - system status = worst status across entities
+  - integrations = all entities with status
+  - alerts = active alerts
+
+---
+
+STEP 5 — IMPLEMENT INFRASTRUCTURE ACCESS
+
+Use MonitoringDbContext:
+
+- IQueryable for EntityCurrentStatus
+- IQueryable for MonitoringAlert
+- Include necessary joins
+
+Ensure:
+- no N+1 queries
+- efficient LINQ
+- no schema changes
+
+---
+
+STEP 6 — ADD API ENDPOINTS
+
+In Monitoring.Api:
+
+Add endpoints:
+
+GET /monitoring/status
+GET /monitoring/alerts
+GET /monitoring/summary
+
+Rules:
+
+- status + alerts endpoints can be anonymous (same reasoning as entity read)
+- admin endpoints remain protected
+- summary endpoint must return MonitoringSummaryResponse
+
+Example:
+
+app.MapGet("/monitoring/summary", async (...) => { ... });
+
+---
+
+STEP 7 — GATEWAY UPDATE (IF NEEDED)
+
+Verify existing catch-all route already supports:
+
+/monitoring/{**catch-all}
+
+If not:
+- ensure summary, status, alerts are reachable via gateway
+
+Test:
+- /monitoring/summary
+- /monitoring/status
+- /monitoring/alerts
+
+---
+
+STEP 8 — CONTROL CENTER INTEGRATION UPDATE
+
+Modify ONLY:
+
+apps/control-center/src/lib/monitoring-source.ts
+
+Replace entity-based summary logic with:
+
+IF MONITORING_SOURCE === 'service':
+- call:
+  GET /monitoring/summary
+- return directly
+
+REMOVE:
+- buildSummaryFromEntities usage for service mode
+
+KEEP:
+- local fallback unchanged
+
+---
+
+STEP 9 — VALIDATION
+
+Validate:
+
+A. Monitoring Service builds
+B. Monitoring Service starts (with DB configured)
+C. Endpoints return correct data
+D. Gateway routes correctly
+E. Control Center fetches summary from service
+F. UI renders correctly (no changes required)
+G. MONITORING_SOURCE=service works end-to-end
+
+Test examples:
+
+curl http://localhost:5010/monitoring/summary
+curl http://localhost:5010/monitoring/status
+curl http://localhost:5010/monitoring/alerts
+
+---
+
+STEP 10 — FILES CHANGED
+
+List:
+- new query handlers
+- new contracts
+- modified API files
+- Control Center abstraction update
+
+---
+
+STEP 11 — KNOWN GAPS / RISKS
+
+Document:
+
+- auth mismatch (RS256 vs HS256)
+- missing audit integration
+- scheduler behavior assumptions
+- performance considerations
+
+---
+
+STEP 12 — RECOMMEND NEXT FEATURE
+
+Recommend:
+
+MON-INT-01-003 — Monitoring Auth & Security Alignment
+
+OR
+
+MON-INT-02-001 — Status Page Data Contracts
+
+Based on readiness.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+
+- /analysis/MON-INT-01-002-report.md exists
+- new endpoints are implemented
+- Control Center uses /monitoring/summary
+- no UI changes required
+- monitoring data comes from real DB-backed state
+- local fallback still works
+- no fake implementations introduced
+```

@@ -1,0 +1,479 @@
+# LS-COR-AUT-011D — Policy Simulation + Decision Testing
+
+## Objective
+
+Add a **policy simulation and decision testing layer** to LS-COR-AUT so administrators and platform teams can safely test ABAC / PBAC behavior **before** applying changes broadly in production.
+
+This feature must provide:
+
+* policy simulation against test inputs
+* permission decision testing without real endpoint execution
+* what-if analysis for users, roles, permissions, and resource context
+* explainable decision outputs
+* safe pre-deployment validation for policy changes
+
+At completion, LS-COR-AUT must support:
+
+```text
+User / Role / Permission / Context
+→ Simulated Policy Evaluation
+→ Explainable Decision
+→ Safe Validation Before Enforcement
+```
+
+This is a **validation and governance feature**, not a replacement for runtime authorization.
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-COR-AUT-011D-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The feature is **incomplete without the report**
+* Replit must generate the report automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Safe-by-Design
+
+* simulation must not mutate production authorization state
+* simulation must never grant or deny real access directly
+
+### Reuse Real Logic
+
+* use the same policy engine, permission resolution, and rule evaluation logic as production
+* do not create a separate “toy” evaluator
+
+### Explainability First
+
+* simulation results must clearly explain:
+
+  * what was evaluated
+  * what matched
+  * what failed
+  * why the final decision was allow or deny
+
+---
+
+## In Scope
+
+---
+
+## 1. Authorization Simulation Service
+
+### Required Service
+
+Create a service such as:
+
+```csharp
+IAuthorizationSimulationService
+```
+
+### Responsibilities
+
+* simulate effective access for a target user
+* simulate permission checks for a given permission code
+* simulate policy evaluation with supplied resource/request attributes
+* return structured explanation data
+
+### Required Inputs
+
+* tenantId
+* target userId
+* permissionCode
+* optional resource context
+* optional request context overrides
+* optional simulation mode options
+
+### Required Behavior
+
+* resolve current user roles, permissions, and policies using existing LS-COR-AUT services
+* run the same policy evaluation flow as runtime authorization
+* return a detailed result object without mutating data
+
+---
+
+## 2. Decision Simulation Endpoint
+
+### Required Endpoint
+
+Add admin-protected endpoint:
+
+```http
+POST /api/admin/authorization/simulate
+```
+
+### Request Shape
+
+Example:
+
+```json
+{
+  "tenantId": "TENANT_ID",
+  "userId": "USER_ID",
+  "permissionCode": "SYNQ_FUND.application:approve",
+  "resourceContext": {
+    "amount": 42000,
+    "region": "CA",
+    "organizationId": "ORG_123"
+  },
+  "requestContext": {
+    "method": "POST",
+    "path": "/api/applications/123/approve"
+  }
+}
+```
+
+### Response Shape
+
+Example:
+
+```json
+{
+  "allowed": true,
+  "permissionPresent": true,
+  "roleFallbackUsed": false,
+  "permissionCode": "SYNQ_FUND.application:approve",
+  "policyDecision": {
+    "evaluated": true,
+    "policyVersion": 27,
+    "denyOverrideApplied": false,
+    "matchedPolicies": [
+      {
+        "policyCode": "SYNQ_FUND.approval.limit",
+        "effect": "Allow",
+        "priority": 10,
+        "evaluationOrder": 0,
+        "result": "ALLOW",
+        "ruleResults": [
+          {
+            "field": "amount",
+            "operator": "<",
+            "expected": "50000",
+            "actual": "42000",
+            "passed": true
+          }
+        ]
+      }
+    ]
+  },
+  "reason": "Permission present and all active policies passed."
+}
+```
+
+### Security
+
+* admin-only
+* cross-tenant restrictions enforced
+* no public access
+* PlatformAdmin may simulate across tenants
+* TenantAdmin may simulate only within their tenant
+
+---
+
+## 3. What-If Context Overrides
+
+### Required Capability
+
+Allow simulation using **temporary context overrides** without changing persisted records.
+
+### Supported Override Types
+
+* resource attributes
+* request attributes
+* optional user-attribute overrides for simulation only
+
+### Example Use Cases
+
+* “Would this user be allowed to approve if amount were 75,000?”
+* “Would access be denied if region were NV?”
+* “Would this policy deny if organizationId changed?”
+
+### Requirements
+
+* override scope must be simulation-only
+* no persistence
+* clearly labeled in result output
+
+---
+
+## 4. Policy Draft / Preview Mode
+
+### Required Capability
+
+Allow admins to test a **draft policy** or **draft rule set** before saving it as active.
+
+### Simulation Inputs
+
+* permissionCode
+* draft policy definition
+* draft rules
+* optional existing mapped policies included/excluded
+
+### Example
+
+* simulate a new deny policy before creating it
+* simulate editing rule thresholds before updating stored policy
+
+### Requirement
+
+* use same evaluator semantics as production
+* draft policy must be evaluated in-memory only
+* no database writes required for draft testing
+
+---
+
+## 5. Endpoint-Level Simulation
+
+### Required Capability
+
+Allow simulation of endpoint access for a user based on:
+
+* route / endpoint
+* permission
+* product
+* optional role fallback config
+
+### Goal
+
+Help admins answer:
+
+* “Would this user be allowed to call this endpoint right now?”
+* “Why was this request denied?”
+
+### Requirement
+
+This may be implemented by:
+
+* direct permission simulation with endpoint metadata
+* or a thin mapping layer that maps route → required permission/policy context
+
+Do not build a full runtime traffic replay engine. Keep it focused.
+
+---
+
+## 6. Explainability Model
+
+### Required Output Details
+
+Simulation results must include:
+
+* user identity / tenant
+* permission tested
+* whether permission claim would be present
+* whether role fallback would be used
+* policies evaluated
+* evaluation order
+* rule results
+* deny override status
+* final allow/deny reason
+* source attribution where possible:
+
+  * direct role
+  * group role
+  * permission mapping path
+
+### Requirement
+
+Result structure must be machine-readable and UI-friendly.
+
+---
+
+## 7. Control Center UI — Simulation Console
+
+### New UI Section
+
+Add a new Control Center page:
+
+**Authorization Simulator**
+
+### Required Features
+
+* select tenant
+* select user
+* input permission code
+* optional resource context editor (JSON or form-based)
+* optional request context editor
+* run simulation
+* display result
+
+### Result View
+
+Show:
+
+* final allow / deny
+* reason
+* permission presence
+* policy evaluation summary
+* matched policies
+* failed rules
+* deny override indicator
+* effective sources (role/group)
+
+### Nice-to-have
+
+* “copy result JSON”
+* “rerun with modified input”
+
+---
+
+## 8. Policy Draft Tester UI
+
+### Required Capability
+
+Within the Policies area, allow admins to:
+
+* load a draft policy or rule set
+* test it against sample inputs
+* see decision output before saving
+
+### UX Options
+
+* modal dialog from policy detail page
+* dedicated “Test Policy” tab
+* inline simulation panel
+
+### Requirement
+
+Must clearly distinguish:
+
+* live policy
+* draft policy
+* simulation result
+
+---
+
+## 9. Audit / Logging
+
+### Required Logging
+
+Simulation actions should be logged as **administrative diagnostic actions**, not as real authorization decisions.
+
+Log fields should include:
+
+* actor admin userId
+* target userId
+* tenantId
+* permission tested
+* simulation type (`live`, `draft`)
+* result (`allow`, `deny`)
+* timestamp
+
+### Important
+
+* do not mix simulation logs with production authorization logs
+* do not emit fake runtime deny/allow logs that look like real traffic
+
+### Optional
+
+* route to Synq Audit as a distinct event family if already aligned with your audit model
+
+---
+
+## 10. Validation Rules
+
+### Required Validation
+
+* permissionCode must be valid format
+* target user must exist and belong to tenant
+* admins must respect tenant boundaries
+* malformed resource context rejected clearly
+* draft policy/rule validation must reuse normal rule validation rules
+* unsupported fields/operators rejected before simulation
+
+---
+
+## 11. Testing Requirements
+
+### Unit Tests
+
+* simulation result generation
+* draft policy simulation
+* override handling
+* explainability output correctness
+* tenant boundary enforcement
+* no persistence side effects
+
+### Integration Tests
+
+* simulate live permission decision
+* simulate deny override outcome
+* simulate draft policy outcome
+* simulate with request/resource overrides
+* UI request → API → result flow
+
+### Security Tests
+
+* non-admin cannot access simulator
+* TenantAdmin cannot simulate across tenants
+* malformed payload rejected
+* simulation does not mutate policy/version/cache state incorrectly
+
+### Regression Tests
+
+* existing runtime authorization behavior unchanged
+* existing admin/debug endpoints still work
+* simulation reuses production evaluator semantics
+
+---
+
+## Acceptance Criteria
+
+* admin-only authorization simulator endpoint exists
+* simulation uses real production evaluation logic
+* what-if context overrides work without persistence
+* draft policy simulation works without database writes
+* results are explainable and structured
+* Control Center UI allows simulation and displays results
+* simulation actions are logged distinctly from runtime authorization
+* no runtime authorization semantics are changed
+* system builds cleanly and tests pass
+
+---
+
+## Implementation Notes
+
+* favor reuse of existing `EffectiveAccessService`, `RequirePermission` semantics, and policy evaluation services
+* do not duplicate business rules in a second engine
+* keep simulation read-only and side-effect-free
+* prioritize explainability and operator trust
+
+---
+
+## Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-COR-AUT-011D-report.md` MUST include:
+
+1. simulation service design
+2. API endpoints added
+3. UI pages/components added
+4. draft policy testing approach
+5. explainability output model
+6. logging / audit behavior
+7. validation rules enforced
+8. test results
+9. build status
+10. known limitations
+11. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+* admins can safely test authorization decisions before rollout
+* policies can be validated before activation
+* authorization becomes easier to debug, govern, and trust
+* LS-COR-AUT gains a true **operator simulation console**

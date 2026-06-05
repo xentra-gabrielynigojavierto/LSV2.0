@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <PackageReference Include="Testcontainers.MySql" Version="3.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    References to every service Infrastructure project that owns EF migrations.
+
+    Excluded services:
+      - audit        (PlatformAuditEventService.csproj is Sdk.Web; referencing a
+                      web-SDK project from a non-web test project causes dotnet
+                      restore to hang during project graph resolution; covered by
+                      AuditSchemaMigrationTests in apps/services/audit.Tests — task #73)
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.TestHelpers\BuildingBlocks.TestHelpers.csproj" />
+
+    <!-- remaining services: standard Infrastructure class libraries -->
+    <ProjectReference Include="..\..\..\apps\services\careconnect\CareConnect.Infrastructure\CareConnect.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\comms\Comms.Infrastructure\Comms.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\documents\Documents.Infrastructure\Documents.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\flow\backend\src\Flow.Infrastructure\Flow.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\fund\Fund.Infrastructure\Fund.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\identity\Identity.Infrastructure\Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\liens\Liens.Infrastructure\Liens.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\notifications\Notifications.Infrastructure\Notifications.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\apps\services\reports\src\Reports.Infrastructure\Reports.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

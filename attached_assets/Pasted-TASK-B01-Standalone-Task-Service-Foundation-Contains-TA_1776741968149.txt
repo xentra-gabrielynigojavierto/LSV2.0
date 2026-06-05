@@ -1,0 +1,312 @@
+TASK-B01 — Standalone Task Service Foundation
+(Contains TASK-001, TASK-002, TASK-003)
+
+OBJECTIVE:
+Build the foundational standalone Task service (`task`) with core domain, persistence, CRUD APIs, notes, and observability. This must be platform-ready and NOT tied to any product (Liens, CareConnect, etc.).
+
+NON-NEGOTIABLE RULES:
+- Service name: task
+- Database: tasks_db
+- MUST be standalone and reusable
+- NO product-specific assumptions
+- MUST support:
+  - product-scoped tasks
+  - general cross-product task list
+- MUST create report FIRST and update incrementally
+- MUST follow existing LegalSynq service patterns
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-001-report.md
+
+Initialize with:
+
+# TASK-B01 Report — Task Service Foundation
+
+## 1. Codebase Analysis
+## 2. Service Scaffold
+## 3. Database Schema
+## 4. Domain Model
+## 5. APIs Implemented
+## 6. Notes & Timeline
+## 7. Observability
+## 8. Validation Results
+## 9. Known Gaps / Risks
+
+Update this file AFTER EVERY STEP.
+
+--------------------------------------------------
+STEP 1 — CODEBASE ANALYSIS
+--------------------------------------------------
+
+Analyze current repo:
+
+- Identify service structure pattern from:
+  - Identity
+  - Flow
+  - Notification
+  - Audit
+
+- Identify:
+  - DB connection pattern
+  - routing pattern
+  - controller/service/repo layering
+  - shared libs
+
+Document findings under:
+## 1. Codebase Analysis
+
+--------------------------------------------------
+STEP 2 — CREATE TASK SERVICE SCAFFOLD
+--------------------------------------------------
+
+Create new service:
+
+/services/task
+
+Structure:
+
+/services/task
+  /src
+    /controllers
+    /services
+    /repositories
+    /models
+    /dtos
+    /routes
+    /config
+    /middlewares
+  /migrations
+  /tests
+
+Implement:
+
+- app bootstrap
+- environment config
+- DB connection
+- basic routing
+
+Add endpoint:
+
+GET /health
+
+Update:
+## 2. Service Scaffold
+
+--------------------------------------------------
+STEP 3 — DATABASE SCHEMA (tasks_db)
+--------------------------------------------------
+
+Create database:
+
+tasks_db
+
+Create tables:
+
+tasks
+- id (uuid, pk)
+- tenant_id
+- title
+- description
+- status
+- priority
+- assigned_user_id
+- created_by_user_id
+- source_product_code
+- source_entity_type
+- source_entity_id
+- task_scope (GENERAL | PRODUCT)
+- due_at
+- created_at
+- updated_at
+
+task_notes
+- id
+- task_id
+- note
+- created_by_user_id
+- created_at
+
+task_history
+- id
+- task_id
+- action
+- performed_by_user_id
+- created_at
+
+Add migrations.
+
+Update:
+## 3. Database Schema
+
+--------------------------------------------------
+STEP 4 — DOMAIN MODEL (GENERIC)
+--------------------------------------------------
+
+Create models:
+
+Task
+TaskNote
+TaskHistory
+
+Enums:
+
+TaskStatus:
+- OPEN
+- IN_PROGRESS
+- COMPLETED
+- CANCELLED
+
+TaskScope:
+- GENERAL
+- PRODUCT
+
+Rules:
+
+- NO lien/case assumptions
+- generic linkage only
+
+Update:
+## 4. Domain Model
+
+--------------------------------------------------
+STEP 5 — CORE TASK APIs
+--------------------------------------------------
+
+Implement:
+
+POST /tasks
+GET /tasks/:id
+GET /tasks
+PUT /tasks/:id
+
+Query params:
+
+- tenantId (required)
+- assignedUserId
+- sourceProductCode (optional)
+- taskScope (optional)
+
+Add:
+
+GET /tasks/my
+
+Behavior:
+- returns ALL tasks assigned to current user
+- cross-product aggregation
+- supports "general task list" requirement
+
+Update:
+## 5. APIs Implemented
+
+--------------------------------------------------
+STEP 6 — TASK NOTES & TIMELINE
+--------------------------------------------------
+
+Implement:
+
+POST /tasks/:id/notes
+GET /tasks/:id/notes
+
+Auto-create history entries for:
+
+- task created
+- task updated
+- note added
+
+Update:
+## 6. Notes & Timeline
+
+--------------------------------------------------
+STEP 7 — MULTI-TENANT + AUTH CONTEXT
+--------------------------------------------------
+
+Integrate with Identity (light integration):
+
+- extract:
+  - tenantId
+  - userId
+
+- enforce:
+  - tenant isolation
+  - assigned user ownership
+
+DO NOT hard-couple to Identity internals.
+
+--------------------------------------------------
+STEP 8 — OBSERVABILITY
+--------------------------------------------------
+
+Add:
+
+- structured logging
+- error handling
+- request tracing (if pattern exists)
+- log:
+  - task creation
+  - updates
+  - failures
+
+Update:
+## 7. Observability
+
+--------------------------------------------------
+STEP 9 — VALIDATION
+--------------------------------------------------
+
+Test:
+
+1. Create GENERAL task
+2. Create PRODUCT task
+3. Assign user
+4. Fetch by ID
+5. Fetch by user (GET /tasks/my)
+6. Filter by product
+7. Add notes
+8. Verify tenant isolation
+
+Update:
+## 8. Validation Results
+
+--------------------------------------------------
+STEP 10 — KNOWN GAPS
+--------------------------------------------------
+
+Document missing (intentionally deferred):
+
+- assignment engine rules
+- governance engine
+- templates
+- reminders
+- Flow integration
+- automation rules
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Task service runs independently
+- tasks_db created
+- APIs working
+- supports:
+  - product-scoped tasks
+  - general cross-product task list
+- no dependency on Liens
+- follows platform patterns
+
+DO NOT:
+- implement Flow integration
+- implement governance rules
+- implement templates/automation
+
+These are part of TASK-B02+
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

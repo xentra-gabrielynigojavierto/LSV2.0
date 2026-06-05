@@ -1,0 +1,160 @@
+You are implementing BLOCK 2 of LegalSynq Support Service Platform Integration.
+
+BLOCK 2 includes:
+- SUP-INT-03 — Platform UI + Navigation Integration
+
+FEATURE ID:
+SUP-INT-03
+
+Report file:
+ /analysis/SUP-INT-03-report.md
+
+PRIMARY OBJECTIVE:
+Add Support into the main LegalSynq platform UI/navigation as a first-class platform module, using the existing platform shell patterns.
+
+IMPORTANT CONTEXT:
+SUP-INT-BLOCK-01 added backend/gateway integration for:
+ /support/api/{**catch-all}
+
+Support backend path must be called through the gateway:
+ /support/api
+
+DO NOT call the Support service directly from the frontend.
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT change Support backend domain models.
+3. DO NOT add customer portal features.
+4. DO NOT add tenant-to-client support features.
+5. DO NOT add email reply or Comms features.
+6. DO NOT add SLA, Task, Monitoring, or product deep-link features.
+7. DO NOT hardcode backend URLs.
+8. DO NOT bypass gateway.
+9. DO NOT inject X-Tenant-Id.
+10. Use existing platform UI, auth, routing, menu, and RBAC patterns.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-INT-03-report.md
+
+Update the report incrementally after each major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Platform shell/navigation discovery
+3. Existing route/menu/RBAC pattern
+4. Files changed
+5. UI route changes
+6. API base wiring
+7. Role/menu visibility behavior
+8. Build/test results
+9. Known gaps/deferred items
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- Main platform frontend app location
+- Control Center app location
+- Navigation/menu component locations
+- Existing service/module navigation pattern
+- Existing route/page pattern
+- Existing auth/session provider
+- Existing role/permission checks
+- Existing API client pattern
+- Existing environment variable pattern
+
+STEP 3 — NAVIGATION INTEGRATION:
+Add Support to the appropriate platform navigation area using existing patterns.
+
+Support menu item:
+- Label: Support
+- Route: /support
+- Visibility: authorized admin/support roles only, based on current platform RBAC pattern
+
+Use existing icon/component conventions.
+
+STEP 4 — ROUTE REGISTRATION:
+Register frontend route/page:
+
+ /support
+
+This page should act as the platform entry point for Support.
+
+If an existing Support UI module exists in the extracted Support source:
+- reuse it where practical
+- adapt it minimally to platform shell patterns
+
+If no reusable Support UI exists:
+- create a lightweight shell page only
+- include basic sections:
+  - Support Dashboard
+  - Tickets
+  - Queues
+  - Assignments
+- do not implement new business logic beyond navigation/API wiring
+
+STEP 5 — API BASE WIRING:
+Ensure all Support frontend calls use:
+
+ /support/api
+
+Do not use:
+- http://localhost:5017
+- direct Support service URL
+- hardcoded backend host
+
+Use existing platform API client/config patterns.
+
+STEP 6 — RBAC / MENU VISIBILITY:
+Apply existing platform role checks.
+
+Allowed roles should include existing admin/support roles if present, such as:
+- PlatformAdmin
+- TenantAdmin
+- SupportAgent
+
+Do not invent a new authorization system.
+
+If exact role names differ, discover and use the existing platform role constants.
+
+STEP 7 — VALIDATION:
+Validate:
+1. Support navigation appears for authorized users.
+2. Support navigation is hidden or blocked for unauthorized users.
+3. /support route loads.
+4. Support frontend calls use /support/api.
+5. No frontend call targets the Support service directly.
+6. Existing navigation is not broken.
+7. Existing platform UI build still passes.
+
+STEP 8 — BUILD:
+Run applicable commands:
+- frontend lint/build if available
+- TypeScript check if available
+- dotnet build only if backend config was touched
+
+STEP 9 — FINAL REPORT:
+Complete /analysis/SUP-INT-03-report.md with:
+
+# SUP-INT-03 Report
+
+## 1. Codebase Analysis
+## 2. Navigation / Route Pattern Discovered
+## 3. Files Created / Changed
+## 4. Support Navigation Integration
+## 5. Support Route Integration
+## 6. Support API Base Wiring
+## 7. RBAC / Visibility Behavior
+## 8. Validation Results
+## 9. Build Results
+## 10. Known Gaps / Deferred Items
+
+DONE CRITERIA:
+- Support appears in the main platform UI/navigation for authorized users
+- /support route works
+- Support API calls go through /support/api
+- No direct Support backend URL is used by frontend
+- Existing platform navigation still works
+- Existing auth/RBAC pattern is preserved
+- /analysis/SUP-INT-03-report.md is complete
+
+If any validation fails, do not claim success. Document the failure, root cause, and recommended iteration.

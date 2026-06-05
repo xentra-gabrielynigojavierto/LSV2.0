@@ -1,0 +1,513 @@
+LSCC-005 — Minimal Referral Flow + Basic Dashboard Analytics
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-005
+
+Initial implementation report:
+- /analysis/LSCC-005-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-005-XX.md
+
+Examples:
+- /analysis/LSCC-005-report.md
+- /analysis/LSCC-005-01.md
+- /analysis/LSCC-005-02.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement the minimum viable CareConnect referral experience with email-based provider routing and basic dashboard analytics.
+
+This feature must allow a law firm user to:
+1. search providers on a map or list
+2. click Refer
+3. complete a referral entry screen that shows provider context in the header
+4. submit the referral in Pending status
+5. trigger a provider email notification with a View Referral button
+6. route the provider to the correct acceptance experience depending on whether the provider is:
+   - a pending provider without activated tenant access
+   - an active tenant provider with portal access
+7. send confirmation emails when the referral is accepted
+8. show basic dashboard analytics for referral activity
+
+This is a deliberately minimized feature.
+Do NOT expand into full workflow management, appointment lifecycle redesign, advanced analytics, or broad onboarding implementation.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Law firm provider search initiation from map/list
+B. Refer button behavior from provider search results
+C. Referral entry UI with provider info in header
+D. Referral creation with Pending status
+E. Provider email notification with View Referral CTA
+F. Secure referral-view routing based on provider tenant state
+G. Pending-provider acceptance page with activation-benefits content
+H. Active-tenant provider deep link into authenticated portal referral page
+I. Acceptance confirmation emails to provider + referrer
+J. Basic dashboard analytics cards
+K. Report
+
+Do NOT implement:
+- appointment booking
+- referral timeline
+- advanced provider inbox workflows
+- full onboarding flow
+- advanced analytics
+- charts/funnels/provider rankings
+- exports
+- messaging/chat
+- case integration
+- billing/lien integrations
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse the existing CareConnect architecture and routes where possible
+2. Preserve backend authorization and org scoping rules already implemented
+3. Separate:
+   - UI components
+   - API / service layer
+   - email / routing logic
+   - analytics computation
+4. Do NOT duplicate business rules in multiple places
+5. Do NOT guess provider-to-tenant routing; use deterministic logic only
+6. Do NOT silently fail email operations
+7. Keep implementation minimal, production-safe, and compile-friendly
+8. If a fallback is required, it must be explicit and documented
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+CareConnect already has:
+- provider search/list/map foundations
+- secure referral backend foundations
+- tenant/provider linkage work
+- role-aware dashboard
+- email-related business need now introduced by this feature
+- referral and appointment models already present
+- provider state concept:
+  - pending provider
+  - active tenant provider
+
+This feature is a scope-minimized layer on top of the current product.
+Do NOT redesign existing completed capabilities unless necessary for correctness.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. LAW FIRM PROVIDER SEARCH → REFER ENTRY POINT
+--------------------------------------------------
+
+Law firm users must be able to start a referral from both:
+
+1. provider map results
+2. provider list results
+
+Requirements:
+- the Refer action must behave consistently regardless of entry point
+- if provider search already exists, reuse it
+- if current map/list items do not surface a Refer button, add it minimally
+
+Behavior:
+- clicking Refer opens the referral entry experience
+- provider context must be preserved and visible
+
+If provider email is missing or invalid:
+- do NOT allow referral submission
+- show a clear error or disabled state explaining the provider cannot currently receive referrals
+
+--------------------------------------------------
+B. REFERRAL ENTRY SCREEN / MODAL
+--------------------------------------------------
+
+Implement a referral entry screen, modal, or drawer using the lightest approach that fits the current architecture.
+
+Requirements:
+1. Header must show provider information
+   Minimum:
+   - provider name
+   - provider email if useful
+   - optional location/basic metadata if already available
+
+2. Referral form must collect the minimum required information for the referred party and referrer context.
+
+Minimum recommended fields:
+- referred party full name
+- referred party phone
+- referred party email
+- referral notes / reason for referral
+
+Referrer context:
+- law firm name
+- referrer name
+- referrer email
+
+Rules:
+- derive referrer/law firm information from current authenticated context where possible
+- only ask the user for fields that are truly required and not already known
+
+Validation:
+- required fields must validate inline
+- invalid submission must not destroy entered data
+- submission errors must be user-visible
+
+--------------------------------------------------
+C. REFERRAL CREATION
+--------------------------------------------------
+
+On successful referral submission:
+
+1. create the referral record
+2. set referral status = Pending
+3. persist provider link and referrer information
+4. trigger provider notification email workflow
+
+Status model for this feature:
+- Pending
+- Accepted
+
+Rules:
+- all new referrals created by this flow must begin in Pending
+- do not auto-accept
+- do not auto-book appointments
+- if existing backend status models differ, add the narrowest compatibility layer required and document it
+
+Success UX:
+- show clear success state/message
+- redirect or land on a meaningful next page after submit
+
+Fallback behavior:
+- if referral save fails, email must not be sent
+- if referral save succeeds but email send fails, referral remains created and the email failure must be logged/surfaced for retry handling per existing conventions
+
+--------------------------------------------------
+D. PROVIDER NOTIFICATION EMAIL
+--------------------------------------------------
+
+When a referral is successfully created, send an email to the provider email address.
+
+Email must include:
+- provider name
+- referred party information
+- referrer / law firm information
+- referral summary / notes
+- View Referral button
+
+Subject line should clearly indicate a new referral has been received.
+
+The View Referral button must use a secure link strategy.
+Do NOT expose an insecure raw record link without protection.
+
+Preferred strategies:
+- signed tokenized link
+- time-bound secure token
+- equivalent secure access mechanism consistent with existing platform patterns
+
+Document the chosen approach in the report.
+
+--------------------------------------------------
+E. PROVIDER STATE DETECTION & ROUTING
+--------------------------------------------------
+
+When the provider uses the View Referral link, backend logic must determine whether the provider is:
+
+1. Pending Provider
+   - exists in provider data
+   - does not have activated tenant access
+
+2. Active Tenant Provider
+   - has active tenant account / authenticated portal path
+
+This classification must be deterministic.
+
+Rules:
+- do NOT guess
+- if provider state is ambiguous, route to a safe failure/manual handling state and document it
+- do NOT widen access for unresolved state
+
+--------------------------------------------------
+F. PENDING PROVIDER EXPERIENCE
+--------------------------------------------------
+
+If the provider is pending, show a lightweight web page for referral review and acceptance.
+
+This page must include:
+- referral summary
+- referred party information
+- referrer / law firm information
+- Accept Referral button
+- a section describing the benefits of activating tenant access
+
+The benefits section should be lightweight, not a full onboarding implementation.
+
+Examples of acceptable benefit messaging:
+- manage referrals in a portal
+- track status updates
+- centralize referral operations
+- improve workflow visibility
+
+Acceptance behavior:
+- if provider clicks Accept Referral:
+  1. referral status becomes Accepted
+  2. send confirmation email to provider
+  3. send confirmation email to referrer
+
+Edge cases:
+- if referral is already accepted, show accepted state and do not allow duplicate acceptance
+- if secure token is invalid or expired, show safe error state
+- if pending provider acceptance requires no login, secure token access must be strong enough to avoid insecure referral exposure
+
+--------------------------------------------------
+G. ACTIVE TENANT PROVIDER EXPERIENCE
+--------------------------------------------------
+
+If the provider is an active tenant provider:
+
+1. View Referral must deep link into the provider portal
+2. if provider is not logged in, require login first
+3. after login, redirect to the referral page inside the portal
+4. portal page must show referral information and Accept Referral action
+
+Requirements:
+- preserve destination across login
+- use existing authenticated routing patterns where possible
+- do not create a second duplicate acceptance flow if one already exists in the provider portal; adapt or minimally extend the existing referral detail flow
+
+Acceptance behavior:
+- accepting from the portal sets status = Accepted
+- provider confirmation email sent
+- referrer confirmation email sent
+
+Edge cases:
+- already accepted referral shows accepted state
+- unauthorized access must not reveal referral details
+
+--------------------------------------------------
+H. ACCEPTANCE CONFIRMATION EMAILS
+--------------------------------------------------
+
+When a referral is accepted, send confirmation emails to:
+
+1. provider
+2. referrer / law firm email
+
+Email content must clearly confirm:
+- referral accepted
+- provider identity
+- referred party identity/summary
+- law firm/referrer identity
+- relevant next-step language if appropriate
+
+Rules:
+- avoid duplicate confirmation sends on repeated clicks or duplicate acceptance attempts
+- if acceptance succeeds and email fails, keep Accepted status and log/surface the email issue for retry handling
+
+--------------------------------------------------
+I. BASIC DASHBOARD ANALYTICS
+--------------------------------------------------
+
+Add a lightweight dashboard section for referral activity only.
+
+Route:
+- /careconnect/dashboard
+
+Section title example:
+- Referral Activity Overview
+
+Minimum metrics:
+1. Total Referrals
+2. Pending Referrals
+3. Accepted Referrals
+4. Acceptance Rate = Accepted / Total
+
+Scope rules:
+- law firm sees only own org-scoped referrals
+- provider sees only received/inbound referrals
+- tenant admin sees tenant-wide numbers per current conventions
+
+Date behavior:
+- default to Last 30 Days only
+- do NOT add custom date picker in this feature
+- do NOT add advanced filters
+- if a simple 7d / 30d toggle already fits cleanly, you may include it only if low-risk and documented; otherwise keep fixed 30d
+
+Display:
+- simple metric cards only
+- no charts
+- no funnel graphics
+- no provider rankings
+- no advanced appointment analytics
+
+Fallback behavior:
+- if analytics fetch fails, dashboard still loads and analytics cards show safe fallback state
+- if no data, show clear empty state such as "No referral activity yet"
+
+Data strategy:
+- prefer existing referral endpoints
+- aggregate in frontend or dashboard server layer
+- avoid heavy query patterns
+- do not add a broad analytics backend unless clearly necessary
+
+--------------------------------------------------
+J. SECURITY, EMAIL, AND ACCESS RULES
+--------------------------------------------------
+
+You must explicitly address:
+
+1. secure referral view token strategy
+2. provider state routing logic
+3. duplicate acceptance prevention
+4. missing/invalid provider email handling
+5. already accepted referral handling
+6. login redirect preservation for active tenant providers
+
+Do not leave these as implied behavior.
+
+--------------------------------------------------
+K. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add tests for the critical minimum flow.
+
+Required minimum coverage:
+
+1. referral submission sets Pending
+2. provider notification email payload includes required data
+3. provider state routing chooses pending vs active correctly
+4. pending provider accept updates referral to Accepted
+5. active provider portal accept updates referral to Accepted
+6. confirmation emails trigger on acceptance
+7. duplicate acceptance does not double-send or double-update
+8. dashboard analytics compute:
+   - total referrals
+   - pending referrals
+   - accepted referrals
+   - acceptance rate
+9. zero-denominator analytics handling
+10. invalid/missing provider email blocks referral send path
+11. secure link invalid/expired state handled safely
+
+If full UI testing is impractical:
+- test service/application logic and any API integration layers
+- document test limitations in the report
+
+--------------------------------------------------
+L. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-005-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Referral creation flow
+- where Refer can be launched from
+- form fields implemented
+- how Pending status is handled
+
+3. Provider email workflow
+- template/data included
+- secure View Referral link strategy
+
+4. Provider state routing
+- how pending vs active is determined
+- routes/pages used
+
+5. Pending provider page
+- content shown
+- acceptance behavior
+
+6. Active tenant provider deep link
+- how login redirect and portal routing work
+
+7. Confirmation emails
+- recipients
+- duplicate-send protection
+
+8. Basic dashboard analytics
+- metrics shown
+- date window used
+- data fetching strategy
+
+9. Tests
+- what scenarios are covered
+- what remains uncovered
+
+10. Known limitations / follow-ups
+- onboarding deferred items
+- analytics intentionally excluded
+- any email operational caveats
+
+11. Recommended next step
+- suggest the smallest logical follow-up feature
+
+==================================================
+IMPLEMENTATION STRATEGY
+==================================================
+
+Follow this order:
+
+1. Inspect current provider search/map/list refer entry points
+2. Implement / wire the referral entry UI with provider header context
+3. Implement referral create path with Pending status
+4. Implement provider notification email service/template
+5. Implement secure View Referral routing token strategy
+6. Implement provider state detection
+7. Implement pending-provider landing/accept page
+8. Implement active-tenant deep link + authenticated acceptance path
+9. Implement acceptance confirmation emails
+10. Implement basic dashboard analytics cards
+11. Add tests
+12. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-005 is complete ONLY if:
+
+1. law firm can start a referral from provider map or list
+2. referral entry UI shows provider information in the header
+3. submitting creates a referral in Pending status
+4. provider receives notification email with secure View Referral button
+5. pending provider sees a lightweight accept page with activation-benefits content
+6. active tenant provider is deep linked into the portal and can accept there
+7. acceptance updates referral to Accepted
+8. acceptance confirmation emails are sent to both provider and referrer
+9. dashboard shows basic referral analytics:
+   - Total Referrals
+   - Pending Referrals
+   - Accepted Referrals
+   - Acceptance Rate
+10. errors and edge cases are handled safely
+11. report exists at:
+   /analysis/LSCC-005-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep the implementation minimal and disciplined.
+Do not drift into broader CareConnect roadmap features.
+Build the smallest complete referral flow with safe provider routing and basic analytics.
+Make assumptions only when necessary, document them, and prefer explicit safe behavior over convenience.

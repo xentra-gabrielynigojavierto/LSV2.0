@@ -1,0 +1,732 @@
+# LS-FLOW-MERGE-P3 — Product Consumption & Workflow Mapping
+
+## Objective
+
+Convert Flow from a platform-integrated standalone service into a **product-consumable workflow capability** for LegalSynq products by wiring application-level event emission, introducing product-aware authorization and capability enforcement, enabling workflow templates/mappings for target products, and cleaning up legacy tenant/data artifacts without breaking Flow’s service boundary.
+
+Phase 3 is where Flow becomes operationally useful to product teams while still remaining a shared platform service.
+
+---
+
+## Scope
+
+Phase 3 covers:
+
+* application-service event emission inside Flow CRUD/action paths
+* product-aware authorization and capability enforcement
+* product workflow template/mapping foundation
+* initial integration targets for LegalSynq products
+* cleanup of legacy `"default"` tenant artifacts
+* tenant normalization/data hygiene where needed
+* product-facing API usage model for Flow
+* minimal frontend/product integration needed to validate real consumption
+* documentation updates for product-consumption patterns
+
+Phase 3 does **not** cover:
+
+* DB consolidation
+* direct DB access from other services into Flow
+* full enterprise event bus
+* broad UI redesign
+* full embedded UX across every product
+* major workflow engine redesign
+* deep monorepo/frontend workspace consolidation unless trivial
+* advanced analytics/reporting layer
+* generalized BPM suite expansion beyond current LegalSynq needs
+
+---
+
+## Feature ID
+
+**LS-FLOW-MERGE-P3**
+
+## Expected Report Filename
+
+**/analysis/LS-FLOW-MERGE-P3-report.md**
+
+---
+
+# Requirements
+
+## 1. Wire Real Event Emission in Application Services
+
+Phase 2 established the event abstraction and adapter seams. Phase 3 must now emit real events from actual workflow/task operations.
+
+### Requirements
+
+* inject and call `IFlowEventDispatcher` from the relevant application/service-layer methods
+* emit events from real action paths such as:
+
+  * workflow created
+  * workflow updated
+  * workflow state changed
+  * task assigned
+  * task updated
+  * task completed
+  * workflow completed
+* ensure emitted events contain:
+
+  * workflow/task identifiers
+  * tenant id
+  * user id where available
+  * relevant business context needed by downstream audit/notifications
+* preserve transactional safety as much as practical
+* ensure event failures do not corrupt core workflow persistence behavior unless the existing pattern explicitly requires hard failure
+
+### Notes
+
+* do not build a distributed event bus
+* do not over-generalize event taxonomy beyond current Flow needs
+
+---
+
+## 2. Activate Audit and Notifications Through Real Flow Events
+
+Audit and Notifications seams are already present. They now need meaningful runtime usage.
+
+### Requirements
+
+* connect emitted Flow events to Audit adapter delivery
+* connect appropriate emitted Flow events to Notifications adapter delivery
+* confirm at least these trigger paths work:
+
+  * task assignment → notification
+  * workflow completion → notification
+  * workflow/task creation/update/completion → audit
+* retain safe fallback behavior if downstream services are unavailable
+* document which actions emit which downstream effects
+
+### Important
+
+* keep Notifications as system notification behavior only
+* do not build threaded/two-way communications here
+
+---
+
+## 3. Product Capability Model for Flow Consumption
+
+Flow must now be consumable by products without turning into product-specific code soup.
+
+### Requirements
+
+* introduce a product/capability-aware authorization model for Flow access
+* align with LegalSynq product/capability conventions already present in the platform where feasible
+* define how Flow access is granted for product contexts such as:
+
+  * SynqLien
+  * CareConnect
+  * SynqFund
+* distinguish authentication from authorization:
+
+  * authenticated user is not automatically allowed to perform all workflow operations
+* support platform roles and tenant roles where appropriate
+* use claims/policies/capability checks rather than hardcoded product hacks in controller actions
+
+### Examples
+
+* user may be authenticated but only allowed to access Flow for products enabled to their tenant/org
+* user may be allowed to view workflow instances but not create templates
+* platform admin may have broader access than tenant-scoped users
+
+### Non-goal
+
+* do not redesign platform-wide authorization architecture
+
+---
+
+## 4. Product-to-Flow Mapping Foundation
+
+Flow now needs a structured way for products to consume it.
+
+### Requirements
+
+* define and implement a mapping model that allows a product to:
+
+  * register or reference workflow templates
+  * instantiate workflows in response to product business operations
+  * correlate Flow workflow instances with product records
+* establish a consistent pattern for correlation keys and references
+* avoid direct DB joins across services
+* use API-first patterns and explicit references
+
+### Minimum target mapping model
+
+For each product integration, support:
+
+* product key
+* tenant id
+* source entity type
+* source entity id
+* workflow template id or workflow type
+* workflow instance id
+* status/correlation metadata
+
+### Notes
+
+* this can be stored in Flow, in product service, or split via explicit API contracts depending on safest architecture
+* whichever choice is made, document ownership clearly
+
+---
+
+## 5. Initial Product Integrations
+
+Phase 3 should prove real consumption with initial product-aligned implementations.
+
+### Required initial targets
+
+Implement the maximum safe subset for these:
+
+#### A. SynqLien
+
+Support workflow consumption for one or more lien/case lifecycle scenarios, such as:
+
+* case onboarding workflow
+* lien intake/review workflow
+* settlement/resolution workflow
+
+#### B. CareConnect
+
+Support workflow consumption for one or more referral/care coordination scenarios, such as:
+
+* referral intake workflow
+* provider follow-up workflow
+* treatment coordination workflow
+
+#### C. SynqFund
+
+Support workflow consumption for one or more funding process scenarios, such as:
+
+* funding intake workflow
+* review/approval workflow
+* payout readiness workflow
+
+### Rules
+
+* do not try to fully solve every product process in this phase
+* choose the smallest real, useful subset that proves the architecture
+* keep mappings/configuration extensible
+
+---
+
+## 6. Product-Facing API and Invocation Pattern
+
+Products need a safe and consistent way to call Flow.
+
+### Requirements
+
+* define and implement product-facing Flow API usage patterns for:
+
+  * create workflow from product context
+  * query workflow(s) by correlated product entity
+  * progress workflow/task under authorized user context
+* ensure APIs enforce tenant and authorization rules
+* avoid exposing raw internal-only operations unnecessarily
+* add/adjust API endpoints only where required for product consumption
+
+### Important
+
+* preserve existing Flow API surface where possible
+* do not perform broad contract rewrite unless required for product-consumption viability
+
+---
+
+## 7. Legacy Tenant/Data Cleanup
+
+Phase 2 made `"default"` tenant artifacts unreachable. Phase 3 should now clean them up safely.
+
+### Requirements
+
+* inspect existing Flow data for legacy `"default"` tenant rows introduced before strict tenant enforcement
+* implement safe cleanup and/or migration strategy
+* normalize tenant identifiers if needed to align with platform conventions
+* document:
+
+  * what data was found
+  * what was migrated
+  * what was removed
+  * what remains deferred
+
+### Rules
+
+* no destructive cleanup without clear logic
+* prefer idempotent migration scripts or controlled update routines
+* do not break valid tenant-scoped data
+
+---
+
+## 8. Product-Aware Frontend / UI Validation
+
+Phase 3 should validate that Flow can be consumed meaningfully, but without broad UI redesign.
+
+### Requirements
+
+* implement the minimum safe UI changes needed to validate product consumption
+* this may include:
+
+  * launching/viewing workflows from product context
+  * displaying correlated workflow status for a product record
+  * progressing tasks from a product-aligned screen or Flow UI
+* keep UI changes narrow and validation-oriented
+* do not launch a broad redesign of product portals
+
+### Notes
+
+* standalone Flow frontend may remain the primary UI for now if product embedding is not yet safe
+* however, Phase 3 should demonstrate real product-linked usage, not only isolated Flow screens
+
+---
+
+## 9. Documentation Updates
+
+Flow docs must now describe product consumption patterns.
+
+### Requirements
+
+Update docs under `/apps/services/flow/docs` to cover:
+
+* application-level event emission model
+* audit/notification trigger behavior
+* product authorization model
+* product-to-flow mapping model
+* initial integrated product scenarios
+* API usage patterns for products
+* legacy tenant cleanup decisions
+* explicit deferrals for later phases
+
+Suggested docs:
+
+* `README.md`
+* `architecture.md`
+* `merge-phase-3-notes.md`
+* optional product integration note if helpful
+
+---
+
+## 10. Preserve Service Boundary
+
+Even with product consumption enabled, Flow must remain a bounded service.
+
+### Requirements
+
+* keep independent DB ownership
+* keep API-first integration
+* do not let product services read/write Flow tables directly
+* do not move workflow business logic into product services except for product-side orchestration
+* keep product integrations explicit and understandable
+
+This remains mandatory.
+
+---
+
+## 11. Explicit Deferrals
+
+Document clearly that the following remain out of scope for Phase 3:
+
+* full event bus/platform streaming
+* complete end-to-end workflow coverage for every LegalSynq product
+* deep workflow analytics/reporting
+* major UI redesign across products
+* full frontend workspace unification
+* DB consolidation across platform services
+* advanced BPM/rules-engine expansion beyond current Flow scope
+* generalized external partner integrations unless directly required by the chosen product-consumption subset
+
+---
+
+# Validation Criteria
+
+## Repository / Structure
+
+Confirm:
+
+* Flow remains under `/apps/services/flow`
+* service boundary is preserved
+* product integrations do not create DB coupling
+
+## Backend
+
+Confirm:
+
+* backend builds successfully
+* application services emit real Flow events
+* audit and notification downstream calls are exercised or safely validated
+* product-aware authorization compiles and is enforced
+* product-facing consumption APIs compile/work structurally
+
+## Product Integration
+
+Confirm:
+
+* at least one real product-linked workflow scenario is implemented for each chosen target product subset
+* product records can correlate to Flow workflows safely
+* tenant and auth enforcement remain correct
+
+## Data Cleanup
+
+Confirm:
+
+* legacy `"default"` tenant artifacts are assessed and handled safely
+* tenant normalization decisions are documented
+
+## Frontend / UX Validation
+
+Confirm:
+
+* frontend/product UI changes compile
+* at least one product-linked workflow path is demonstrably usable
+
+## Platform Integrity
+
+Confirm:
+
+* existing LegalSynq services remain operational
+* Flow integration does not break gateway/auth/platform behavior
+
+## Documentation
+
+Confirm:
+
+* docs updated for product consumption
+* phase boundaries and remaining deferrals documented
+
+---
+
+# Recommended Implementation Order
+
+Use this order:
+
+1. create the report file first
+2. inspect current Flow Phase 2 state and existing product auth/capability patterns
+3. wire real event emission into Flow application services
+4. validate audit/notification dispatch from real events
+5. implement product/capability-aware authorization checks
+6. define product-to-flow correlation/mapping model
+7. implement the minimum real integration path for SynqLien
+8. implement the minimum real integration path for CareConnect
+9. implement the minimum real integration path for SynqFund
+10. add/adjust product-facing Flow APIs as needed
+11. clean up legacy `"default"` tenant artifacts safely
+12. implement minimal UI/product validation changes
+13. update docs
+14. validate builds/runtime/integration paths and finalize report
+
+---
+
+# Success Condition
+
+Phase 3 is successful when:
+
+* Flow emits real runtime events from application paths
+* audit and notifications are meaningfully triggered
+* Flow authorization becomes product/capability-aware
+* at least a minimal real workflow consumption path is implemented for target LegalSynq product scenarios
+* product-to-flow correlation is explicit and safe
+* legacy tenant artifacts are cleaned up or safely migrated
+* Flow remains independently bounded and ready for broader product adoption
+
+---
+
+# Failure Condition
+
+Phase 3 fails if:
+
+* product integrations create direct DB coupling
+* authorization remains too generic for real product usage
+* events exist only as abstractions and are not emitted from real runtime paths
+* the work drifts into large UI redesign or overbroad process implementation
+* tenant/data cleanup is unsafe or incomplete without documentation
+* Flow becomes entangled into product-specific code that breaks its shared-service role
+
+---
+
+# Copy-Paste Replit Prompt
+
+```text
+Project: LS-FLOW-MERGE-P3
+Title: LegalSynq Merge Phase 3 — Product Consumption & Workflow Mapping
+
+You are implementing Phase 3 of the Flow-to-LegalSynq merge plan.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-MERGE-P3-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around product authorization, mapping ownership, data cleanup decisions, and anything you could not safely automate.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - product integration changes
+   - authorization/capability changes
+   - event emission changes
+   - audit/notification trigger changes
+   - data cleanup/migration changes
+   - build/run notes
+   - validation/build/test/runtime/integration results
+   - known gaps/issues
+   - recommendation: ready for next phase or needs iteration
+
+REPORT FORMAT
+
+# LS-FLOW-MERGE-P3 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Event Emission Notes
+## Audit / Notification Trigger Notes
+## Authorization / Capability Notes
+## Product Mapping Notes
+## Product Integration Notes
+## Data Cleanup Notes
+## Frontend / UI Validation Notes
+## Documentation Changes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Convert Flow from a platform-integrated standalone service into a product-consumable workflow capability for LegalSynq products by wiring real application-level event emission, introducing product-aware authorization/capability enforcement, enabling product-to-flow mapping, and safely cleaning up legacy tenant/data artifacts while preserving Flow's service boundary.
+
+This phase is product consumption and workflow mapping, not DB consolidation or broad workflow-engine redesign.
+
+SCOPE INCLUDES
+
+- real event emission inside Flow application/service paths
+- meaningful Audit and Notifications triggering from real events
+- product/capability-aware authorization
+- product-to-flow mapping/correlation foundation
+- initial real consumption subsets for SynqLien, CareConnect, and SynqFund
+- product-facing Flow API usage patterns as needed
+- cleanup/migration of legacy "default" tenant artifacts
+- minimal UI/product validation required to prove real consumption
+- documentation updates
+
+DO NOT BUILD
+
+- shared DB merge
+- direct product-service DB access into Flow
+- full enterprise event bus
+- broad UI redesign across products
+- full workflow coverage for every product process
+- broad frontend workspace consolidation unless trivial and clearly safe
+- deep analytics/reporting layer
+- advanced BPM/rules-engine expansion beyond current Flow scope
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve Flow as a bounded shared service under /apps/services/flow
+- keep Flow API-first and DB-isolated
+- wire real runtime event emission from actual application/service methods
+- activate Audit and Notifications through those real events
+- introduce product/capability-aware authorization rather than relying only on generic AuthenticatedUser
+- create a clean product-to-flow mapping/correlation pattern
+- implement the smallest real useful subset for target products
+- handle legacy "default" tenant data safely and document all decisions
+- avoid product-specific code sprawl inside Flow
+
+CURRENT CONTEXT FROM PHASE 2
+
+Flow already has:
+- JWT auth and claims-based tenant resolution
+- strict tenant enforcement
+- environment-driven CORS
+- gateway exposure under /flow
+- internal event abstraction
+- Audit + Notifications adapter seams
+- logging baselines and optional HTTP adapters
+- frontend gateway-prefix alignment
+- standalone bounded-service structure
+
+Known Phase 2 findings to address now:
+- IFlowEventDispatcher is registered but not yet called from TaskService / WorkflowService CRUD paths
+- authorization is still generic (AuthenticatedUser only)
+- legacy "default" tenant rows may still exist in flow_db
+- product-consumption patterns are not yet implemented
+
+IMPLEMENTATION REQUIREMENTS
+
+1. REAL EVENT EMISSION
+
+Requirements:
+- inject and use IFlowEventDispatcher from the relevant application/service-layer methods
+- emit real events from actual workflow/task CRUD and action paths, including:
+  - workflow created
+  - workflow updated
+  - workflow state changed
+  - task assigned
+  - task updated
+  - task completed
+  - workflow completed
+- include enough context for downstream audit/notification behaviour
+- keep failures from downstream dispatch from corrupting core persistence unless platform pattern explicitly requires otherwise
+
+2. AUDIT / NOTIFICATION ACTIVATION
+
+Requirements:
+- connect real emitted Flow events to Audit adapter delivery
+- connect appropriate real emitted Flow events to Notifications adapter delivery
+- confirm at minimum:
+  - task assignment triggers notification
+  - workflow completion triggers notification
+  - workflow/task creation/update/completion trigger audit
+- keep safe fallback behaviour when downstream services are unavailable
+- do not implement threaded/two-way communications
+
+3. PRODUCT / CAPABILITY AUTHORIZATION
+
+Requirements:
+- introduce product-aware authorization/capability enforcement for Flow
+- align with existing LegalSynq product/role/capability patterns where feasible
+- authenticated user alone must no longer imply full Flow access
+- support platform admin / tenant admin / product-scoped user distinctions where applicable
+- use policies/capability checks/claims-based evaluation rather than controller-level product hacks
+- keep platform authorization architecture intact; do not redesign it globally
+
+4. PRODUCT-TO-FLOW MAPPING FOUNDATION
+
+Requirements:
+- implement a clean mapping/correlation model so products can:
+  - reference workflow templates/types
+  - create workflow instances from product business context
+  - correlate Flow workflow instances to product records
+- use explicit product key + source entity type/id + tenant + workflow correlation metadata
+- avoid direct DB joins across services
+- document ownership and storage decisions clearly
+
+5. INITIAL PRODUCT INTEGRATIONS
+
+Implement the maximum safe subset for:
+- SynqLien
+- CareConnect
+- SynqFund
+
+Guidance:
+- choose a small real scenario for each product rather than trying to solve the entire product lifecycle
+- examples may include:
+  - SynqLien: case onboarding or lien review workflow
+  - CareConnect: referral intake or provider follow-up workflow
+  - SynqFund: funding intake or review workflow
+
+6. PRODUCT-FACING FLOW API
+
+Requirements:
+- add/adjust API endpoints only where needed so products can:
+  - create workflow from product context
+  - query workflows by correlated product entity
+  - progress workflow/task under authorized context
+- enforce tenant + authorization rules on these APIs
+- preserve existing Flow API surface where possible
+- avoid broad contract rewrite
+
+7. LEGACY TENANT / DATA CLEANUP
+
+Requirements:
+- inspect and safely handle legacy "default" tenant artifacts in flow_db
+- implement safe migration/cleanup as appropriate
+- normalize tenant identifiers if needed
+- document findings, actions, and deferrals clearly
+- prefer idempotent migration/update routines
+
+8. FRONTEND / UI VALIDATION
+
+Requirements:
+- implement only the minimum UI/product validation needed to prove real consumption
+- may include launching/viewing workflows from product context or showing correlated workflow status
+- keep UI changes narrow and validation-oriented
+- do not launch broad redesign work
+
+9. DOCUMENTATION
+
+Update docs under /apps/services/flow/docs to cover:
+- real event emission model
+- audit/notification trigger behaviour
+- product authorization model
+- product-to-flow mapping model
+- initial product scenarios
+- product-facing API usage
+- legacy tenant cleanup decisions
+- explicit later-phase deferrals
+
+Suggested files:
+- README.md
+- architecture.md
+- merge-phase-3-notes.md
+
+10. EXPLICIT DEFERRALS
+
+Document that these remain deferred:
+- full event bus/platform streaming
+- full workflow coverage for every product process
+- deep analytics/reporting
+- major UI redesign
+- full workspace unification
+- DB consolidation
+- generalized BPM/rules-engine expansion beyond current scope
+
+VALIDATION
+
+You MUST confirm and record in the report:
+
+Repository / Architecture
+- Flow remains under /apps/services/flow
+- service boundary preserved
+- no direct DB coupling introduced
+
+Backend
+- builds successfully
+- real event emission occurs from application/service methods
+- audit/notification triggering is exercised or safely validated
+- product/capability authorization compiles and is enforced
+- product-facing APIs compile/work structurally
+
+Product Integration
+- at least one real product-linked workflow scenario is implemented for each chosen target subset
+- product-to-flow correlation works safely
+- tenant/auth enforcement remains correct
+
+Data Cleanup
+- legacy "default" tenant artifacts are assessed and handled safely
+- normalization decisions are documented
+
+Frontend / UI
+- minimal validation changes compile
+- at least one product-linked workflow path is demonstrably usable
+
+Platform Integrity
+- existing LegalSynq services remain operational
+- Flow integration does not break gateway/auth/platform behaviour
+
+Documentation
+- docs updated
+- phase boundaries and remaining deferrals documented
+
+EXECUTION ORDER
+
+1. Inspect current Flow Phase 2 state and current LegalSynq product auth/capability patterns.
+2. Create /analysis/LS-FLOW-MERGE-P3-report.md immediately and begin logging actions/assumptions.
+3. Wire real event emission into TaskService / WorkflowService and related application paths.
+4. Validate Audit and Notifications dispatch from those real events.
+5. Implement product/capability-aware authorization.
+6. Implement the product-to-flow mapping/correlation foundation.
+7. Implement the smallest real useful product-consumption subset for SynqLien.
+8. Implement the smallest real useful product-consumption subset for CareConnect.
+9. Implement the smallest real useful product-consumption subset for SynqFund.
+10. Add/adjust product-facing Flow APIs as needed.
+11. Safely clean up/migrate legacy "default" tenant artifacts.
+12. Add minimal UI/product validation changes as needed.
+13. Update docs.
+14. Validate builds/runtime/integration behaviour and finalize the report.
+
+SUCCESS CONDITION
+
+Flow emits real runtime events, Audit and Notifications are meaningfully triggered, product/capability-aware authorization is enforced, real product-consumption subsets exist for target LegalSynq products, product-to-flow correlation is explicit and safe, legacy tenant artifacts are handled safely, and Flow remains a bounded shared service ready for broader adoption.
+
+FAILURE CONDITION
+
+The work introduces direct DB coupling, leaves authorization too generic, fails to emit real events from runtime paths, drifts into large UI redesign or overbroad product-process implementation, handles tenant cleanup unsafely, or entangles Flow into product-specific code that undermines its shared-service role.
+```
+
+One thing to decide before execution: whether P3 should target all three products in one pass, or prove the pattern on SynqLien first and treat CareConnect and SynqFund as follow-up iterations.

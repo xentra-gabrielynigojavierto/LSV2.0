@@ -1,0 +1,148 @@
+Review the newly generated appointment lifecycle implementation before applying any migration.
+
+Goal:
+Validate correctness, simplicity, and safety of:
+- AppointmentStatusHistory
+- appointment status transitions
+- cancellation
+- reschedule
+before database changes are applied.
+
+Context:
+- CareConnect scheduling foundation and booking baseline already exist
+- New code includes:
+  - AppointmentStatusHistory
+  - Appointment workflow rules
+  - appointment update/cancel/reschedule
+  - appointment history endpoint
+- Migration has been created but should NOT be applied yet
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. ENTITY REVIEW
+==================================================
+
+Confirm ONLY these new appointment lifecycle additions exist:
+- AppointmentStatusHistory
+- appointment workflow rules helper/service
+- appointment update/cancel/reschedule logic
+- appointment history endpoint
+
+Ensure NO accidental additions:
+- notification jobs
+- reminder services
+- blackout exceptions
+- recurring appointments
+- calendar sync integrations
+- payment logic
+
+==================================================
+2. APPOINTMENTSTATUSHISTORY REVIEW
+==================================================
+
+Check:
+- fields are correct:
+  - Id
+  - AppointmentId
+  - TenantId
+  - OldStatus
+  - NewStatus
+  - ChangedByUserId
+  - ChangedAtUtc
+  - Notes
+- table name is AppointmentStatusHistories
+- indexes are correct:
+  - (TenantId, AppointmentId)
+  - (TenantId, ChangedAtUtc)
+
+==================================================
+3. WORKFLOW RULES REVIEW
+==================================================
+
+Confirm allowed transitions are exactly:
+- Scheduled -> Confirmed
+- Scheduled -> Cancelled
+- Scheduled -> NoShow
+- Confirmed -> Completed
+- Confirmed -> Cancelled
+- Confirmed -> NoShow
+
+Rules:
+- Completed terminal
+- Cancelled terminal
+- NoShow terminal
+- same-status update allowed for notes only
+- same-status update must not create history row
+- invalid transitions return clean 400 errors
+
+Check that no extra transitions were introduced.
+
+==================================================
+4. CANCELLATION LOGIC REVIEW
+==================================================
+
+Verify cancellation behavior:
+- tenant-scoped
+- only valid from non-terminal states
+- writes AppointmentStatusHistory
+- decrements old slot ReservedCount safely
+- does not allow ReservedCount below 0
+- may reopen slot if capacity becomes available again
+- booking changes and history are saved together
+
+==================================================
+5. RESCHEDULE LOGIC REVIEW
+==================================================
+
+Verify reschedule behavior:
+- tenant-scoped
+- only allowed from Scheduled or Confirmed
+- new slot must exist in tenant
+- new slot must be Open
+- new slot must have available capacity
+- old slot ReservedCount decremented safely
+- new slot ReservedCount incremented safely
+- appointment times/provider/facility/service copied from new slot
+- no status history row created if status does not change
+- save is atomic
+
+==================================================
+6. AUTHORIZATION REVIEW
+==================================================
+
+Confirm:
+- GET /api/appointments => AuthenticatedUser
+- GET /api/appointments/{id} => AuthenticatedUser
+- GET /api/appointments/{id}/history => AuthenticatedUser
+- PUT /api/appointments/{id} => PlatformOrTenantAdmin
+- POST /api/appointments/{id}/cancel => PlatformOrTenantAdmin
+- POST /api/appointments/{id}/reschedule => PlatformOrTenantAdmin
+
+==================================================
+7. MIGRATION REVIEW
+==================================================
+
+Confirm migration name is:
+- AddAppointmentStatusHistory
+or equivalent clean name
+
+Confirm migration creates ONLY:
+- AppointmentStatusHistories
+
+If the migration includes unrelated tables/columns, identify and fix before applying.
+
+==================================================
+8. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- confirmation that:
+  - workflow rules are correct
+  - cancellation logic is safe
+  - reschedule logic is safe
+  - migration is SAFE to apply
+- final list of changed files

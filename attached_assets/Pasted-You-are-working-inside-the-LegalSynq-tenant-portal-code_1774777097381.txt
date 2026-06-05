@@ -1,0 +1,179 @@
+You are working inside the LegalSynq tenant portal codebase.
+
+Goal:
+Redesign the tenant portal layout so it behaves like Jira:
+
+- a persistent **top product bar** across the app
+- the user can switch between products from that top bar
+- the **left sidebar navigation changes dynamically** based on the selected product
+- the layout should feel modern, clean, enterprise, and Jira-inspired
+- preserve existing auth, route guards, and current product pages
+
+Do the work directly in the codebase and produce a report.
+
+Primary outcome:
+Create a product-aware shell layout where:
+1. top bar = product selector + workspace context
+2. left nav = only the navigation items relevant to the selected product
+3. main content = existing page content rendered inside the new shell
+
+Important constraints:
+- do not break existing routes
+- do not remove existing role / product checks
+- do not invent fake backend APIs
+- use the current session/auth model already present in the app
+- selected product should be driven by the user’s available product roles and/or current route
+- preserve current CareConnect work and current product pages
+- this is a layout/navigation refactor, not a backend rewrite
+- if a product is not available to the user, it should not appear in the top product selector
+- if a product is selected, the left nav should only show routes for that product
+- keep the design polished and production-ready
+
+Design intent:
+Model the experience after Jira at a high level:
+- top global bar spanning the width of the app
+- product switcher in the top bar
+- left sidebar for product-specific navigation
+- content area on the right
+- compact, professional, SaaS admin/ops look
+- clear selected states, hover states, icons, spacing, and hierarchy
+
+Tasks:
+
+1. Analyze the current layout and navigation system
+Inspect at least:
+- the root app layout(s)
+- any existing sidebar/nav/header components
+- session/user context usage
+- product-role checks
+- current route group structure under the tenant portal
+- any shared UI shell components
+
+Identify:
+- where the current shell is defined
+- where nav items are currently hardcoded
+- how product access is currently determined
+- how the current route structure maps to products
+
+2. Define a product-navigation model
+Create a central configuration model for products and their nav items.
+
+The model should support:
+- product id/code
+- product display name
+- icon
+- route prefix
+- allowed product roles
+- nav items for the left sidebar
+- optional grouped nav sections
+
+At minimum support these products if present in the repo:
+- CareConnect
+- SynqFund
+- SynqLien
+- any other products already represented in the portal
+
+For each product, map the existing routes/pages into left-nav items.
+
+3. Build a new top product bar
+Implement a top navigation bar that includes:
+- LegalSynq branding / tenant context
+- product switcher/dropdown or segmented product tabs
+- current product display
+- room for user/account menu if already present
+- responsive behavior
+
+Product switch behavior:
+- selecting a product should route the user to that product’s default landing page
+- if the current route already belongs to a product, that product should appear selected automatically
+- if the user lands on the app root, route them to the first available product
+
+4. Build a dynamic left sidebar
+Implement a left sidebar that:
+- reads the selected/current product
+- renders only the nav items for that product
+- highlights the active route
+- supports nested/grouped sections if useful
+- preserves existing pages and links
+
+Do not show nav items from other products in the sidebar.
+
+5. Wire product availability to the user session
+Use existing user/session/product-role data to determine available products.
+
+Requirements:
+- only show products the user can access
+- if route/product mismatch happens, gracefully redirect to an allowed product or show a safe fallback
+- do not hardcode all products as visible to everyone unless that is already the actual current behavior
+
+6. Refactor layouts cleanly
+Update the layout structure so the new shell is reused broadly.
+
+Prefer creating reusable components such as:
+- product-shell.tsx
+- top-product-bar.tsx
+- product-sidebar.tsx
+- product-config.ts
+- product-context.tsx (if needed)
+
+But adapt to the actual repo structure you find.
+
+7. Preserve route behavior
+Do not rename existing pages unless absolutely necessary.
+Do not break deep links.
+If needed, infer the selected product from pathname prefixes.
+
+8. Styling
+Use the existing design system / Tailwind / component patterns already in the repo.
+The finished UI should feel:
+- clean
+- modern
+- compact
+- enterprise
+- Jira-inspired without copying Jira literally
+
+Use:
+- consistent spacing
+- subtle borders/backgrounds
+- strong active states
+- readable hierarchy
+- polished layout proportions
+
+9. Validation
+After implementation, verify:
+- top bar renders
+- only allowed products appear
+- selecting a product updates the sidebar
+- sidebar links navigate correctly
+- deep-linking into a product selects the right product
+- existing pages still render
+- no broken imports/layout errors
+
+Deliverable:
+Write a report to:
+
+/analysis/step6_jira_style_product_shell.md
+
+Report format:
+1. Executive summary
+2. Current layout findings
+3. Product navigation model
+4. Files created
+5. Files modified
+6. Routing behavior
+7. Session/product access behavior
+8. Styling/layout notes
+9. Validation results
+10. Any remaining limitations
+
+Implementation guidance:
+- prefer a single source of truth for product metadata and nav definitions
+- infer product from pathname when possible
+- keep the shell components decoupled from individual product page implementations
+- avoid duplicating nav logic across files
+- use actual repo file paths, not pseudo paths
+- make the implementation production-ready
+
+If there is ambiguity in route ownership, resolve it by inspecting the actual app structure and choosing the cleanest mapping based on existing product pages.
+
+Do the implementation directly, not just analysis.

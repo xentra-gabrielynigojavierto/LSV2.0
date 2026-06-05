@@ -1,0 +1,175 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Apply a hardening iteration to the existing Liens microservice scaffold created in LS-LIENS-01-001.
+
+This iteration is focused on correcting architectural overreach and validating clean boundaries. Do NOT add new business functionality.
+
+IMPORTANT:
+- Do NOT implement identity integration yet.
+- Do NOT add gateway registration yet.
+- Do NOT add business entities, case APIs, lien APIs, or database schema.
+- Do NOT copy code from v1.
+- Keep all changes limited to the Liens service scaffold and only the minimum supporting validation needed.
+
+--------------------------------------------------
+CONTEXT
+--------------------------------------------------
+
+The previous scaffold was accepted with one required iteration.
+
+Issues to correct:
+
+1. JWT authentication was configured too early in Liens.Api Program.cs.
+   This must be removed for now.
+   Identity integration belongs to a future feature.
+
+2. The Domain layer references BuildingBlocks.
+   This is acceptable only if the dependency is clean and limited to safe shared abstractions such as:
+   - base entity classes
+   - value objects
+   - shared exceptions
+
+   It must NOT pull in:
+   - HTTP concerns
+   - infrastructure concerns
+   - persistence concerns
+   - auth concerns
+
+3. The service must still:
+   - build cleanly
+   - run successfully
+   - expose /health
+   - expose /info
+
+--------------------------------------------------
+STEP 1 — REMOVE PREMATURE AUTH CONFIGURATION
+--------------------------------------------------
+
+In Liens.Api:
+
+- Update Program.cs
+- Remove JWT Bearer authentication configuration
+- Remove authorization policy setup if it was added only for JWT
+- Remove middleware usage related to authentication/authorization if not needed at this phase
+
+Target state:
+- Service starts without requiring auth configuration
+- /health and /info remain anonymous
+- No identity coupling exists yet
+
+IMPORTANT:
+Do not break the future ability to add identity later.
+Keep Program.cs clean and minimal.
+
+--------------------------------------------------
+STEP 2 — VALIDATE DOMAIN DEPENDENCY BOUNDARY
+--------------------------------------------------
+
+Inspect the Liens.Domain project reference to BuildingBlocks.
+
+Determine exactly what Liens.Domain is consuming from BuildingBlocks.
+
+Validate that the consumed items are limited to safe shared abstractions only, such as:
+- base entity classes
+- domain-safe primitives
+- shared exceptions
+
+Ensure Liens.Domain does NOT depend on anything related to:
+- ASP.NET
+- HTTP
+- middleware
+- EF Core
+- repositories
+- configuration
+- authentication
+- authorization
+- external services
+
+If the dependency is clean:
+- keep it
+- document why it is acceptable
+
+If the dependency is not clean:
+- make the minimum necessary correction
+- remove or isolate the problematic dependency
+- do not introduce large refactors beyond what is needed
+
+--------------------------------------------------
+STEP 3 — VALIDATE DEV STARTUP IMPACT
+--------------------------------------------------
+
+If LS-LIENS-01-001 added the Liens service to any shared startup script such as run-dev.sh:
+
+- verify that the script still works cleanly
+- verify that adding Liens does not break existing services
+- document the impact clearly
+
+Do not over-engineer this.
+This is validation/documentation unless an actual break exists.
+
+--------------------------------------------------
+STEP 4 — REGRESSION VALIDATION
+--------------------------------------------------
+
+Run the following validation:
+
+1. Build the full solution/workspace
+2. Run the Liens service
+3. Confirm:
+   - startup succeeds
+   - /health returns success
+   - /info returns success
+4. Confirm there are no new warnings/errors caused by the iteration
+
+--------------------------------------------------
+STEP 5 — KEEP SCOPE TIGHT
+--------------------------------------------------
+
+Do NOT add:
+- identity integration
+- gateway integration
+- database migrations
+- entities
+- repositories
+- business services
+- endpoint business routes
+
+This is a hardening iteration only.
+
+--------------------------------------------------
+STEP 6 — GENERATE ITERATION REPORT
+--------------------------------------------------
+
+Create this file in the root /analysis folder:
+
+/analysis/LS-LIENS-01-001-01-report.md
+
+The report MUST include:
+
+1. Summary of corrections made
+2. Exact auth-related changes made in Program.cs
+3. Current middleware/pipeline state after removing auth
+4. Domain → BuildingBlocks dependency validation
+   - what is referenced
+   - whether it is acceptable
+   - why
+5. Any startup script validation performed
+6. Build result
+7. Run result
+8. /health test result
+9. /info test result
+10. Any deviations, assumptions, or residual risks
+11. Final readiness statement:
+   - Is LS-LIENS-01-001 now cleanly complete?
+   - Is the service ready for LS-LIENS-01-002?
+
+Be detailed and explicit. The report should contain enough information for architectural review without needing to inspect the code directly.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+The goal is to make the Liens service scaffold architecturally clean, minimal, and properly staged for future identity and gateway integration.
+
+Proceed.

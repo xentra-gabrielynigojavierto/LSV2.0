@@ -1,0 +1,398 @@
+```text
+# LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+## FEATURE OBJECTIVE
+
+Add authoritative backend permission enforcement for the Insights product so the UI gating delivered in LS-ID-TNT-022-002 is matched by real API-level security.
+
+This feature wires the new `SYNQ_INSIGHTS.*` permission codes into the Reports / Schedules backend so direct API calls, stale-session actions, and non-UI access paths are correctly denied server-side.
+
+This is the final step that turns Insights authorization from:
+- permission-modeled
+- UI-gated
+
+into:
+
+- permission-modeled
+- UI-gated
+- backend-enforced
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- LS-ID-TNT-022-001 defined the Insights permission catalog
+- LS-ID-TNT-022-002 wired all major Insights client components to those permissions
+- But the backend still does **not** enforce `Insights.*` permission policies
+
+That means:
+- the UI behaves correctly
+- but direct API calls can still bypass those UI controls
+
+This feature closes that security gap.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- ABAC/policy-rule activation
+- broad redesign of the Reports service
+- tenant/control-center governance redesign
+- speculative new Insights permissions beyond the catalog already defined
+- frontend redesign of Insights pages
+- unrelated API refactors outside the validated Insights surface
+- fake/stubbed enforcement
+
+ONLY IMPLEMENT:
+- actual backend permission enforcement for the validated Insights API surface
+- reuse of the existing authorization/filter/policy architecture already established in LS-ID-TNT-012
+- consistent forbidden response behavior
+- alignment with `PermissionCodes.Insights.*`
+- report-first implementation and honest coverage documentation
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental authorization security feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, access, authorization, governance, and UI behavior
+- validate the actual Reports/Insights backend endpoints before enforcing anything
+- reuse the existing backend permission-enforcement architecture already used elsewhere in the platform
+- keep backend authority clear and explicit
+- include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- document exact enforcement coverage achieved
+- preserve existing non-Insights enforcement behavior
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-022-003-report.md
+
+Initialize with:
+
+# LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Reports / Insights API Inventory
+## 4. Permission Mapping Matrix
+## 5. Enforcement Scope Selection
+## 6. Enforcement Design
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. API / Error Contract Changes
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL INSIGHTS BACKEND SURFACE
+
+Inspect the actual backend code for Insights-related APIs.
+
+Use the LS-ID-TNT-022-001 and LS-ID-TNT-022-002 findings as starting context, but validate the code directly.
+
+You must identify and document:
+- the actual service/project(s) that serve Insights backend APIs
+- actual endpoints for:
+  - report listing/viewing
+  - report execution/run
+  - export
+  - builder/create/update/save
+  - schedules list/view
+  - schedule create/update
+  - schedule activate/deactivate
+  - schedule run-now
+- whether these are minimal APIs, controllers, MediatR handlers, or another pattern
+- current auth/product access behavior
+- whether existing permission filters/handlers/utilities are already available in this service
+- whether the service already uses `RequirePermission(...)`, `RequireProductAccess(...)`, or similar patterns anywhere
+
+Do NOT assume the enforcement mechanism until you inspect the code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Reports / Insights API Inventory
+
+---
+
+## STEP 2 — BUILD THE BACKEND PERMISSION MAPPING MATRIX
+
+For each real Insights backend endpoint/action, map it to the appropriate permission code from LS-ID-TNT-022-001:
+
+Available codes:
+- `SYNQ_INSIGHTS.dashboard:view`
+- `SYNQ_INSIGHTS.reports:view`
+- `SYNQ_INSIGHTS.reports:run`
+- `SYNQ_INSIGHTS.reports:export`
+- `SYNQ_INSIGHTS.reports:build`
+- `SYNQ_INSIGHTS.schedules:manage`
+- `SYNQ_INSIGHTS.schedules:run`
+
+For every endpoint covered, document:
+- HTTP route
+- operation semantics
+- permission code required
+- whether product access is also required
+- whether any endpoint should remain read-only/public within the product scope
+
+Do NOT invent enforcement on endpoints that do not exist.
+
+Update report:
+## 4. Permission Mapping Matrix
+## 5. Enforcement Scope Selection
+
+---
+
+## STEP 3 — CHOOSE THE ENFORCEMENT MECHANISM BASED ON EXISTING ARCHITECTURE
+
+Reuse the established backend enforcement architecture if present.
+
+Possible existing mechanisms may include:
+- `.RequirePermission(...)` endpoint extension
+- `RequirePermissionFilter`
+- policy/handler wiring already used by Fund / Liens / CareConnect
+- existing BuildingBlocks authorization helpers
+
+Requirements:
+- prefer the same mechanism already used elsewhere in the platform
+- do not create a separate Insights-only enforcement framework
+- keep enforcement readable and maintainable
+- preserve product-access enforcement layering if already present
+
+Document:
+- what mechanism was chosen
+- why it fits the current service architecture
+- what existing patterns were reused
+
+Update report:
+## 6. Enforcement Design
+## 8. Backend Implementation
+
+---
+
+## STEP 4 — IMPLEMENT PERMISSION ENFORCEMENT FOR REPORTS ACTIONS
+
+Add backend permission enforcement to the real Reports/Insights endpoints for report actions.
+
+Likely targets (validate before implementation):
+- report list / viewer read surfaces → `ReportsView`
+- run/execute endpoints → `ReportsRun`
+- export endpoints → `ReportsExport`
+- create/update/customize/save builder endpoints → `ReportsBuild`
+
+Requirements:
+- backend denial must occur even if a caller bypasses the UI
+- keep existing product access/tenant checks intact
+- do not over-enforce endpoints whose semantics are only read-only unless validated
+- if read and execute are separate endpoints, enforce them separately
+
+Update report:
+## 8. Backend Implementation
+## 9. API / Error Contract Changes
+
+---
+
+## STEP 5 — IMPLEMENT PERMISSION ENFORCEMENT FOR SCHEDULE ACTIONS
+
+Add backend permission enforcement to the real schedule endpoints.
+
+Likely targets (validate before implementation):
+- list/view endpoints — determine whether they should stay under product access only or require a view/manage code
+- create/update/activate/deactivate endpoints → `SchedulesManage`
+- run-now endpoints → `SchedulesRun`
+
+Requirements:
+- align to the current permission catalog exactly
+- do not invent `SchedulesView` unless the backend and feature explicitly require it (that is out of scope for this ticket)
+- if list/view remains accessible under product access only, document that clearly and consistently
+
+Update report:
+## 8. Backend Implementation
+## 9. API / Error Contract Changes
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 6 — PRESERVE PRODUCT ACCESS LAYERING
+
+Insights is already product-gated at the UI layer and platform level.
+
+Backend enforcement must preserve the correct layering:
+
+1. authenticated user
+2. tenant/product access
+3. permission enforcement for the specific action
+
+Requirements:
+- do not replace product access with permission checks
+- do not allow permissions to bypass product access
+- keep tenant isolation intact
+- document the layering explicitly
+
+Update report:
+## 6. Enforcement Design
+## 8. Backend Implementation
+
+---
+
+## STEP 7 — STANDARDIZE FORBIDDEN / ERROR RESPONSES
+
+Use the platform’s existing authorization error pattern.
+
+Requirements:
+- forbidden calls should return the same class of 403 response used by other services
+- error messages should remain human-readable and stable
+- do not introduce a one-off Insights-only error shape
+- frontend UX from LS-ID-TNT-022-002 should continue to work without requiring redesign
+
+Document:
+- whether the current error contract was reused as-is
+- any endpoint-specific nuances
+
+Update report:
+## 9. API / Error Contract Changes
+
+---
+
+## STEP 8 — VERIFY INTEGRATION WITH CURRENT UI GATING
+
+After backend enforcement is added, verify alignment with LS-ID-TNT-022-002.
+
+Requirements:
+- UI-gated actions should now also be denied server-side if forced directly
+- builder page / schedule actions / export / run should all now have real backend enforcement for the covered endpoints
+- stale-token/direct-path scenarios should fail safely and consistently
+- existing UI error handling should remain stable
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 9 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- Insights UI permission gating from LS-ID-TNT-022-002
+- non-Insights backend permission enforcement
+- tenant permission UI
+- control center governance UI
+- invite/onboarding/password reset flows
+- route-level product access enforcement
+- TypeScript/build/runtime stability on the frontend
+- service startup/migration stability on the backend
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 10 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Reports
+- user with `ReportsView` can access read/view endpoints as intended
+- user without `ReportsRun` cannot execute reports
+- user without `ReportsExport` cannot export
+- user without `ReportsBuild` cannot create/update/customize/save reports
+
+### Schedules
+- user without `SchedulesManage` cannot create/update/activate/deactivate schedules
+- user without `SchedulesRun` cannot trigger run-now
+- if list/view remains accessible without a dedicated view permission, confirm and document that behavior
+
+### Backend/UI alignment
+- direct API call bypass attempts are denied
+- UI-gated buttons now correspond to real backend denials
+- stale permission/session edge cases still fail safely
+
+### Regression
+- identity service still works
+- non-Insights products still work
+- Insights UI still builds and behaves correctly
+- no service startup/build regressions
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what backend endpoints were covered
+- what permission code each endpoint now requires
+- what enforcement mechanism was used
+- what still remains deferred (for example any read/list endpoint nuance)
+- whether Insights now has authoritative backend permission enforcement for the implemented scope
+- whether UI and backend are now aligned
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Actual Insights backend endpoints were analyzed from code
+✔ Real endpoint-to-permission mappings were implemented
+✔ Existing backend authorization architecture was reused
+✔ Covered Insights report/schedule actions are now denied server-side without the required permission
+✔ Product access layering remains intact
+✔ Existing platform authorization behavior does not regress
+✔ Error/forbidden responses remain consistent with platform patterns
+✔ The report documents exact coverage and remaining gaps honestly
+✔ Insights now has authoritative backend permission enforcement for the implemented scope
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working backend permission enforcement for the validated Insights API scope
+2. Reuse of the shared backend authorization architecture already used elsewhere in the platform
+3. Honest documentation of any remaining read/list/view nuance or deferred gaps
+4. Completed report:
+/analysis/LS-ID-TNT-022-003-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

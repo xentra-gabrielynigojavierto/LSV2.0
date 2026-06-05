@@ -1,0 +1,382 @@
+Project: E15
+Title: Task Inbox / Queue UI — My Tasks, Role Queue, Org Queue, Claim, Reassign
+
+You are implementing the user-facing work-management surface for the LegalSynq workflow/task orchestration platform.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E15-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current portal/work-area structure, existing task read APIs, queue eligibility data available to the frontend, permission visibility, task detail insertion pattern, and any gaps between current backend DTOs and the UI needs.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - task inbox / queue UI changes
+   - API / BFF changes
+   - claim / reassign UI changes
+   - permission / visibility behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for SLA / history / queue optimization phase or needs iteration
+
+REPORT FORMAT
+
+# E15 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## My Tasks View Notes
+## Role Queue Notes
+## Org Queue Notes
+## Task Detail Panel Notes
+## Claim UI Notes
+## Reassign UI Notes
+## API / BFF Notes
+## Permission / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose the task-assignment platform to end users through a practical work surface so users can see directly assigned tasks, view role/org queue tasks they are eligible for, claim work from queues, inspect task context, and allow authorized users to reassign tasks — all using the governed E14.2 APIs and preserving tenant isolation, auditability, and backend authority.
+
+This phase should make the assignment engine operationally usable in the UI.
+
+SCOPE INCLUDES
+
+- My Tasks view
+- Role Queue view
+- Org Queue view
+- task detail drawer/panel
+- claim action UI
+- reassign UI for authorized users
+- permission-aware task/queue visibility
+- loading / empty / error handling
+- documentation/reporting
+
+DO NOT BUILD
+
+- SLA logic
+- notification features
+- bulk claim/reassign
+- task history/timeline UI
+- advanced prioritization/balancing
+- analytics dashboards
+- major portal redesign
+- workflow-engine redesign
+- direct browser-to-Flow coupling if a BFF/product API pattern exists
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use the governed task APIs and E14.2 assignment transition endpoints
+- preserve browser -> BFF/product API -> Flow/backend boundaries
+- present a clear distinction between directly assigned work and queue work
+- make claim/reassign operationally usable without bypassing backend authority
+- keep the UI consistent with existing tenant portal/work-area patterns
+- preserve tenant isolation and permission visibility
+- avoid introducing a second assignment model in frontend code
+- keep the implementation modular so SLA/history/features can build on it later
+
+CURRENT CONTEXT
+
+Already completed:
+- E14.1 explicit `AssignmentMode`, `AssignedAt`, `AssignedBy`, `AssignmentReason`
+- E14.2 governed `claim` and `reassign` APIs
+- queue eligibility and admin reassign enforcement in backend
+- full workflow engine, admin control, async outbox, and tenant/control-center workflow UI foundations
+
+Current limitation:
+- users do not yet have a visible task work surface
+- role/org queues are not yet consumable in the portal
+- claim/reassign APIs exist but are not yet operational in the UI
+
+This E15 phase should expose task consumption and assignment actions to users.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. INFORMATION ARCHITECTURE
+
+Create a work-management surface that clearly separates:
+- My Tasks
+- Role Queue
+- Org Queue
+
+Requirements:
+- prefer a single consolidated "Work" area with tabs/segments if consistent with the current portal architecture
+- separate pages are acceptable only if the portal strongly prefers that pattern
+- whichever pattern is chosen, users must easily understand:
+  - tasks assigned directly to them
+  - tasks available for claim via role
+  - tasks available for claim via org
+- document the chosen pattern clearly
+
+2. MY TASKS VIEW
+
+Requirements:
+- show tasks where `AssignmentMode = DirectUser` and `AssignedUserId = current user`
+- display at minimum:
+  - task title/name
+  - workflow context/name if available
+  - product
+  - status
+  - priority if available
+  - assigned at
+- support basic filters:
+  - status
+  - product
+  - search if practical
+- support opening a task detail drawer/panel
+- empty state example:
+  - "No tasks assigned to you"
+
+3. ROLE QUEUE VIEW
+
+Requirements:
+- show tasks where `AssignmentMode = RoleQueue` and current user is eligible for `AssignedRole`
+- display at minimum:
+  - task title/name
+  - workflow context
+  - product
+  - assigned role
+  - status
+  - created/assigned time
+- clearly label this as queue work, not direct ownership
+- support opening task detail
+- support claim action from the row and/or detail panel
+- do not expose queues for roles the user does not hold
+
+4. ORG QUEUE VIEW
+
+Requirements:
+- show tasks where `AssignmentMode = OrgQueue` and current user is eligible for `AssignedOrgId`
+- display similar fields as role queue
+- support claim action
+- do not expose org queue tasks outside the user’s org
+
+5. TASK DETAIL PANEL / DRAWER
+
+Requirements:
+- add a task detail drawer/panel so users can inspect task context without losing list state
+- show at minimum:
+  - task title/name
+  - assignment mode
+  - assigned target (user / role / org)
+  - workflow context
+  - product
+  - task status
+  - assigned at
+  - assigned by if available
+  - assignment reason if available/helpful
+- include actions:
+  - Claim (when queue task + eligible)
+  - Reassign (when authorized)
+- optional deep links:
+  - source product/workflow record if safely derivable
+
+Preferred pattern:
+- drawer/side panel, preserving list state in background
+
+6. CLAIM UI
+
+Requirements:
+- support claim from Role Queue and Org Queue
+- use the governed E14.2 claim API
+- claim action can live:
+  - in-row
+  - in detail panel
+  - or both
+- after successful claim:
+  - task disappears from queue list
+  - task appears in My Tasks
+  - task detail reflects direct assignment
+- support optional reason only if the backend accepts it and the UX benefits from it
+- show user-friendly errors for:
+  - not eligible
+  - already assigned
+  - invalid state
+  - concurrency conflict
+
+Do not overcomplicate the interaction; claim should be lightweight.
+
+7. REASSIGN UI
+
+Requirements:
+- visible only to authorized admin/supervisor users according to current backend policy
+- support reassigning to:
+  - direct user
+  - role queue
+  - org queue
+  - unassigned only if current backend policy allows it
+- require reason
+- use the governed E14.2 reassign API
+- refresh the task state after success
+- show validation errors clearly
+
+Recommended interaction:
+- task detail drawer action
+- modal or inline panel
+- selector for target mode and matching target fields
+- reason textarea
+- confirm / cancel
+
+Do not expose reassign controls to ordinary users.
+
+8. API / BFF INTEGRATION
+
+Requirements:
+- use the existing task-query APIs and E14.2 claim/reassign APIs where available
+- if the read APIs do not yet provide the necessary shapes for:
+  - My Tasks
+  - Role Queue
+  - Org Queue
+  - task detail
+  add the minimum additive read surface required
+- preserve current browser -> BFF/product API -> backend pattern
+- do not call Flow directly from the browser if a BFF pattern exists
+- document any new API/BFF endpoints added
+
+At minimum, the UI will likely need:
+- list direct tasks
+- list role-queue tasks
+- list org-queue tasks
+- get task detail
+- claim task
+- reassign task
+
+Keep additions minimal and additive.
+
+9. PERMISSION / VISIBILITY MODEL
+
+Requirements:
+- My Tasks visible to authenticated users with work access
+- Role Queue visible only when the user is eligible for at least one relevant role queue
+- Org Queue visible only when the user belongs to a relevant org queue
+- Reassign controls visible only to authorized admin/supervisor users
+- frontend may hide/show based on best available role info, but backend must remain authoritative
+- wrong-tenant / ineligible data must not leak
+
+10. FILTERING / SORTING
+
+Minimum filters:
+- status
+- product
+- search by task title/id if practical
+
+Recommended sorting:
+- most recently assigned/open first
+- if priority already exists, optionally sort/group by priority
+- keep sorting rules simple and documented
+
+11. UX / STATE HANDLING
+
+Requirements:
+- support loading state for each list and detail panel
+- support empty state for each surface:
+  - no tasks assigned
+  - no role queue work
+  - no org queue work
+- support mutation-in-progress states for claim and reassign
+- support compact actionable error messages
+- keep the page stable if one list or action fails
+- make it clear whether a task is:
+  - assigned to me
+  - available to claim
+  - assigned elsewhere
+
+12. DTO / UI DATA USAGE
+
+Use and expose, where helpful:
+- AssignmentMode
+- AssignedAt
+- AssignedBy
+- AssignmentReason
+
+Rules:
+- do not break existing consumers
+- additive UI usage only
+- if a current DTO is insufficient, widen additively and document it
+
+13. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional
+- current user can see directly assigned tasks
+- eligible user can see role queue tasks
+- eligible user can see org queue tasks
+- eligible user can claim a queue task
+- authorized user can reassign a task
+- lists/drawer refresh correctly after claim/reassign
+
+Security
+- wrong-tenant user cannot see tasks outside tenant
+- ineligible user cannot see/claim unauthorized queue tasks
+- ordinary user cannot access reassign controls
+
+Data Integrity
+- claim/reassign remain consistent with E14.1/E14.2
+- UI reflects updated assignment mode after actions
+- no ambiguous assignment state appears in UI
+
+Build / Runtime
+- frontend compiles successfully
+- any backend/BFF/API changes compile
+- existing workflow/task surfaces remain stable
+
+14. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- where the work area lives
+- which task APIs/BFF routes it uses
+- how My Tasks / Role Queue / Org Queue are determined
+- how claim and reassign are surfaced
+- what remains for SLA/history/queue optimization phases
+
+15. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E15 unless strictly required:
+- SLA logic
+- notifications
+- bulk claim/reassign
+- task history/timeline UI
+- advanced queue prioritization
+- analytics dashboards
+- major portal redesign
+- workflow-engine redesign
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current portal/work-area structure and identify the best insertion point for a consolidated task work surface.
+2. Create /analysis/E15-report.md immediately and begin logging assumptions/actions.
+3. Add or confirm the minimum task read APIs/BFF endpoints needed for My Tasks / Role Queue / Org Queue / task detail.
+4. Build My Tasks view.
+5. Build task detail drawer/panel.
+6. Build Role Queue view and claim action.
+7. Build Org Queue view and claim action.
+8. Add reassign UI for authorized users.
+9. Add filters/loading/empty/error handling.
+10. Validate security, integrity, and build/runtime behavior.
+11. Finalize the report.
+
+SUCCESS CONDITION
+
+E15 is successful when:
+- users can see directly assigned tasks
+- queue-eligible users can see and claim queue tasks
+- authorized users can reassign tasks
+- the assignment engine becomes operationally usable in the UI
+- no tenant/security boundaries are weakened
+- the implementation is ready for SLA/history/queue optimization follow-up
+
+FAILURE CONDITION
+
+E15 fails if:
+- UI bypasses governed APIs
+- queues are exposed to ineligible users
+- claim/reassign behave inconsistently with backend rules
+- assignment state does not refresh correctly
+- the UI makes the assignment model more confusing instead of clearer

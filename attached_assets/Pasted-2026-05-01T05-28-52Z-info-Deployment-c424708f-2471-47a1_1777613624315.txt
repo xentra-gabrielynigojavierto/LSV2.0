@@ -1,0 +1,128 @@
+2026-05-01T05:28:52Z info: Deployment: c424708f-2471-47a1-abec-0f9b07cf77b7
+2026-05-01T05:28:52Z info: Build: 32de11d7-f531-4624-9915-0f5988153ef9
+2026-05-01T05:28:53Z info: Running Security Scan
+2026-05-01T05:31:34Z info: Security Scan Complete
+2026-05-01T05:31:38Z info: Installing packages
+--> npm install
+
+
+added 4 packages, removed 1 package, changed 113 packages, and audited 237 packages in 8s
+
+49 packages are looking for funding
+  run `npm fund` for details
+
+
+2 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.13.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+npm notice To update run: npm install -g npm@11.13.0
+npm notice
+
+2026-05-01T05:31:46Z info: Starting Build
+[pnpm-restore] Restoring pnpm-managed node_modules after npm install...
+
+Lockfile is up to date, resolution step is skipped
+
+Already up to date
+
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.26.1 → 10.33.2.   │
+   │   Changelog: https://pnpm.io/v/10.33.2   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+
+
+dependencies:
++ @playwright/test 1.59.1
++ @tailwindcss/postcss 4.2.2
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @testing-library/user-event 14.6.1
++ @types/node 25.5.0
++ @types/react 18.3.28
++ @types/react-dom 18.3.7
++ @types/testing-library__jest-dom 5.14.9
++ @vitejs/plugin-react 6.0.1
++ autoprefixer 10.4.27
++ clsx 2.1.1
++ jose 6.2.2
++ jsdom 29.0.2
++ leaflet 1.9.4
++ lucide-react 1.7.0
++ mysql2 3.22.1
++ next 15.5.15
++ postcss 8.5.8
++ react 18.3.1
++ react-dom 18.3.1
++ react-leaflet 4.2.1
++ remixicon 4.9.1
++ tailwindcss 4.2.2
++ typescript 6.0.2
++ vitest 4.1.5
++ zustand 5.0.12
+
+devDependencies:
++ @types/leaflet 1.9.21
++ tsx 4.21.0
+
+
+Done in 4.2s using pnpm v10.26.1
+
+[pnpm-restore] Done
+
+Using next binary: /home/runner/workspace/node_modules/next/dist/bin/next
+====== Pre-build disk cleanup ======
+[pre-cleanup] Removing git history...
+
+[pre-cleanup] Removing archived files...
+
+[pre-cleanup] Removing analysis/exports/downloads...
+
+[pre-cleanup] Removing attached_assets...
+
+[pre-cleanup] Removing Replit agent/workflow state...
+
+[pre-cleanup] Done
+====== Building web app ======
+
+[dedup] Linked apps/web/node_modules/next → /home/runner/workspace/node_modules/.pnpm/next@15.5.15_@playwright+test@1.59.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+https://nextjs.org/telemetry
+
+
+   ▲ Next.js 15.5.15
+
+   Creating an optimized production build ...
+
+ ✓ Compiled successfully in 20.9s
+
+   Linting and checking validity of types ...
+
+Failed to compile.
+
+./src/app/(platform)/careconnect/referrals/[id]/page.tsx:92:21
+Type error: Property 'referrerEmail' does not exist on type 'ReferralDetail'.
+
+  90 |           (!referral.referringOrganizationId &&
+  91 |            !!session.email &&
+> 92 |            referral.referrerEmail?.toLowerCase() === session.email.toLowerCase())
+     |                     ^
+  93 |         );
+  94 |         const isReceiverOfReferral = hasReceiverRole && !!session.orgId
+  95 |           && referral.receivingOrganizationId === session.orgId;
+
+Next.js build worker exited with code: 1 and signal: null
+

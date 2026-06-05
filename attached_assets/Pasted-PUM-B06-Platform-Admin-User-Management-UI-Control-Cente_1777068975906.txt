@@ -1,0 +1,281 @@
+PUM-B06 — Platform Admin User Management UI (Control Center)
+
+Objective:
+Implement a dedicated Control Center UI for managing ONLY PlatformInternal (admin company) users.
+
+This block must NOT include tenant user management or external customer management. Those will be handled in separate blocks.
+
+---
+
+CRITICAL INSTRUCTION — REPORT FIRST
+
+Before making ANY code changes, create:
+
+/analysis/PUM-B06-report.md
+
+Update this file incrementally as you proceed.
+
+Required sections:
+1. Codebase Analysis
+2. Existing Control Center UI Structure
+3. API Reuse vs Gaps
+4. UI Implementation Details
+5. Backend Changes (if any)
+6. Files Changed
+7. Validation Results
+8. Known Gaps / Deferred Items
+9. Final Assessment
+
+---
+
+SCOPE (STRICT)
+
+This block ONLY handles:
+
+- PlatformInternal users
+- Platform roles
+- Admin company access
+
+---
+
+OUT OF SCOPE (STRICT)
+
+DO NOT include:
+
+- Tenant users (move to PUM-B07)
+- External users (already handled in PUM-B05)
+- Tenant user APIs
+- External user APIs
+- Commerce / Support logic
+- Notifications / Audit
+- Customer portal
+
+---
+
+========================================
+1. CODEBASE ANALYSIS (REQUIRED FIRST)
+========================================
+
+- Locate Control Center frontend app
+- Identify:
+  - navigation structure
+  - layout components
+  - API client layer
+  - auth handling
+- Identify reusable:
+  - table components
+  - modal/forms
+  - page layouts
+
+Document findings in report before coding.
+
+---
+
+========================================
+2. NAVIGATION
+========================================
+
+Add new section:
+
+"Platform Users"
+
+Routes:
+
+/platform-users
+/platform-users/[userId]
+
+DO NOT add tenant users here.
+
+---
+
+========================================
+3. PLATFORM USER DIRECTORY
+========================================
+
+Route:
+GET /platform-users
+
+Display ONLY:
+
+UserType = PlatformInternal
+
+Columns:
+- Name
+- Email
+- Role(s)
+- Status
+- Last Login
+- Actions (View)
+
+Filters:
+- Search (name/email)
+- Status
+
+API:
+GET /identity/api/admin/users
+
+Client-side filter:
+userType === PlatformInternal
+
+---
+
+========================================
+4. PLATFORM USER DETAIL PAGE
+========================================
+
+Route:
+GET /platform-users/[userId]
+
+Sections:
+
+Profile:
+- Name
+- Email
+- Status
+- CreatedAt
+- LastLogin
+
+Roles:
+- List assigned roles
+- Only Platform roles
+
+Actions:
+- Assign role
+- Remove role
+
+---
+
+========================================
+5. PLATFORM USER CREATION
+========================================
+
+Add:
+
+"Create Admin User" action
+
+Form:
+- Email
+- First Name
+- Last Name
+
+Backend:
+
+IF existing endpoint supports user creation:
+→ reuse it
+
+IF NOT:
+→ create minimal endpoint:
+
+POST /identity/api/admin/platform-users
+
+Rules:
+- UserType = PlatformInternal
+- TenantId:
+  - Use system tenant OR null if supported
+- No product assignment at creation
+
+---
+
+========================================
+6. ROLE ASSIGNMENT RULES (STRICT)
+========================================
+
+ONLY allow roles where:
+
+Role.Scope == Platform
+
+Examples:
+- PlatformAdmin
+- PlatformOps
+- PlatformSupport
+- PlatformBilling
+- PlatformAuditor
+
+UI MUST:
+- Filter role dropdown
+- Prevent invalid selection
+
+---
+
+========================================
+7. PRODUCT ACCESS (LIMITED)
+========================================
+
+Optional display only:
+
+- Show product access if exists
+- DO NOT allow editing here (keep admin UI clean)
+
+---
+
+========================================
+8. API USAGE
+========================================
+
+Use ONLY:
+
+GET /identity/api/admin/users
+GET /identity/api/admin/users/{id}
+POST /identity/api/admin/users/{id}/roles
+DELETE /identity/api/admin/users/{id}/roles/{id}
+
+DO NOT call:
+- tenant endpoints
+- external user endpoints
+
+---
+
+========================================
+9. FILE STRUCTURE
+========================================
+
+/pages/platform-users/index.tsx
+/pages/platform-users/[userId].tsx
+
+/components/platform-users/
+  PlatformUserTable.tsx
+  PlatformUserDetail.tsx
+  PlatformRoleAssignment.tsx
+
+/services/api/identity.ts
+
+---
+
+========================================
+10. VALIDATION
+========================================
+
+- Frontend builds successfully
+- No TypeScript errors
+- Pages load without runtime errors
+- API calls succeed
+- Role assignment works correctly
+- No tenant/external users visible in this UI
+
+---
+
+========================================
+11. KNOWN RISKS TO DOCUMENT
+========================================
+
+- Platform user creation endpoint availability
+- No permission middleware enforcement yet
+- No audit logging
+- No notifications
+- Product access not editable here (intentional)
+
+---
+
+========================================
+FINAL OUTPUT REQUIREMENTS
+========================================
+
+After implementation, output ONLY:
+
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B06-report.md was created and updated
+
+DO NOT include explanations outside this format.

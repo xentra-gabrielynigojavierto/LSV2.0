@@ -1,0 +1,359 @@
+You are implementing BLK-COMP-02 — Data Governance, Retention & PII Control for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-COMP-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block builds on BLK-COMP-01 (Audit Integrity).
+   - BLK-COMP-01 ensured traceability
+   - BLK-COMP-02 ensures data governance, retention, and PII discipline
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - redesign core schemas unless absolutely necessary
+   - introduce breaking changes to APIs
+   - log raw PII unnecessarily
+   - weaken existing audit/security controls
+   - implement full legal retention enforcement engines (keep it scoped and practical)
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Establish governance over:
+
+- what data is sensitive (PII classification)
+- how long data is retained
+- how data access is controlled and minimized
+- how data exposure is limited in logs, APIs, and audit
+
+At the end of this block:
+
+- sensitive data is clearly identified and controlled
+- retention expectations are defined and partially enforced
+- PII exposure is minimized and documented
+- system is defensible under SOC2 / HIPAA data governance scrutiny
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- PII / sensitive data classification
+- data exposure audit (API + logs + audit events)
+- retention policy definition (documented + partially enforced)
+- safe handling rules for sensitive data
+- minimal enforcement hooks (timestamps, soft-delete readiness, flags)
+
+This block does NOT include:
+
+- full archival system
+- legal compliance certification
+- encryption-at-rest redesign
+- large schema rewrites
+
+--------------------------------------------------
+
+PART A — DATA CLASSIFICATION (PII / SENSITIVE DATA)
+
+--------------------------------------------------
+
+Identify and classify data across services:
+
+Categories:
+
+1. HIGH SENSITIVITY (PII / PHI)
+   - patient/client names (if present)
+   - addresses
+   - phone numbers
+   - emails
+   - referral-related personal data
+   - medical/provider linkage (HIPAA relevance)
+
+2. MEDIUM SENSITIVITY
+   - provider business info
+   - organization data
+   - internal operational data
+
+3. LOW SENSITIVITY
+   - system metadata
+   - non-identifiable analytics
+
+For each major entity:
+- Referral
+- Provider
+- Network
+- User (Identity)
+- Tenant
+
+Document:
+- fields
+- sensitivity classification
+- where they are used
+
+--------------------------------------------------
+
+PART B — DATA EXPOSURE AUDIT
+
+--------------------------------------------------
+
+Audit where sensitive data appears:
+
+1. API Responses
+   - ensure only required fields are returned
+   - remove unnecessary PII from list endpoints
+   - confirm projections are minimal (build on PERF-01)
+
+2. Logs
+   - confirm no raw PII is logged
+   - confirm error logs do not leak sensitive payloads
+   - confirm structured logs only include identifiers
+
+3. Audit Events
+   - confirm audit metadata does NOT include raw PII
+   - only IDs and safe metadata allowed
+
+4. Cache (PERF-02)
+   - confirm cached objects do not expose excessive PII
+   - confirm tenant isolation still applies
+
+If issues found:
+- redact
+- replace with IDs
+- document change
+
+--------------------------------------------------
+
+PART C — RETENTION POLICY DEFINITION
+
+--------------------------------------------------
+
+Define retention expectations per data type.
+
+Example baseline (adjust if needed):
+
+| Data Type | Retention |
+|----------|----------|
+| Audit logs | 1–7 years |
+| Referrals | 3–7 years |
+| Provider data | active + archive |
+| Authentication logs | 1–2 years |
+| Temporary tokens | minutes/hours |
+
+You are NOT implementing full retention automation.
+
+You MUST:
+
+- document policy in report
+- identify where timestamps exist (CreatedAtUtc, etc.)
+- confirm all entities have audit timestamps (CreatedAtUtc, UpdatedAtUtc)
+
+If missing:
+- add timestamps where minimal and safe
+
+--------------------------------------------------
+
+PART D — DATA MINIMIZATION ENFORCEMENT
+
+--------------------------------------------------
+
+Apply “minimum necessary” principle:
+
+- list endpoints → minimal fields only
+- detail endpoints → only what is needed
+- admin endpoints → still controlled by governance
+
+Ensure:
+
+- no endpoint returns full entity if not required
+- no accidental exposure of hidden/internal fields
+
+--------------------------------------------------
+
+PART E — SOFT DELETE / FUTURE RETENTION READINESS
+
+--------------------------------------------------
+
+Prepare system for future retention enforcement.
+
+Check entities:
+
+- Referral
+- Provider
+- Network
+
+Ensure:
+
+- soft-delete pattern exists OR
+- document absence and impact
+
+If trivial:
+- add `IsDeleted` or equivalent flag
+- do NOT implement full deletion workflow
+
+--------------------------------------------------
+
+PART F — ACCESS CONTROL ALIGNMENT (DATA LEVEL)
+
+--------------------------------------------------
+
+Validate:
+
+- sensitive data only accessible through:
+  - tenant-scoped endpoints
+  - authorized roles
+
+- public endpoints:
+  - do NOT expose sensitive data
+  - only expose safe/public fields
+
+Cross-check with:
+- GOV-02 enforcement
+- SEC-02 tenant isolation
+
+--------------------------------------------------
+
+PART G — DOCUMENT DATA GOVERNANCE MODEL
+
+--------------------------------------------------
+
+In the report, clearly define:
+
+1. What is considered PII/PHI
+2. Where it exists
+3. How it is protected
+4. How it is accessed
+5. How it is audited (link to COMP-01)
+6. How it will be retained (policy level)
+
+This is critical for:
+- SOC2 auditors
+- HIPAA reviews
+- enterprise clients
+
+--------------------------------------------------
+
+PART H — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. No PII appears in logs
+2. No PII appears in audit metadata
+3. API responses are minimal and correct
+4. Tenant isolation still enforced
+5. Governance rules still enforced
+6. Cached responses do not leak sensitive data
+7. dotnet build succeeds (all services)
+8. No regression in behavior
+
+If feasible:
+- add tests for DTO projection
+- add tests ensuring sensitive fields are not returned
+
+--------------------------------------------------
+
+PART I — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-COMP-02-report.md
+
+# BLK-COMP-02 Report
+
+## 1. Summary
+
+## 2. Data Classification
+- entities and sensitivity levels
+
+## 3. Data Exposure Audit
+- APIs
+- logs
+- audit events
+- cache
+
+## 4. Retention Policy
+- defined retention per data type
+
+## 5. Data Minimization
+- changes made
+
+## 6. Soft Delete / Retention Readiness
+- status
+
+## 7. Access Control Alignment
+- data-level enforcement
+
+## 8. Data Governance Model
+- full narrative
+
+## 9. Validation Results
+
+## 10. Changed Files
+- full file paths
+
+## 11. Methods / Endpoints Updated
+
+## 12. GitHub Commits (MANDATORY)
+
+## 13. Issues / Gaps
+
+--------------------------------------------------
+
+PART J — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+After commit:
+
+git show <commit-id> > /analysis/BLK-COMP-02-commit.diff.txt
+
+--------------------------------------------------
+
+PART J.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+/analysis/BLK-COMP-02-commit-summary.md
+
+Include:
+- commit id
+- files changed
+- key governance/data protection changes
+
+--------------------------------------------------
+
+PART J.2 — REPORT UPDATE
+
+--------------------------------------------------
+
+Append:
+
+## 14. GitHub Diff Reference
+
+- Commit ID
+- Diff file
+- Summary file
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- sensitive data is controlled and minimized
+- retention expectations are defined
+- system is defensible under data governance review
+- report, diff, and summary exist
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

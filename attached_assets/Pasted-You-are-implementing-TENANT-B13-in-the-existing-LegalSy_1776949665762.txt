@@ -1,0 +1,116 @@
+You are implementing TENANT-B13 in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B13-report.md
+- This is a HIGH-RISK cleanup phase. All changes must be staged and reversible.
+- DO NOT remove anything unless it is proven unused in runtime.
+- DO NOT break rollback capability unless explicitly gated.
+- Validate against the current codebase before making changes.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B13 — Identity Physical Cleanup (Final Retirement)
+================================================================
+
+OBJECTIVE
+Physically remove tenant-management responsibilities from Identity after successful migration to Tenant service, while preserving:
+
+- system stability
+- rollback safety (controlled)
+- auth/provisioning integrity
+
+This is the **final cleanup phase** after full lifecycle ownership has been transferred to Tenant.
+
+================================================================
+PREREQUISITES (MANDATORY — HARD STOP IF NOT MET)
+================================================================
+
+You MUST confirm ALL of the following:
+
+1. System has been running in:
+   - TenantReadSource = Tenant
+   - TenantBrandingReadSource = Tenant
+   - TenantResolutionReadSource = Tenant
+
+2. Duration:
+   - Minimum 2+ weeks stable runtime (recommended 30 days)
+
+3. Metrics:
+   - Identity fallback usage = 0
+   - No read paths depend on Identity
+
+4. Tenant creation:
+   - All new tenants created via Tenant service
+   - Identity CreateTenant NOT used in production
+
+5. Dual-write:
+   - Not required for correctness (only for compatibility)
+   - No drift observed
+
+6. Control Center:
+   - Fully using Tenant APIs
+
+IF ANY OF THE ABOVE IS NOT TRUE:
+→ STOP
+→ DO NOT PROCEED
+→ Document blocker in report
+
+================================================================
+BLOCK 13 STORIES
+================================================================
+
+This block includes:
+
+- IDENTITY TENANT FIELD REMOVAL
+- IDENTITY ENDPOINT REMOVAL
+- FALLBACK PATH REMOVAL
+- MODEL SIMPLIFICATION
+- FINAL SYSTEM HARDENING
+
+================================================================
+SCOPE
+================================================================
+
+A) Remove Identity tenant read endpoints
+
+REMOVE completely:
+
+- GET /api/tenants/current/branding
+- GET /api/admin/tenants
+- GET /api/admin/tenants/{id}
+
+Rules:
+- Ensure no consumers exist
+- Confirm BFF no longer calls these
+- Remove controllers + routes
+
+---
+
+B) Remove Identity tenant write endpoints
+
+REMOVE:
+
+- POST /api/admin/tenants
+- POST /api/admin/tenants/{id}/entitlements/{productCode}
+
+These are now:
+- fully replaced by Tenant service
+- previously deprecated in B12
+
+---
+
+C) Remove fallback logic
+
+Remove:
+
+- HybridFallback mode (optional but recommended)
+- Identity read-source handling in:
+  - gateway
+  - BFF
+  - branding routes
+
+Result:
+```text
+Tenant = ONLY runtime source

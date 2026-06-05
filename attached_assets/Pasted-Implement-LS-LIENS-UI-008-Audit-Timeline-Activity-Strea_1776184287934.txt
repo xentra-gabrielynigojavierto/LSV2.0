@@ -1,0 +1,198 @@
+Implement LS-LIENS-UI-008 — Audit Timeline & Activity Stream.
+
+Goal:
+Integrate real audit/timeline data into SynqLiens detail pages using the same architecture pattern as prior modules.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-008-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Initial analysis plan
+   - Known UI surfaces
+   - Expected backend/shared audit endpoints
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g., T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Follow same architecture as:
+  Cases, Liens, Servicing, Documents, Contacts, Bill of Sale
+
+- Enforce:
+  API → Service → Mapper → UI
+
+- No direct HTTP in components
+- No mock data
+- Preserve UI layout
+- Use service layer only
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Initial Analysis
+- Analyze backend/shared audit APIs for:
+  - entity timeline retrieval
+  - actor/action/timestamp fields
+  - filtering/pagination support
+  - supported entities: cases, liens, servicing, bill-of-sale, contacts, documents
+- Log findings in report
+
+T002 — Create Types Layer
+Create:
+- audit.types.ts
+
+Include:
+- audit DTOs
+- UI timeline item models
+- actor reference model
+- entity reference model
+- query/filter models
+
+Update report after completion
+
+T003 — Create API Layer
+Create:
+- audit.api.ts
+
+Implement raw calls for available audit endpoints only.
+
+NO UI logic
+
+Update report after completion
+
+T004 — Create Mapper Layer
+Create:
+- audit.mapper.ts
+
+Map:
+- timeline item
+- actor display
+- action/category labels
+- timestamp formatting-safe fields
+- entity references
+
+NO duplication
+NO mapping in components
+
+Update report after completion
+
+T005 — Create Service Layer
+Create:
+- audit.service.ts
+
+Expose:
+- getAuditEvents()
+- getEntityTimeline()
+- getCaseTimeline()
+- getLienTimeline()
+- getServicingTimeline()
+- getBillOfSaleTimeline()
+- getContactTimeline()
+- getDocumentTimeline()
+
+Service = ONLY data access layer
+
+Update report after completion
+
+T006 — Integrate Case Timeline
+- Replace mock/placeholder case activity with real audit timeline
+- Preserve layout
+- Add loading/error/empty states
+
+Update report after completion
+
+T007 — Integrate Lien Timeline
+- Replace mock/placeholder lien activity with real audit timeline
+- Preserve layout
+- Add loading/error/empty states
+
+Update report after completion
+
+T008 — Integrate Servicing Timeline
+- Replace mock/placeholder servicing activity with real audit timeline
+- Preserve layout
+- Add loading/error/empty states
+
+Update report after completion
+
+T009 — Integrate Bill of Sale Timeline
+- Replace mock/placeholder BOS activity with real audit timeline
+- Show real submit/execute/cancel lifecycle if available
+
+Update report after completion
+
+T010 — Integrate Contact and Document Timeline
+- Wire supported contact/document history views to real audit data if APIs support them
+- If unsupported, hide or defer cleanly
+
+Update report after completion
+
+T011 — Timeline Component Reuse
+- Refactor or create reusable timeline presentation component if useful
+- Keep data and mapping out of the component
+
+Update report after completion
+
+T012 — Remove Mock Data
+- Remove static history/activity usage from production flows
+
+Update report after completion
+
+T013 — Unsupported Features
+- Disable/hide unsupported filters, actions, or entity history sections
+- Document gaps clearly
+
+Update report after completion
+
+T014 — Final Validation
+- Verify build
+- Verify API integration
+- Verify UI stability
+- Finalize report with:
+  - executive summary
+  - before/after data flow
+  - APIs used
+  - architecture validation
+  - risks/blockers
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Report created FIRST and updated incrementally
+- Timeline/history uses real backend audit data
+- No mock activity remains in production flows
+- Case, Lien, Servicing, and BOS timelines are real
+- Contact/document timelines are integrated where supported
+- Service-layer pattern enforced
+- UI layout unchanged
+- Report is complete and traceable
+
+Execute FULL implementation.
+DO NOT stop at analysis.
+DO NOT delay report creation.

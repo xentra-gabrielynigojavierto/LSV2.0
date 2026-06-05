@@ -1,0 +1,692 @@
+You are implementing LS-COMMS-02-BLK-004 — Tenant-Configurable Sender Addresses and Email Templates for SynqComm.
+
+OBJECTIVE:
+Extend SynqComm to support tenant-configurable sender identities and template-driven outbound email composition while preserving the established platform boundaries:
+- SynqComm remains the communication system of record
+- Notifications remains the outbound delivery engine
+- Documents remains the owner of binaries
+
+This block must make outbound email more production-ready by introducing:
+- tenant-configurable sender addresses
+- sender identity selection and validation
+- template selection and rendering metadata
+- safe persistence of template usage and sender configuration references
+- continued support for reply threading, recipient handling, delivery tracking, and audit coverage
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains an independent service under /apps/services/synqcomm with its own physically separate database
+- SynqComm must NOT piggyback on another service database
+- SynqComm must NOT use cross-database joins for core logic
+- Notifications service remains the outbound delivery engine and actual email sender
+- SynqComm must NOT implement provider-specific SMTP/email delivery logic
+- Documents service remains the owner of files/binaries
+- Tenant-configurable sender configuration and template metadata may be owned by SynqComm in this block unless an existing shared platform configuration service already exists and is clearly reusable
+- Template rendering must integrate cleanly with Notifications and must not break the established threading model
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+- LS-COMMS-02-BLK-001 — Email Intake and Threading
+- LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status
+- LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-02-BLK-004-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-02-BLK-004-report.md
+
+Initialize it with:
+
+# LS-COMMS-02-BLK-004 — Tenant-Configurable Sender Addresses and Email Templates Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support tenant-configurable sender identities and template-driven outbound email composition while preserving SynqComm as the communication system of record and Notifications as the delivery engine.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- SynqComm owns sender config references, template metadata, and email composition state
+- Notifications remains the outbound delivery engine
+- Documents remains owned by Documents service
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Review existing implementation and configuration/template gaps
+- [ ] Step 2: Design sender identity and template model
+- [ ] Step 3: Add domain models and contracts
+- [ ] Step 4: Implement tenant-configurable sender identity handling
+- [ ] Step 5: Implement template selection and composition flow
+- [ ] Step 6: Extend Notifications integration payloads
+- [ ] Step 7: Extend APIs and persistence
+- [ ] Step 8: Extend audit coverage
+- [ ] Step 9: Add/update migrations
+- [ ] Step 10: Add automated tests
+- [ ] Step 11: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND IDENTIFY CONFIG/TEMPLATE GAPS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current outbound email flow uses a hardcoded From address (currently noreply@legalsynq.com)
+- current Notifications payload shape
+- current email threading metadata generation
+- current recipient record handling
+- current delivery-status tracking
+- current permission model
+- current audit integration pattern
+- whether the repo already contains a shared configuration/settings pattern usable for tenant-level sender settings
+- whether the Notifications service already supports template name/template data in its payload
+- whether any email template conventions exist elsewhere in the codebase
+
+Update the report with:
+- current sender/template limitations
+- exact sender-configuration strategy selected
+- exact template strategy selected
+- exact Notifications integration extension strategy selected
+- any assumptions required
+
+IMPORTANT:
+Build incrementally on top of the current implementation.
+Do not rewrite prior blocks unless necessary.
+
+--------------------------------------------------
+STEP 3 — DESIGN TENANT SENDER IDENTITY AND TEMPLATE MODEL
+--------------------------------------------------
+
+This block must add:
+- tenant-configurable sender identities
+- rules for default sender selection
+- template selection for outbound emails
+- template variable payload support
+- persisted association between outbound emails and selected sender/template
+- continued compatibility with existing threading and delivery tracking
+
+Key design principles:
+- sender identity selection must be tenant-scoped
+- sender identity must be validated before use
+- templates should be selected and referenced in SynqComm, but actual rendering may occur in Notifications if that is the cleaner platform fit
+- reply threading metadata must remain intact regardless of sender/template choice
+- template usage must not bypass visibility and participant rules
+- this block should not overbuild a generic CMS/template designer UI
+- keep it operational and service-oriented
+
+Update the report with the chosen design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent model(s) needed.
+
+Preferred models:
+
+A. TenantEmailSenderConfig
+Purpose:
+Stores tenant-scoped sender identities allowed for outbound communication.
+
+Minimum fields:
+- id
+- tenantId
+- displayName
+- fromEmail
+- replyToEmail nullable
+- senderType
+- isDefault
+- isActive
+- verificationStatus
+- allowedForSharedExternal
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Recommended sender types:
+- NOREPLY
+- SUPPORT
+- OPERATIONS
+- PRODUCT
+- CUSTOM
+
+Recommended verification statuses:
+- PENDING
+- VERIFIED
+- REJECTED
+- DISABLED
+
+Rules:
+- one default active sender per tenant per sender type or one overall default, whichever design is cleaner
+- only VERIFIED + active sender configs may be used for outbound delivery unless explicitly documented otherwise
+- replyToEmail may differ from fromEmail if supported
+
+B. EmailTemplateConfig
+Purpose:
+Stores tenant-available template metadata for outbound email composition.
+
+Minimum fields:
+- id
+- tenantId nullable if supporting shared/global templates
+- templateKey
+- displayName
+- subjectTemplate nullable
+- bodyTextTemplate nullable
+- bodyHtmlTemplate nullable
+- templateScope
+- isDefault
+- isActive
+- version
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Recommended template scopes:
+- GLOBAL
+- TENANT
+
+C. Optional linkage/projection model:
+OutboundEmailComposition
+Only add if needed to keep sender/template choice history explicit.
+If not needed, store sender/template references on EmailMessageReference or EmailDeliveryState.
+
+At minimum, outbound records must preserve:
+- sender config used
+- template key/config used
+- rendered/selected subject
+- rendered/selected body source or override source
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUMS / RULE DEFINITIONS
+--------------------------------------------------
+
+Add or extend rules for sender/template behavior.
+
+Required rules:
+
+Sender selection:
+- only active and VERIFIED sender configs may be used for outbound emails
+- if no sender config is explicitly provided, use tenant default sender
+- if no valid tenant default exists, reject the send request with a clear error
+- sender config must belong to the same tenant as the conversation/message
+- INTERNAL_ONLY messages still cannot be sent externally regardless of sender config
+- sender configuration must not override existing participant/visibility restrictions
+
+Template selection:
+- outbound send may specify a templateKey or templateConfigId
+- if a template is selected, template resolution must be deterministic
+- if no template is selected, existing message body/subject flow should still work
+- explicit body/subject overrides may be allowed, but document precedence clearly
+- template scope resolution should prefer tenant template over global template when keys collide, if that model is implemented
+- inactive templates cannot be used
+- template rendering errors must fail safely and clearly
+
+Precedence rules (recommended):
+1. Explicit subject/body override in request, if allowed
+2. Selected template rendered with provided variables
+3. Existing message content fallback
+
+Reply threading:
+- changing sender identity or template must not break InternetMessageId / InReplyTo / References behavior
+- sender identity changes across a thread are allowed only if business rules permit; document the chosen rule
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required support:
+
+1. CreateTenantEmailSenderConfigRequest
+2. UpdateTenantEmailSenderConfigRequest
+3. TenantEmailSenderConfigResponse
+
+Fields should include:
+- displayName
+- fromEmail
+- replyToEmail
+- senderType
+- isDefault
+- isActive
+- verificationStatus
+- allowedForSharedExternal
+
+4. CreateEmailTemplateConfigRequest
+5. UpdateEmailTemplateConfigRequest
+6. EmailTemplateConfigResponse
+
+Fields should include:
+- templateKey
+- displayName
+- subjectTemplate
+- bodyTextTemplate
+- bodyHtmlTemplate
+- templateScope
+- isDefault
+- isActive
+- version
+
+7. Extend SendOutboundEmailRequest
+Add support for:
+- senderConfigId nullable
+- templateKey nullable
+- templateConfigId nullable
+- templateVariables dictionary/object nullable
+- subject override nullable
+- bodyText override nullable
+- bodyHtml override nullable
+- replyTo override nullable only if allowed by chosen rules
+
+8. Extend SendOutboundEmailResponse
+Include:
+- senderConfigId used
+- senderEmail used
+- templateKey used
+- templateConfigId used
+- renderedSubject
+- compositionMode or equivalent
+
+Do not add UI-only DTOs.
+
+--------------------------------------------------
+STEP 7 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- tenant sender configs
+- email template configs
+- any composition-link lookup needed
+
+Possible interfaces:
+- ITenantEmailSenderConfigRepository
+- IEmailTemplateConfigRepository
+
+Required behaviors:
+- create/update sender config
+- get active/default sender for tenant
+- enforce only one active default where applicable
+- create/update template config
+- get active template by id/key/tenant scope
+- support global + tenant lookup if implemented
+- tenant-aware retrieval
+
+Stay within SynqComm-owned database only.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT TENANT-CONFIGURABLE SENDER IDENTITY HANDLING
+--------------------------------------------------
+
+Implement service-layer logic for sender identity management and resolution.
+
+Required behavior:
+- create/update/list sender configs per tenant
+- enforce default sender rules
+- enforce verification/active rules
+- resolve sender config during outbound email send
+- use resolved sender displayName/fromEmail/replyToEmail in Notifications payload
+- preserve existing outbound auth, visibility, and participant rules
+- ensure sender config belongs to same tenant as conversation/message
+
+If no valid sender config is found:
+- fail safely with a clear business error
+- do not silently fall back to a hardcoded noreply address unless explicitly documented as a temporary fallback
+If a fallback is used temporarily, mark it as a gap, not the target design.
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT TEMPLATE SELECTION AND COMPOSITION FLOW
+--------------------------------------------------
+
+Implement service-layer logic for template-aware outbound composition.
+
+Required behavior:
+- resolve template by id or key
+- validate template is active and allowed for tenant
+- support tenant override of global template if applicable
+- render subject/body using template variables where template chosen
+- allow safe fallback to existing message content when no template chosen
+- preserve existing attachments, recipients, threading, and delivery-state logic
+- store which template/sender were used for the outbound email record
+
+If a reusable template engine/pattern already exists in the repo, use it.
+If not, implement a minimal safe rendering approach suitable for this block.
+
+Recommended scope:
+- simple token replacement / dictionary-based rendering
+- fail on missing required variables if that is the chosen rule, and document it clearly
+- do not build a full visual template editor
+
+Document template precedence clearly in the report.
+
+--------------------------------------------------
+STEP 10 — EXTEND NOTIFICATIONS INTEGRATION PAYLOADS
+--------------------------------------------------
+
+Extend the Notifications integration seam as needed.
+
+Requirements:
+- Notifications payload must now include:
+  - resolved fromEmail
+  - resolved fromDisplayName
+  - replyToEmail if applicable
+  - template key or rendered content, depending on chosen integration design
+  - rendered subject/body or template reference + variables
+  - existing threading metadata
+  - recipients and attachments as already supported
+
+Choose one of these clean integration models and document it clearly:
+
+Option A — SynqComm renders, Notifications sends
+- SynqComm resolves sender + template
+- SynqComm passes rendered subject/body to Notifications
+
+Option B — SynqComm selects, Notifications renders
+- SynqComm resolves sender + template key + variables
+- Notifications performs template rendering
+
+Prefer the option that best fits existing platform conventions.
+If no clear template support exists in Notifications yet, use Option A for this block.
+
+Do not add provider-specific sender/template behavior into SynqComm.
+
+--------------------------------------------------
+STEP 11 — EXTEND APIs
+--------------------------------------------------
+
+Add or extend APIs only as needed.
+
+Minimum required endpoints:
+
+Sender config management:
+- POST /api/synqcomm/email/sender-configs
+- GET /api/synqcomm/email/sender-configs
+- GET /api/synqcomm/email/sender-configs/{id}
+- PATCH /api/synqcomm/email/sender-configs/{id}
+
+Template config management:
+- POST /api/synqcomm/email/templates
+- GET /api/synqcomm/email/templates
+- GET /api/synqcomm/email/templates/{id}
+- PATCH /api/synqcomm/email/templates/{id}
+
+Outbound send:
+- extend POST /api/synqcomm/email/send to support sender/template selection and overrides
+
+Optional only if clean:
+- GET /api/synqcomm/email/sender-configs/default
+- GET /api/synqcomm/email/templates/by-key/{templateKey}
+
+Use the existing permission and minimal API conventions.
+Do not build UI endpoints beyond what is needed for service administration.
+
+--------------------------------------------------
+STEP 12 — AUTHORIZATION, TENANT, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- sender configs are tenant-scoped
+- templates are tenant-scoped or global per chosen model
+- only authorized internal users/admins can manage sender configs and templates
+- only authorized internal participants can send outbound email
+- sender/template selection must not bypass current visibility rules
+- INTERNAL_ONLY messages cannot be sent externally regardless of template/sender config
+- hidden BCC rules remain intact
+- reply threading must remain within the same conversation/tenant boundary
+
+If platform role distinctions already exist for admin/config management, use them.
+Do not weaken current authorization rules.
+
+--------------------------------------------------
+STEP 13 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for sender/template operations.
+
+Required audit events where feasible:
+- sender config created
+- sender config updated
+- sender default changed
+- template created
+- template updated
+- outbound email sender resolved
+- outbound email template resolved
+- outbound email template rendering failed
+- outbound email rejected due to sender/template validation rule
+
+If structured payloads are supported, include:
+- tenantId
+- senderConfigId
+- fromEmail
+- templateConfigId
+- templateKey
+- conversationId
+- messageId
+- compositionMode
+- renderedSubject length or metadata (do not dump full sensitive bodies if not appropriate)
+
+Use the existing audit publisher pattern.
+Do not invent a new audit subsystem.
+
+--------------------------------------------------
+STEP 14 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-004 of Epic 02.
+
+Expected changes may include:
+- new table for tenant email sender configs
+- new table for email template configs
+- additions to email reference or delivery models for sender/template linkage if chosen
+
+Possible indexes:
+- IX_SenderConfigs_TenantId_FromEmail
+- IX_SenderConfigs_TenantId_IsDefault
+- IX_Templates_TenantId_TemplateKey
+- IX_Templates_TemplateScope_TemplateKey
+- unique/default-enforcement indexes as appropriate
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 15 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — Default Sender Config Resolution
+- tenant has default verified sender
+- send outbound email without senderConfigId
+- verify default sender is used
+
+Test 2 — Invalid Sender Config Rejected
+- inactive or unverified sender config
+- verify send is rejected
+
+Test 3 — Template Resolution by Key
+- tenant/global template exists
+- verify correct template is selected
+
+Test 4 — Tenant Template Overrides Global
+- same templateKey exists in both scopes
+- verify tenant template wins
+
+Test 5 — Template Rendering Applied Correctly
+- template variables provided
+- verify rendered subject/body are passed correctly
+
+Test 6 — Explicit Override Precedence
+- explicit subject/body override + template selected
+- verify documented precedence behavior
+
+Test 7 — Sender/Template Metadata Persisted
+- outbound email created
+- verify sender/template references are stored/reported correctly
+
+Test 8 — Notifications Payload Includes Sender Data
+- verify Notifications client receives fromEmail/fromDisplayName/replyTo/template/rendered content as designed
+
+Test 9 — Authorization/Visibility Rules Still Hold
+- INTERNAL_ONLY cannot be sent
+- unauthorized user cannot manage configs/templates
+
+Test 10 — Audit Emission
+- verify audit publisher invoked for sender/template config changes and outbound composition actions
+
+Test 11 — Prior Outbound Threading Still Works
+- regression test to ensure threading metadata remains correct after sender/template additions
+
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 16 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Notifications remains the outbound delivery engine
+- sender configuration is tenant-scoped and validated
+- template selection/rendering works per the documented precedence
+- threading metadata remains compatible with prior inbound/outbound logic
+- current visibility/security rules remain intact
+- no unrelated UI/platform features were added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves SynqComm, Notifications, and Documents boundaries.
+
+## Sender Identity Design
+Explain exactly how sender configs are stored, validated, and resolved.
+
+## Template Design
+Explain how templates are stored, selected, and rendered.
+
+## Composition Precedence
+Explain the precedence among explicit overrides, templates, and existing message content.
+
+## Notifications Integration
+Explain whether SynqComm renders or Notifications renders, and why.
+
+## Audit Integration
+Explain which sender/template-related audit events are now emitted.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-02-BLK-005 — End-to-End Notifications Integration Testing
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST preserve Notifications as the outbound delivery engine
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on tenant sender config and template-driven outbound composition
+- MUST NOT add unrelated UI features
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- tenant-configurable sender identities
+- validated sender selection for outbound email
+- template-driven outbound composition
+- persisted sender/template usage metadata
+- Notifications payloads containing sender/template-aware composition data
+- audit events for sender/template configuration and composition
+- automated tests proving these behaviors
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-02-BLK-004-report.md

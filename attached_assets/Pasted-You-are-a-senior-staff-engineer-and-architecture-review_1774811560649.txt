@@ -1,0 +1,267 @@
+You are a senior staff engineer and architecture reviewer.
+
+You have already completed the following implementation phases for the Docs Service:
+
+1. Rate Limiting
+2. Malware Scanning
+3. Access Mediation (token-based secure access)
+4. Redis-backed infrastructure
+5. Tenant isolation enforcement (MySQL-based, no native RLS)
+6. Tenant safety guard layer (repository-level protections, if implemented)
+7. Integration Test Suite
+
+Your task now is to generate a **comprehensive consolidated report** evaluating the system.
+
+IMPORTANT:
+- Do NOT modify code
+- Do NOT implement anything new
+- This is ANALYSIS ONLY
+- Be precise, critical, and production-focused
+- Assume MySQL is the database (NO PostgreSQL features)
+- Assume this system handles sensitive legal and medical data
+
+---
+
+## Output File
+
+Create:
+`/analysis/step15_post_implementation_review.md`
+
+---
+
+## Report Structure (MANDATORY)
+
+### 1. Executive Summary
+- Overall maturity (prototype / production-ready / enterprise-grade)
+- Key strengths
+- Key risks (especially around tenant isolation and data exposure)
+
+---
+
+### 2. Phase-by-Phase Summary
+
+For EACH phase:
+
+- what was implemented
+- what works well
+- what is incomplete or risky
+- deviations from requirements
+
+Phases:
+- Rate Limiting
+- Malware Scanning
+- Access Mediation
+- Redis Backing
+- Tenant Isolation (MySQL)
+- Tenant Safety Guards (if present)
+- Integration Testing
+
+---
+
+### 3. Architecture Validation
+
+Evaluate:
+- separation of concerns (api / application / domain / infrastructure)
+- provider abstraction integrity
+- cloud-agnostic design (AWS → GCP readiness)
+- dependency isolation
+- any hidden coupling
+
+---
+
+### 4. Security Review
+
+Evaluate:
+
+- JWT authentication correctness
+- RBAC + ABAC enforcement
+- rate limiting effectiveness
+- file validation strength (MIME + magic bytes)
+- malware scanning enforcement
+- access mediation correctness:
+  - whether direct storage URLs are still exposed
+  - whether access is fully controlled by the service
+- token security:
+  - expiry
+  - reuse behavior
+  - storage (memory vs Redis)
+- risk of data exposure
+- logging safety (no PHI/PII leakage)
+
+Clearly identify:
+- critical vulnerabilities
+- medium risks
+- minor improvements
+
+---
+
+### 5. Compliance & Audit Readiness
+
+Evaluate:
+
+- audit trail completeness
+- audit immutability
+- whether ACTUAL document access is logged (not just URL generation)
+- tenant isolation enforcement
+- legal hold enforcement
+- retention readiness
+- PHI/PII exposure risks
+
+---
+
+### 6. Cloud & Infrastructure Portability
+
+Evaluate:
+
+- StorageProvider abstraction correctness
+- Redis optionality (graceful fallback)
+- secrets management
+- ability to run:
+  - local only
+  - AWS
+  - GCP (future)
+
+Identify any cloud lock-in or provider leakage.
+
+---
+
+### 7. Data Layer & Tenant Isolation (MySQL — CRITICAL)
+
+IMPORTANT:
+MySQL does NOT support native Row-Level Security.
+
+This is the highest-risk area.
+
+Evaluate:
+
+- how tenant isolation is enforced in:
+  - repository layer
+  - service layer
+- whether EVERY query enforces tenant filtering
+- whether repository methods REQUIRE tenantId
+- whether unsafe/raw queries are possible
+
+Evaluate safeguards:
+
+- repository guard layer
+- query wrappers
+- validation of missing tenantId
+- defensive coding patterns
+
+Clearly identify:
+
+- any scenario where cross-tenant data leakage is possible
+- developer error risks
+- missing protections
+- recommended fixes
+
+---
+
+### 8. Testing Coverage Review
+
+Evaluate:
+
+- unit tests completeness
+- integration tests completeness
+- tenant isolation coverage (CRITICAL)
+- security scenario coverage
+- failure case coverage
+
+Identify missing critical tests.
+
+---
+
+### 9. Performance & Scalability Risks
+
+Identify:
+
+- MySQL query performance risks
+- tenant filtering indexing strategy
+- Redis dependency risks
+- rate limiting scalability
+- large file handling bottlenecks
+- concurrency issues (uploads, versioning, token usage)
+
+---
+
+### 10. Production Readiness Checklist
+
+Mark each:
+
+- ✅ Ready
+- ⚠️ Needs improvement
+- ❌ Missing
+
+Checklist:
+
+- authentication
+- authorization
+- rate limiting
+- malware scanning
+- audit logging
+- access mediation
+- tenant isolation (application)
+- tenant isolation safeguards (guards/wrappers)
+- secrets management
+- logging
+- observability
+- error handling
+- test coverage
+
+---
+
+### 11. Top 10 Critical Issues
+
+For each:
+
+- issue
+- impact
+- recommended fix
+
+Focus especially on:
+- data leakage risks
+- access control flaws
+- token misuse risks
+
+---
+
+### 12. Recommended Next Backlog
+
+Group by:
+
+- Security
+- Scalability
+- Compliance
+- Developer Experience
+
+---
+
+### 13. Final Verdict
+
+State clearly:
+
+- NOT production ready
+- production ready with caveats
+- enterprise-grade ready
+
+Explain WHY in detail.
+
+---
+
+## Critical Instructions
+
+- Be critical, not optimistic
+- Assume real-world attackers and compliance requirements
+- Focus heavily on tenant isolation risks (MySQL limitation)
+- Do NOT assume PostgreSQL features exist
+- Do NOT claim RLS exists
+- Do NOT ignore access mediation weaknesses
+- Do NOT skip sections
+
+---
+
+## Begin
+
+Analyze the system and generate:
+
+`/analysis/step15_post_implementation_review.md`

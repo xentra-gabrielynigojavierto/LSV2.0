@@ -1,0 +1,92 @@
+Scaffold the initial LegalSynq .NET monorepo starting with only Gateway and Identity.
+
+Requirements:
+
+Use .NET 8
+Create a solution named LegalSynq
+Create this folder structure:
+apps/
+  gateway/
+    Gateway.Api/
+  services/
+    identity/
+      Identity.Api/
+      Identity.Application/
+      Identity.Domain/
+      Identity.Infrastructure/
+shared/
+  contracts/
+    Contracts/
+  building-blocks/
+    BuildingBlocks/
+scripts/
+
+Tasks:
+
+Create the solution:
+LegalSynq.sln
+Create these projects:
+apps/gateway/Gateway.Api as ASP.NET Core Web API
+apps/services/identity/Identity.Api as ASP.NET Core Web API
+apps/services/identity/Identity.Application as class library
+apps/services/identity/Identity.Domain as class library
+apps/services/identity/Identity.Infrastructure as class library
+shared/contracts/Contracts as class library
+shared/building-blocks/BuildingBlocks as class library
+Add all projects to the solution
+Add project references:
+Identity.Api references:
+Identity.Application
+Identity.Infrastructure
+Contracts
+BuildingBlocks
+Identity.Application references:
+Identity.Domain
+Contracts
+BuildingBlocks
+Identity.Infrastructure references:
+Identity.Application
+Identity.Domain
+BuildingBlocks
+Gateway.Api references:
+Contracts
+BuildingBlocks
+Configure fixed ports:
+Gateway.Api → 5000
+Identity.Api → 5001
+Add minimal endpoints:
+GET /health for both services returning:
+{ "status": "ok", "service": "<service-name>" }
+GET /info for both services returning:
+service name
+environment
+version placeholder
+Keep startup code clean and minimal:
+remove unnecessary template boilerplate
+enable controllers if needed
+use consistent JSON responses
+Create scripts/run-dev.sh that starts:
+Identity.Api
+Gateway.Api
+in parallel
+Make scripts/run-dev.sh executable
+Update root .replit so the Run button executes:
+./scripts/run-dev.sh
+Do NOT add yet:
+authentication logic
+JWT
+EF Core
+MySQL
+Docker
+YARP or reverse proxy logic
+Output:
+final folder structure
+files created
+commands used
+how to run and test both services
+
+Important:
+
+Keep the code production-minded and clean
+Use consistent namespaces based on folder/project names
+Do not scaffold any other service yet

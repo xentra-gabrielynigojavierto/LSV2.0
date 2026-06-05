@@ -1,0 +1,781 @@
+You are implementing LS-LIENS-FLOW-001 — My Tasks + Shared Workflow Configuration for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-001-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Permissions / Security
+- Audit Integration
+- Notifications Integration
+- Case Events Integration
+- Workflow Governance Model
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not wait until the end to write the report. Create it first and append/update it step by step.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement a lightweight operational task manager called My Tasks inside Synq Liens, plus a shared workflow configuration model editable from both:
+
+1. Tenant-side:
+   Synq Liens → Product Settings → Workflow
+
+2. Admin-side:
+   Control Center → Tenant → Synq Liens → Workflow
+
+This is NOT a full workflow engine.
+
+Tasks must remain operationally useful and loosely coupled to workflow.
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services only. Do not use v1 equivalents.
+
+Mandatory shared services:
+- Identity
+- Audit
+- Notifications
+- Documents only if needed later; do not overbuild attachments now
+
+Preserve Synq Liens donor behavior and API style where practical while implementing on v2 architecture.
+
+Do not over-engineer this feature.
+
+This is Phase 1 only:
+- no BPM engine
+- no dependency engine
+- no auto-generated workflow tasks
+- no SLA enforcement logic
+- no workflow runtime orchestration
+- no automatic stage progression from task completion
+
+==================================================
+HIGH-LEVEL FEATURE SUMMARY
+==================================================
+
+Build two connected but distinct capabilities:
+
+A. My Tasks
+- lightweight operational task manager
+- task creation and assignment
+- status and priority tracking
+- linked to case and/or one or more liens
+- visible from case/lien contexts
+- linked task activity flows into Case Events / Timeline
+
+B. Shared Workflow Configuration
+- workflow definition for Synq Liens
+- editable by tenant admins from Synq Liens Product Settings
+- editable by platform admins from Control Center
+- both surfaces manage the SAME underlying workflow configuration
+- all changes are audited
+- UI shows Last Updated, Updated By, Update Source, Version
+
+==================================================
+PHASE 1 PRODUCT PRINCIPLES
+==================================================
+
+1. Tasks are independent from workflow in Phase 1
+2. Workflow defines structure, not enforcement
+3. Workflow configuration is single-source-of-truth
+4. Tenant admin and platform admin can both manage workflow
+5. All significant changes are auditable
+6. Case timeline must reflect linked task activity
+7. Build for future Flow alignment without forcing it now
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE FIRST
+==================================================
+
+Before implementing anything, inspect and document:
+
+1. Current Synq Liens backend modules
+2. Current Synq Liens frontend modules
+3. Current admin / control center settings structure
+4. Existing tenant/product settings structure
+5. Existing case detail views
+6. Existing case events / case timeline infrastructure
+7. Existing lien detail views
+8. Existing permissions / roles model
+9. Existing audit integration patterns
+10. Existing notifications integration patterns
+11. Existing shared service usage patterns
+12. Existing DTO / entity / repository / controller conventions
+13. Existing navigation structure for Synq Liens
+14. Any existing task-like, queue-like, note-like, or activity models that can be reused
+15. Any existing workflow/stage/status configuration models that can be reused
+
+Document findings in the report before making major code changes.
+
+Prefer existing patterns over inventing new ones.
+
+==================================================
+STEP 2 — IMPLEMENT MY TASKS
+==================================================
+
+Add a new Synq Liens capability called My Tasks.
+
+--------------------------------------------------
+2.1 Navigation
+--------------------------------------------------
+
+Add My Tasks to Synq Liens navigation.
+
+Also support contextual task access from:
+- Case details
+- Lien details
+
+Default landing should be My Tasks assigned to the current user.
+
+--------------------------------------------------
+2.2 Task Entity / Model
+--------------------------------------------------
+
+Implement task support with at minimum these fields:
+
+- id
+- tenantId
+- title
+- description
+- status
+- priority
+- assignedUserId
+- createdBy
+- createdAt
+- updatedAt
+- dueDate
+- optionalCaseId
+- optionalWorkflowStageId
+- completedAt
+- closedBy
+
+Optional if supported by codebase patterns:
+- tags
+- comments/activity notes metadata
+
+Use codebase naming conventions where necessary, but preserve the required behavior.
+
+--------------------------------------------------
+2.3 Task ↔ Lien Association
+--------------------------------------------------
+
+Tasks must support:
+- no lien
+- one lien
+- multiple liens
+
+Do NOT implement this as a single lienId field if that prevents multi-lien support.
+
+Use a proper association model, such as:
+- task header entity/table
+- task lien link entity/table
+
+Example association structure:
+- taskId
+- lienId
+- createdAt
+- createdBy if appropriate
+
+--------------------------------------------------
+2.4 Supported Task Linking Scenarios
+--------------------------------------------------
+
+Support all of the following:
+
+- unlinked task
+- case-only task
+- single-lien task
+- multiple-lien task
+- case + single lien task
+- case + multiple liens task
+
+Business rule for v1:
+If multiple liens are linked, they should belong to the same case context where applicable.
+
+Add sensible validation to prevent ambiguous cross-case multi-lien grouping.
+
+Preferred behavior:
+- If task created from Case page, auto-populate case
+- If task created from Lien page, auto-populate lien and parent case if available
+
+--------------------------------------------------
+2.5 Task Statuses
+--------------------------------------------------
+
+Use these statuses:
+- NEW
+- IN_PROGRESS
+- WAITING_BLOCKED
+- COMPLETED
+- CANCELLED
+
+If codebase conventions require different enum naming/casing, keep behavior equivalent.
+
+--------------------------------------------------
+2.6 Task Priorities
+--------------------------------------------------
+
+Use:
+- LOW
+- MEDIUM
+- HIGH
+- URGENT
+
+--------------------------------------------------
+2.7 Task Actions
+--------------------------------------------------
+
+Implement:
+- create
+- edit
+- assign/reassign
+- status update
+- complete
+- cancel
+- add comments/activity notes if supported by current patterns
+
+--------------------------------------------------
+2.8 Task Views
+--------------------------------------------------
+
+Implement the following views:
+
+A. List View
+- sortable
+- filterable
+- columns at minimum:
+  - title
+  - status
+  - priority
+  - assignee
+  - due date
+  - case
+  - linked liens
+  - updated date
+
+B. Board View
+- grouped by status
+- drag/drop only if existing component patterns make this straightforward
+- if drag/drop is too invasive, implement board-style grouped columns without drag/drop and document that choice in the report
+
+--------------------------------------------------
+2.9 Task Filters
+--------------------------------------------------
+
+Support at minimum:
+- My Tasks
+- Team Tasks
+- All Tasks (permission-based)
+- by status
+- by priority
+- by assignee
+- by due date
+- by case
+- by lien
+- by workflow stage
+
+==================================================
+STEP 3 — CASE EVENTS / TIMELINE INTEGRATION
+==================================================
+
+Any task linked to a case, directly or indirectly through linked lien(s), must appear in the Case Events / Timeline.
+
+This is mandatory.
+
+--------------------------------------------------
+3.1 Events to Surface in Case Events
+--------------------------------------------------
+
+At minimum, surface:
+- task created
+- task assigned
+- task reassigned
+- task status changed
+- due date changed
+- comment/activity added if implemented
+- task completed
+- task cancelled
+- case linkage changed
+- lien linkage changed
+
+--------------------------------------------------
+3.2 Visibility Rule
+--------------------------------------------------
+
+A task event must show in Case Events if:
+- task.optionalCaseId equals the case
+OR
+- any linked lien belongs to that case
+
+--------------------------------------------------
+3.3 Important Distinction
+--------------------------------------------------
+
+Case Events / Timeline is not the same as Audit.
+
+You must implement both:
+- Audit service logging
+- Case timeline/event surfacing
+
+Reuse existing case events/timeline infrastructure if already present.
+
+==================================================
+STEP 4 — IMPLEMENT SHARED WORKFLOW CONFIGURATION
+==================================================
+
+Implement workflow configuration for Synq Liens.
+
+--------------------------------------------------
+4.1 Placement
+--------------------------------------------------
+
+Tenant side:
+Synq Liens → Product Settings → Workflow
+
+Admin side:
+Control Center → Tenant → Synq Liens → Workflow
+
+--------------------------------------------------
+4.2 Core Rule
+--------------------------------------------------
+
+There must be ONE workflow configuration per tenant per product context, not duplicate copies for tenant/admin surfaces.
+
+Both UI surfaces must read/write the same underlying workflow configuration.
+
+--------------------------------------------------
+4.3 Workflow Definition Fields
+--------------------------------------------------
+
+Implement at minimum:
+- workflowId
+- tenantId
+- productCode or equivalent for Synq Liens
+- workflowName
+- version
+- isActive
+- lastUpdatedAt
+- lastUpdatedByUserId
+- lastUpdatedByName or resolvable display identity
+- lastUpdatedSource
+
+Use existing naming conventions if needed.
+
+--------------------------------------------------
+4.4 Workflow Stage Fields
+--------------------------------------------------
+
+Each stage should support:
+- stageId
+- workflowId
+- stageName
+- stageOrder
+- description
+- isActive
+- optionalDefaultOwnerRole
+- optionalSlaMetadata
+
+SLA metadata is store-only for now. Do not implement SLA enforcement.
+
+--------------------------------------------------
+4.5 Workflow Management Actions
+--------------------------------------------------
+
+Support:
+- add stage
+- edit stage
+- reorder stages
+- activate/deactivate stage
+- save workflow
+
+--------------------------------------------------
+4.6 Versioning
+--------------------------------------------------
+
+- increment version on save
+- maintain one effective active workflow per tenant/product context
+- existing tasks must not break because workflow changes
+
+--------------------------------------------------
+4.7 Concurrency Protection
+--------------------------------------------------
+
+Add lightweight optimistic concurrency/version checking if practical.
+
+Prevent silent overwrite from stale admin/tenant edits.
+
+==================================================
+STEP 5 — SHARED GOVERNANCE MODEL
+==================================================
+
+Workflow must be editable from both:
+- tenant-side product settings
+- admin-side control center
+
+Any workflow change from either surface must:
+- become effective
+- be visible from the other surface
+- update metadata consistently
+
+Use a lastUpdatedSource field with values similar to:
+- TENANT_PRODUCT_SETTINGS
+- CONTROL_CENTER
+
+Match existing enum patterns if needed.
+
+==================================================
+STEP 6 — PERMISSIONS
+==================================================
+
+Implement or wire permissions for:
+
+--------------------------------------------------
+6.1 Task Permissions
+--------------------------------------------------
+
+- View Tasks
+- Create Tasks
+- Edit Own Tasks
+- Edit All Tasks
+- Assign Tasks
+- Complete Tasks
+- Cancel Tasks
+
+--------------------------------------------------
+6.2 Workflow Permissions
+--------------------------------------------------
+
+Tenant side:
+- Manage Synq Liens Workflow
+
+Admin side:
+- Manage Synq Liens Workflow as platform admin/control center admin
+
+Reuse existing permission/role infrastructure.
+
+Document any permission seeding or migration needed.
+
+==================================================
+STEP 7 — AUDIT INTEGRATION
+==================================================
+
+Use the v2 Audit service.
+
+--------------------------------------------------
+7.1 Task Audit Events
+--------------------------------------------------
+
+Log:
+- task created
+- task updated
+- task assignment changed
+- task status changed
+- task completed
+- task cancelled
+- task linkage changed
+
+--------------------------------------------------
+7.2 Workflow Audit Events
+--------------------------------------------------
+
+Log:
+- workflow created
+- workflow updated
+- stage added
+- stage edited
+- stage reordered
+- stage activated/deactivated
+
+--------------------------------------------------
+7.3 Audit Payload
+--------------------------------------------------
+
+Include where practical:
+- tenantId
+- product context
+- entity id
+- actor user id
+- actor name if available
+- actor type/context
+- timestamp
+- update source
+- change summary/delta if existing audit patterns support it
+
+==================================================
+STEP 8 — NOTIFICATIONS INTEGRATION
+==================================================
+
+Use the v2 Notifications service.
+
+At minimum support:
+- task assigned
+- task reassigned
+- due soon
+- overdue
+
+If due soon/overdue requires scheduler support not currently present, implement assignment/reassignment now and clearly document any deferred reminder mechanism in the report.
+
+Do not invent a large scheduler subsystem unless one already exists.
+
+==================================================
+STEP 9 — TASK ↔ WORKFLOW RELATIONSHIP
+==================================================
+
+Maintain loose coupling in Phase 1.
+
+Allowed:
+- task may optionally reference workflowStageId
+
+Not allowed in this feature:
+- task completion automatically changes case/lien workflow stage
+- workflow stage change automatically creates tasks
+- workflow stage enforcement gates
+- SLA enforcement logic
+
+Design the schema and APIs so later phases can build on this cleanly.
+
+==================================================
+STEP 10 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable to the codebase:
+
+- task entities/models
+- task lien link entities/models
+- workflow definition entities/models
+- workflow stage entities/models
+- migrations/schema changes
+- repositories/data access
+- services
+- DTOs/validators
+- controllers/routes
+- permission guards
+- audit hooks
+- notification hooks
+- case event/timeline hooks
+
+Keep APIs neutral and reusable by both tenant UI and admin UI.
+
+Do not duplicate core business logic unnecessarily across separate controllers/services.
+
+==================================================
+STEP 11 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- My Tasks nav entry
+- My Tasks page
+- list view
+- board view or grouped board-style view
+- task create/edit UI
+- case contextual task panel or entry point
+- lien contextual task panel or entry point
+- Synq Liens Product Settings → Workflow page
+- Control Center → Tenant → Synq Liens → Workflow page
+- Last Updated metadata display
+- Updated By display
+- Update Source display
+- Version display
+- workflow stage editor
+
+Use existing frontend patterns, components, layout conventions, and form/table/state libraries already in the codebase.
+
+==================================================
+STEP 12 — VALIDATION CHECKLIST
+==================================================
+
+You must validate and document the following.
+
+--------------------------------------------------
+12.1 Tasks
+--------------------------------------------------
+
+Validate:
+- create unlinked task
+- create case-only task
+- create single-lien task
+- create case + multi-lien task
+- reject invalid cross-case multi-lien task if validation added
+- assign task
+- reassign task
+- update task status
+- complete task
+- cancel task
+- filter tasks
+- confirm My Tasks default view works
+
+--------------------------------------------------
+12.2 Case Events
+--------------------------------------------------
+
+Validate:
+- linked task create appears in case events
+- status change appears in case events
+- assignment/reassignment appears in case events
+- completion appears in case events
+
+--------------------------------------------------
+12.3 Workflow
+--------------------------------------------------
+
+Validate:
+- create/edit workflow
+- add/edit/reorder/deactivate stages
+- tenant-side update reflects in admin-side view
+- admin-side update reflects in tenant-side view
+- Last Updated metadata changes correctly
+- Updated By changes correctly
+- Update Source changes correctly
+- audit entries are created
+
+--------------------------------------------------
+12.4 Permissions
+--------------------------------------------------
+
+Validate:
+- unauthorized users are blocked where appropriate
+- tenant/admin role behavior works correctly
+
+--------------------------------------------------
+12.5 Build / Run
+--------------------------------------------------
+
+Validate:
+- migrations run
+- backend builds
+- frontend builds
+- tests/lint run if present in project
+
+If something cannot be run, explain exactly why in the report.
+
+==================================================
+STEP 13 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Your final /analysis/LS-LIENS-FLOW-001-report.md must contain these sections:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - relevant existing modules discovered
+   - architectural fit notes
+
+3. Files Changed
+   - grouped by backend/frontend/database/config
+
+4. Database / Schema Changes
+   - entities/tables added or modified
+   - migrations
+
+5. API Changes
+   - endpoints added/updated
+   - request/response summary
+
+6. UI Changes
+   - pages/components added/updated
+   - navigation changes
+
+7. Permissions / Security
+   - roles/permissions added or reused
+
+8. Audit Integration
+   - events logged
+   - payload approach
+
+9. Notifications Integration
+   - what was implemented
+   - what was deferred
+
+10. Case Events Integration
+   - how task activity was surfaced in case timeline
+
+11. Workflow Governance Model
+   - how shared tenant/admin editing works
+   - source of truth details
+   - lastUpdated metadata handling
+
+12. Validation Results
+   - build/test/lint/manual verification
+   - failures if any
+
+13. Known Gaps / Risks
+   - incomplete items
+   - technical debt introduced
+   - recommended next iteration
+
+14. Run Instructions
+   - migration steps
+   - startup steps
+   - seed/config notes
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is done only if:
+
+1. My Tasks exists and is usable
+2. tasks support optional case + multi-lien linkage
+3. linked task activity appears in case events/timeline
+4. Synq Liens Workflow Configuration exists in product settings
+5. the same workflow is manageable from Control Center
+6. changes from either side are effective
+7. Audit service logging is wired
+8. Last Updated / Updated By / Update Source / Version are displayed
+9. the implementation is documented in /analysis/LS-LIENS-FLOW-001-report.md
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Make reasonable implementation choices if the codebase has constraints
+- Prefer reuse over rewriting
+- Keep the solution incremental and shippable
+- Do not introduce large abstractions unless necessary
+- Document any tradeoffs in the report
+- Preserve tenant isolation
+- Preserve existing Synq Liens behavior unless change is required for this feature
+- Keep domain boundaries clear:
+  1. Task domain
+  2. Workflow definition domain
+  3. Workflow runtime state domain (future only, do not overbuild)
+
+Begin by creating /analysis/LS-LIENS-FLOW-001-report.md immediately, then inspect the codebase, document findings, and proceed with implementation.

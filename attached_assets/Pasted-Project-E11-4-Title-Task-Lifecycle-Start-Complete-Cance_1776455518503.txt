@@ -1,0 +1,262 @@
+Project: E11.4
+Title: Task Lifecycle — Start, Complete, Cancel Transitions
+
+You are implementing the task lifecycle layer for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.4-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around lifecycle transitions, concurrency handling, timestamp consistency, and interaction with E11.2 (task creation) and E11.3 (assignment).
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - lifecycle service details
+   - transition rules
+   - timestamp handling
+   - concurrency approach
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for E11.5 or needs iteration
+
+REPORT FORMAT
+
+# E11.4 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Task Lifecycle Service Notes
+## Transition Rules
+## Timestamp Handling Notes
+## Concurrency Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Enable WorkflowTask to support lifecycle transitions (Open → InProgress → Completed / Cancelled) so tasks become actionable and trackable work units.
+
+This phase must NOT change workflow execution behavior and must keep task lifecycle independent from workflow transitions.
+
+SCOPE INCLUDES
+
+- lifecycle service (start, complete, cancel)
+- transition validation rules
+- timestamp updates
+- persistence updates
+- concurrency-safe updates
+- documentation/reporting
+
+DO NOT BUILD
+
+- workflow progression on task completion
+- task reassignment
+- task APIs for external consumers (beyond minimal internal usage)
+- notifications
+- SLA for tasks
+- UI
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- enforce valid transitions strictly
+- prevent invalid transitions
+- update timestamps consistently
+- keep lifecycle independent from workflow execution
+- avoid touching outbox (E10.2) and SLA (E10.3)
+- ensure concurrency safety
+- avoid modifying existing task creation/assignment behavior
+
+CURRENT CONTEXT
+
+Already completed:
+- E11.1 task entity
+- E11.2 task creation
+- E11.3 task assignment
+- workflow engine / outbox / SLA all stable
+
+This phase activates task lifecycle behavior.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. LIFECYCLE SERVICE
+
+Create a service, for example:
+
+- IWorkflowTaskLifecycleService
+
+Methods:
+- StartTask(taskId, ...)
+- CompleteTask(taskId, ...)
+- CancelTask(taskId, ...)
+
+Requirements:
+- service must be stateless
+- must use DbContext
+- must participate in existing unit-of-work
+- must not call SaveChanges internally if system uses external unit-of-work pattern (align with existing patterns)
+
+2. TRANSITION RULES
+
+Allowed transitions:
+
+- Open → InProgress
+- Open → Cancelled
+- InProgress → Completed
+- InProgress → Cancelled
+
+Disallowed transitions (must fail):
+
+- Completed → anything
+- Cancelled → anything
+- Open → Completed
+- InProgress → Open
+
+Requirements:
+- enforce rules explicitly
+- invalid transitions must throw or return controlled failure
+- document behavior
+
+3. TIMESTAMP HANDLING
+
+On Start:
+- set StartedAtUtc (if not already set)
+- update UpdatedAtUtc
+
+On Complete:
+- set CompletedAtUtc
+- update UpdatedAtUtc
+
+On Cancel:
+- set CancelledAtUtc
+- update UpdatedAtUtc
+
+Requirements:
+- use UTC timestamps
+- align with WorkflowTask.EnsureValid() invariants from E11.1
+- do not allow inconsistent states (e.g. Completed without CompletedAtUtc)
+
+4. CONCURRENCY HANDLING
+
+Ensure safe updates under concurrent access.
+
+Acceptable approaches:
+- optimistic concurrency (RowVersion / concurrency token)
+- or safe update pattern with state check in WHERE clause
+
+Requirements:
+- only one transition succeeds
+- conflicting updates fail cleanly
+- no silent overwrites
+
+Document chosen approach.
+
+5. VALIDATION RULES
+
+Before any transition:
+
+- task must exist
+- task must be accessible (respect tenant scoping)
+- current status must allow requested transition
+
+Requirements:
+- fail fast on invalid state
+- do not partially update task
+
+6. ASSIGNMENT INTERACTION
+
+Requirements:
+- lifecycle transitions must NOT modify AssignedUserId / AssignedRole / AssignedOrgId
+- assignment remains unchanged across lifecycle
+
+7. NO WORKFLOW MUTATION
+
+CRITICAL:
+
+Lifecycle service must NOT:
+- change WorkflowInstance
+- advance workflow
+- trigger workflow transitions
+
+This will be handled later (E11.7).
+
+8. LOGGING (LIGHT)
+
+Requirements:
+- log transitions:
+  - taskId
+  - previous status
+  - new status
+- do not over-log
+- avoid sensitive data
+
+9. NON-INTERFERENCE
+
+You MUST confirm:
+
+- workflow engine unchanged
+- task creation (E11.2) unchanged
+- assignment (E11.3) unchanged
+- outbox unchanged
+- SLA unchanged
+
+VALIDATION REQUIREMENTS
+
+Functional:
+- Open → InProgress works
+- InProgress → Completed works
+- Cancel works from Open and InProgress
+- invalid transitions are blocked
+
+Data:
+- timestamps set correctly
+- status updated correctly
+- no inconsistent states
+
+Concurrency:
+- concurrent updates do not corrupt state
+- conflicting transitions handled safely
+
+Platform:
+- build passes
+- no regression in workflow engine
+- no regression in task creation or assignment
+- background workers unaffected
+
+Documentation:
+- transition rules documented
+- timestamp rules documented
+- concurrency approach documented
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E11.4-report.md
+2. Inspect WorkflowTask entity and EnsureValid rules
+3. Create lifecycle service interface + implementation
+4. Implement StartTask
+5. Implement CompleteTask
+6. Implement CancelTask
+7. Add transition validation
+8. Add timestamp updates
+9. Validate concurrency behavior
+10. Validate build/runtime
+11. Finalize report
+
+SUCCESS CONDITION
+
+- tasks support start, complete, cancel transitions
+- transitions are strictly enforced
+- timestamps are consistent and valid
+- concurrency handled safely
+- no regression in platform behavior
+
+FAILURE CONDITION
+
+- invalid transitions allowed
+- lifecycle modifies workflow execution
+- timestamps inconsistent
+- concurrency issues cause incorrect states
+- platform stability impacted

@@ -1,0 +1,305 @@
+Project: E8.1
+Title: Tenant Portal Workflow UI Exposure — Shared Workflow Module + SynqLien-First Rollout
+
+You are implementing the first tenant-portal UI exposure phase for the Flow workflow engine.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E8.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current SynqLien UI structure, reusable component placement, permissions visibility, API payload assumptions, and any existing page/layout constraints.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - shared UI module changes
+   - SynqLien page integration changes
+   - API wiring changes
+   - permission-aware UI behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for CareConnect/Fund rollout or needs iteration
+
+REPORT FORMAT
+
+# E8.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Shared Workflow UI Module Notes
+## SynqLien Integration Notes
+## API Wiring Notes
+## Permission / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose the Flow workflow capability in the tenant portal by building a reusable workflow UI module and integrating it first into SynqLien record pages, so users can start and view workflows from the case context using the existing hardened product-facing APIs.
+
+This phase is the first visible UI rollout. It should prioritize operational usability, minimal layout disruption, and reuse for future CareConnect and SynqFund rollout.
+
+SCOPE INCLUDES
+
+- shared reusable workflow UI module for tenant portal use
+- SynqLien-first integration on case detail page
+- workflow read/start exposure
+- current status/current step visibility
+- permission-aware UI behavior
+- graceful loading / empty / error states
+- documentation/reporting
+
+DO NOT BUILD
+
+- broad tenant portal redesign
+- Control Center UI
+- workflow template administration UI
+- advanced workflow history timeline
+- full multi-product rollout in this phase
+- direct browser calls to Flow service
+- new backend workflow features
+- major API changes unless absolutely required for UI viability
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use the existing hardened product-facing SynqLien workflow endpoints
+- keep the browser talking to the SynqLien product API, not directly to Flow
+- avoid broad page redesign
+- create a reusable shared workflow module rather than hardcoding a one-off SynqLien widget
+- show useful workflow information in a compact operational card/panel
+- support Start Workflow in this phase
+- support View current workflow state in this phase
+- keep permission-aware behavior aligned with backend authorization
+- degrade gracefully when APIs fail
+
+CURRENT CONTEXT
+
+Backend/platform work already completed:
+- Flow engine is implemented and validated
+- hardened ownership-aware endpoints exist
+- SynqLien product API already exposes workflow endpoints for case context
+- workflow start/read/progress/complete APIs exist on the backend
+- current UI exposure is not yet present in the tenant portal
+
+This E8.1 phase should expose only the minimum safe and useful UI for SynqLien first, while designing the components so CareConnect and SynqFund can reuse them later.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. SHARED WORKFLOW UI MODULE
+
+Build a reusable workflow UI module in the tenant portal/frontend layer.
+
+Requirements:
+- create shared components for:
+  - WorkflowPanel
+  - WorkflowStatusBadge
+  - WorkflowEmptyState
+  - WorkflowErrorState
+  - WorkflowLoadingState
+  - StartWorkflowAction (button + modal or inline form)
+  - WorkflowSummary / CurrentStepSummary
+- design these components so they can later be reused by CareConnect and SynqFund with different labels/context
+- keep the module compact and operational, not overly decorative
+- avoid introducing a new design language; follow current tenant portal styling conventions
+
+Preferred displayed fields:
+- workflow name / title if available
+- workflow status
+- current step
+- started date
+- last updated date if available
+- assigned user/role if available
+- action area
+
+States to support:
+- loading
+- no workflow started
+- active workflow
+- completed workflow
+- API error / unavailable
+- read-only visibility for users who can view but not start
+
+2. SYNQLIEN-FIRST PAGE INTEGRATION
+
+Integrate the shared workflow UI module into the SynqLien tenant portal case detail surface.
+
+Requirements:
+- identify the existing SynqLien case detail page/component
+- place the workflow panel in the least disruptive, most contextually appropriate location
+- preferred placement:
+  - right rail / side panel if the page already has one
+  - otherwise below the case summary and above related secondary sections
+- do not redesign the whole page
+- ensure the workflow panel loads based on the current case id / record context
+- the case detail page should:
+  - show existing workflow summary if one exists
+  - show an empty state if none exists
+  - allow starting a workflow if permitted
+
+This phase is SynqLien-first only. Do not yet roll out to CareConnect or SynqFund.
+
+3. API WIRING
+
+Use existing SynqLien product-facing endpoints only.
+
+Expected API shape (adapt to actual implementation if paths differ slightly):
+- POST /api/liens/cases/{id}/workflows
+- GET /api/liens/cases/{id}/workflows
+- GET /api/liens/cases/{id}/workflows/{workflowInstanceId}
+
+Requirements:
+- create or update frontend API service/hooks for:
+  - fetch workflows for case
+  - start workflow for case
+  - fetch workflow detail if needed
+- do not call Flow service directly from the browser
+- preserve existing auth/session handling used by the SynqLien portal
+- after starting a workflow, refresh the workflow panel state
+
+If there are multiple workflows returned for the same case:
+- in this phase, display the most relevant/most recent active workflow first
+- document the selection rule clearly
+- if the API only returns one mapping/workflow, keep behavior aligned with the actual response
+
+4. START WORKFLOW UX
+
+Support starting a workflow from the SynqLien case page.
+
+Requirements:
+- provide a Start Workflow action using a small modal, drawer, or inline expander
+- collect only the minimum fields required by the existing API
+- if the backend requires workflow definition id or product workflow type:
+  - surface a small selector only if necessary
+  - otherwise use the simplest existing supported option
+- after successful start:
+  - close the modal/form
+  - refresh panel data
+  - show the new workflow current step/status
+- show validation or API errors clearly but compactly
+
+Keep this simple. This is operational enablement, not advanced workflow authoring.
+
+5. PERMISSION / VISIBILITY MODEL
+
+UI must reflect permissions without relying on UI-only security.
+
+Requirements:
+- if the current user can view workflows but not start them:
+  - show workflow summary
+  - hide or disable Start Workflow action
+- if the user cannot access workflow info at all:
+  - hide the panel or show a limited unavailable state consistent with existing portal conventions
+- if the API returns unauthorized/forbidden:
+  - handle it gracefully
+  - do not break the page
+- align to existing SynqLien role/capability patterns where feasible
+- avoid inventing a second permission model in frontend code
+
+If true permission introspection is not readily available client-side:
+- let the UI show the panel shell
+- handle 401/403 from the API gracefully
+- document the limitation
+
+6. UX / ERROR / LOADING BEHAVIOR
+
+Requirements:
+- support loading skeleton or compact loading state
+- support empty state text like:
+  - "No workflow started"
+  - "Start a workflow to track this case through the process."
+- support compact error state like:
+  - "We couldn't load workflow details."
+  - Retry action if easy and safe
+- ensure the rest of the case page still renders if workflow API fails
+- avoid noisy technical error language in the end-user UI
+
+7. FRONTEND ARCHITECTURE
+
+Requirements:
+- create a small reusable data layer such as:
+  - useCaseWorkflows(caseId)
+  - useStartCaseWorkflow(caseId)
+  - optional useWorkflowDetail(caseId, workflowInstanceId)
+- keep caching/invalidation simple and aligned with the project’s existing data-fetching patterns
+- after successful mutation, invalidate/refetch workflow queries
+- do not introduce a fragile custom state machine in the browser
+
+8. VALIDATION
+
+You MUST validate and record in the report:
+
+Shared UI Module
+- module renders all required states
+- components are reusable and not SynqLien-hardcoded
+
+SynqLien Integration
+- workflow panel appears on case detail page
+- panel loads using current case context
+- existing workflow summary appears when data exists
+- empty state appears when no workflow exists
+- Start Workflow action is visible/hidden appropriately
+
+API Wiring
+- browser calls SynqLien endpoints, not Flow directly
+- start action refreshes the displayed workflow state
+- API failures are handled gracefully
+
+Runtime / Build
+- tenant portal frontend builds successfully
+- SynqLien page renders without breaking existing case detail behavior
+- any lint/type/build checks used by the repo are run if feasible
+
+9. DOCUMENTATION
+
+Update or add lightweight notes in the report and any relevant frontend docs if appropriate.
+
+Document:
+- where the shared workflow module lives
+- where SynqLien integration was added
+- which APIs are used
+- what assumptions were made about permissions and workflow selection
+- what remains for CareConnect and SynqFund rollout
+
+10. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E8.1 unless strictly required:
+- advance/complete actions in the UI
+- workflow history timeline
+- workflow template management UI
+- Control Center workflow UI
+- CareConnect and SynqFund UI rollout
+- broad styling redesign
+- direct Flow UI embedding
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the SynqLien tenant portal structure and identify the case detail page and best insertion point.
+2. Create /analysis/E8.1-report.md immediately and begin logging assumptions/actions.
+3. Build the shared workflow UI module and its states.
+4. Add the frontend API/hooks/service layer for SynqLien case workflows.
+5. Integrate the workflow panel into the SynqLien case detail page.
+6. Add Start Workflow action and refresh behavior.
+7. Add graceful unauthorized/error/loading/empty handling.
+8. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E8.1 is successful when:
+- the tenant portal visibly shows a reusable workflow panel on SynqLien case detail
+- users can see workflow state for a case
+- permitted users can start a workflow from the case page
+- the UI uses existing SynqLien product APIs, not direct Flow calls
+- the implementation is reusable for later CareConnect and SynqFund rollout
+- the case page remains stable and operational
+
+FAILURE CONDITION
+
+E8.1 fails if:
+- the implementation is tightly hardcoded to SynqLien with no reusable shared module
+- the browser talks directly to Flow
+- the case page is heavily redesigned or destabilized
+- start/view workflow behavior is not actually wired to the existing APIs
+- API errors or permission failures break the case page

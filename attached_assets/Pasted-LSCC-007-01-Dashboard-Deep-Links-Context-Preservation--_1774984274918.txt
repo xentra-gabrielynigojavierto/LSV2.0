@@ -1,0 +1,321 @@
+LSCC-007-01 — Dashboard Deep Links & Context Preservation
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-007-01
+
+Report path:
+- /analysis/LSCC-007-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Improve navigation continuity across CareConnect by ensuring dashboard → referrals → referral detail flows preserve context and provide predictable back navigation.
+
+This feature focuses on:
+- dashboard deep links into meaningful filtered referral views
+- preserving query params (context) across navigation
+- improving referral detail back navigation behavior
+
+Do NOT introduce new backend logic or expand product scope.
+
+This is a UX polish layer on top of LSCC-007.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Dashboard deep links with context params
+B. Referral list → detail query param preservation
+C. Referral detail back-navigation logic
+D. Lightweight context-aware copy improvements
+E. Report
+
+Do NOT implement:
+- new backend endpoints
+- analytics changes
+- new UX components beyond small helpers
+- workflow changes
+- notifications
+- bulk actions
+- routing framework overhaul
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Frontend-only changes unless absolutely unavoidable
+2. Reuse existing routing and query param patterns
+3. Preserve LSCC-007 behavior and structure
+4. Use explicit query params (NOT implicit history assumptions)
+5. Keep logic simple, deterministic, and debuggable
+6. Avoid duplicating logic across components
+7. Do NOT introduce global navigation state or complex stores
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary target areas:
+
+- apps/web/src/app/(platform)/careconnect/dashboard/...
+- apps/web/src/app/(platform)/careconnect/referrals/page.tsx
+- apps/web/src/app/(platform)/careconnect/referrals/[id]/page.tsx
+- apps/web/src/components/careconnect/...
+- apps/web/src/lib/...
+
+Do NOT modify:
+- apps/services/*
+- audit service
+- backend APIs
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-007 already implemented:
+- referral inbox/work queue
+- search + filter via URL params
+- quick actions
+- referral detail layout improvements
+- basic `from=dashboard` handling in some places
+
+Current gap:
+- dashboard links do NOT consistently include context
+- referral list → detail navigation does NOT preserve all params
+- referral detail back navigation is inconsistent
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. DASHBOARD DEEP LINKS
+--------------------------------------------------
+
+Update dashboard links to include context parameters.
+
+Minimum links to update:
+- referral activity cards
+- “Sent Referrals” navigation
+- “Referral Inbox” navigation
+
+Required query params:
+
+- from=dashboard
+
+Add additional params where meaningful:
+- status (e.g., New, Accepted)
+- existing date range params if already present
+
+Examples:
+
+- /careconnect/referrals?from=dashboard
+- /careconnect/referrals?from=dashboard&status=New
+- /careconnect/referrals?from=dashboard&status=Accepted
+
+Rules:
+- do NOT invent new param names unnecessarily
+- reuse existing param names used by referral list
+
+--------------------------------------------------
+B. REFERRAL LIST → DETAIL CONTEXT PRESERVATION
+--------------------------------------------------
+
+When linking from referral list to detail page:
+
+Preserve relevant query params:
+
+- from
+- status
+- search
+- any existing date-related params
+
+Implementation:
+
+- append current query string to detail link
+- or use a helper utility to build links
+
+Example:
+
+/careconnect/referrals/{id}?from=dashboard&status=New&search=John
+
+Rules:
+- must be deterministic
+- must not drop existing params
+- must not introduce malformed URLs
+
+--------------------------------------------------
+C. REFERRAL DETAIL BACK NAVIGATION
+--------------------------------------------------
+
+Improve back-link behavior on:
+
+/careconnect/referrals/{id}
+
+Back navigation priority:
+
+1. If list context exists (status/search/etc):
+   → Back to filtered referrals list
+
+2. If only from=dashboard:
+   → Back to dashboard
+
+3. Fallback:
+   → Back to generic referrals list
+
+Implementation guidance:
+
+- inspect query params
+- build target URL accordingly
+- do NOT rely on browser history
+
+Examples:
+
+Case 1:
+?from=dashboard&status=New
+→ /careconnect/referrals?status=New&from=dashboard
+
+Case 2:
+?from=dashboard
+→ /careconnect/dashboard
+
+Case 3:
+(no params)
+→ /careconnect/referrals
+
+--------------------------------------------------
+D. CONTEXT-AWARE COPY (LIGHTWEIGHT)
+--------------------------------------------------
+
+Update back link labels where useful:
+
+Examples:
+
+- "← Back to Dashboard"
+- "← Back to Sent Referrals"
+- "← Back to Referral Inbox"
+- "← Back to Referrals"
+
+Rules:
+- keep simple
+- no complex conditional UI
+- optional but preferred for clarity
+
+--------------------------------------------------
+E. HELPER UTILITIES (OPTIONAL)
+--------------------------------------------------
+
+If needed, add a small utility:
+
+Example:
+- buildReferralDetailUrl(referralId, currentSearchParams)
+- extractReferralContext(searchParams)
+
+Rules:
+- keep functions small and local
+- avoid introducing global state
+- reuse where possible
+
+--------------------------------------------------
+F. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. Missing params:
+   → fallback to /careconnect/referrals
+
+2. Invalid params:
+   → ignore safely
+
+3. Shared URLs:
+   → must still render correctly
+
+4. Mixed context:
+   → prefer most useful navigation (filtered list > dashboard)
+
+5. Long query strings:
+   → must not break routing
+
+--------------------------------------------------
+G. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add tests for:
+
+1. dashboard links include expected params
+2. referral list links preserve query params
+3. detail page back link resolves correctly for:
+   - dashboard origin
+   - filtered list origin
+   - no origin
+4. helper functions (if added)
+
+If full UI tests are not feasible:
+- test URL builders and logic functions
+- document limitation in report
+
+--------------------------------------------------
+H. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-007-01.md
+
+Report must include:
+
+1. Summary
+2. Dashboard link updates
+3. Query param preservation strategy
+4. Detail page back-navigation logic
+5. Helper utilities (if added)
+6. Files modified
+7. Tests
+8. Known limitations
+9. Recommended next step
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. Update dashboard links
+2. Preserve params in referral list → detail links
+3. Implement detail back-navigation logic
+4. Add helper utilities if needed
+5. Add tests
+6. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-007-01 is complete ONLY if:
+
+1. Dashboard links include context params
+2. Referral list preserves context when navigating to detail
+3. Referral detail back navigation is predictable and correct
+4. No backend changes are introduced
+5. No regressions to LSCC-007
+6. Report exists:
+   /analysis/LSCC-007-01.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this small, precise, and high-quality.
+
+Do not over-engineer navigation.
+Use explicit query params for clarity.
+Focus on eliminating friction and preserving user context across flows.

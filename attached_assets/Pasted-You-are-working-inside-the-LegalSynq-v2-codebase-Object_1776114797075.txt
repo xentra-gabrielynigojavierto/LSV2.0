@@ -1,0 +1,275 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Define the `LienOffer` domain entity for the `liens` microservice to model marketplace buyer offers against liens.
+
+This feature is domain modeling only. It is NOT for repositories, EF Core mappings, database migrations, CRUD APIs, or frontend work yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+For the Liens build, all shared platform concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION RULE:
+- Preserve donor SynqLiens product behavior
+- Preserve existing APIs as much as possible
+- Use v1 as a donor for behavior and API shape, NOT as a schema to copy directly
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING LIENS DOMAIN + DONOR OFFER PATTERNS
+--------------------------------------------------
+
+Inspect:
+- the Liens domain entities already created, especially `Lien`
+- existing Liens enums/constants/value objects
+- donor SynqLiens concepts related to offers and marketplace negotiation:
+  - frontend types
+  - mock data
+  - page behavior
+  - store/state behavior if relevant
+
+Understand:
+- current Liens entity modeling conventions
+- status/type constants pattern
+- factory/update method pattern
+- multi-tenant/org scoping pattern
+- how current entities preserve donor behavior while staying v2-clean
+
+Follow these existing patterns. Do NOT invent a conflicting offer modeling style.
+
+--------------------------------------------------
+STEP 1A — DONOR BEHAVIOR & API PRESERVATION (CRITICAL)
+--------------------------------------------------
+
+Before defining the `LienOffer` entity:
+
+1. Review donor SynqLiens offer concepts at a high level, including:
+   - offer structure
+   - offer amount meaning
+   - buyer/seller identity meaning
+   - offer status values
+   - expiration behavior
+   - acceptance / rejection / withdrawal semantics
+   - any timestamps or notes exposed through APIs/UI
+
+2. Identify:
+   - key fields that drive marketplace behavior
+   - key fields exposed in APIs
+   - fields needed for future workflows:
+     - accept offer
+     - reject offer
+     - withdraw offer
+     - expire offer
+     - create bill of sale after accepted sale flow
+
+3. Apply these rules:
+
+### Behavior Preservation
+- Preserve meaning and purpose of core offer fields
+- Ensure the entity can support the same marketplace workflow intent as donor SynqLiens
+- Do NOT drop critical amount/status/expiration concepts
+
+### API Compatibility Preservation
+- Prefer field names that can map cleanly to existing APIs
+- Avoid renaming important external/business properties unnecessarily
+- Design the entity so future APIs can map to donor contracts with minimal transformation
+
+### v2 Alignment
+- Use clean TenantId / OrgId / LienId style identifiers
+- Normalize legacy naming where it improves the design
+- Keep the model clean and consistent with the v2 architecture
+
+4. Any field that is changed, normalized, or deferred must be documented and justified in the report.
+
+--------------------------------------------------
+STEP 2 — DEFINE THE LIENOFFER ENTITY
+--------------------------------------------------
+
+In:
+apps/services/liens/Liens.Domain/Entities/
+
+Create:
+
+- `LienOffer.cs`
+
+Also create supporting types if needed in:
+- `Liens.Domain/Enums`
+- `Liens.Domain/ValueObjects`
+- `Liens.Domain/Constants`
+
+Use the same style as the already-established Liens entities.
+
+--------------------------------------------------
+STEP 3 — MODEL A CLEAN V2 CANONICAL OFFER
+--------------------------------------------------
+
+Design the entity to support both donor behavior and clean v2 structure.
+
+The `LienOffer` entity should be ready for future concepts such as:
+- creating an offer on a lien
+- buyer org identification
+- seller org visibility if useful
+- offer expiration
+- offer acceptance/rejection
+- withdrawal by buyer
+- future sale finalization
+- future bill of sale creation
+- future notifications and audit hooks
+
+At minimum, the resulting model should support equivalent meaning for concepts such as:
+
+- `Id`
+- `TenantId`
+- `OrgId`
+- `LienId`
+- `BuyerOrgId`
+- `SellerOrgId` if useful
+- `OfferAmount`
+- `Status`
+- `Message` or notes
+- `OfferedAtUtc`
+- `ExpiresAtUtc`
+- `RespondedAtUtc`
+- `AcceptedAtUtc`
+- `RejectedAtUtc`
+- `WithdrawnAtUtc`
+- `ExternalReference`
+
+You do NOT have to use these exact names if the existing Liens/v2 patterns suggest a better structure, but the business meaning and API mapping ability must be preserved.
+
+--------------------------------------------------
+STEP 4 — SUPPORTING TYPES
+--------------------------------------------------
+
+Add supporting enums/constants/value objects if needed, such as:
+- offer status constants
+- offer participant role constants ONLY if genuinely useful
+- lightweight reason/status groupings if clearly justified
+
+Do NOT over-engineer.
+If plain fields + one clean status constants class are sufficient, prefer that.
+
+--------------------------------------------------
+STEP 5 — RELATIONSHIP READINESS
+--------------------------------------------------
+
+Design the `LienOffer` entity so future relationships can be added without redesign.
+
+The model should clearly support future relationships to:
+- `Lien`
+- buyer organization
+- seller organization
+- accepted-offer-driven sale finalization
+- future `BillOfSale`
+- future audit trail / notifications
+- possible future counteroffer/revision concepts
+
+Do NOT add persistence-heavy navigation complexity.
+Use the lightest clean design that preserves future extensibility.
+
+--------------------------------------------------
+STEP 6 — EXPRESS DOMAIN INTENT
+--------------------------------------------------
+
+Where useful, include:
+- factory methods
+- update methods
+- state transition methods
+- simple validation guards
+
+Examples of natural operations at this stage may include:
+- create offer
+- update message or expiration before response if donor-compatible
+- accept
+- reject
+- withdraw
+- expire
+
+Keep the scope tight:
+- no workflow orchestration
+- no repository logic
+- no cross-entity service integrations
+
+If revisions/counteroffers are not clearly supported by the donor model, defer them and document the decision.
+
+--------------------------------------------------
+STEP 7 — KEEP DOMAIN CLEAN
+--------------------------------------------------
+
+Do NOT add:
+- EF Core attributes
+- DbContext
+- repositories
+- migrations
+- API DTOs/models
+- HTTP logic
+- auth logic
+- identity claim parsing
+- documents integration
+- notifications integration
+- audit integration
+
+This is domain modeling only.
+
+--------------------------------------------------
+STEP 8 — VALIDATE BUILD + NON-REGRESSION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. Existing identity integration still builds
+4. Gateway is unaffected
+5. No project dependency direction is violated
+
+--------------------------------------------------
+STEP 9 — GENERATE REPORT
+--------------------------------------------------
+
+Create this report file in the root `/analysis` folder:
+
+`/analysis/LS-LIENS-03-003-report.md`
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 + Liens domain patterns identified and followed
+3. Donor SynqLiens offer concepts consulted (behavior/API only)
+4. Exact files created/changed
+5. Final entity list
+   - `LienOffer`
+   - plus any supporting enums/value objects/constants
+6. Key fields in `LienOffer` and why they were chosen
+7. Multi-tenant / org / buyer-seller design decisions
+8. Relationship assumptions and future extensibility notes
+9. What was intentionally deferred
+10. Build results
+    - liens service
+    - relevant solution/workspace
+11. Confirmation that no persistence/API/auth concerns were added to the Domain layer
+12. Confirmation that no v1 code or v1 runtime logic was introduced
+
+### REQUIRED SECTION — API & Behavior Preservation Analysis
+13. API & Behavior Preservation Analysis
+- Which donor offer fields influenced the design
+- Which fields were preserved for compatibility
+- Any fields changed, normalized, or deferred and why
+- How easily future APIs can map to the new `LienOffer` entity
+
+14. Risks / assumptions
+15. Final readiness statement:
+   - Is the core `LienOffer` domain model now established?
+   - Is the service ready for the next feature?
+
+Be detailed and evidence-based. The report should be sufficient for architecture review without opening the code.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Create a clean v2 `LienOffer` domain model that preserves SynqLiens marketplace behavior and supports future API compatibility without copying legacy implementation.
+
+Proceed.

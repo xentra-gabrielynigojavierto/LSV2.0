@@ -1,0 +1,344 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the LienOffer HTTP APIs so the `liens` service can support offer creation, negotiation visibility, and buyer/seller interactions on liens through the existing v2 gateway, authorization model, and application-service architecture.
+
+This feature should expose the buyer/seller interaction layer of the marketplace while remaining cleanly separated from sale finalization orchestration.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Keep authorization in the API/filter layer
+- Keep business logic in the application layer
+- Keep persistence logic in repositories
+- Do NOT introduce cross-service DB joins
+- Do NOT trust client-supplied tenant/org identifiers when request context already provides them
+- Do NOT expose direct status mutation or sale-finalization operations in this feature
+
+--------------------------------------------------
+STEP 1 — INSPECT CURRENT LIENS API + APPLICATION PATTERNS
+--------------------------------------------------
+
+Inspect:
+- Case API implementation from LS-LIENS-06-001
+- Lien API implementation from LS-LIENS-06-002
+- existing `LienOffer` domain entity and repository
+- sale finalization service from LS-LIENS-05-002
+
+Understand:
+- DTO placement
+- application service interface/implementation pattern
+- endpoint structure
+- request context usage
+- auth filter usage
+- response shape conventions
+- pagination pattern
+- error handling pattern
+
+Follow the established Liens pattern from Case/Lien APIs as closely as possible.
+Do NOT invent a different API style for LienOffer.
+
+--------------------------------------------------
+STEP 2 — IMPLEMENT LIENOFFER DTOs
+--------------------------------------------------
+
+Create request/response DTOs for LienOffer operations.
+
+At minimum support:
+
+### Response DTO
+Fields should cover practical offer UI needs such as:
+- `id`
+- `lienId`
+- `offerAmount`
+- `status`
+- `buyerOrgId`
+- `sellerOrgId`
+- `notes`
+- `responseNotes`
+- `offeredAtUtc`
+- `expiresAtUtc`
+- `respondedAtUtc`
+- `withdrawnAtUtc`
+- `acceptedAtUtc` if already represented through responded timestamp pattern
+- `rejectedAtUtc` if already represented through responded timestamp pattern
+- `isExpired` (computed if useful)
+- `createdAtUtc`
+- `updatedAtUtc`
+
+### List/Search response
+Use the existing paginated result pattern already established in Case/Lien APIs.
+
+### Create request DTO
+Include only client-supplied fields:
+- `lienId`
+- `offerAmount`
+- `notes` (optional)
+- `expiresAtUtc` (optional)
+
+Do NOT allow caller-supplied:
+- `buyerOrgId`
+- `sellerOrgId`
+- `status`
+- audit fields
+- tenant id / acting user id
+
+### No update request DTO for generic mutation
+Do NOT create a generic update DTO that allows direct status mutation.
+This feature is for creation + retrieval only, not accept/reject workflow execution.
+
+--------------------------------------------------
+STEP 3 — ADD APPLICATION SERVICE FOR LIENOFFER OPERATIONS
+--------------------------------------------------
+
+Implement the application-layer orchestration needed for:
+
+- create offer
+- get offer by id
+- list/search offers
+- list offers by lien id
+
+Use the existing repository layer:
+- `ILienOfferRepository`
+- `ILienRepository` (to validate target lien and determine seller org)
+- related repositories only if actually needed
+
+Keep endpoint handlers thin.
+Do NOT put repository orchestration directly in endpoint methods if the Case/Lien pattern uses application services.
+
+Expected behaviors:
+
+### CreateOfferAsync
+- validate lien exists
+- validate lien belongs to tenant
+- validate lien is in an offerable state (e.g., Offered / appropriate marketplace state)
+- validate lien is not sold / settled / cancelled
+- validate offer amount > 0
+- derive buyer org from request context
+- derive seller org from lien
+- prevent obviously invalid self-offers if seller org == buyer org, if appropriate to current business rules
+- optionally enforce one active offer per buyer per lien if that aligns with donor behavior or sound marketplace design
+- create offer through domain factory with status = Pending
+- persist via repository
+
+### GetByIdAsync
+- tenant-scoped retrieval
+- return DTO only
+
+### SearchAsync
+Support filters such as:
+- `lienId`
+- `status`
+- `buyerOrgId`
+- `sellerOrgId`
+- `page`
+- `pageSize`
+
+Use request context to determine safe defaults where helpful.
+Do NOT require client to send buyer org for their own offers if the context already provides it.
+
+### GetByLienIdAsync
+- tenant-scoped retrieval of all offers for a lien
+- useful for seller review UI and lien detail views
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT REAL LIENOFFER ENDPOINTS
+--------------------------------------------------
+
+Add/replace the Liens LienOffer endpoints so they expose real database-backed behavior.
+
+Expected routes:
+- `GET /api/liens/offers`
+- `GET /api/liens/offers/{id}`
+- `GET /api/liens/liens/{lienId}/offers`   (preferred convenience route)
+- `POST /api/liens/offers`
+
+For list/search, support query parameters such as:
+- `lienId`
+- `status`
+- `buyerOrgId`
+- `sellerOrgId`
+- `page`
+- `pageSize`
+
+If the current pattern suggests that `buyerOrgId`/`sellerOrgId` should not be openly client-supplied for security reasons, derive or constrain them via request context and document the choice clearly.
+
+--------------------------------------------------
+STEP 5 — APPLY AUTHORIZATION USING EXISTING FILTERS
+--------------------------------------------------
+
+Protect the endpoints using the existing auth model:
+- `RequireProductAccess`
+- `RequirePermission`
+
+Do NOT invent a new auth mechanism.
+
+Use the closest correct current Liens permissions.
+If the permission catalog does not yet include perfect LienOffer-specific granularity, use the closest aligned current permissions and document the gap in the report.
+
+Do NOT expose accept/reject via this feature.
+Those transitions belong to the sale finalization workflow and later seller-action features.
+
+--------------------------------------------------
+STEP 6 — USE REQUEST CONTEXT CORRECTLY
+--------------------------------------------------
+
+Use `ICurrentRequestContext` (or the current platform equivalent) to get:
+- tenant id
+- acting user id
+- org id
+
+Do NOT trust client-supplied:
+- tenant id
+- acting user id
+- buyer org id
+
+For create:
+- buyer org must come from request context
+- tenant must come from request context
+- acting user must come from request context for audit stamping
+
+For search/list:
+- ensure tenant-scoped access
+- where appropriate, allow seller/buyer views without trusting caller to impersonate another org
+
+--------------------------------------------------
+STEP 7 — KEEP OFFER WORKFLOW BOUNDARIES CLEAN
+--------------------------------------------------
+
+This feature should expose offer creation and retrieval only.
+
+Do NOT:
+- accept offers here
+- reject offers here
+- withdraw offers here unless there is an already-approved pattern you must follow
+- create BillOfSale here
+- mutate lien sale state here
+- call the sale finalization service from these endpoints
+
+Those belong to separate workflow endpoints/features.
+
+The goal here is to establish the offer interaction layer cleanly.
+
+--------------------------------------------------
+STEP 8 — SUPPORT BUYER/SELLER VIEWS WITHOUT CROSS-SERVICE ENRICHMENT
+--------------------------------------------------
+
+The implementation should support future UI needs for:
+- offers for a lien
+- offers submitted by a buyer org
+- offers received by a seller org
+
+But do NOT join to Identity or other services to enrich org/user names.
+Return scalar IDs only:
+- `buyerOrgId`
+- `sellerOrgId`
+- `lienId`
+
+Cross-service enrichment belongs later.
+
+--------------------------------------------------
+STEP 9 — KEEP API / APP / PERSISTENCE BOUNDARIES CLEAN
+--------------------------------------------------
+
+Do NOT:
+- return EF entities directly
+- put repository logic directly in endpoint handlers if the application-service pattern is preferred
+- join to Identity/Documents/Audit tables
+- add BillOfSale or sale-finalization endpoint exposure
+- add unrelated APIs in this feature
+
+This feature is only for LienOffer APIs.
+
+--------------------------------------------------
+STEP 10 — VALIDATE REAL EXECUTION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. endpoints compile and resolve
+4. create offer persists correctly
+5. get-by-id works
+6. get-by-lien works
+7. list/search works with intended filters
+8. auth filters remain applied
+9. no regression to Case/Lien APIs
+10. no regression to sale finalization service
+
+If you add a lightweight validation path or smoke-test support, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 11 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add BillOfSale APIs
+- add sale finalization endpoint exposure
+- add accept/reject workflow endpoints unless explicitly unavoidable
+- add ServicingTask APIs
+- add CaseNote APIs
+- add cross-service enrichment for org/user/document names
+- add audit/notifications/documents integration
+- add frontend work
+- add ETL scripts
+
+This feature is only:
+- LienOffer DTOs
+- LienOffer application logic
+- LienOffer endpoints
+- validation
+
+--------------------------------------------------
+STEP 12 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-06-003-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing Liens/v2 API pattern identified and followed
+3. Exact files created/changed
+4. DTOs added
+5. Application services/handlers added
+6. Endpoint list and routes
+7. Repository interactions
+8. Authorization approach used
+9. Request-context usage
+10. Donor API compatibility notes
+11. How buyer/seller/lien-scoped offer views are supported
+12. Validation performed
+13. Confirmation:
+    - no EF entities returned directly
+    - no cross-service joins introduced
+    - no unrelated APIs added
+    - no sale-finalization logic exposed here
+14. Build results:
+    - Liens
+    - relevant solution/workspace
+15. Any permission-model gaps or deferred items
+16. Risks / assumptions
+17. Final readiness statement:
+    - Are real LienOffer APIs established?
+    - Is the system ready for BillOfSale APIs or sale workflow exposure next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Expose the LienOffer interaction layer of the marketplace by implementing authorized, database-backed LienOffer APIs that fit the current v2 architecture cleanly and preserve donor behavior as much as practical.
+
+Proceed.

@@ -1,0 +1,149 @@
+You are updating the SendGrid configuration for the Notifications service to use a new SendGrid account.
+
+================================================================================
+WORKFLOW RULES (MANDATORY)
+==========================
+
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-SENDGRID-UPDATE-report.md
+
+2. Update the report incrementally after each major step.
+
+3. At completion, the report MUST include:
+
+   * what configuration was changed
+   * where values are sourced from (env/config)
+   * validation performed
+   * test results (success/failure)
+   * any issues encountered
+   * next recommendations
+
+================================================================================
+OBJECTIVE
+=========
+
+Update the Notifications service to use a new SendGrid account by replacing the
+existing SendGrid API key and sender configuration.
+
+Ensure the system:
+
+* uses the new credentials
+* successfully sends email
+* maintains compatibility with current architecture
+
+================================================================================
+IN SCOPE
+========
+
+1. Update SendGrid configuration values:
+
+   * SENDGRID_API_KEY
+   * SENDGRID_FROM_EMAIL
+   * SENDGRID_FROM_NAME
+
+2. Verify configuration binding in:
+   Notifications.Infrastructure/DependencyInjection.cs
+
+3. Ensure SendGridAdapter uses updated values
+
+4. Restart/redeploy service (simulate if needed)
+
+5. Perform a test notification send via:
+   POST /v1/notifications
+
+6. Validate:
+
+   * SendGrid API call success
+   * email delivery
+   * no auth or sender errors
+
+================================================================================
+OUT OF SCOPE
+============
+
+* No changes to notification logic
+* No changes to templates
+* No provider redesign
+* No auth changes
+* No UI changes
+
+================================================================================
+IMPLEMENTATION STEPS
+====================
+
+1. Locate SendGrid configuration usage in:
+   Notifications.Infrastructure/DependencyInjection.cs
+
+2. Confirm the following keys are used:
+
+   * configuration["SENDGRID_API_KEY"]
+   * configuration["SENDGRID_FROM_EMAIL"]
+   * configuration["SENDGRID_FROM_NAME"]
+
+3. Replace values via environment variables:
+   (DO NOT hardcode secrets in code)
+
+4. If webhook verification is enabled, verify:
+
+   * SENDGRID_WEBHOOK_VERIFICATION_ENABLED
+   * SENDGRID_WEBHOOK_PUBLIC_KEY
+
+5. Simulate service restart or confirm configuration reload
+
+6. Send test notification using standard API payload
+
+7. Capture logs:
+
+   * provider selection
+   * SendGrid API response
+   * any failures
+
+================================================================================
+VALIDATION
+==========
+
+You MUST verify:
+
+* Build succeeds
+* Configuration is correctly read
+* SendGrid adapter initializes without error
+* Test email request is accepted
+* No authentication errors from SendGrid
+* Email is successfully sent (or simulated success)
+
+If failure occurs:
+
+* capture exact error
+* identify whether issue is:
+  config / API key / sender identity / webhook mismatch
+
+================================================================================
+REPORT FORMAT
+
+# LS-NOTIF-SENDGRID-UPDATE Report
+
+## Summary
+
+## Configuration Changes
+
+## Files Reviewed
+
+## Environment Variables Used
+
+## Test Execution
+
+## Validation Results
+
+## Issues Encountered
+
+## Recommendations
+
+================================================================================
+SUCCESS CRITERIA
+================
+
+* New SendGrid API key is active
+* Emails are successfully sent via Notifications service
+* No regression in existing functionality
+* Configuration remains environment-driven (no hardcoding)
+  ================================================================================

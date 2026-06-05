@@ -1,0 +1,190 @@
+You are implementing BLOCK 3 of LegalSynq Support Service Platform Integration.
+
+BLOCK 3 includes:
+- SUP-INT-04 — Environment + Deployment Config
+
+FEATURE ID:
+SUP-INT-04
+
+Report file:
+ /analysis/SUP-INT-04-report.md
+
+PRIMARY OBJECTIVE:
+Finalize runtime, environment, deployment, and health-check configuration for the integrated Support Service so it can run reliably in the main LegalSynq platform while preserving standalone deployability.
+
+IMPORTANT CONTEXT:
+Previous blocks completed:
+- SUP-INT-BLOCK-01 — Gateway/YARP + Auth validation setup
+- SUP-INT-03 — Platform UI/navigation integration
+
+Known pending issue:
+- Support requires MySQL database provisioning and ConnectionStrings__Support before full runtime validation can pass.
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT change Support domain models.
+3. DO NOT change ticket/comment/attachment/queue schema.
+4. DO NOT inject X-Tenant-Id in production.
+5. DO NOT weaken JWT/RBAC/tenant isolation.
+6. DO NOT hardcode service URLs.
+7. DO NOT bypass gateway.
+8. DO NOT add tenant-customer support features.
+9. DO NOT add email reply/Comms features.
+10. DO NOT add SLA, Task, Monitoring, or product deep-link logic.
+11. Preserve standalone Support deployment.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-INT-04-report.md
+
+Update it incrementally after every major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Current env/config structure
+3. Support runtime configuration
+4. Gateway cluster configuration
+5. Database connection configuration
+6. JWT secret/config alignment
+7. Health-check validation
+8. Deployment/runtime updates
+9. Files changed
+10. Build/test results
+11. Known gaps/deferred items
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- Support service appsettings files
+- Gateway appsettings files
+- Docker/docker-compose files if present
+- run-dev/startup scripts
+- environment variable conventions
+- production override conventions
+- health-check configuration
+- database connection requirements
+- JWT signing key configuration
+- frontend env/API configuration
+
+STEP 3 — ENVIRONMENT STANDARDIZATION:
+Ensure Support has clean environment variable support for:
+
+- ConnectionStrings__Support
+- Authentication__Jwt__Issuer
+- Authentication__Jwt__Audience
+- Authentication__Jwt__SymmetricKey
+- ASPNETCORE_ENVIRONMENT
+- ASPNETCORE_URLS or Urls
+- Support__Notifications__Mode
+- Support__Audit__Mode
+- Support__FileStorage__Mode
+- Gateway support cluster destination override:
+  ReverseProxy__Clusters__support-cluster__Destinations__support-primary__Address
+
+Do not place production secrets in committed config files.
+
+STEP 4 — DATABASE RUNTIME CONFIGURATION:
+Support requires MySQL.
+
+Ensure:
+- ConnectionStrings__Support is the only required runtime DB connection string for Support.
+- No local hardcoded production connection string is committed.
+- Documentation/report clearly states how to provision the support database.
+- If a schema SQL or migration exists, document how it should be applied.
+- Do not alter Support domain schema in this block.
+
+STEP 5 — JWT CONFIG ALIGNMENT:
+Ensure integrated Support validates the same token model as the platform gateway.
+
+Required:
+- Support Authentication__Jwt__SymmetricKey must match platform Jwt__SigningKey.
+- Issuer must align with gateway/platform issuer.
+- Audience must align with gateway/platform audience.
+- Claim mapping must remain preserved.
+- Tenant must continue to come from JWT claim.
+
+STEP 6 — GATEWAY CLUSTER CONFIG HARDENING:
+Review and validate:
+- support-cluster destination
+- /support/api/health route
+- /support/api/{**catch-all} route
+- Authorization forwarding
+- correlation header forwarding if platform supports it
+- no PathRemovePrefix for Support
+
+If improvements are required, apply minimal config-only changes.
+
+STEP 7 — DEPLOYMENT ALIGNMENT:
+Update only existing deployment/runtime patterns.
+
+If docker-compose exists:
+- Add Support service only if consistent with existing service patterns.
+- Add healthcheck if consistent.
+- Add env vars without secrets.
+- Add dependency on MySQL only if existing compose pattern supports it.
+
+If scripts exist:
+- Ensure run-dev/start scripts can start Support consistently.
+- Avoid breaking other services.
+
+STEP 8 — HEALTH CHECK VALIDATION:
+Validate or document exact expected behavior for:
+
+1. Direct Support:
+   GET http://localhost:5017/support/api/health
+
+2. Gateway-routed Support:
+   GET /support/api/health
+
+3. Protected endpoint without token:
+   GET /support/api/tickets
+   Expected: 401
+
+4. Protected endpoint with valid JWT:
+   GET /support/api/tickets
+   Expected: 200 or valid domain response
+
+If runtime validation is blocked by missing DB or secrets:
+- Do not claim success
+- Document exact missing variable/resource
+- Provide exact fix required
+
+STEP 9 — BUILD / TEST:
+Run applicable checks:
+- dotnet build LegalSynq.sln if feasible
+- dotnet build apps/gateway/Gateway.Api/Gateway.Api.csproj
+- dotnet build apps/services/support/Support.Api/Support.Api.csproj
+- frontend build only if frontend env/config was touched
+- any existing tests relevant to Support/Gateway
+
+STEP 10 — FINAL REPORT:
+Complete:
+
+# SUP-INT-04 Report
+
+## 1. Codebase Analysis
+## 2. Environment / Config Structure
+## 3. Support Runtime Configuration
+## 4. Gateway Cluster / Route Configuration
+## 5. Database Configuration
+## 6. JWT / Auth Configuration
+## 7. Health Check Validation
+## 8. Deployment / Script Updates
+## 9. Files Created / Changed
+## 10. Validation Results
+## 11. Build Results
+## 12. Known Gaps / Deferred Items
+## 13. Final Readiness Assessment
+
+DONE CRITERIA:
+- Support runtime config is environment-driven
+- No production secrets are committed
+- Support DB connection requirement is clearly configured/documented
+- Gateway cluster destination is overrideable
+- JWT config alignment is documented
+- Health endpoints are validated or exact blockers documented
+- Support remains standalone deployable
+- Existing platform startup is not broken
+- Build results are documented
+- /analysis/SUP-INT-04-report.md is complete
+
+If any validation fails, do not claim success. Document the blocker, root cause, and recommended iteration.

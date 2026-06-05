@@ -1,0 +1,171 @@
+Here is the full copy-paste Replit prompt for LS-REPORTS-08-001 in one clean block:
+
+You are implementing **LS-REPORTS-08-001 — Saved View Tenant Ownership Enforcement** for the LegalSynq Reports Service.
+## Platform Context
+You have already completed:
+- Full reporting platform (templates, execution, export, scheduling)
+- Report Designer v2 (saved views, calculated fields, formatting)
+- Launch readiness (identity, tenant context via JWT and request context)
+This story closes a **critical security gap** by enforcing tenant ownership validation for all saved view operations.
+---
+# CRITICAL EXECUTION RULES
+## 1. Create the report file FIRST
+Create:
+/analysis/LS-REPORTS-08-001-report.md
+This must be the FIRST step.
+## 2. Update the report continuously
+After each step include:
+- files modified
+- queries updated
+- validation logic added
+- test scenarios executed
+- issues encountered
+- decisions made
+## 3. Keep scope controlled
+DO NOT:
+- change API contracts
+- add new features
+- modify UI
+- touch unrelated entities
+Focus ONLY on:
+👉 enforcing tenant ownership for saved views
+## 4. Preserve architecture
+- enforcement must exist at BOTH:
+  - repository layer (query filtering)
+  - service layer (explicit validation)
+- do NOT rely on middleware alone
+---
+# STORY ID
+LS-REPORTS-08-001 — Saved View Tenant Ownership Enforcement
+---
+# OBJECTIVE
+Ensure that all saved view operations are strictly tenant-scoped and cannot be accessed across tenants via ID.
+---
+# REQUIRED IMPLEMENTATION
+# A. Identify Affected Methods
+Locate all saved view access paths:
+## Service Layer
+- GetViewByIdAsync(viewId)
+- UpdateViewAsync(viewId, request)
+- DeleteViewAsync(viewId)
+## Repository Layer
+- any query fetching by Id
+---
+# B. Repository Layer Enforcement
+## Update queries to include tenant filter
+Replace patterns like:
+SELECT * FROM TenantReportViews WHERE Id = @viewId
+With:
+SELECT * FROM TenantReportViews 
+WHERE Id = @viewId AND TenantId = @tenantId
+---
+## Ensure all repository methods require tenantId
+- update method signatures if necessary
+- do NOT allow retrieval by Id only
+---
+# C. Service Layer Enforcement
+Even with repository filtering, explicitly validate:
+if (view.TenantId != currentTenantId)
+    throw ForbiddenException
+---
+## Apply to:
+### 1. Get
+- if no record returned → treat as not found
+- OR explicitly check after fetch
+### 2. Update
+- validate tenant before applying changes
+- block update if mismatch
+### 3. Delete
+- validate tenant before deletion
+- block delete if mismatch
+---
+# D. Current Context Usage
+Use:
+- ICurrentRequestContext.TenantId
+- ICurrentRequestContext.UserId
+DO NOT use:
+- request DTO tenant values
+- client-supplied identifiers
+---
+# E. Error Handling Strategy
+Choose ONE and apply consistently:
+## Option A (Preferred)
+- return 403 Forbidden
+## Option B
+- return 404 Not Found
+Use existing exception mapping.
+---
+# F. Default View Safety
+When switching default views:
+UPDATE TenantReportViews
+SET IsDefault = 0
+WHERE TenantId = @tenantId
+AND ReportTemplateId = @templateId
+Ensure no cross-tenant updates occur.
+---
+# G. Logging
+Log denied access attempts:
+Include:
+- viewId
+- tenantId
+- userId
+Do NOT expose this information in API response.
+---
+# H. Validation Scenarios
+Test:
+## Valid Case
+- tenant A accesses its own view → SUCCESS
+## Invalid Case
+- tenant A accesses tenant B view → BLOCKED
+## Update Case
+- tenant mismatch on update → BLOCKED
+## Delete Case
+- tenant mismatch on delete → BLOCKED
+---
+# I. Files Likely Modified
+- TenantReportViewRepository
+- TenantReportViewService
+- database query methods
+- exception handling layer
+---
+# ACCEPTANCE CRITERIA
+1. all repository queries for saved views are tenant-scoped
+2. all service methods validate tenant ownership
+3. GetViewByIdAsync cannot return another tenant’s data
+4. UpdateViewAsync cannot modify another tenant’s view
+5. DeleteViewAsync cannot delete another tenant’s view
+6. default view updates are tenant-safe
+7. cross-tenant access attempts are blocked
+8. logs capture denied access attempts
+9. consistent error response (403 or 404)
+10. no regression in normal functionality
+11. build passes successfully
+---
+# IMPLEMENTATION STEPS
+1. Create report file
+2. Identify all saved view access points
+3. Update repository queries
+4. Update service layer validation
+5. Implement error handling
+6. Add logging
+7. Run validation scenarios
+8. Finalize report
+---
+# REPORT FORMAT
+Include:
+- Execution Log
+- Files Modified
+- Repository Changes
+- Service Layer Changes
+- Validation Results
+- Issues Encountered
+- Decisions Made
+- Known Gaps
+- Final Summary
+---
+# DEFINITION OF DONE
+- tenant ownership enforced across all saved view operations
+- no cross-tenant access via ID is possible
+- system is secure and stable
+---
+Now implement LS-REPORTS-08-001 exactly as described.

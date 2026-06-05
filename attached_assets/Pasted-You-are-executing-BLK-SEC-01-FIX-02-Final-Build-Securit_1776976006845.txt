@@ -1,0 +1,221 @@
+You are executing BLK-SEC-01-FIX-02 — Final Build & Security Corrections.
+
+CRITICAL (NON-NEGOTIABLE):
+
+- DO NOT add new features
+- DO NOT refactor unrelated code
+- DO NOT change business logic
+- ONLY fix:
+  1) build errors
+  2) /api/admin/integrity security
+
+- Create a SINGLE commit for all fixes
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Reach:
+
+- dotnet build → 0 errors across ALL services
+- /api/admin/integrity is NOT publicly accessible
+
+--------------------------------------------------
+
+PART A — FIX IDENTITY BUILD ERROR
+
+--------------------------------------------------
+
+Error:
+ITenantSyncAdapter not found
+
+Steps:
+
+1. Locate:
+   apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+
+2. Identify:
+   where ITenantSyncAdapter is referenced
+
+3. Fix using ONE of:
+
+Option A (preferred):
+- find correct namespace / interface definition
+- add missing using statement
+- ensure it is registered in DI (Program.cs or equivalent)
+
+Option B:
+- if NOT used anymore:
+  - remove dependency
+  - remove related code safely
+
+RULES:
+- DO NOT stub fake interface
+- DO NOT leave unused references
+- MUST compile clean
+
+--------------------------------------------------
+
+PART B — FIX TENANT BUILD ERROR
+
+--------------------------------------------------
+
+Error:
+TenantProvisioningStatus not found
+
+Steps:
+
+1. Locate:
+   apps/services/tenant/Tenant.Infrastructure/Data/Configurations/TenantConfiguration.cs
+
+2. Identify:
+   where TenantProvisioningStatus is referenced
+
+3. Fix using ONE of:
+
+Option A (preferred):
+- import correct enum/type from domain
+
+Option B:
+- align configuration to actual existing model
+  (remove or replace outdated reference)
+
+RULES:
+- DO NOT create fake enum
+- MUST match actual Tenant domain model
+- MUST compile clean
+
+--------------------------------------------------
+
+PART C — SECURE /api/admin/integrity
+
+--------------------------------------------------
+
+Locate:
+apps/services/careconnect/CareConnect.Api/Endpoints/CareConnectIntegrityEndpoints.cs
+
+Current:
+AllowAnonymous
+
+--------------------------------------------------
+
+IMPLEMENT OPTION A (REQUIRED — DO NOT USE OPTION B)
+
+--------------------------------------------------
+
+Use Admin JWT (role-based security)
+
+Steps:
+
+1. Remove:
+   AllowAnonymous
+
+2. Apply:
+   RequireAuthorization()
+
+3. Enforce role:
+
+   RequireAuthorization(policy =>
+       policy.RequireRole("PlatformAdmin"))
+
+OR equivalent existing admin role
+
+4. Ensure:
+
+- endpoint returns 401 if not authenticated
+- returns 403 if authenticated but not admin
+- succeeds only for admin users
+
+--------------------------------------------------
+
+PART D — VALIDATION (MANDATORY)
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. Identity service builds:
+   dotnet build apps/services/identity → 0 errors
+
+2. Tenant service builds:
+   dotnet build apps/services/tenant → 0 errors
+
+3. CareConnect builds:
+   dotnet build apps/services/careconnect → 0 errors
+
+4. Integrity endpoint:
+
+- no auth → 401
+- non-admin user → 403
+- admin user → 200
+
+5. No regression in:
+- onboarding
+- provisioning flow
+
+--------------------------------------------------
+
+PART E — REPORT UPDATE
+
+--------------------------------------------------
+
+Update:
+
+/analysis/BLK-SEC-01-report.md
+
+Append:
+
+## 12. BLK-SEC-01-FIX-02 Corrections
+
+### Build Fixes
+- Identity: explain how ITenantSyncAdapter was resolved
+- Tenant: explain how TenantProvisioningStatus was resolved
+
+### Integrity Endpoint Security
+- now requires admin JWT
+- validation results (401 / 403 / 200 behavior)
+
+--------------------------------------------------
+
+PART F — COMMIT
+
+--------------------------------------------------
+
+Create ONE commit:
+
+Message:
+[BLK-SEC-01-FIX-02] Fix build errors + secure admin integrity endpoint
+
+--------------------------------------------------
+
+PART G — DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+Run:
+
+git show <commit-id> > /analysis/BLK-SEC-01-FIX-02-commit.diff.txt
+
+Create:
+
+/analysis/BLK-SEC-01-FIX-02-commit-summary.md
+
+Include:
+- commit ID
+- files changed
+- exact fixes applied
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- ALL services build successfully
+- /api/admin/integrity is secured
+- report updated
+- diff + summary generated
+
+--------------------------------------------------
+
+END

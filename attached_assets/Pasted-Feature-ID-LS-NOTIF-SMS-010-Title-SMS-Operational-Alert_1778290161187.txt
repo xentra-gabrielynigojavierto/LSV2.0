@@ -1,0 +1,539 @@
+Feature ID: LS-NOTIF-SMS-010
+
+Title:
+SMS Operational Alerting and Threshold Rules
+
+Objective:
+Add operational monitoring and threshold-based alerting inside Notification Service so platform administrators can proactively detect SMS delivery degradation, reconciliation failures, provider outages, retry spikes, dead-letter anomalies, tenant/provider operational issues, and stale reconciliation conditions.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all SMS operational alert evaluation, threshold rules, alert persistence, and alert APIs must remain inside the Notification Service boundary.
+
+Requirements:
+- Do not build Control Center UI in this feature.
+- Do not add SMS alert evaluation logic to unrelated services.
+- Do not create shared cross-service alerting abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - SMS operational threshold configuration
+  - SMS metric evaluation
+  - SMS alert persistence
+  - SMS alert deduplication/cooldown
+  - SMS alert resolution
+  - SMS alert admin APIs
+- Dashboard/UI consumers should consume Notification Service alert APIs in a future feature.
+- Preserve Notification Service as the system of record for SMS delivery, tracking, reconciliation, dashboard reporting, and operational alerting.
+
+Implementation Requirements:
+1. Add SMS operational threshold evaluation inside Notification Service.
+2. Detect high SMS failure rates.
+3. Detect dead-letter spikes.
+4. Detect retry spikes.
+5. Detect reconciliation lookup/config failure spikes.
+6. Detect provider-specific delivery degradation.
+7. Detect tenant-specific delivery degradation.
+8. Detect stale/unreconciled SMS attempts.
+9. Persist generated SMS operational alerts.
+10. Deduplicate repeated alerts within a configurable cooldown window.
+11. Add admin APIs to list, summarize, resolve, and optionally manually evaluate alerts.
+12. Preserve existing outbound SMS send, retry/dead-letter, webhook, compliance, tenant provider resolution, reconciliation, activity APIs, dashboard APIs, and Control Center UI behavior.
+13. Do not add or expand conversational inbound SMS behavior.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, reconciliation tracking, SmsDashboardRepository/SmsActivityRepository patterns, audit, worker, endpoint, authorization, migration, and startup schema conventions where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Dashboard/alert APIs must be read-only except explicit alert resolution and manual evaluation endpoint.
+- Alert evaluation must not trigger SMS sends, retries, reconciliation, provider calls, or provider configuration changes.
+- Alert evaluation must use local Notification Service operational data only.
+- Do NOT store or expose provider credentials, CredentialsJson, SettingsJson, auth tokens, raw provider payloads, or full phone numbers.
+- Alert metadata must contain only safe operational fields.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-010-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS dashboard/activity/reconciliation findings
+3. Existing worker/job pattern findings
+4. Existing audit/event findings
+5. Existing admin authorization findings
+6. Existing migration/schema safety-net findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. Validation/testing performed
+12. Known gaps/issues
+13. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Service Monitoring/Reporting Architecture
+- Identify:
+  - Existing SMS dashboard repository/service from LS-NOTIF-SMS-008
+  - Existing SMS activity and reconciliation tracking fields from LS-NOTIF-SMS-006/007
+  - NotificationAttempt status values and failure category conventions
+  - ProviderOwnershipMode and ProviderConfigId usage
+  - Existing BackgroundService/worker patterns
+  - Existing configuration/env parsing patterns
+  - Existing admin endpoint patterns
+  - Existing authorization policy for PlatformAdmin/admin users
+  - Existing audit event conventions
+  - Existing migration and startup schema safety-net conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Operational Alert Domain Model
+Add a Notification Service-local entity for SMS operational alerts.
+
+Suggested entity:
+SmsOperationalAlert
+
+Suggested fields:
+- Id Guid
+- AlertType string
+- Severity string
+- Status string
+- TenantId Guid? nullable
+- Provider string? nullable
+- ProviderConfigId Guid? nullable
+- ProviderOwnershipMode string? nullable
+- WindowStart DateTime
+- WindowEnd DateTime
+- MetricValue decimal
+- ThresholdValue decimal
+- Message string
+- MetadataJson string? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- LastObservedAt DateTime? nullable
+- ResolvedAt DateTime? nullable
+- ResolvedBy string? nullable
+- ResolutionNote string? nullable
+- OccurrenceCount int
+- SuppressedUntil DateTime? nullable
+
+Recommended AlertType values:
+- sms.failure_rate_high
+- sms.dead_letter_spike
+- sms.retry_spike
+- sms.reconciliation_failure_rate_high
+- sms.provider_degraded
+- sms.provider_config_failure_spike
+- sms.tenant_anomaly
+- sms.reconciliation_stale
+
+Recommended Severity values:
+- warning
+- critical
+
+Recommended Status values:
+- active
+- resolved
+- suppressed
+
+Requirements:
+- Alert metadata must not include credentials, raw provider payloads, or full phone numbers.
+- TenantId should be nullable for global/platform-wide alerts.
+- ProviderConfigId may be included as opaque operational metadata.
+- Use existing EF mapping and migration conventions.
+- Add indexes appropriate for admin listing and deduplication:
+  - Status, AlertType, CreatedAt
+  - TenantId, Status, CreatedAt
+  - Provider, ProviderConfigId, Status, CreatedAt
+  - AlertType, TenantId, Provider, ProviderConfigId, Status
+
+STEP 3 — Define Threshold Configuration
+Add configuration support for SMS operational thresholds.
+
+Suggested config section:
+SmsOperationalAlerts
+
+Suggested settings:
+- Enabled bool default false
+- EvaluationIntervalMinutes int default 15
+- EvaluationWindowMinutes int default 15
+- CooldownMinutes int default 30
+- MinimumAttemptCount int default 20
+- FailureRateWarningPercent decimal default 15
+- FailureRateCriticalPercent decimal default 30
+- DeadLetterWarningCount int default 10
+- DeadLetterCriticalCount int default 25
+- RetrySpikeWarningCount int default 25
+- RetrySpikeCriticalCount int default 50
+- ReconciliationFailureWarningPercent decimal default 10
+- ReconciliationFailureCriticalPercent decimal default 25
+- ProviderFailureWarningPercent decimal default 20
+- ProviderFailureCriticalPercent decimal default 40
+- TenantFailureWarningPercent decimal default 25
+- TenantFailureCriticalPercent decimal default 50
+- StaleUnreconciledWarningCount int default 100
+- StaleUnreconciledCriticalCount int default 250
+
+Environment variable equivalents may follow existing configuration conventions, for example:
+- SMS_ALERTS_ENABLED=false
+- SMS_ALERTS_EVALUATION_INTERVAL_MINUTES=15
+- SMS_ALERTS_EVALUATION_WINDOW_MINUTES=15
+- SMS_ALERTS_COOLDOWN_MINUTES=30
+
+Requirements:
+- Safe defaults.
+- Alerts disabled by default unless existing service convention prefers enabled.
+- Manual evaluation should work even when scheduled worker is disabled, if implemented.
+- Threshold config must not require secrets.
+
+STEP 4 — Add Alert Repository
+Add repository/data access for SMS operational alerts.
+
+Suggested interface:
+ISmsOperationalAlertRepository
+
+Suggested methods:
+- CreateOrUpdateActiveAlertAsync(SmsOperationalAlert alert, CancellationToken ct)
+- FindActiveDuplicateAsync(alertType, tenantId, provider, providerConfigId, window/cooldown context, CancellationToken ct)
+- ListAsync(SmsOperationalAlertQuery query, CancellationToken ct)
+- SummarizeAsync(SmsOperationalAlertQuery query, CancellationToken ct)
+- ResolveAsync(Guid alertId, string resolvedBy, string? note, CancellationToken ct)
+
+Requirements:
+- Deduplicate repeated active alerts based on alertType + tenantId + provider + providerConfigId + status.
+- If duplicate active alert exists and cooldown has not expired:
+  - increment OccurrenceCount
+  - update LastObservedAt
+  - update MetricValue/ThresholdValue if useful
+  - keep Status active or suppressed based on design
+  - do not create alert spam
+- If duplicate exists but cooldown expired:
+  - update existing alert occurrence/lastObserved or create new alert according to existing conventions; prefer updating existing active alert for simplicity.
+- Resolved alerts should not be reactivated silently unless the condition is observed again after resolution; a new active alert may be created if appropriate.
+- Queries must be bounded and paginated.
+- Do not expose unsafe metadata.
+
+STEP 5 — Add Alert Evaluation Service
+Add Notification Service-local service to evaluate SMS operational metrics.
+
+Suggested interface:
+ISmsOperationalAlertEvaluator
+
+Suggested methods:
+- EvaluateAsync(DateTime? windowStart, DateTime? windowEnd, CancellationToken ct)
+- EvaluateFailureRateAsync(...)
+- EvaluateDeadLetterSpikeAsync(...)
+- EvaluateRetrySpikeAsync(...)
+- EvaluateReconciliationFailuresAsync(...)
+- EvaluateProviderDegradationAsync(...)
+- EvaluateTenantAnomaliesAsync(...)
+- EvaluateStaleReconciliationAsync(...)
+
+Requirements:
+- Use local NotificationAttempt data only.
+- Do not call SMS providers.
+- Do not trigger reconciliation.
+- Do not trigger SMS send/retry.
+- Use evaluation window from config by default.
+- Apply MinimumAttemptCount before percentage-based alerts to avoid noisy low-volume false positives.
+- Generate alerts with severity based on warning/critical thresholds.
+- Include safe metadata such as:
+  - totalAttempts
+  - failedAttempts
+  - deadLetterCount
+  - retryCount
+  - reconciliationFailureCount
+  - neverReconciledCount
+  - provider
+  - providerConfigId
+  - tenantId
+  - windowStart/windowEnd
+- Do not include phone numbers or raw provider responses.
+
+STEP 6 — Implement Alert Rule Logic
+Implement the following rules.
+
+Rule: High global failure rate
+- Scope: all SMS attempts in window.
+- Metric: failed/dead_letter attempts divided by total attempts.
+- Alert types:
+  - sms.failure_rate_high
+- Respect MinimumAttemptCount.
+
+Rule: Dead-letter spike
+- Scope: all SMS attempts in window.
+- Metric: dead_letter count.
+- Alert type:
+  - sms.dead_letter_spike
+
+Rule: Retry spike
+- Scope: all SMS attempts in window.
+- Metric: retrying count or AttemptNumber > 1 count where available.
+- Alert type:
+  - sms.retry_spike
+
+Rule: Reconciliation failure rate high
+- Scope: reconciled SMS attempts in window.
+- Metric: lookup/config/runtime reconciliation failures divided by reconciled attempts.
+- Alert type:
+  - sms.reconciliation_failure_rate_high
+- Use LastReconciledAt where available.
+
+Rule: Provider degraded
+- Scope: group by provider and providerConfigId where available.
+- Metric: failed/dead_letter attempts divided by total attempts for provider group.
+- Alert type:
+  - sms.provider_degraded
+- Respect MinimumAttemptCount.
+
+Rule: Provider config failure spike
+- Scope: reconciliation/send failures with provider config error categories.
+- Metric: count of provider_config_* / provider_runtime_resolution_failed / auth_config_failure where applicable.
+- Alert type:
+  - sms.provider_config_failure_spike
+
+Rule: Tenant anomaly
+- Scope: group by tenant.
+- Metric: tenant failed/dead_letter attempts divided by total tenant attempts.
+- Alert type:
+  - sms.tenant_anomaly
+- Respect MinimumAttemptCount.
+
+Rule: Stale unreconciled attempts
+- Scope: non-terminal or sent SMS attempts older than configured stale age where ReconciliationAttemptCount = 0.
+- Metric: count.
+- Alert type:
+  - sms.reconciliation_stale
+
+Requirements:
+- Apply filters consistently.
+- Keep rule code readable and independently testable.
+- If exact status names differ in codebase, align with existing constants/patterns.
+- Document any rule that cannot be fully implemented due to missing fields.
+
+STEP 7 — Add Alert Worker
+Add optional scheduled worker/job to run evaluation.
+
+Suggested worker:
+SmsOperationalAlertWorker
+
+Behavior:
+- Uses existing BackgroundService pattern.
+- Reads SmsOperationalAlerts.Enabled.
+- If disabled, does not evaluate automatically.
+- Runs every EvaluationIntervalMinutes.
+- Uses IServiceScopeFactory.
+- Logs exceptions without crashing service.
+- Respects CancellationToken.
+- Emits a summary log after evaluation.
+
+Requirements:
+- Disabled by default.
+- No external provider calls.
+- No SMS sends/retries/reconciliation.
+- Safe to run concurrently with dashboard/activity APIs.
+- Keep evaluation idempotent with deduplication/cooldown.
+
+STEP 8 — Add Admin Alert APIs
+Add admin endpoints inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/alerts
+- GET /v1/admin/sms/alerts/summary
+- POST /v1/admin/sms/alerts/{id}/resolve
+- POST /v1/admin/sms/alerts/evaluate
+
+Query filters for list/summary:
+- status
+- severity
+- alertType
+- tenantId
+- provider
+- providerConfigId
+- from
+- to
+- limit
+- offset
+
+Response DTO fields:
+- id
+- alertType
+- severity
+- status
+- tenantId
+- provider
+- providerConfigId
+- providerOwnershipMode
+- windowStart
+- windowEnd
+- metricValue
+- thresholdValue
+- message
+- occurrenceCount
+- createdAt
+- updatedAt
+- lastObservedAt
+- suppressedUntil
+- resolvedAt
+- resolvedBy
+- safe metadata if included
+
+Summary DTO:
+- total
+- active
+- resolved
+- suppressed
+- warning
+- critical
+- byAlertType counts
+- byProvider counts where useful
+- byTenant counts where useful
+
+Resolve request:
+- note optional string
+
+Manual evaluate response:
+- windowStart
+- windowEnd
+- evaluatedRules
+- alertsCreated
+- alertsUpdated
+- alertsSuppressed
+- durationMs
+
+Requirements:
+- Require existing admin authorization, e.g. Policies.AdminOnly.
+- Manual evaluate endpoint must not call providers or send SMS.
+- Manual evaluate should work even if scheduled worker is disabled.
+- API must not expose credentials, raw payloads, full phone numbers, CredentialsJson, SettingsJson, or auth tokens.
+- Use existing endpoint style and DTO conventions.
+
+STEP 9 — Audit Alert Events
+Add audit events for alert lifecycle if existing audit conventions make this straightforward.
+
+Suggested audit events:
+- sms.alert.created
+- sms.alert.updated
+- sms.alert.suppressed
+- sms.alert.resolved
+- sms.alert.evaluation_completed
+
+Requirements:
+- Audit failures must not crash evaluation.
+- Metadata must be safe.
+- Include tenant/provider context where relevant.
+- Do not include credentials or phone numbers.
+
+STEP 10 — Documentation
+Update documentation/report notes for:
+- alert rule definitions
+- threshold configuration
+- cooldown/dedup behavior
+- worker enablement
+- admin alert endpoints
+- manual evaluation behavior
+- security/privacy constraints
+- interaction with dashboard APIs
+
+Documentation must explain:
+- alerts are derived from local Notification Service operational data
+- alerts do not trigger provider calls or SMS sends
+- scheduled alerting is disabled by default
+- manual evaluation is safe and read-only except alert persistence
+- alert metadata is safe operational data only
+
+STEP 11 — Validation
+Perform validation/testing for:
+
+Schema/model:
+- SmsOperationalAlert table created
+- indexes created if applicable
+- default fields populated correctly
+- no credentials/raw payloads stored
+
+Threshold config:
+- defaults load correctly
+- worker disabled by default
+- manual evaluation works with worker disabled
+- invalid/missing config falls back safely
+
+Rule evaluation:
+- high failure rate generates warning/critical alert
+- low volume below MinimumAttemptCount does not generate noisy percentage alert
+- dead-letter count threshold generates alert
+- retry spike threshold generates alert
+- reconciliation lookup/config failure threshold generates alert
+- provider degradation generates provider-scoped alert
+- tenant anomaly generates tenant-scoped alert
+- stale unreconciled count generates alert
+- no alert generated when metrics below threshold
+
+Dedup/cooldown:
+- duplicate active condition updates existing alert or suppresses according to cooldown
+- occurrence count increments
+- LastObservedAt updates
+- resolved alert can be followed by a new alert if condition recurs
+- alert spam is prevented
+
+Worker:
+- disabled worker does not evaluate
+- enabled worker evaluates on interval
+- worker respects cancellation
+- worker logs errors without crashing service
+
+Admin APIs:
+- list endpoint filters by status/severity/type/tenant/provider/date
+- summary endpoint counts statuses/severities/types
+- resolve endpoint changes status to resolved
+- manual evaluate endpoint returns structured result
+- non-admin access rejected
+
+Security:
+- credentials are not stored or returned
+- raw provider payloads are not stored or returned
+- full phone numbers are not stored or returned
+- providerConfigId returned only as opaque metadata
+- alert metadata is safe
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS send unchanged
+- LS-NOTIF-SMS-002 preference enforcement unchanged
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- LS-NOTIF-SMS-004 vendor reconciliation behavior unchanged
+- LS-NOTIF-SMS-005 tenant runtime provider resolution unchanged
+- LS-NOTIF-SMS-006 activity APIs unchanged
+- LS-NOTIF-SMS-007 reconciliation tracking unchanged
+- LS-NOTIF-SMS-008 dashboard APIs unchanged
+- LS-NOTIF-SMS-009 Control Center dashboard UI unchanged
+- email/in-app notification behavior unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsOperationalAlert domain entity/table
+- Alert threshold configuration
+- Alert repository
+- Alert evaluator service
+- Alert dedup/cooldown behavior
+- Optional scheduled alert worker
+- Admin alert list endpoint
+- Admin alert summary endpoint
+- Admin alert resolve endpoint
+- Admin manual evaluate endpoint
+- Safe alert audit events where appropriate
+- Updated documentation/report
+- Completed analysis report
+
+Do NOT:
+- Build Control Center UI
+- Trigger SMS sends, retries, reconciliation, provider calls, or provider config changes from alert evaluation
+- Add conversational inbound SMS
+- Add new SMS providers
+- Move alert evaluation outside Notification Service
+- Add SMS alerting logic to unrelated services
+- Store provider credentials or secrets
+- Store raw provider response payloads
+- Store or expose full phone numbers
+- Expose CredentialsJson, SettingsJson, auth tokens, or provider secrets
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-009 behavior

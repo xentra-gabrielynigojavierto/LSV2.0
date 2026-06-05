@@ -1,0 +1,273 @@
+You are implementing feature MON-INT-03-001 — Incident / Alert Detail View.
+
+OBJECTIVE
+Add a read-only Incident / Alert Detail View to the Control Center monitoring page so operators can open an alert and immediately see the key incident context in one place: severity, message, affected component, timestamps, and current related component status.
+
+This is the next usability layer after the Status Summary Banner and Component Status List.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- The detail view must use existing monitoring read data
+- Do NOT introduce mutation flows
+- Do NOT modify Monitoring Service unless an absolute blocker is proven
+- Do NOT reintroduce monitoring logic into Control Center
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-03-001-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT add acknowledge / resolve actions
+- Do NOT add fake incident fields
+- Prefer minimal, reversible UI changes
+- Keep existing banner, component list, and alerts panel intact
+- Support both MONITORING_SOURCE=local and MONITORING_SOURCE=service
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-03-001-report.md
+
+Initialize with:
+
+# MON-INT-03-001 — Incident / Alert Detail View
+
+## 1. Task Summary
+## 2. Existing Alert UI Analysis
+## 3. Detail Interaction Pattern Decision
+## 4. Data Mapping / Correlation Strategy
+## 5. Implementation
+## 6. Validation
+## 7. Files Changed
+## 8. Known Gaps / Risks
+## 9. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE THE EXISTING ALERT UI
+
+Inspect at minimum:
+- apps/control-center/src/components/monitoring/alerts-panel.tsx
+- apps/control-center/src/app/monitoring/page.tsx
+- relevant monitoring types used by the page
+
+Identify:
+- how alerts are currently rendered
+- whether alert rows already expose enough data for selection
+- what component status data is already available on the page
+- what stable correlation key is available between alerts and integrations/status data
+
+Document:
+- current alert panel structure
+- current alert data shape
+- current integrations/status data shape
+- the best candidate correlation key
+
+---
+
+STEP 3 — CHOOSE THE DETAIL INTERACTION PATTERN
+
+Choose the least disruptive, operator-friendly pattern:
+- modal
+- slide-over panel
+- inline detail section
+
+Preferred order:
+1. Slide-over panel
+2. Modal
+3. Inline section
+
+Choose based on the current monitoring page structure and minimal disruption.
+
+Document:
+- chosen pattern
+- why it fits best
+- why alternatives were rejected
+
+Requirements:
+- easy to open
+- easy to dismiss
+- preserves monitoring page context
+- does not require navigation away from the page
+
+---
+
+STEP 4 — DEFINE DATA MAPPING / CORRELATION STRATEGY
+
+You must correlate a selected alert to its related monitored component using existing data only.
+
+Possible keys may include:
+- entityId
+- name
+- canonical component label
+- another stable field already present in the payload
+
+Rules:
+- prefer exact ID-based correlation if available
+- if only name-based correlation is possible, document that clearly
+- define explicit fallback if correlation fails
+
+The detail view must show:
+- alert severity
+- alert message
+- affected component name
+- created timestamp
+- resolved timestamp if available
+- current component status
+- latest latency if available
+- last checked timestamp if available
+
+If any field is unavailable:
+- display a clear fallback such as “Unavailable”
+- do not invent values
+
+---
+
+STEP 5 — IMPLEMENT THE DETAIL VIEW
+
+Implement the chosen interaction pattern in Control Center.
+
+Expected files likely include:
+- alerts panel component
+- new incident detail component if needed
+- monitoring page integration point
+
+Requirements:
+- the existing alerts panel becomes the launch point
+- at least one alert row is selectable
+- selected alert opens the detail view
+- detail view is read-only
+- existing monitoring page remains stable
+
+If using a new component, prefer a focused file such as:
+- apps/control-center/src/components/monitoring/incident-detail-panel.tsx
+
+Possible structure:
+- selected alert state in a client component wrapper
+- alert list remains visible
+- detail panel opens alongside or above the list
+
+Do NOT refactor the whole monitoring page unnecessarily.
+
+---
+
+STEP 6 — INTEGRATE WITH EXISTING PAGE DATA
+
+Use the same monitoring summary data already available to the monitoring page.
+
+Requirements:
+- do not introduce a new API call unless absolutely necessary
+- reuse `MonitoringSummary.alerts`
+- reuse `MonitoringSummary.integrations`
+- keep local/service mode compatibility automatic through the same summary contract
+
+If current server/client boundaries require a wrapper component:
+- keep the wrapper minimal
+- document the reason clearly
+
+---
+
+STEP 7 — HANDLE EMPTY / ERROR / NO-SELECTION STATES
+
+Implement clear states for:
+A. No active alerts
+- no detail trigger shown
+- existing alerts panel behavior preserved
+
+B. No alert selected
+- detail view hidden or placeholder shown, whichever fits the chosen pattern
+
+C. Alert selected but component correlation fails
+- show alert data normally
+- component section shows clear fallback message
+
+D. Monitoring data unavailable
+- page remains stable
+- no crash
+
+---
+
+STEP 8 — VALIDATION
+
+Validate at minimum:
+- monitoring page still loads
+- alerts list still renders
+- selecting an alert opens detail view
+- detail view dismiss works
+- correlated component data shows correctly
+- both local and service modes remain compatible through the same contract
+- no UI regression to banner or component list
+
+Test scenarios:
+- one active alert
+- multiple alerts if available
+- no active alerts
+- unresolved vs resolved timestamp handling if available
+
+If full runtime UI interaction cannot be browser-tested directly, validate through:
+- component prop flow
+- TypeScript compile
+- app compile/build
+- live summary payload inspection
+
+Document exactly what was and was not runtime-tested.
+
+---
+
+STEP 9 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- purpose
+
+Be explicit.
+
+---
+
+STEP 10 — KNOWN GAPS / RISKS
+
+Document clearly:
+- no acknowledge/resolve actions yet
+- no historical incident timeline yet
+- any temporary name-based correlation if used
+- any limitations of current alert payload shape
+- any future improvements needed for full incident workflow
+
+---
+
+STEP 11 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+
+Option A:
+- MON-INT-03-002 — Alert Acknowledge / Resolve Workflow
+Use this if the detail view is solid and the next need is operational action.
+
+Option B:
+- MON-INT-02-004 — Clickable Banner Filtering
+Use this if the UX would benefit more from tighter page interactions before write workflows.
+
+Option C:
+- MON-INT-03-001-01 — Detail View Correlation Hardening
+Use this only if the detail view works but needs a tightly scoped follow-up due to payload limitations.
+
+Choose based on actual implementation outcome.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+- /analysis/MON-INT-03-001-report.md exists and was created FIRST
+- at least one alert can be opened from the monitoring page
+- the detail view displays real incident data
+- related component status is shown when correlation succeeds
+- no mutation flows were introduced
+- monitoring page stability is preserved
+- both local and service modes remain compatible through existing summary data
+- no fake data or fake workflow is introduced

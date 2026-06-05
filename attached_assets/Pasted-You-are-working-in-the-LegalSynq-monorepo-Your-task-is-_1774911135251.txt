@@ -1,0 +1,371 @@
+You are working in the LegalSynq monorepo.
+
+Your task is to execute:
+
+# Step 26 — Final Rollout, Producer Expansion, UI Activation, and Productization (SynqAudit)
+
+This is the transition from:
+- system readiness → real platform usage
+- internal tool → product-grade capability
+
+Do NOT redesign architecture.
+Do NOT remove legacy audit yet.
+Do NOT introduce Kafka or new infrastructure.
+
+Focus on:
+- activating the system safely
+- expanding real event coverage
+- enabling UI usage across Control Center and Tenant portals
+- validating end-to-end behavior
+- shaping this into a product capability (SynqAudit)
+
+---
+
+# PRIMARY OBJECTIVES
+
+1. Enable **secure, real usage** of the audit system (hybrid mode)
+2. Expand **meaningful producer coverage across the platform**
+3. Activate **audit dashboards in Control Center and Tenant portals**
+4. Validate **correlation, integrity, and traceability**
+5. Provide **operator visibility and trust**
+6. Establish the foundation for **SynqAudit as a platform product**
+
+---
+
+# PHASE A — FINAL ROLLOUT CONFIGURATION
+
+## A1. Enable production-grade settings
+
+Ensure:
+
+- Integrity__HmacKeyBase64 is set
+- Integrity__VerifyOnRead = true
+- QueryAuth__Mode = Bearer
+- Database is durable (NOT InMemory)
+
+Verify:
+- service boots correctly
+- migrations applied
+- logs confirm configuration
+
+---
+
+## A2. Validate authentication end-to-end
+
+Ensure:
+
+- JWT auth works
+- tenant scoping enforced
+- platform admin access works
+- unauthorized access is rejected
+
+Test:
+- valid token → success
+- invalid token → 401
+- cross-tenant → 403
+
+---
+
+# PHASE B — PRODUCER EXPANSION (REAL SIGNAL FLOW)
+
+## B1. Complete Identity coverage
+
+Ensure these events emit:
+
+- identity.user.login.succeeded
+- identity.user.login.failed
+- identity.user.logout
+
+If easy:
+
+- identity.user.created
+- identity.user.deactivated
+
+---
+
+## B2. Expand CareConnect events
+
+Ensure:
+
+- careconnect.referral.created
+- careconnect.referral.updated
+- careconnect.appointment.scheduled
+- careconnect.appointment.cancelled
+
+---
+
+## B3. Add Admin / Role events
+
+Emit:
+
+- identity.role.assigned
+- identity.role.removed
+- identity.permission.changed
+
+---
+
+## B4. Validate producer integration
+
+For all producers:
+
+- confirm events reach audit service
+- confirm correlationId present
+- confirm no business flow is blocked on failure
+
+---
+
+# PHASE C — CONTROL CENTER AUDIT DASHBOARD
+
+## C1. Activate audit dashboard (Control Center)
+
+Create or enhance:
+
+- Audit Logs page
+
+Capabilities:
+
+- global (platform-wide) visibility
+- filters:
+  - tenant
+  - organization
+  - actor
+  - entity
+  - event type
+  - category
+  - severity
+  - date range
+  - correlationId
+
+- pagination
+- event detail view
+
+---
+
+## C2. Add advanced capabilities
+
+Add:
+
+- correlation trace view (group by correlationId)
+- timeline view (ordered events)
+- export trigger UI
+
+---
+
+## C3. Hybrid mode behavior
+
+Ensure:
+
+- AUDIT_READ_MODE=hybrid works
+- canonical data is primary
+- fallback is visible (banner or indicator)
+- no silent failures
+
+---
+
+# PHASE D — TENANT PORTAL AUDIT DASHBOARD
+
+## D1. Activate tenant audit page
+
+Create or enhance:
+
+- Activity / Audit page
+
+Requirements:
+
+- strictly tenant-scoped
+- no cross-tenant leakage
+
+Filters:
+
+- actor
+- event type
+- category
+- entity
+- date range
+
+---
+
+## D2. UX requirements
+
+Ensure:
+
+- simple timeline/table
+- readable event descriptions
+- clear actor + action + timestamp
+
+Optional:
+
+- “My Activity” (user-scoped view)
+
+---
+
+# PHASE E — CORRELATION & TRACE VALIDATION
+
+## E1. Enforce correlationId
+
+Ensure:
+
+- every ingest has correlationId
+- missing → generated
+
+---
+
+## E2. Validate trace flow
+
+Test:
+
+- request → service → audit record
+
+Verify:
+
+- same correlationId
+- consistent trace across logs + audit
+
+---
+
+# PHASE F — INTEGRITY VALIDATION
+
+## F1. Validate hash chain
+
+Ensure:
+
+- PreviousHash linking works
+- no forks in normal usage
+- verification logs work
+
+---
+
+## F2. Enable integrity observability
+
+Log:
+
+- verification mismatches
+- chain anomalies
+
+---
+
+# PHASE G — OBSERVABILITY
+
+Add logging/metrics for:
+
+- ingest success/failure
+- auth failures
+- fallback occurrences
+- export jobs
+- audit-of-audit volume
+
+---
+
+# PHASE H — SYNQAUDIT PRODUCT FOUNDATION
+
+Treat this system as a product:
+
+## H1. Define product capability
+
+Create documentation:
+
+SynqAudit includes:
+
+- audit logs (platform, tenant, user)
+- compliance export
+- traceability (correlation)
+- integrity (hash chain)
+- audit-of-audit
+
+---
+
+## H2. Define product boundaries
+
+Document:
+
+- what data is captured
+- what is visible per role:
+  - platform admin
+  - tenant admin
+  - user
+
+---
+
+## H3. Prepare for externalization
+
+Ensure:
+
+- APIs are stable
+- naming is consistent
+- event taxonomy is documented
+- no domain-specific leakage
+
+---
+
+# PHASE I — CANONICAL READINESS CHECK
+
+## I1. Compare legacy vs canonical
+
+Validate:
+
+- event coverage parity
+- missing categories
+- consistency
+
+---
+
+## I2. Prepare canonical-only mode
+
+Document:
+
+- what must be complete before:
+  AUDIT_READ_MODE=canonical
+
+---
+
+# DO NOT DO
+
+- Do NOT remove legacy audit
+- Do NOT enable destructive retention
+- Do NOT introduce new infra (Kafka, etc.)
+- Do NOT silently mask canonical failures
+
+---
+
+# REQUIRED OUTPUT
+
+Write report:
+
+/analysis/step26_rollout_and_productization.md
+
+---
+
+# REPORT FORMAT
+
+# Step 26 — Final Rollout and SynqAudit Activation
+
+## 1. Summary of Changes
+## 2. Producer Expansion Results
+## 3. Control Center Dashboard
+## 4. Tenant Portal Dashboard
+## 5. Security Validation
+## 6. Correlation & Trace Validation
+## 7. Integrity Validation
+## 8. Observability Additions
+## 9. SynqAudit Product Definition
+## 10. Canonical Readiness Status
+## 11. Remaining Gaps
+
+Include:
+- files changed
+- config used
+- blockers
+
+---
+
+# FINAL INSTRUCTION
+
+Do the work now.
+
+Focus on:
+- real usage
+- real visibility
+- safe rollout
+- product readiness
+
+Do NOT leave hidden risks.

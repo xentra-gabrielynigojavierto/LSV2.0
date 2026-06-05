@@ -1,0 +1,132 @@
+Implement feature LSCC-01-006-02 — Smart Verification Retry and DNS Propagation Handling.
+
+Context:
+LSCC-01-006 added tenant provisioning and subdomain-based login. LSCC-01-006-01 added verification-aware activation with DNS and HTTP verification gates. The current system still risks failing tenants too early when DNS propagation, ingress readiness, TLS, or host acceptance takes time. We now need bounded automatic retry and better propagation-aware handling.
+
+Goal:
+Add automatic, bounded, propagation-aware verification retry so tenants are not marked failed prematurely during normal readiness delays. Preserve strict production activation gating while improving operational visibility and reducing manual retries.
+
+Requirements:
+1. Add automatic verification retry after Provisioned or Verifying when verification does not yet succeed.
+   - must be bounded
+   - must be idempotent
+   - must be environment-aware
+   - must keep tenant non-active until verification succeeds
+
+2. Implement configurable retry policy:
+   - initial verification attempt
+   - multiple automatic retries
+   - delay between retries
+   - increasing delay or equivalent bounded backoff
+   - max attempts and/or max retry window
+   - final failure only after retry policy exhaustion
+
+3. Handle temporary propagation/readiness delay without immediate permanent failure.
+   - explicit AwaitingPropagation is optional
+   - continued Verifying with retry metadata is acceptable
+   - admin must be able to tell tenant is still retrying and not yet failed
+
+4. Make retry stage-aware:
+   - if DNS does not resolve yet, retry DNS verification
+   - if DNS resolves but HTTP/app verification fails, retry HTTP/app verification
+   - avoid unnecessary reprovisioning or earlier-stage repetition unless needed
+
+5. Persist retry metadata:
+   - verification attempt count
+   - last verification attempt timestamp
+   - next retry timestamp if applicable
+   - last failure stage
+   - last failure reason
+   - retry exhausted flag/state if modeled
+
+6. Improve diagnostics where practical:
+   - DNS did not resolve
+   - DNS resolved but target mismatch, if implemented
+   - HTTP connection failure
+   - TLS/SSL failure if detectable
+   - non-success HTTP status
+   - verification endpoint content mismatch
+   - app reached but tenant binding/verification failed
+
+7. Control Center must display:
+   - hostname/subdomain
+   - current status
+   - retry attempt count
+   - last verification attempt
+   - next retry time if applicable
+   - verification stage
+   - last failure reason
+   - whether system is still retrying automatically
+   - manual retry action where valid
+
+8. End-user login behavior:
+   - while verification is retrying, production login must not proceed
+   - show safe setup-in-progress / temporarily unavailable message
+   - no production manual tenant override bypass
+
+9. Keep manual retry:
+   - safe and idempotent
+   - compatible with automatic retry flow
+   - can reset or re-enter retry lifecycle cleanly
+
+10. Environment-aware behavior:
+   - production uses real verification/retry policy
+   - dev/Replit-safe mode may allow explicit bypass or reduced retry settings
+   - bypass/reduction must be explicit via config
+
+11. Logging/audit:
+   - retry scheduled
+   - retry attempt started
+   - retry attempt succeeded
+   - retry attempt failed
+   - retry policy exhausted
+   - tenant marked failed after retries exhausted
+   - manual retry requested
+
+Implementation guidance:
+- Reuse LSCC-01-006 and LSCC-01-006-01 architecture.
+- Keep provisioning separate from verification/retry orchestration.
+- Prefer incremental implementation over introducing heavy queue infrastructure unless truly necessary.
+- Preserve strict production activation gating.
+- Where practical, improve verification diagnostics without exposing infrastructure details to end users.
+- If target/CNAME validation is practical, add it; otherwise structure the code so it can be added later.
+
+Validation checklist:
+1. Initial verification failure does not immediately mark tenant permanently failed when retry policy is active.
+2. Automatic retry occurs without manual admin action.
+3. DNS-stage failures retry DNS verification appropriately.
+4. HTTP/app-stage failures retry the later stage appropriately.
+5. Retry metadata is persisted and visible.
+6. Tenant becomes Active if a later retry succeeds.
+7. Tenant becomes Failed only after retry policy exhaustion.
+8. Control Center displays retry count, last attempt, next retry, stage, and failure reason.
+9. Production login blocks tenant access while retrying verification and shows safe message.
+10. Manual retry remains safe and idempotent.
+11. Dev/Replit bypass or reduced retry behavior works only via explicit config.
+12. Logs/audit traces exist for retry lifecycle.
+13. Build succeeds cleanly.
+
+Deliverables:
+- Code changes implementing bounded automatic verification retry
+- Any schema/model updates
+- Any retry coordination service or equivalent logic
+- Config/env updates documented clearly
+- A concise note explaining production vs dev/Replit retry behavior
+- A completion report saved to:
+
+/analysis/LSCC-01-006-02-report.md
+
+The report must include:
+1. Summary
+2. Files changed
+3. Schema/model changes
+4. Retry lifecycle design
+5. Retry/backoff policy
+6. DNS verification retry behavior
+7. HTTP/app verification retry behavior
+8. Diagnostics/logging improvements
+9. Environment/config changes
+10. What was implemented
+11. Validation results against each checklist item
+12. Known issues / follow-ups
+13. Exact manual test steps

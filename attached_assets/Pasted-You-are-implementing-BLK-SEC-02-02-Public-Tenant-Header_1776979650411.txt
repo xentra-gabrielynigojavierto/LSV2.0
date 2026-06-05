@@ -1,0 +1,301 @@
+You are implementing BLK-SEC-02-02 — Public Tenant Header Trust Boundary Hardening for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-SEC-02-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block is a SURGICAL SECURITY FIX.
+   It closes the remaining tenant-isolation gap from BLK-SEC-02-01:
+   trusted use of `X-Tenant-Id` on public CareConnect routes.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new product features
+   - redesign public routes
+   - redesign BFF architecture
+   - change onboarding behavior
+   - widen scope beyond the trust boundary fix
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Eliminate blind trust in `X-Tenant-Id` for public CareConnect routes.
+
+At the end of this block:
+
+- public CareConnect endpoints no longer rely on an unprotected upstream trust assumption
+- requests cannot spoof another tenant by directly supplying `X-Tenant-Id`
+- the trusted gateway/BFF boundary is explicitly enforced in code and/or gateway configuration
+- production-grade tenant isolation is achieved for public routes
+
+--------------------------------------------------
+
+CURRENT KNOWN GAP
+
+BLK-SEC-02-01 confirmed that public routes are secure ONLY under the assumption that:
+
+- the Next.js BFF resolves tenant from host/subdomain
+- the BFF sets `X-Tenant-Id`
+- direct public callers cannot reach CareConnect or inject that header
+
+That assumption is not enforced strongly enough yet.
+
+This block must close that gap.
+
+--------------------------------------------------
+
+PART A — AUDIT CURRENT PUBLIC TRUST BOUNDARY
+
+--------------------------------------------------
+
+Audit the exact public route path end-to-end:
+
+1. Browser request
+2. Next.js BFF / proxy route
+3. YARP / gateway path (if applicable)
+4. CareConnect public endpoints
+
+Document:
+
+- where `X-Tenant-Id` is added
+- where it is consumed
+- whether it can be spoofed by an external caller
+- what current protections exist
+- where the fix should live
+
+You MUST identify the exact files involved.
+
+--------------------------------------------------
+
+PART B — IMPLEMENT TRUST BOUNDARY ENFORCEMENT
+
+--------------------------------------------------
+
+Implement ONE of the following, preferring the strongest approach that fits the repo architecture:
+
+### Option A (preferred if gateway/BFF path supports it cleanly)
+Harden the proxy/gateway boundary so:
+
+- inbound client-supplied `X-Tenant-Id` is stripped
+- `X-Tenant-Id` is injected only after server-side tenant resolution
+- public requests reaching CareConnect cannot carry arbitrary caller-supplied tenant IDs
+
+### Option B (required if direct service hardening is needed in addition)
+Harden CareConnect public endpoints so they reject untrusted direct `X-Tenant-Id` usage unless the request is clearly from the trusted server layer.
+
+Acceptable patterns include:
+- trusted internal header pair / shared secret for BFF-originated public proxy calls
+- internal-only route topology validation
+- explicit gateway-origin marker validated server-side
+
+RULES:
+- do NOT rely purely on “network isolation” as the only control
+- do NOT accept arbitrary `X-Tenant-Id` from direct callers
+- do NOT break legitimate public flows
+
+--------------------------------------------------
+
+PART C — PRESERVE PUBLIC ROUTE BEHAVIOR
+
+--------------------------------------------------
+
+The following must still work after the fix:
+
+- public `/network`
+- public provider directory
+- public provider detail / markers
+- public referral submission
+
+Behavior requirements:
+- tenant still resolves from host/subdomain through the intended server-side path
+- no tenantId/body/query override is accepted
+- valid BFF/gateway-originated requests still succeed
+
+--------------------------------------------------
+
+PART D — CARECONNECT PUBLIC ENDPOINT HARDENING
+
+--------------------------------------------------
+
+If CareConnect public endpoints consume `X-Tenant-Id`, ensure:
+
+- missing tenant header from trusted path → fail cleanly
+- malformed tenant header → fail cleanly
+- untrusted direct caller with spoofed tenant header → rejected
+- no fallback that accepts caller-provided tenant context without trust validation
+
+Use explicit, auditable logic.
+Do NOT bury the security assumption in comments only.
+
+--------------------------------------------------
+
+PART E — GATEWAY / BFF CONFIG HARDENING
+
+--------------------------------------------------
+
+If the repo contains YARP / proxy configuration for public routes, harden it so that:
+
+- incoming `X-Tenant-Id` is removed before forwarding
+- the trusted server layer sets the canonical tenant context
+- any required internal auth marker/header is added consistently
+
+If the fix is implemented at the Next.js BFF layer, ensure:
+- client headers are not forwarded blindly
+- `X-Tenant-Id` is derived only after host/subdomain resolution
+- only the server-generated value is forwarded
+
+--------------------------------------------------
+
+PART F — DEFENSIVE VALIDATION
+
+--------------------------------------------------
+
+Add explicit validation and logging for:
+
+- direct public request attempting to spoof `X-Tenant-Id`
+- missing trusted-origin marker/header where required
+- malformed tenant header
+- rejected public request due to trust-boundary failure
+
+DO NOT log secrets.
+DO NOT log sensitive tenant data unnecessarily.
+
+--------------------------------------------------
+
+PART G — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Normal public `/network` flow still works through the intended BFF/gateway path
+2. Public provider directory still works
+3. Public referral submission still works
+4. Direct caller spoofing `X-Tenant-Id` is rejected
+5. Missing trusted-origin marker/header is rejected (if applicable)
+6. Malformed tenant header is rejected
+7. No regression in tenant portal or common portal flows
+8. dotnet build succeeds for:
+   - CareConnect
+   - Tenant
+   - Identity
+9. Frontend / Next.js build succeeds if touched
+
+If feasible, add or update automated tests for:
+- spoofed header rejection
+- trusted-path acceptance
+- malformed tenant header rejection
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-SEC-02-02-report.md
+
+# BLK-SEC-02-02 Report
+
+## 1. Summary
+
+## 2. Public Trust Boundary Audit
+- exact path of `X-Tenant-Id`
+- where trust existed before
+- what was fixed
+
+## 3. Trust Boundary Enforcement
+- gateway/BFF/service-layer fix applied
+- why this closes spoofing risk
+
+## 4. CareConnect Public Endpoint Changes
+- what was validated or changed
+
+## 5. Gateway / BFF Changes
+- what was stripped/injected/validated
+
+## 6. Validation Results
+
+## 7. Changed Files
+- full file paths
+
+## 8. Methods / Endpoints Updated
+
+## 9. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 10. Issues / Gaps
+
+--------------------------------------------------
+
+PART I — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-SEC-02-02-commit.diff.txt
+
+--------------------------------------------------
+
+PART I.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-SEC-02-02-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- header trust-boundary enforcement
+- gateway/BFF hardening
+- public route validation
+- spoofed-header rejection
+
+--------------------------------------------------
+
+PART I.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 11. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-SEC-02-02-commit.diff.txt
+- Summary: /analysis/BLK-SEC-02-02-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- public tenant spoofing via `X-Tenant-Id` is no longer possible
+- legitimate public flows still work
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

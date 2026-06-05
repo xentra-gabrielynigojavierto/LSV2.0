@@ -1,0 +1,319 @@
+You are a senior .NET platform engineer, SRE, and security engineer.
+
+Your task is to implement **Phase 2 hardening** for the .NET Documents Service ClamAV subsystem:
+
+# Phase 2 — Signature Freshness Monitoring + Large File Policy
+
+## Primary Goal
+
+Harden the scanning subsystem further by addressing two remaining production risks:
+
+1. **Silent security degradation due to stale ClamAV signatures**
+2. **Unclear or unsafe behavior for large files relative to ClamAV scan limits**
+
+This phase must improve operational visibility and enforce safe file size behavior without weakening the existing fail-closed security posture.
+
+---
+
+## Important Constraints
+
+* Keep the current .NET Documents Service intact and build on top of it
+* Do NOT break existing APIs unnecessarily
+* Preserve clean architecture
+* Preserve existing circuit breaker and retry behavior
+* Preserve fail-closed scanning and access control
+* Keep Node.js service untouched
+* Make real code changes, not just analysis
+* Add analysis/report output
+
+---
+
+## Current Context
+
+The service already has:
+
+* async scan worker
+* durable Redis-backed queue option
+* retry + backoff
+* worker concurrency
+* fail-fast queue saturation handling
+* Prometheus metrics
+* health checks
+* ClamAV circuit breaker
+* quarantine model
+* fail-closed access gating
+
+This phase must add:
+
+* ClamAV signature freshness visibility
+* safe, explicit large-file policy
+
+---
+
+## Required Scope
+
+---
+
+### 1. Signature freshness monitoring
+
+Add visibility into the freshness of ClamAV virus definitions.
+
+## Goal
+
+Detect stale definitions before malware detection quality silently degrades.
+
+## Requirements
+
+Implement the best safe practical version possible.
+
+You may use one or more of these approaches, depending on what is practical in the current environment:
+
+* inspect ClamAV database metadata files if accessible
+* query ClamAV or its host environment for update timestamps
+* surface a documented approximation if exact data is not available
+
+### Must expose:
+
+#### Metric
+
+* `docs_clamav_signature_age_seconds`
+
+#### Health detail
+
+Include in readiness / health response something like:
+
+* last signature update time
+* age in seconds
+* whether stale threshold is exceeded
+
+#### Config
+
+Add config such as:
+
+```json
+{
+  "Scanner": {
+    "ClamAv": {
+      "SignatureMaxAgeHours": 24
+    }
+  }
+}
+```
+
+### Behavior
+
+* if definitions are stale beyond threshold:
+
+  * health should be `Degraded`
+  * log a warning
+* do NOT block uploads solely because signatures are stale
+* do NOT mark scans as failed just because freshness is stale
+* this is an observability and operational safety feature
+
+### Important
+
+If exact signature freshness cannot be determined reliably from the current deployment model, implement the best practical method and document limitations clearly.
+
+---
+
+### 2. Large file handling policy
+
+Implement a strict, explicit file-size policy aligned with the scanning architecture.
+
+## Goal
+
+Prevent files from entering the system when they exceed safe or supported scanning limits.
+
+## Risks to address
+
+* ClamAV stream limits
+* long-running scan timeouts
+* memory/throughput pressure
+* inconsistent upload vs scan behavior
+
+## Requirements
+
+Introduce clear, config-driven limits:
+
+```json
+{
+  "Documents": {
+    "MaxUploadSizeMb": 25
+  },
+  "Scanner": {
+    "ClamAv": {
+      "MaxScannableFileSizeMb": 25
+    }
+  }
+}
+```
+
+### Required behavior
+
+#### API upload layer
+
+* reject files larger than `Documents:MaxUploadSizeMb`
+* return a clear machine-readable error
+* do this as early as practical
+
+#### Scan compatibility layer
+
+* if file size exceeds `MaxScannableFileSizeMb`, reject before enqueueing scan
+* do NOT allow a file that cannot be safely scanned to proceed as if valid
+* do NOT let a too-large file remain indefinitely in `PENDING`
+
+### Error behavior
+
+Add/extend a clear error such as:
+
+* `FILE_TOO_LARGE`
+* or `FILE_EXCEEDS_SCAN_LIMIT`
+
+Use appropriate status code:
+
+* 413 recommended for upload limit breach
+* 422 acceptable for scan-policy rejection if clearly distinguished
+
+### Metrics
+
+Expose metrics for:
+
+* upload rejections due to file size
+* scan-limit rejections due to scanner constraints
+
+Suggested metrics:
+
+* `docs_upload_file_too_large_total`
+* `docs_scan_size_rejected_total`
+
+### Logging
+
+Log size-based rejection events at warning level with:
+
+* correlation ID
+* file size
+* configured limit
+* endpoint/context
+  But do NOT log sensitive content.
+
+---
+
+### 3. Configuration validation
+
+Add startup validation so misconfiguration is caught early.
+
+Examples:
+
+* `MaxScannableFileSizeMb` should not exceed what your ClamAV deployment safely supports
+* `Documents:MaxUploadSizeMb` should not exceed `MaxScannableFileSizeMb` unless explicitly supported by an alternate policy
+* invalid or contradictory configuration should:
+
+  * fail startup
+  * or emit a clear warning if intentionally allowed
+
+Prefer safe startup validation.
+
+---
+
+### 4. Health / metrics integration
+
+Update existing observability surfaces:
+
+#### Health
+
+* `/health`
+* `/health/ready`
+
+#### Metrics
+
+* `/metrics`
+
+Add:
+
+* signature freshness
+* any large-file policy-related metrics
+* useful labels only if justified
+
+Do not overcomplicate metric cardinality.
+
+---
+
+## Implementation Guidance
+
+### Preserve architecture
+
+Keep boundaries clean:
+
+* Infrastructure: ClamAV freshness inspection, metrics
+* Application/API: file size enforcement at upload path
+* Domain: config models / errors only if needed
+
+### Large file enforcement
+
+Make sure policy is enforced consistently for:
+
+* document upload
+* version upload
+
+### Backward compatibility
+
+Preserve API shape where possible, but clear errors are more important than silent behavior.
+
+---
+
+## Suggested Files to Create / Modify
+
+Possible examples:
+
+* `Documents.Infrastructure/Health/ClamAvSignatureHealthCheck.cs`
+* update existing `ClamAvHealthCheck.cs`
+* update `ScanMetrics.cs`
+* update file upload validation path / document service
+* update config options classes
+* update `appsettings.json`
+* add/extend exceptions for file size limit breaches
+
+These are suggestions, not strict requirements.
+
+---
+
+## Deliverable
+
+Create:
+
+`/analysis/dotnet_phase2_signature_and_size.md`
+
+The report must include:
+
+1. Objective
+2. Signature freshness strategy
+3. Large file policy implemented
+4. Config added
+5. Files changed
+6. Metrics/health changes
+7. Error behavior
+8. Verification steps
+9. Limitations / follow-ups
+
+---
+
+## Success Criteria
+
+This phase is successful when:
+
+* stale signature state is observable
+* health and metrics reflect signature age
+* files larger than supported limits are rejected clearly
+* upload and scan limits are consistent
+* configuration is validated safely
+* no unsafe or ambiguous large-file behavior remains
+* fail-closed posture is preserved
+
+---
+
+## Start now
+
+1. inspect the current hardened .NET Documents Service
+2. implement signature freshness monitoring
+3. implement large-file policy enforcement
+4. generate `/analysis/dotnet_phase2_signature_and_size.md`

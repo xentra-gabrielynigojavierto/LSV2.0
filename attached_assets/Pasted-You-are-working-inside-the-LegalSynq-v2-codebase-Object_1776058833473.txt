@@ -1,0 +1,185 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Create a new microservice called "liens" following the existing v2 architecture conventions. This service will be the foundation for the SynqLiens product.
+
+IMPORTANT:
+- Do NOT modify existing services (identity, audit, notifications, documents, fund, careconnect).
+- Do NOT copy any code from v1.
+- Follow the same patterns used by existing services in /apps/services.
+- Ensure everything builds and runs cleanly.
+
+--------------------------------------------------
+STEP 1 — CREATE SERVICE FOLDER STRUCTURE
+--------------------------------------------------
+
+Under:
+apps/services/
+
+Create:
+
+liens/
+  Liens.Api/
+  Liens.Application/
+  Liens.Domain/
+  Liens.Infrastructure/
+
+Follow the same structure and naming conventions as other services (e.g., fund or careconnect).
+
+--------------------------------------------------
+STEP 2 — SETUP PROJECTS
+--------------------------------------------------
+
+For each layer:
+
+Liens.Domain
+- Pure domain layer
+- No external dependencies
+- Add placeholder folder: Entities/
+
+Liens.Application
+- Depends on Domain
+- Add folders:
+  - Interfaces/
+  - Services/
+
+Liens.Infrastructure
+- Depends on Application + Domain
+- Add folders:
+  - Persistence/
+  - Repositories/
+
+Liens.Api
+- Depends on Application + Infrastructure
+- Setup as ASP.NET Core Web API (or match existing service style)
+
+--------------------------------------------------
+STEP 3 — WIRE PROJECT REFERENCES
+--------------------------------------------------
+
+Ensure:
+
+Application → Domain  
+Infrastructure → Application + Domain  
+Api → Application + Infrastructure  
+
+Match how other services are wired.
+
+--------------------------------------------------
+STEP 4 — BASIC API SETUP
+--------------------------------------------------
+
+In Liens.Api:
+
+- Setup Program.cs similar to other services
+- Add:
+  - Controllers support
+  - Dependency Injection placeholder
+  - Logging
+  - Configuration loading
+
+Create:
+
+Controllers/HealthController.cs
+
+Endpoint:
+GET /health
+
+Response:
+{
+  "status": "Liens service is running"
+}
+
+--------------------------------------------------
+STEP 5 — CONFIGURATION
+--------------------------------------------------
+
+Add:
+
+appsettings.json
+
+Include placeholders:
+- ServiceName: "liens"
+- Logging
+- AllowedHosts
+
+Prepare structure for future:
+- Database config (empty placeholder)
+- External services (identity, audit, notifications, documents placeholders)
+
+--------------------------------------------------
+STEP 6 — DEPENDENCY INJECTION PLACEHOLDER
+--------------------------------------------------
+
+Create a simple extension:
+
+/Extensions/ServiceCollectionExtensions.cs
+
+Method:
+AddLiensServices()
+
+Register placeholder services for:
+- Application layer
+- Infrastructure layer
+
+--------------------------------------------------
+STEP 7 — ADD TO SOLUTION / WORKSPACE
+--------------------------------------------------
+
+- Ensure all projects are included in the solution/workspace
+- Ensure build passes
+
+--------------------------------------------------
+STEP 8 — RUN VALIDATION
+--------------------------------------------------
+
+- Build the entire solution
+- Run the Liens.Api service
+- Confirm:
+  - No build errors
+  - Service starts successfully
+  - /health endpoint works
+
+--------------------------------------------------
+STEP 9 — DO NOT IMPLEMENT BUSINESS LOGIC
+--------------------------------------------------
+
+Do NOT add:
+- Case logic
+- Lien logic
+- Database schema
+- Identity integration
+- Gateway routing
+
+This is ONLY scaffolding.
+
+--------------------------------------------------
+STEP 10 — GENERATE REPORT
+--------------------------------------------------
+
+Create a report file:
+
+/analysis/LS-LIENS-01-001-report.md
+
+The report MUST include:
+
+1. Summary of what was created
+2. Folder structure (tree format)
+3. Project references diagram (who depends on what)
+4. Key files created (Program.cs, HealthController, DI setup)
+5. Build result (success/failure)
+6. Run result (did service start?)
+7. Health endpoint test result
+8. Any deviations from instructions
+9. Any assumptions made
+10. Next steps readiness (is service ready for gateway integration?)
+
+Be detailed. This report will be reviewed for validation.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+The goal is to produce a clean, production-ready service skeleton aligned with v2 architecture, ready for the next feature.
+
+Proceed.

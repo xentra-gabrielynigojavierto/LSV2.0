@@ -1,0 +1,271 @@
+Implement Fund service v1 for the LegalSynq .NET monorepo with tenant-scoped CRUD behind Gateway.
+
+Context:
+- Gateway is already working
+- Identity is already working
+- JWT issuance is working
+- Gateway already validates JWTs
+- MySQL on AWS RDS is already being used
+- The monorepo already has the clean architecture pattern used by Identity
+- I want Fund to be the first protected business service behind Gateway
+
+Goal:
+Build Fund service v1 with:
+- .NET 8
+- EF Core
+- MySQL
+- tenant-scoped CRUD
+- JWT claim-based tenant filtering
+- Gateway route forwarding
+
+Scope:
+Only implement the first vertical slice for Fund:
+- Applications
+
+Requirements
+
+1. Create standard Fund service structure
+Create these projects if they do not already exist:
+- apps/services/fund/Fund.Api
+- apps/services/fund/Fund.Application
+- apps/services/fund/Fund.Domain
+- apps/services/fund/Fund.Infrastructure
+
+2. Add project references
+Ensure references follow the same pattern as Identity:
+- Fund.Api references:
+  - Fund.Application
+  - Fund.Infrastructure
+  - Contracts
+  - BuildingBlocks
+- Fund.Application references:
+  - Fund.Domain
+  - Contracts
+  - BuildingBlocks
+- Fund.Infrastructure references:
+  - Fund.Application
+  - Fund.Domain
+  - BuildingBlocks
+
+3. Add NuGet packages
+Add the latest stable .NET 8-compatible packages only where needed:
+- Microsoft.EntityFrameworkCore
+- Microsoft.EntityFrameworkCore.Design
+- Pomelo.EntityFrameworkCore.MySql
+- Microsoft.AspNetCore.Authentication.JwtBearer if needed in Fund.Api
+
+4. Create the first Fund domain entity
+Create entity in Fund.Domain:
+
+Application
+Properties:
+- Id : Guid
+- TenantId : Guid
+- ApplicationNumber : string
+- ApplicantFirstName : string
+- ApplicantLastName : string
+- Email : string
+- Phone : string
+- Status : string
+- CreatedByUserId : Guid
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+Keep Domain clean:
+- no EF attributes
+- UTC timestamps
+- enterprise-friendly naming
+
+5. Create FundDbContext
+In Fund.Infrastructure create:
+- FundDbContext
+
+Map the Application entity using Fluent API only and separate IEntityTypeConfiguration<Application>.
+
+Table name:
+- Applications
+
+Primary key:
+- Id
+
+Indexes:
+- unique on (TenantId, ApplicationNumber)
+- index on (TenantId, Status)
+- index on (TenantId, CreatedAtUtc)
+
+Use sensible column lengths:
+- ApplicationNumber 50
+- ApplicantFirstName 100
+- ApplicantLastName 100
+- Email 320
+- Phone 50
+- Status 50
+
+6. Add appsettings
+In Fund.Api update:
+- appsettings.json
+- appsettings.Development.json
+
+Add:
+- ConnectionStrings:FundDb
+- Jwt configuration section:
+  - Issuer
+  - Audience
+  - SigningKey
+  - ExpiryMinutes
+
+Use placeholder connection string:
+server=localhost;port=3306;database=fund_db;user=root;password=yourpassword
+
+7. Register MySQL and JWT auth in Fund.Api
+In Program.cs:
+- register FundDbContext with MySQL using ServerVersion.AutoDetect
+- configure JWT bearer authentication
+- validate tokens using the same Jwt settings structure as Identity and Gateway
+- add authorization
+- keep startup minimal and clean
+
+8. Add automatic migrations in Development only
+Apply migrations automatically on startup only for Development.
+
+9. Create initial migration
+Create first migration:
+- InitialFundSchema
+
+Place migrations under Fund.Infrastructure in a sensible folder like:
+- Persistence/Migrations
+
+10. Create DTOs
+Create:
+- CreateApplicationRequest
+- ApplicationResponse
+
+CreateApplicationRequest:
+- ApplicantFirstName : string
+- ApplicantLastName : string
+- Email : string
+- Phone : string
+
+ApplicationResponse:
+- Id : Guid
+- TenantId : Guid
+- ApplicationNumber : string
+- ApplicantFirstName : string
+- ApplicantLastName : string
+- Email : string
+- Phone : string
+- Status : string
+- CreatedByUserId : Guid
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+11. Add Application service/use case layer
+Create application-layer abstractions and services for:
+- list applications
+- get application by id
+- create application
+
+Suggested interface:
+- IApplicationService
+
+Behavior:
+- all reads and writes must be tenant-scoped
+- do not allow cross-tenant access
+- do not return EF entities directly
+
+12. Extract tenant and user claims from JWT
+In Fund.Api, extract from authenticated JWT claims:
+- tenant_id
+- sub (user id)
+
+Use those values for all data access.
+
+If claim names differ from Identity implementation, adapt to the actual claim names already being issued.
+
+13. Add endpoints in Fund.Api
+Implement:
+- GET /health
+- GET /info
+- GET /api/applications
+- GET /api/applications/{id}
+- POST /api/applications
+
+Behavior:
+- /health and /info can be public
+- all /api/applications endpoints require authenticated user
+- GET /api/applications returns only applications for the tenant in the token
+- GET /api/applications/{id} returns only if application belongs to the tenant in the token, otherwise return 404
+- POST /api/applications creates an application for the tenant in the token
+
+14. Application creation rules
+When POST /api/applications is called:
+- generate Id as Guid
+- generate ApplicationNumber automatically
+- use TenantId from JWT
+- use CreatedByUserId from JWT
+- set Status = "New"
+- set CreatedAtUtc and UpdatedAtUtc to current UTC time
+
+ApplicationNumber generation:
+Use a simple deterministic-friendly format for now, such as:
+- APP-yyyyMMdd-HHmmss-<shortGuid>
+Keep it simple and unique enough for v1.
+
+15. Add consistent responses
+Use DTOs and clean JSON.
+Do not expose internal EF tracking or domain internals.
+Keep responses similar in style to Identity.
+
+16. Add Gateway route forwarding for Fund
+Update Gateway so it proxies Fund routes.
+
+Requirements:
+- add /fund/{**catch-all} -> Fund service
+- Fund service base URL in Development should be http://localhost:5002
+- /fund/health and /fund/info can be anonymous
+- /fund/api/applications routes require authenticated JWT
+- Gateway should continue validating JWT locally before forwarding
+
+17. Configure Fund service port
+Set Fund.Api to run on:
+- 5002
+
+18. Update dev run script
+Update the root dev script so it starts:
+- Identity.Api on 5001
+- Gateway.Api on 5000
+- Fund.Api on 5002
+
+19. Do NOT add yet
+Do not implement:
+- underwriting
+- contracts
+- servicing
+- payments
+- document integration
+- notifications
+- role-based policies beyond authenticated access
+- advanced validation frameworks
+- Swagger aggregation
+- MediatR unless already established and necessary
+
+20. Output required
+After implementation, output:
+- files created and updated
+- package commands used
+- migration commands used
+- how to update Fund connection string
+- how to run all three services
+- sample curl commands for:
+  - login through Gateway
+  - create application through Gateway
+  - list applications through Gateway
+  - get one application through Gateway
+
+Important implementation guidance:
+- keep code minimal, clean, and production-minded
+- preserve clean architecture boundaries
+- use async EF Core access
+- use UTC everywhere
+- keep tenant isolation strict
+- do not break existing Identity or Gateway behavior

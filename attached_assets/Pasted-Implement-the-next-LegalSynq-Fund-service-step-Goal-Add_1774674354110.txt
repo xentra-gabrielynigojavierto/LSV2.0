@@ -1,0 +1,231 @@
+Implement the next LegalSynq Fund service step:
+
+Goal:
+Add:
+1. Fund update endpoint
+2. domain validation
+3. standardized exception handling
+
+Context:
+- Gateway is already working
+- Identity is already working
+- JWT issuance and validation are working
+- Fund service v1 already exists
+- Fund currently supports tenant-scoped create/list/get for Applications
+- Role-based authorization, tenant context, and audit field standardization are already in place
+- Current authenticated claims include tenant and user context
+- Fund is behind Gateway at /fund/{**catch-all}
+
+Important:
+Keep the implementation minimal, clean, production-minded, and consistent with the current architecture.
+
+==================================================
+PART 1 — UPDATE APPLICATION ENDPOINT
+==================================================
+
+1. Add a new endpoint
+Implement:
+- PUT /api/applications/{id}
+
+Behavior:
+- requires authenticated user
+- only PlatformAdmin or TenantAdmin can update
+- application must be tenant-scoped
+- if application does not belong to tenant in token, return 404
+- update only allowed fields for now:
+  - ApplicantFirstName
+  - ApplicantLastName
+  - Email
+  - Phone
+  - Status
+
+2. Add request/response DTOs
+Create:
+- UpdateApplicationRequest
+- reuse ApplicationResponse
+
+UpdateApplicationRequest fields:
+- ApplicantFirstName : string
+- ApplicantLastName : string
+- Email : string
+- Phone : string
+- Status : string
+
+3. Update behavior
+When updating:
+- keep Id unchanged
+- keep TenantId unchanged
+- keep ApplicationNumber unchanged
+- keep CreatedAtUtc unchanged
+- keep CreatedByUserId unchanged
+- update UpdatedAtUtc automatically
+- update UpdatedByUserId automatically using current request context
+
+==================================================
+PART 2 — DOMAIN VALIDATION
+==================================================
+
+4. Add validation at the application/domain boundary
+Implement validation for create and update operations.
+
+Validation rules for CreateApplicationRequest:
+- ApplicantFirstName required, max 100
+- ApplicantLastName required, max 100
+- Email required, max 320, must look like valid email
+- Phone required, max 50
+- Status should not be supplied on create by client; service still sets it to "New"
+
+Validation rules for UpdateApplicationRequest:
+- ApplicantFirstName required, max 100
+- ApplicantLastName required, max 100
+- Email required, max 320, must look like valid email
+- Phone required, max 50
+- Status required, max 50
+- Status must be one of:
+  - New
+  - InReview
+  - Approved
+  - Rejected
+  - Funded
+
+5. Keep validation simple
+Do NOT add FluentValidation yet unless absolutely necessary.
+Use clean manual validation or a small internal validator pattern consistent with the current architecture.
+
+6. Validation error behavior
+Validation failures should return HTTP 400 with a clean JSON response containing:
+- error code or type
+- message
+- validation details when relevant
+
+Do not return raw framework exception dumps.
+
+==================================================
+PART 3 — STANDARDIZED EXCEPTION HANDLING
+==================================================
+
+7. Add a shared exception handling pattern
+Create a reusable exception handling approach using shared/building-blocks if appropriate.
+
+Add custom exceptions such as:
+- NotFoundException
+- ValidationException
+- ForbiddenException (only if needed)
+- UnauthorizedException (only if needed)
+
+Do not over-engineer this. Keep it simple and reusable.
+
+8. Add centralized exception middleware or equivalent
+Implement one centralized exception handling layer in Fund.Api.
+
+Map exceptions to HTTP responses:
+- ValidationException -> 400
+- NotFoundException -> 404
+- UnauthorizedException -> 401 if used
+- ForbiddenException -> 403 if used
+- unexpected exceptions -> 500
+
+Response shape should be consistent and production-minded, for example:
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Validation failed.",
+    "details": {
+      "email": ["Email is required."]
+    }
+  }
+}
+
+For not found:
+{
+  "error": {
+    "code": "not_found",
+    "message": "Application was not found."
+  }
+}
+
+For unexpected errors:
+{
+  "error": {
+    "code": "server_error",
+    "message": "An unexpected error occurred."
+  }
+}
+
+9. Refactor current Fund endpoints to use the new exception pattern
+Do not leave scattered inline error formatting if centralized handling is added.
+
+==================================================
+PART 4 — APPLICATION SERVICE REFACTOR
+==================================================
+
+10. Refactor Fund application service/use case layer
+Ensure the create, get, list, and update flows use:
+- ICurrentRequestContext
+- domain validation
+- standardized exceptions
+- tenant-scoped queries
+
+11. Keep tenant isolation strict
+For get/update:
+- query by Id + TenantId
+- return 404 when not found within tenant scope
+
+==================================================
+PART 5 — AUTHORIZATION RULES
+==================================================
+
+12. Authorization requirements
+Keep these rules:
+- GET /health -> anonymous
+- GET /info -> anonymous
+- GET /api/applications -> AuthenticatedUser
+- GET /api/applications/{id} -> AuthenticatedUser
+- POST /api/applications -> PlatformOrTenantAdmin
+- PUT /api/applications/{id} -> PlatformOrTenantAdmin
+
+==================================================
+PART 6 — OUTPUT AND TESTING
+==================================================
+
+13. Output required
+After implementation, output:
+- files created/updated
+- what was added for validation
+- what exception types were added
+- how the middleware works
+- sample requests and expected responses
+
+14. Test scenarios to support
+Support these scenarios:
+
+A. Valid create by PlatformAdmin -> success
+B. Valid update by PlatformAdmin -> success
+C. Valid update by TenantAdmin -> success
+D. Update by StandardUser -> 403
+E. Update missing required fields -> 400 with validation details
+F. Update with invalid status -> 400
+G. Update unknown application id -> 404
+H. Get application outside tenant scope -> 404
+I. Unexpected errors -> 500 with safe message
+
+15. Do NOT add yet
+Do not implement:
+- delete endpoint
+- pagination
+- advanced search/filtering
+- MediatR unless already present
+- Swagger aggregation
+- documents integration
+- notifications integration
+- payments integration
+- full workflow engine
+
+16. Code quality expectations
+- clean namespaces
+- async database access
+- reusable shared patterns where sensible
+- minimal duplication
+- enterprise-ready naming
+- UTC timestamps everywhere
+- no breaking changes to existing working login, gateway, or create/list/get flows

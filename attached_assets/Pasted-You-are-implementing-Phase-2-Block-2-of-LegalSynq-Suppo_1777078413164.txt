@@ -1,0 +1,230 @@
+You are implementing Phase 2 Block 2 of LegalSynq Support Service Operational Integrations.
+
+FEATURE ID:
+SUP-INT-06
+
+FEATURE NAME:
+Product Context Deep Links
+
+Report file:
+ /analysis/SUP-INT-06-report.md
+
+PRIMARY OBJECTIVE:
+Enable Support tickets to reference and deep-link to platform product records (Liens, Fund, CareConnect, etc.) in a way that is tenant-safe, loosely coupled, and forward-compatible.
+
+IMPORTANT CONTEXT:
+- Phase 1 complete (platform integration)
+- SUP-INT-05 complete (Notifications + Audit live wiring)
+- Support already has basic product reference capability (from SUP-B03), but this must now be aligned to platform-level deep linking and UI navigation
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT tightly couple Support to any product service schema.
+3. DO NOT introduce direct service-to-service dependencies (no hard API contracts to Liens/Fund/etc).
+4. DO NOT fetch product data from Support service.
+5. DO NOT break tenant isolation.
+6. DO NOT inject X-Tenant-Id.
+7. DO NOT store product data snapshots in Support.
+8. DO NOT modify Support core domain models unless absolutely necessary.
+9. DO NOT add Comms/email/chat.
+10. DO NOT add SLA or Task integration.
+11. DO NOT hardcode URLs.
+12. Preserve standalone Support behavior.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-INT-06-report.md
+
+Update incrementally.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Existing product reference model (SUP-B03)
+3. Product identification strategy
+4. Deep link strategy
+5. UI integration approach
+6. Files changed
+7. Data model changes (if any)
+8. Tenant safety validation
+9. Validation results
+10. Build/test results
+11. Known gaps/deferred items
+
+STEP 2 — CODEBASE ANALYSIS:
+Identify and document:
+- Existing ticket product reference fields/tables
+- How product references are currently stored (if any)
+- Existing UI support for product references
+- Existing platform routing patterns (Liens, Fund, CareConnect)
+- URL structure for each product (from frontend apps)
+- How tenant context is preserved across product navigation
+
+DO NOT implement until documented.
+
+STEP 3 — PRODUCT REFERENCE MODEL ALIGNMENT:
+
+Goal: Normalize how Support references external product records.
+
+Ensure Support uses a **generic reference model**, such as:
+
+- productKey (string) → e.g. "liens", "fund", "careconnect"
+- entityType (string) → e.g. "case", "account", "patient"
+- entityId (string) → ID of record in that service
+- entityNumber (optional display identifier)
+- metadata (optional JSON)
+
+If already present:
+- validate and standardize naming
+- do NOT redesign unnecessarily
+
+If minimal extension required:
+- add only non-breaking fields
+
+DO NOT:
+- add foreign keys
+- add cross-service joins
+- replicate product schemas
+
+STEP 4 — DEEP LINK STRATEGY:
+
+Define and implement a **pure URL-based deep link model**
+
+Each product reference must be convertible to a URL.
+
+Example pattern:
+
+- Liens:
+  /liens/cases/{id}
+
+- Fund:
+  /fund/accounts/{id}
+
+- CareConnect:
+  /care/patients/{id}
+
+Implementation:
+- Add a lightweight mapping layer:
+  productKey + entityType → route template
+
+Example:
+{
+  "liens.case": "/liens/cases/{id}",
+  "fund.account": "/fund/accounts/{id}",
+  "careconnect.patient": "/care/patients/{id}"
+}
+
+Replace {id} with entityId.
+
+This mapping must:
+- live in UI layer OR shared config
+- NOT be embedded in Support backend logic (except optional metadata passthrough)
+
+STEP 5 — BACKEND ADJUSTMENTS (MINIMAL):
+
+Support backend should:
+- accept product reference data when creating/updating tickets
+- store references only (no validation against product service)
+- return references in ticket response
+
+Optional:
+- validate presence of required fields (productKey, entityId)
+- validate format only (not existence)
+
+DO NOT:
+- call Liens/Fund/CareConnect APIs
+- enforce referential integrity
+
+STEP 6 — UI INTEGRATION:
+
+Update UI (Control Center + Web app):
+
+For each ticket:
+- display product references
+- show:
+  - product name
+  - entity type
+  - entity identifier
+
+Add:
+- clickable deep link
+- opens corresponding product page
+
+Use platform routing:
+- relative paths (e.g. `/liens/cases/{id}`)
+- do not hardcode hostnames
+
+Optional:
+- open in new tab or same tab based on platform standard
+
+STEP 7 — TENANT SAFETY:
+
+Ensure:
+- deep links do not bypass tenant isolation
+- navigation relies on existing platform auth/session
+- user must already have access to target product
+
+Support must NOT:
+- enforce cross-product permissions
+- assume access
+
+STEP 8 — AUDIT / NOTIFICATIONS ALIGNMENT:
+
+Ensure:
+- product reference data is included in:
+  - audit metadata
+  - notification payloads (if already supported)
+
+Do not redesign event contracts.
+
+STEP 9 — VALIDATION:
+
+Validate:
+
+1. Ticket can store product reference
+2. Ticket response returns product reference
+3. UI displays product reference correctly
+4. Deep link resolves to correct route
+5. No direct API calls to product services
+6. Tenant context preserved
+7. Existing ticket flows unaffected
+
+STEP 10 — BUILD / TEST:
+
+Run:
+- dotnet build Support.Api
+- dotnet build Gateway.Api if touched
+- frontend build (web + control center)
+- existing tests if present
+
+STEP 11 — FINAL REPORT:
+
+# SUP-INT-06 Report
+
+## 1. Codebase Analysis
+## 2. Existing Product Reference Model
+## 3. Product Identification Strategy
+## 4. Deep Link Strategy
+## 5. Backend Adjustments
+## 6. UI Integration
+## 7. Tenant Safety Validation
+## 8. Audit / Notification Alignment
+## 9. Files Created / Changed
+## 10. Validation Results
+## 11. Build / Test Results
+## 12. Known Gaps / Deferred Items
+## 13. Final Readiness Assessment
+
+DONE CRITERIA:
+- Tickets support product references using generic model
+- UI displays product references
+- Deep links navigate correctly to product pages
+- No cross-service coupling introduced
+- No product API calls added in Support
+- Tenant isolation preserved
+- No domain schema regression
+- Builds pass
+- /analysis/SUP-INT-06-report.md complete
+
+If any validation fails:
+- do not claim success
+- document blocker and root cause

@@ -1,0 +1,240 @@
+Project: E11.1
+Title: Task Entity Model — First-Class Workflow Work Item
+
+You are implementing the next core platform phase for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around how tasks relate to WorkflowInstance, StepKey usage, assignment placeholders, and any alignment with existing tenant/audit conventions.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - database schema changes
+   - entity/model structure
+   - indexing decisions
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for E11.2 or needs iteration
+
+REPORT FORMAT
+
+# E11.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Task Entity Model Notes
+## Status Model Notes
+## Indexing Notes
+## Persistence / Migration Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Introduce a first-class Task entity into the Flow platform that represents user work derived from workflow execution. This phase is strictly foundational and must not change workflow behavior or introduce execution logic.
+
+Tasks must be durable, tenant-scoped, assignment-capable, and linked to WorkflowInstance and workflow steps.
+
+SCOPE INCLUDES
+
+- Task entity/domain model
+- database schema + migration
+- relationship to WorkflowInstance
+- relationship to workflow step (StepKey or equivalent)
+- task status model
+- assignment fields (user/role/org placeholders)
+- indexing for future queries
+- FlowDbContext integration
+- documentation/reporting
+
+DO NOT BUILD
+
+- task creation logic from workflows
+- assignment rules or routing logic
+- task APIs (beyond minimal test if needed)
+- task UI
+- task notifications
+- task SLA
+- task → workflow progression binding
+- admin task actions
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep WorkflowInstance as execution authority
+- model Task as a separate work item layer
+- ensure tasks are tenant-scoped
+- ensure tasks are queryable and extensible
+- avoid introducing workflow mutations
+- avoid touching E10.2 outbox logic
+- avoid touching E10.3 SLA logic
+
+CURRENT CONTEXT
+
+Already completed:
+- workflow engine (E1–E5)
+- admin actions (E10.1)
+- outbox + async (E10.2)
+- SLA / timer engine (E10.3)
+
+This phase introduces the human work layer on top of that foundation.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. TASK ENTITY
+
+Create a Task entity with fields equivalent to:
+
+- Id
+- TenantId
+- WorkflowInstanceId (required)
+- StepKey (required)
+- Title
+- Description (optional)
+- Status (required)
+- Priority (optional, safe default if included)
+- AssignedUserId (nullable)
+- AssignedRole (nullable)
+- AssignedOrgId (nullable)
+- CreatedAt
+- CreatedBy
+- UpdatedAt
+- UpdatedBy
+- StartedAt (nullable)
+- CompletedAt (nullable)
+- CancelledAt (nullable)
+- CorrelationKey or ExternalReference (optional)
+- MetadataJson (optional if platform supports safely)
+
+Requirements:
+- Task must be tenant-scoped
+- Task must not require assignment to exist
+- Task must support future extension without schema redesign
+
+2. TASK STATUS MODEL
+
+Define a status model with at least:
+
+- Open
+- InProgress
+- Completed
+- Cancelled
+
+Requirements:
+- use string constants (align with existing Flow patterns)
+- keep it simple and extensible
+- document status values clearly
+
+3. RELATIONSHIP TO WORKFLOW
+
+Requirements:
+- Task must reference WorkflowInstanceId
+- Task must reference StepKey
+- multiple tasks must be supported per workflow over time
+- do NOT modify WorkflowInstance behavior in this phase
+
+4. ASSIGNMENT FIELDS
+
+Requirements:
+- include AssignedUserId
+- include AssignedRole
+- include AssignedOrgId
+- all nullable in this phase
+- no assignment logic yet
+
+5. INDEXING
+
+Add indexes to support future queries:
+
+At minimum:
+- TenantId + Status
+- TenantId + AssignedUserId + Status
+- WorkflowInstanceId
+- TenantId + AssignedRole + Status
+
+Requirements:
+- document indexing decisions
+- avoid over-indexing
+
+6. PERSISTENCE
+
+Requirements:
+- add entity configuration to EF
+- add to FlowDbContext
+- generate migration
+- ensure naming aligns with Flow conventions
+- ensure compatibility with tenant filtering patterns
+
+7. DOMAIN RULES (MINIMAL)
+
+Enforce only safe invariants:
+
+- WorkflowInstanceId required
+- StepKey required
+- Status required
+- TenantId required
+- if CompletedAt set → Status must be Completed
+- if CancelledAt set → Status must be Cancelled
+
+Do NOT implement full lifecycle logic yet.
+
+8. NON-INTERFERENCE
+
+You MUST confirm:
+
+- workflow engine behavior unchanged
+- admin actions unchanged
+- outbox behavior unchanged
+- SLA evaluator unchanged
+
+VALIDATION REQUIREMENTS
+
+Domain / Schema
+- migration runs successfully
+- table created
+- indexes created
+
+Persistence
+- entity can be created/read in dev/test
+- tenant scoping works
+
+Platform Stability
+- solution builds
+- no regression in workflow APIs
+- background workers still run
+
+Documentation
+- task model documented
+- status model documented
+- assignment placeholders documented
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E11.1-report.md
+2. Add Task entity model
+3. Add EF configuration + indexes
+4. Add to FlowDbContext
+5. Generate migration
+6. Validate build and runtime
+7. Finalize report
+
+SUCCESS CONDITION
+
+- Task entity exists and is persisted
+- Proper linkage to WorkflowInstance and StepKey
+- Assignment fields exist
+- Status model defined
+- Indexes support future task queries
+- No regression in platform behavior
+
+FAILURE CONDITION
+
+- Task alters workflow execution behavior
+- Assignment logic is prematurely implemented
+- Schema is incomplete or not extensible
+- Platform stability is impacted

@@ -1,0 +1,343 @@
+```text
+# LS-ID-TNT-017-001 — Permission Change Audit
+
+## FEATURE OBJECTIVE
+
+Implement a foundational audit layer to track all **permission-related changes** across the platform, including:
+- role assignments
+- role removals
+- permission mapping changes
+- product access changes
+- group membership changes (if they affect permissions)
+
+This feature establishes the **authoritative audit trail** required for:
+- compliance
+- governance
+- operational traceability
+- future audit UI (LS-ID-TNT-017-004)
+
+This is a **backend-first audit capture feature**. It does NOT include full audit UI or reporting yet.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current system:
+- authorization model is complete
+- UI + backend enforcement is complete
+- real-time sync is complete
+
+Missing:
+- **traceability**
+
+Right now:
+- changes happen
+- but there is no persistent record of:
+  - who made the change
+  - what changed
+  - when it changed
+  - what the previous state was
+
+This is required for:
+- enterprise compliance
+- debugging access issues
+- operational trust
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- full audit UI (that is LS-ID-TNT-017-004)
+- analytics/reporting dashboards
+- event streaming infrastructure
+- external logging platforms (Datadog, etc.)
+- audit for non-permission domains (cases, financials, etc.)
+- ABAC/policy engine
+- speculative fields not grounded in current data
+
+ONLY IMPLEMENT:
+- audit data model (DB)
+- audit capture hooks in permission-changing services
+- consistent audit event schema
+- minimal backend utilities for logging audit entries
+- report-first implementation
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental governance feature on top of:
+- LS-ID-TNT-001 → LS-ID-TNT-015-008 (full identity + authorization + sync)
+- LS-ID-TNT-022-001 → 022-003 (Insights authorization complete)
+
+This feature MUST:
+- be incremental (NO rewrites)
+- reuse existing services (UserRoleAssignmentService, etc.)
+- capture audit events at the **point of mutation**
+- avoid duplicating logic across services
+- ensure no performance degradation
+- NOT block main operations if audit logging fails (fail-safe design)
+- maintain strict tenant isolation
+- include explicit fallback/error handling
+- document exact coverage of audit capture
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-001-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-001 — Permission Change Audit
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Permission Mutation Surface Inventory
+## 4. Audit Data Model Design
+## 5. Audit Event Schema
+## 6. Capture Strategy
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Verification / Testing Results
+## 10. Known Issues / Gaps
+## 11. Final Status
+
+---
+
+## STEP 1 — IDENTIFY ALL PERMISSION-CHANGING SURFACES
+
+Inspect backend services and enumerate ALL mutation points.
+
+You MUST identify:
+
+### User-level changes
+- UserRoleAssignmentService
+- UserProductAccessService
+
+### Group-level changes
+- GroupMembershipService
+- GroupRoleAssignmentService
+
+### Tenant-level changes
+- TenantProductEntitlementService
+
+### Role/permission mapping (if present)
+- where role → permission assignments are modified
+
+For each:
+- method name
+- what changes
+- which entities are affected
+- whether batch or single-user
+
+Update report:
+## 3. Permission Mutation Surface Inventory
+
+---
+
+## STEP 2 — DESIGN AUDIT DATA MODEL
+
+Create a dedicated audit table.
+
+### Table: `idt_AuditLogs` (or equivalent)
+
+Required fields:
+
+| Field | Type | Description |
+|------|------|-------------|
+| Id | GUID / BIGINT | Primary key |
+| TenantId | GUID | Tenant scope |
+| ActorUserId | GUID | Who made the change |
+| TargetUserId | GUID (nullable) | User affected |
+| ActionType | string | e.g. ROLE_ASSIGNED |
+| EntityType | string | USER / GROUP / TENANT |
+| EntityId | GUID | ID of affected entity |
+| Changes | JSON | Before/After snapshot |
+| TimestampUtc | datetime | Event time |
+| CorrelationId | string | Optional request trace |
+
+Requirements:
+- JSON must capture **before and after state**
+- table must be indexed on TenantId + Timestamp
+- ensure no cross-tenant leakage
+
+Update report:
+## 4. Audit Data Model Design
+
+---
+
+## STEP 3 — DEFINE STANDARD AUDIT EVENT TYPES
+
+Define canonical event names:
+
+Examples:
+- USER_ROLE_ASSIGNED
+- USER_ROLE_REMOVED
+- USER_PRODUCT_ADDED
+- USER_PRODUCT_REMOVED
+- GROUP_ROLE_ASSIGNED
+- GROUP_ROLE_REMOVED
+- GROUP_MEMBER_ADDED
+- GROUP_MEMBER_REMOVED
+- TENANT_PRODUCT_ENABLED
+- TENANT_PRODUCT_DISABLED
+
+Each event must:
+- be consistent across services
+- map 1:1 to real mutation actions
+
+Update report:
+## 5. Audit Event Schema
+
+---
+
+## STEP 4 — IMPLEMENT AUDIT LOGGING UTILITY
+
+Create a shared service:
+
+### `IAuditService`
+Methods:
+- `LogAsync(AuditEvent event)`
+
+Implementation:
+- writes to `idt_AuditLogs`
+- wraps DB write in try/catch (fail-safe)
+
+Requirements:
+- must NOT throw if logging fails
+- must NOT block main transaction
+- must be lightweight
+
+---
+
+## STEP 5 — INSTRUMENT PERMISSION MUTATION SERVICES
+
+Inject audit logging into each mutation service.
+
+### Example pattern:
+
+Before:
+```
+
+assign role → save changes
+
+```
+
+After:
+```
+
+capture before state
+perform mutation
+capture after state
+auditService.LogAsync(...)
+
+```
+
+Requirements:
+- capture minimal but meaningful diffs
+- avoid large payloads
+- support both single and batch operations
+- batch operations should log per-user or summarized (document choice)
+
+Update report:
+## 8. Backend Implementation
+
+---
+
+## STEP 6 — HANDLE BATCH OPERATIONS
+
+For:
+- GroupRoleAssignmentService
+- TenantProductEntitlementService
+
+Decide:
+- log per affected user (detailed)
+OR
+- log summarized event
+
+Preferred:
+- per-user logging for traceability (unless performance constraints)
+
+Document clearly.
+
+---
+
+## STEP 7 — ENSURE FAIL-SAFE DESIGN
+
+Audit must NEVER break main flow.
+
+Requirements:
+- wrap audit logging in try/catch
+- log internal errors (console/logger)
+- continue execution
+
+---
+
+## STEP 8 — VERIFY TENANT ISOLATION
+
+Ensure:
+- TenantId is always captured
+- queries cannot mix tenants
+- audit entries respect same isolation model
+
+---
+
+## STEP 9 — TESTING / VERIFICATION
+
+Test scenarios:
+
+### Role changes
+- assign role → audit record created
+- remove role → audit record created
+
+### Product access
+- add/remove product → audit logged
+
+### Group changes
+- add/remove member → audit logged
+- assign/remove group role → audit logged
+
+### Tenant changes
+- enable/disable product → audit logged
+
+### Failure case
+- simulate audit write failure → main operation still succeeds
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 10. Known Issues / Gaps
+## 11. Final Status = Complete
+
+---
+
+## SUCCESS CRITERIA
+
+✔ All permission-changing actions are captured  
+✔ Audit schema is consistent and structured  
+✔ Before/after state is recorded  
+✔ Logging is fail-safe (non-blocking)  
+✔ Tenant isolation preserved  
+✔ No regression to existing authorization flows  
+✔ System performance unaffected  
+
+---
+
+## FINAL DELIVERABLES
+
+1. `idt_AuditLogs` table (or equivalent)
+2. `IAuditService` implementation
+3. Audit hooks in all mutation services
+4. Completed report:
+/analysis/LS-ID-TNT-017-001-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

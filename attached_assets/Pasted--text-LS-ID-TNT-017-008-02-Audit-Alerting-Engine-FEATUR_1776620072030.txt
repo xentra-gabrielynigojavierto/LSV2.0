@@ -1,0 +1,508 @@
+```text
+# LS-ID-TNT-017-008-02 — Audit Alerting Engine
+
+## FEATURE OBJECTIVE
+
+Implement an **Audit Alerting Engine** that converts anomaly detection results into actionable alert records and delivery events so the platform can move from passive detection to active response.
+
+This feature should:
+- evaluate anomaly results from LS-ID-TNT-017-008-01
+- create durable alert records
+- prevent duplicate alert storms for the same condition
+- track alert lifecycle state
+- surface active/resolved alerts in Control Center
+- optionally dispatch notifications through the existing platform notification mechanisms if they already fit cleanly
+
+This is an **alert generation + lifecycle feature**, not a full incident-management suite.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- audit capture is complete
+- audit viewer is complete
+- correlation is complete
+- analytics is complete
+- anomaly detection is complete
+
+What is missing:
+- anomaly signals are visible only when someone opens the anomaly UI
+- there is no durable record of an active alert
+- there is no workflow for acknowledging/resolving alert conditions
+- there is no mechanism to notify operators when a high-severity anomaly appears
+
+This feature closes the loop from:
+- detection
+to
+- operational action
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- full incident case management
+- escalations across org charts
+- on-call scheduling
+- Slack/email/SMS integrations unless a clean existing platform notification path already exists
+- user-configurable alert rule builder
+- ML-driven alert scoring
+- suppression policies beyond simple dedup/cooldown
+- broad notification redesign
+- external paging tools
+
+ONLY IMPLEMENT:
+- persistent alert records
+- deterministic alert creation from anomaly rules
+- alert deduplication/cooldown logic
+- alert status lifecycle
+- backend query/update support for alerts
+- Control Center alert UI
+- minimal notification dispatch only if the existing notification infrastructure can be reused cleanly
+- report-first implementation and honest documentation of supported behavior
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental audit intelligence feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-002 — User Access Audit
+- LS-ID-TNT-017-002-01 — Selective Successful Access Audit
+- LS-ID-TNT-017-003 — Governance Mutation Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-017-006 — Audit Correlation Engine
+- LS-ID-TNT-017-008 — Audit Analytics
+- LS-ID-TNT-017-008-01 — Audit Anomaly Detection
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing audit ingestion, viewer, correlation, analytics, and anomaly behavior
+- validate the actual anomaly service and existing notification capabilities before designing alert dispatch
+- reuse existing query/authorization architecture where possible
+- keep tenant/platform isolation intact
+- preserve performance through bounded evaluation and deduplication
+- NOT introduce placeholder logic
+- document exact alert lifecycle behavior and deduplication rules
+- prefer a small, reliable v1 alert engine over an overbuilt incident platform
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-008-02-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-008-02 — Audit Alerting Engine
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Anomaly / Notification Capability Analysis
+## 4. Alert Use Case Inventory
+## 5. Alert Model Design
+## 6. Alert Lifecycle / Deduplication Rules
+## 7. Query / API Strategy
+## 8. Files Changed
+## 9. Backend Implementation
+## 10. Frontend / UI Implementation
+## 11. Verification / Testing Results
+## 12. Known Issues / Gaps
+## 13. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL ANOMALY AND NOTIFICATION MODEL
+
+Inspect the real codebase and document:
+
+### Existing anomaly capability
+- where LS-ID-TNT-017-008-01 anomaly rules are implemented
+- how anomaly DTOs are shaped
+- what identifiers each anomaly includes
+- whether anomaly results are currently recomputed on every request only
+- whether anomalies have any durable ID/state today
+
+### Existing notification capability
+Validate whether the platform already has any reusable notification infrastructure:
+- notifications service
+- email dispatch abstraction
+- in-app notification model
+- audit/export/admin notification patterns
+- any queue/event dispatch already present
+
+### Existing governance/ops UI patterns
+- whether Control Center already has list/detail/status-management patterns for operational records
+- whether there is an alerts-like component pattern already present
+
+Do NOT assume notifications are available or appropriate until validated.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Anomaly / Notification Capability Analysis
+
+---
+
+## STEP 2 — DEFINE THE REAL ALERT USE CASES
+
+Identify the practical alerting scenarios for v1.
+
+At minimum validate:
+- high-severity anomaly should create an alert record
+- repeated detection of the same anomaly should not create duplicate open alerts every query
+- operators need to acknowledge and resolve alerts
+- resolved alerts may re-open or recreate if the anomaly recurs later
+- platform admins may need cross-tenant alert visibility
+- tenant-scoped callers should only see tenant alerts where applicable
+
+For each use case:
+- define the operator problem
+- define what alert record should exist
+- define whether notification is required or optional
+- prioritize what belongs in v1
+
+Update report:
+## 4. Alert Use Case Inventory
+
+---
+
+## STEP 3 — DESIGN THE ALERT DATA MODEL
+
+Design a durable alert record model.
+
+Minimum suggested fields (adapt to actual architecture if a platform-standard alert model exists):
+
+| Field | Description |
+|------|-------------|
+| AlertId | public ID |
+| RuleKey | anomaly rule that triggered |
+| ScopeType | Platform / Tenant |
+| TenantId | nullable when truly platform-wide |
+| Severity | Low / Medium / High |
+| Status | Open / Acknowledged / Resolved |
+| Title | short human-readable alert title |
+| Description | human-readable reason |
+| Fingerprint | deterministic dedup key |
+| FirstDetectedAtUtc | first time alert condition seen |
+| LastDetectedAtUtc | latest time alert condition seen |
+| DetectionCount | number of times detected while active |
+| ContextJson | actor / eventType / tenant / metrics / thresholds |
+| RelatedInvestigationUrl or QueryHint | optional drill-down hint |
+| AcknowledgedAtUtc / AcknowledgedBy | nullable |
+| ResolvedAtUtc / ResolvedBy | nullable |
+
+Requirements:
+- use the smallest durable model that supports lifecycle
+- keep payload viewer-friendly
+- do not store secrets
+- make deduplication possible via a deterministic fingerprint
+
+If an existing alert/notification table already exists and fits, reuse it and document why.
+
+Update report:
+## 5. Alert Model Design
+
+---
+
+## STEP 4 — DEFINE ALERT LIFECYCLE AND DEDUPLICATION RULES
+
+Implement a clear lifecycle.
+
+Minimum statuses:
+- Open
+- Acknowledged
+- Resolved
+
+You must define:
+- when a new alert is created
+- when an existing alert is updated instead of duplicated
+- whether repeated detections increment `DetectionCount`
+- when an alert can be auto-resolved or must be manually resolved
+- whether recurrence after resolution creates a new alert or reopens an old one
+- what cooldown/suppression logic exists
+
+Recommended v1 behavior:
+- open alert created on first anomaly detection
+- same anomaly fingerprint while unresolved updates `LastDetectedAtUtc` + `DetectionCount`
+- user may acknowledge or resolve manually
+- if anomaly reappears after resolution outside a cooldown window, create a new alert
+
+Document exact rules and keep them deterministic.
+
+Update report:
+## 6. Alert Lifecycle / Deduplication Rules
+
+---
+
+## STEP 5 — CHOOSE THE ALERT GENERATION STRATEGY
+
+Determine how alerts are created from anomaly results.
+
+Possible approaches:
+- on-demand anomaly evaluation endpoint also upserts alerts
+- dedicated backend evaluation service invoked explicitly by the UI/admin
+- scheduled evaluation job if the codebase already supports scheduled tasks cleanly
+
+Preferred default:
+- **backend evaluation service with explicit endpoint**, unless there is already a scheduler pattern worth reusing cleanly
+
+Requirements:
+- avoid creating alerts on every page load without deduplication
+- avoid expensive always-on background infrastructure unless clearly justified
+- keep evaluation bounded to the same anomaly windows already defined
+- make the strategy explainable and testable
+
+Document:
+- how alerts are generated
+- what triggers generation
+- how often it can run
+- why the chosen mechanism fits the current architecture
+
+Update report:
+## 6. Alert Lifecycle / Deduplication Rules
+## 7. Query / API Strategy
+
+---
+
+## STEP 6 — IMPLEMENT BACKEND ALERT STORAGE + GENERATION SUPPORT
+
+Add the minimal backend support needed.
+
+Possible components:
+- alert entity + EF configuration + migration
+- `IAuditAlertService`
+- anomaly-to-alert evaluation/upsert logic
+- query endpoints for active/history alerts
+- mutation endpoints for acknowledge/resolve actions
+
+Possible endpoints (choose the smallest coherent set):
+- `POST /audit/analytics/alerts/evaluate`
+- `GET /audit/analytics/alerts`
+- `GET /audit/analytics/alerts/{id}`
+- `POST /audit/analytics/alerts/{id}/acknowledge`
+- `POST /audit/analytics/alerts/{id}/resolve`
+
+Requirements:
+- only add endpoints the UI truly uses
+- reuse existing authorization/query-authorizer model
+- keep tenant/platform scoping intact
+- preserve anomaly query support separately
+
+Update report:
+## 7. Query / API Strategy
+## 9. Backend Implementation
+
+---
+
+## STEP 7 — OPTIONALLY REUSE EXISTING NOTIFICATION INFRASTRUCTURE
+
+Only if the codebase already has a clean existing notification path, validate whether alerts should dispatch a notification.
+
+Acceptable v1 outcomes:
+- no external dispatch, UI-only alert records
+- in-app notification only
+- email notification only if already supported and low-risk
+
+Requirements:
+- do NOT invent new messaging infrastructure
+- do NOT block alert creation if dispatch fails
+- document clearly whether notifications were included or deferred
+
+Update report:
+## 3. Existing Anomaly / Notification Capability Analysis
+## 9. Backend Implementation
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 8 — BUILD THE ALERT UI IN CONTROL CENTER
+
+Add a practical alert UI in SYNQAUDIT.
+
+Possible placement:
+- `/synqaudit/alerts`
+- or alerts section within anomalies page, if that fits better
+
+UI should include:
+- alert summary counts (open / acknowledged / resolved)
+- alert list/table
+- severity badges
+- status badges
+- title/description
+- first detected / last detected / count
+- tenant/actor/event context if available
+- actions:
+  - acknowledge
+  - resolve
+  - investigate / drill down
+
+Requirements:
+- loading / empty / error states
+- platform-admin appropriate access
+- tenant-context aware where applicable
+- no clutter
+- reuse existing design system
+
+Update report:
+## 10. Frontend / UI Implementation
+
+---
+
+## STEP 9 — ENSURE INVESTIGATION INTEGRATION
+
+Alerts must link into the existing audit investigation workflows.
+
+Requirements:
+- each alert should have a direct drill-down path into:
+  - anomalies
+  - investigation
+  - audit viewer
+  - related-event chain
+as appropriate
+- preserve enough filter context to make drill-down useful
+- do not redesign the investigation flow
+
+Examples:
+- denial spike alert → investigation filtered to denial events/time window
+- actor concentration alert → investigation filtered to actor + recent window
+- governance burst alert → filtered governance event view
+
+Update report:
+## 10. Frontend / UI Implementation
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 10 — PRESERVE TENANT ISOLATION, AUTHORIZATION, AND PERFORMANCE
+
+Requirements:
+- alert records and queries must respect tenant/platform visibility rules
+- platform admins may view cross-tenant alerts
+- tenant-scoped callers only see their tenant alerts
+- alert evaluation must use bounded anomaly windows
+- deduplication must prevent alert storms
+- no regression to analytics, viewer, or anomaly endpoints
+
+Document:
+- how tenant scope is enforced
+- default evaluation behavior
+- any result limits
+- any performance caveats
+
+Update report:
+## 9. Backend Implementation
+## 11. Verification / Testing Results
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Alert generation
+- anomaly present → alert record created
+- same anomaly repeats while open → existing alert updated, not duplicated
+- resolved anomaly recurring later → correct reopen/new-record behavior per chosen rule
+
+### Alert lifecycle
+- acknowledge works
+- resolve works
+- status changes persist correctly
+
+### UI
+- alerts page loads correctly
+- empty state behaves correctly
+- severity/status are readable
+- action buttons work
+- drill-down links work
+
+### Security
+- platform-admin cross-tenant visibility works
+- tenant-scoped caller sees only tenant alerts
+- no cross-tenant leakage
+
+### Regression
+- anomaly endpoint still works
+- analytics endpoint still works
+- viewer/correlation still work
+- no build/runtime regressions
+
+Update report:
+## 11. Verification / Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 12. Known Issues / Gaps
+## 13. Final Status = Complete
+
+Your final report must clearly state:
+- how alerts are generated
+- what alert lifecycle is supported
+- what deduplication/fingerprint logic is used
+- what UI was added
+- whether notifications were included or deferred
+- how tenant isolation is preserved
+- what remains deferred (e.g. scheduled evaluation, external notifications, incident workflows)
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Real anomaly/notification capabilities were analyzed from code
+✔ A practical v1 alert model was implemented
+✔ Alerts are generated deterministically from anomaly results
+✔ Deduplication prevents alert storms
+✔ Alert lifecycle state is supported
+✔ A usable alert UI exists in Control Center
+✔ Alerts respect tenant/platform authorization boundaries
+✔ Existing anomaly/analytics/viewer/correlation behavior does not regress
+✔ Coverage and limitations are documented honestly
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working alert generation/storage/query capability for anomaly-driven alerts
+2. Working Control Center alerts UI
+3. Reuse of existing audit analytics/query/authorization architecture
+4. Completed report:
+/analysis/LS-ID-TNT-017-008-02-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

@@ -1,0 +1,116 @@
+You are generating GitHub diff artifacts for BLK-CC-02.
+
+CRITICAL:
+
+- DO NOT modify any source code
+- DO NOT create new commits
+- ONLY extract and document the existing commit
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Generate:
+
+1. Full commit diff file
+2. Commit summary file
+3. Update existing report with diff references
+
+--------------------------------------------------
+
+PART A — IDENTIFY COMMIT
+
+--------------------------------------------------
+
+Use the BLK-CC-02 commit:
+
+ebd1cdf
+
+If this commit does not exist, STOP and report error.
+
+--------------------------------------------------
+
+PART B — GENERATE DIFF FILE
+
+--------------------------------------------------
+
+Run:
+
+git show ebd1cdf > /analysis/BLK-CC-02-commit.diff.txt
+
+Verify:
+- file exists
+- file is not empty
+
+--------------------------------------------------
+
+PART C — GENERATE COMMIT SUMMARY
+
+--------------------------------------------------
+
+Create file:
+
+/analysis/BLK-CC-02-commit-summary.md
+
+Content:
+
+# Commit Summary
+
+## Commit ID
+ebd1cdf
+
+## Files Changed
+- list ALL files from git show output
+
+## Key Changes
+- Provider domain changes (pending state fields, methods)
+- ProviderOnboardingService changes (two-save flow, resume logic)
+- Migration file added
+- DTO updates (IsResumed)
+- Any endpoint/service updates
+
+--------------------------------------------------
+
+PART D — UPDATE REPORT
+
+--------------------------------------------------
+
+Open:
+
+/analysis/BLK-CC-02-report.md
+
+Append:
+
+## 13. GitHub Diff Reference
+
+- Commit ID: ebd1cdf
+- Diff file: /analysis/BLK-CC-02-commit.diff.txt
+- Summary: /analysis/BLK-CC-02-commit-summary.md
+
+--------------------------------------------------
+
+PART E — VALIDATION
+
+--------------------------------------------------
+
+Verify:
+
+- diff file exists
+- summary file exists
+- report updated with section 13
+- no code was modified
+- no new commits created
+
+--------------------------------------------------
+
+FINAL OUTPUT
+
+Return confirmation with:
+
+- file paths created
+- file sizes (diff should be non-trivial)
+- number of files changed in commit
+
+--------------------------------------------------
+
+END

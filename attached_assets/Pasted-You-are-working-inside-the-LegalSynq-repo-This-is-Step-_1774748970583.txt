@@ -1,0 +1,126 @@
+You are working inside the LegalSynq repo.
+
+This is Step 04.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/step_04-tenants-list.md
+
+---
+
+Critical constraints:
+- Continue using the exact same stack and conventions as the operator portal (Next.js App Router, TypeScript, Tailwind, server/client split, BFF pattern)
+- Continue using the Control Center routing/config abstractions:
+  - CCRoutes
+  - control-center-config
+- Do not hardcode `/control-center/...`
+- Use `@/` imports
+- Keep pages as Server Components unless interactivity is required
+- Reuse existing table/list patterns from the operator portal
+- Do NOT introduce new libraries (no react-hook-form, no UI frameworks)
+
+---
+
+Goal of this step:
+Implement the **Tenants List page UI** for Control Center.
+
+IMPORTANT:
+- Do NOT depend on real backend endpoints yet
+- Use mock/stub data through the existing control-center API layer
+- The UI must be production-quality and backend-ready
+
+---
+
+Tasks:
+
+## 1. Create Tenants List Page
+
+Create:
+
+apps/web/src/app/(control-center)/control-center/tenants/page.tsx
+
+Requirements:
+- async Server Component
+- call `requireCCPlatformAdmin()`
+- fetch tenants via `controlCenterServerApi.tenants.list()`
+- handle:
+  - loading
+  - error
+  - empty state
+
+Page structure (must match operator portal patterns):
+- Title row:
+  - "Tenants"
+  - right-aligned action button: "Create Tenant" (no functionality yet)
+- Optional filter/search bar (can be non-functional for now)
+- Error banner (if error)
+- Table component
+- Pagination footer placeholder
+
+---
+
+## 2. Create Tenant Table Component
+
+Create:
+
+apps/web/src/components/control-center/tenant-list-table.tsx
+
+Requirements:
+- match existing operator portal table pattern EXACTLY:
+  - white card container
+  - `<table>` structure
+  - Tailwind classes consistent with existing tables
+- columns:
+  - Name
+  - Type
+  - Status
+  - Primary Contact
+  - Created Date
+  - Actions
+- last column:
+  - "View →" link using CCRoutes + route builder placeholder
+- row hover: `hover:bg-gray-50`
+- header style: same as existing referral tables
+
+---
+
+## 3. Extend control-center types
+
+Update:
+
+apps/web/src/types/control-center.ts
+
+Ensure TenantSummary includes:
+- id
+- name
+- type
+- status
+- primaryContactName
+- createdAt
+
+---
+
+## 4. Implement stub API method
+
+Update:
+
+apps/web/src/lib/control-center-api.ts
+
+Implement:
+
+controlCenterServerApi.tenants.list()
+
+For now:
+- return hardcoded mock data (5–10 tenants)
+- simulate realistic data (law firms, providers, etc.)
+- wrap in Promise
+- structure response like:
+  {
+    data: TenantSummary[],
+    total: number
+  }
+
+Add:
+```ts
+// TODO: replace with GET /identity/api/admin/tenants

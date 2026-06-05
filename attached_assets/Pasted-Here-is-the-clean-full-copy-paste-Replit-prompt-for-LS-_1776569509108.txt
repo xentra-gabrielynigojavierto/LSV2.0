@@ -1,0 +1,237 @@
+Here is the clean, full copy-paste Replit prompt for:
+
+LS-NOTIF-CORE-008 — Notifications Access Model & Authorization Hardening
+
+⸻
+
+You are implementing LS-NOTIF-CORE-008 — Notifications Access Model & Authorization Hardening.
+================================================================================
+WORKFLOW RULES (MANDATORY)
+================================================================================
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-CORE-008-report.md
+2. Update the report incrementally AFTER EACH MAJOR STEP.
+   Do NOT wait until the end.
+3. At completion, the report MUST include:
+   - what was implemented
+   - what files were changed
+   - how authorization is enforced
+   - audit behavior
+   - validation performed
+   - remaining gaps
+   - risks / follow-up recommendations
+================================================================================
+OBJECTIVE
+================================================================================
+Implement a secure, enterprise-grade access model for the Notifications service
+that supports:
+1. Tenant-scoped operations (existing behavior, but now enforced via identity)
+2. Platform-admin cross-tenant operations (new admin endpoints)
+This is NOT a redesign. You must extend the existing implementation safely.
+================================================================================
+IN SCOPE
+================================================================================
+- Add JWT/identity-based authorization enforcement
+- Extract and validate claims:
+    tenantId
+    roles
+    isPlatformAdmin
+    userId
+- Secure ALL existing endpoints under:
+    /v1/notifications/*
+- Add new admin endpoints under:
+    /v1/admin/notifications/*
+- Enable cross-tenant querying ONLY for admin endpoints
+- Add audit logging for:
+    retry
+    resend
+    admin queries
+    unauthorized attempts
+================================================================================
+OUT OF SCOPE
+================================================================================
+- Do NOT change notification sending logic
+- Do NOT redesign providers, templates, or routing
+- Do NOT change existing POST /v1/notifications contract
+- Do NOT redesign identity service
+- Do NOT add new notification channels
+- Do NOT implement UI changes
+================================================================================
+CORE REQUIREMENTS
+================================================================================
+------------------------------------------------------------------------------
+1. AUTHENTICATION & CLAIM EXTRACTION
+------------------------------------------------------------------------------
+Implement middleware (or extend existing one) to:
+- Validate incoming JWT (or trusted upstream identity token)
+- Extract claims:
+    tenantId
+    userId
+    roles
+    isPlatformAdmin (boolean)
+- Reject request if:
+    - token missing
+    - token invalid
+    - required claims missing
+Inject a strongly-typed UserContext into request pipeline.
+Example structure:
+- UserId
+- TenantId
+- Roles (list)
+- IsPlatformAdmin (bool)
+------------------------------------------------------------------------------
+2. TENANT ENDPOINT ENFORCEMENT
+------------------------------------------------------------------------------
+Applies to ALL existing endpoints:
+    /v1/notifications/*
+Rules:
+- MUST require valid identity
+- MUST require tenantId from claims
+- MUST NOT trust query or header overrides for tenantId
+- MUST enforce that data returned belongs ONLY to the tenant
+If tenantId missing → REJECT
+If cross-tenant attempt detected → REJECT
+Platform admins using tenant endpoints MUST still operate within a tenant context.
+------------------------------------------------------------------------------
+3. ADMIN ENDPOINTS (NEW)
+------------------------------------------------------------------------------
+Create new route group:
+    /v1/admin/notifications
+Endpoints to implement:
+GET    /v1/admin/notifications
+GET    /v1/admin/notifications/stats
+GET    /v1/admin/notifications/{id}/events
+GET    /v1/admin/notifications/{id}/issues
+POST   /v1/admin/notifications/{id}/retry
+POST   /v1/admin/notifications/{id}/resend
+Behavior:
+- REQUIRE isPlatformAdmin = true
+- REJECT all non-admin users
+Admin endpoints must:
+- Allow cross-tenant access
+- Accept optional tenantId filter
+- If tenantId NOT provided → query across ALL tenants
+------------------------------------------------------------------------------
+4. TENANT VS ADMIN BEHAVIOR DIFFERENCE
+------------------------------------------------------------------------------
+Tenant endpoints:
+- tenantId comes ONLY from claims
+- ignore tenantId query param
+- single-tenant scope only
+Admin endpoints:
+- tenantId optional
+- cross-tenant allowed
+- must support filtering by tenantId
+------------------------------------------------------------------------------
+5. AUTHORIZATION ENFORCEMENT
+------------------------------------------------------------------------------
+You must enforce authorization at service level, NOT just gateway.
+Implement:
+- Role validation
+- Scope validation
+- Endpoint-level guards
+Reject:
+- unauthorized roles
+- missing claims
+- tenant violations
+Log all authorization failures.
+------------------------------------------------------------------------------
+6. AUDIT LOGGING (MANDATORY)
+------------------------------------------------------------------------------
+Audit the following actions:
+- Retry
+- Resend
+- Admin list queries
+- Admin stats queries
+- Cross-tenant queries
+- Unauthorized access attempts
+Each audit record must include:
+- userId
+- role (tenant admin / platform admin)
+- tenant context
+- target notificationId (if applicable)
+- action type
+- timestamp
+- outcome (success/failure)
+Use existing Audit service if available.
+If not, log clearly in structured logs.
+------------------------------------------------------------------------------
+7. ENDPOINT SECURITY UPDATES
+------------------------------------------------------------------------------
+Apply authorization to:
+- GET /v1/notifications
+- GET /v1/notifications/{id}
+- GET /v1/notifications/stats
+- GET /v1/notifications/{id}/events
+- GET /v1/notifications/{id}/issues
+- POST /v1/notifications/{id}/retry
+- POST /v1/notifications/{id}/resend
+AND all new admin endpoints.
+------------------------------------------------------------------------------
+8. BACKWARD COMPATIBILITY
+------------------------------------------------------------------------------
+You MUST preserve:
+- POST /v1/notifications behavior
+- Internal send-email functionality
+- Existing service integrations
+Do NOT break existing producers.
+------------------------------------------------------------------------------
+9. PERFORMANCE SAFETY
+------------------------------------------------------------------------------
+- Admin endpoints MUST support paging
+- Avoid full-table scans without filters
+- Add safe defaults if needed (e.g., limit page size)
+------------------------------------------------------------------------------
+10. IMPLEMENTATION GUIDELINES
+------------------------------------------------------------------------------
+- Keep endpoint handlers thin
+- Put logic in application/services layer
+- Reuse existing repositories/services
+- Extend, do NOT duplicate logic
+- Follow existing code structure
+DO NOT:
+- introduce speculative architecture
+- move business logic into controllers
+- duplicate notification models
+------------------------------------------------------------------------------
+11. VALIDATION
+------------------------------------------------------------------------------
+You MUST:
+- Build the solution
+- Fix any compile errors introduced
+- Verify authorization behavior logically
+- Ensure all endpoints are protected correctly
+If something cannot be validated fully, document it.
+------------------------------------------------------------------------------
+12. REQUIRED REPORT CONTENT
+------------------------------------------------------------------------------
+Update:
+/analysis/LS-NOTIF-CORE-008-report.md
+Include:
+# LS-NOTIF-CORE-008 Report
+## Summary
+## Authorization Model Implemented
+## Endpoints Secured
+## Admin Endpoints Added
+## Files Changed
+## Audit Implementation
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations
+IMPORTANT:
+If identity claims differ from expectations, document EXACT mismatch.
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+- Tenant endpoints are fully secured and tenant-isolated
+- Admin endpoints exist and enforce platform admin access
+- Cross-tenant queries ONLY work via admin endpoints
+- Retry/resend require proper authorization
+- Unauthorized access is rejected and logged
+- Audit logs are generated for all operator actions
+- Existing integrations still work
+- Build succeeds with no new errors
+- Report is complete and accurate
+================================================================================
+END OF PROMPT
+================================================================================

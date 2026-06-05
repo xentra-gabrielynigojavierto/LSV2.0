@@ -1,0 +1,332 @@
+TASK-B04-01 — Duplicate Check Migration Fix
+
+OBJECTIVE:
+Remove the remaining Liens runtime dependency on `liens_Tasks` for duplicate prevention so the Liens task-generation engine can continue working after the Liens task-runtime tables are dropped. Duplicate detection must use the canonical Task service instead of local Liens task tables.
+
+NON-NEGOTIABLE RULES:
+- Preserve current Liens generation behavior as closely as possible
+- Do NOT redesign the generation engine
+- Do NOT add UI changes
+- Do NOT remove legacy repositories still needed for backfill or transitional reads
+- Do NOT leave any runtime duplicate-prevention path dependent on `liens_Tasks`
+- MUST create the report FIRST and update it incrementally
+- MUST validate against the current codebase before implementing
+- MUST keep the implementation rollback-safe
+- NO placeholders or fake logic
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-B04-01-report.md
+
+Initialize with:
+
+# TASK-B04-01 Report — Duplicate Check Migration Fix
+
+## 1. Codebase Analysis
+## 2. Existing Duplicate-Check Paths
+## 3. Task Service Capability Review
+## 4. Liens Client / Service Changes
+## 5. Generation Engine Changes
+## 6. Task Service API or Query Extensions
+## 7. Validation Results
+## 8. Rollback / Safety Notes
+## 9. Known Gaps / Risks
+
+Update this report AFTER EVERY MAJOR STEP with:
+- what was analyzed
+- what changed
+- files added/updated
+- validation performed
+- issues encountered
+- final outcome of the step
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT DUPLICATE-CHECK IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the Liens codebase and identify ALL runtime duplicate-prevention paths that still rely on Liens task tables or repositories.
+
+Specifically inspect:
+- LienTaskGenerationEngine
+- ILienTaskRepository
+- HasOpenTaskForRuleAsync(...)
+- HasOpenTaskForTemplateAsync(...)
+- any EF / SQL queries against:
+  - liens_Tasks
+  - liens_TaskLienLinks
+  - related task-runtime tables
+- any other generation or automation logic that determines whether a task already exists before creating a new one
+
+For each path found, document:
+- file
+- method
+- current query source
+- duplicate-prevention purpose
+- semantic meaning of the check
+  - rule-based duplicate
+  - template-based duplicate
+  - case-level duplicate
+  - lien-level duplicate
+  - open/in-flight status logic
+
+Update report:
+## 1. Codebase Analysis
+## 2. Existing Duplicate-Check Paths
+
+IMPORTANT:
+Do not assume there are only the two known methods. Do a real search and document all runtime duplicate-prevention paths.
+
+--------------------------------------------------
+STEP 2 — REVIEW TASK SERVICE CAPABILITIES
+--------------------------------------------------
+
+Inspect the current Task service and confirm what search/query capabilities already exist that can support duplicate checks.
+
+Review current support for:
+- SourceProductCode filtering
+- SourceEntityType filtering
+- SourceEntityId filtering
+- linked entity filtering
+- status filtering
+- assignment scope or current user filters
+- stage filtering
+- workflow linkage filtering
+- any metadata currently available to distinguish rule-based vs template-based generated tasks
+
+Determine whether current Task search APIs are already sufficient.
+
+If they are NOT sufficient, identify the smallest safe extension needed to support parity for duplicate checks.
+
+Possible examples only if actually needed:
+- query by template code/id
+- query by generation rule id/code
+- query by metadata marker
+- query by linked entity relationship type
+
+Document findings:
+## 3. Task Service Capability Review
+
+IMPORTANT:
+Prefer using existing Task APIs first. Only extend Task if strictly necessary.
+
+--------------------------------------------------
+STEP 3 — DESIGN THE DUPLICATE-CHECK REPLACEMENT
+--------------------------------------------------
+
+Design the replacement duplicate-check logic so Liens uses the Task service as the canonical source.
+
+Requirements:
+- runtime duplicate checks must no longer query `liens_Tasks`
+- logic must support open/in-flight status checks
+- logic must remain tenant-isolated
+- logic must support Liens context:
+  - SourceProductCode = SYNQ_LIENS
+  - SourceEntityType / SourceEntityId
+  - linked lien entities where relevant
+- preserve current semantics as closely as possible
+
+You MUST explicitly define:
+1. Which statuses count as “active” duplicates
+2. How rule-based duplicates are identified
+3. How template-based duplicates are identified
+4. How case-level vs lien-level duplicate detection is handled
+5. What happens if exact parity cannot be achieved with existing metadata
+
+If parity cannot be exact:
+- implement the safest closest match
+- document the delta clearly
+- bias toward preventing unintended duplicate task creation rather than allowing silent duplication
+
+Update report:
+## 3. Task Service Capability Review
+## 4. Liens Client / Service Changes
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT LIENS CLIENT / SERVICE SUPPORT
+--------------------------------------------------
+
+Update the Liens-side Task client and/or service layer so the generation engine can ask the Task service whether an active matching task already exists.
+
+Implement the smallest clean abstraction needed, for example:
+- `HasOpenGeneratedTaskForRuleAsync(...)`
+- `HasOpenGeneratedTaskForTemplateAsync(...)`
+- or a more generic helper the generation engine can reuse
+
+The implementation should:
+- query Task service, not local Liens task tables
+- use current Task APIs where possible
+- add narrowly scoped Task API/query support only if necessary
+- log failures clearly
+- not fail silently
+
+Auth:
+- reuse existing Liens → Task service-to-service auth pattern
+
+Update report:
+## 4. Liens Client / Service Changes
+
+--------------------------------------------------
+STEP 5 — IMPLEMENT TASK SERVICE EXTENSIONS ONLY IF NEEDED
+--------------------------------------------------
+
+If current Task APIs are insufficient for parity, add the minimum required Task-side support.
+
+Possible areas only if actually needed:
+- additional query parameters on `/api/tasks`
+- additional search filtering in repository/service layer
+- support for searching by rule/template discriminator if such metadata already exists or can be safely added
+- linked-entity or context-based search refinements
+
+Rules:
+- keep Task generic
+- do NOT add Liens-specific columns unless there is no other safe option
+- prefer generic metadata or existing context fields over product-specific schema
+- preserve backward compatibility for existing Task consumers
+
+If no Task-side change is needed, document that clearly.
+
+Update report:
+## 6. Task Service API or Query Extensions
+
+--------------------------------------------------
+STEP 6 — UPDATE LIENTASKGENERATIONENGINE
+--------------------------------------------------
+
+Replace the current duplicate-prevention calls inside `LienTaskGenerationEngine` so they no longer rely on local Liens task runtime tables.
+
+Requirements:
+- runtime generation logic must use the new Task-based duplicate lookup
+- current behavior must remain as close as possible
+- no missing-table failure should occur after `liens_Tasks` is dropped
+- do not break backfill support
+- do not remove repository dependencies still needed outside runtime duplicate prevention
+
+Validate that:
+- generation engine compiles cleanly
+- no runtime duplicate-prevention path inside generation still queries `liens_Tasks`
+
+Update report:
+## 5. Generation Engine Changes
+
+--------------------------------------------------
+STEP 7 — CODEBASE SAFETY SWEEP
+--------------------------------------------------
+
+Run a targeted search across Liens to confirm:
+
+A. No remaining runtime duplicate-prevention path depends on:
+- `HasOpenTaskForRuleAsync`
+- `HasOpenTaskForTemplateAsync`
+- direct runtime reads from `liens_Tasks` for generation duplication logic
+
+B. Any remaining references to old repositories are only for:
+- backfill
+- transitional migration support
+- non-runtime legacy paths explicitly documented
+
+Document the remaining references and why they are acceptable.
+
+Update report:
+## 5. Generation Engine Changes
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+STEP 8 — VALIDATION
+--------------------------------------------------
+
+Validate the implemented fix.
+
+At minimum validate:
+
+1. Rule-based duplicate check now queries Task service, not Liens task tables
+2. Template-based duplicate check now queries Task service, not Liens task tables
+3. Existing open matching task blocks duplicate generation
+4. Completed/cancelled task does not incorrectly block generation if current logic permits regeneration
+5. Case-level duplicate detection still works
+6. Lien-level duplicate detection still works where applicable
+7. Liens task generation flow still succeeds when no duplicate exists
+8. Build succeeds for both Liens and Task services if Task changes were made
+9. Codebase search confirms no remaining runtime duplicate-prevention dependency on `liens_Tasks`
+10. Behavior is safe for the later drop migration
+
+If possible in the environment, also validate a simulated or actual post-drop-safe scenario:
+- confirm the generation path would still function even if `liens_Tasks` were unavailable
+
+Document exact results under:
+## 7. Validation Results
+
+IMPORTANT:
+Do not mark anything PASS unless it was actually verified in code or execution.
+
+--------------------------------------------------
+STEP 9 — ROLLBACK / SAFETY NOTES
+--------------------------------------------------
+
+Document how to safely back out this change if needed.
+
+Include:
+- whether the change is additive or invasive
+- whether old Liens repository-based duplicate logic can be restored easily
+- whether any Task API extension introduced by this prompt is backward compatible
+- any deployment ordering concerns
+
+Update report:
+## 8. Rollback / Safety Notes
+
+--------------------------------------------------
+STEP 10 — DOCUMENT KNOWN GAPS
+--------------------------------------------------
+
+Document any remaining gaps, such as:
+- exact parity limitations between old Liens duplicate logic and new Task-based logic
+- missing metadata that should later be promoted into Task search
+- performance considerations of Task-service duplicate lookups
+- any temporary technical debt retained for migration safety
+
+Update report:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-B04-01 is successful only if:
+
+1. LienTaskGenerationEngine no longer depends on `liens_Tasks` for duplicate prevention
+2. Runtime duplicate checks use the Task service
+3. Duplicate-prevention behavior is preserved as closely as possible
+4. No remaining runtime path will fail after the Liens task-runtime tables are dropped
+5. Backfill and transitional migration support remain intact
+6. The B04 production cutover can proceed safely after validation
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- apps/services/liens/Liens.Application/Services/LienTaskGenerationEngine.cs
+- apps/services/liens/Liens.Infrastructure/TaskService/LiensTaskServiceClient.cs
+- apps/services/liens related interfaces / DI wiring
+- apps/services/task only if a minimal generic query extension is actually required
+- tests if there is an established test pattern
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+Do NOT:
+- redesign the generation engine
+- remove backfill support
+- prematurely remove legacy repositories needed for migration
+- change UI behavior
+- introduce large new Task feature work
+- apply the Liens drop migration in this prompt
+
+This prompt is only to make the cutover safe.
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

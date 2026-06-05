@@ -1,0 +1,101 @@
+Run the next CareConnect scheduling foundation test step: create and verify the first Provider Availability Template.
+
+Goal:
+Verify that the CareConnect Provider Availability Templates endpoint can successfully create tenant-scoped availability template data through Gateway.
+
+Context:
+- Gateway, Identity, and CareConnect are already running
+- Scheduling foundation migration is already applied
+- Facility creation has already been tested successfully
+- Service Offering creation has already been tested successfully
+- There is at least one existing Provider in the current tenant
+- This step is only for Provider Availability Template creation and basic authorization/validation verification
+- Do not add new features or change schema in this step
+
+Tasks
+
+1. Authenticate through Gateway using the existing admin account:
+- POST /identity/api/auth/login
+
+Use:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+2. Capture the accessToken from the login response.
+
+3. Confirm that there is at least one Provider available in the current tenant.
+If needed, retrieve providers using:
+- GET /careconnect/api/providers
+
+4. Confirm that a Facility exists in the current tenant.
+If needed, retrieve facilities using:
+- GET /careconnect/api/facilities
+
+5. Confirm that a Service Offering exists in the current tenant.
+If needed, retrieve service offerings using:
+- GET /careconnect/api/service-offerings
+
+6. Use the admin token to call:
+- POST /careconnect/api/providers/{providerId}/availability-templates
+
+Create one availability template with a payload like:
+{
+  "facilityId": "FACILITY_ID",
+  "serviceOfferingId": "SERVICE_OFFERING_ID",
+  "dayOfWeek": 1,
+  "startTimeLocal": "09:00:00",
+  "endTimeLocal": "17:00:00",
+  "slotDurationMinutes": 30,
+  "capacity": 1,
+  "effectiveFrom": "2026-04-01T00:00:00Z",
+  "effectiveTo": "2026-12-31T00:00:00Z",
+  "isActive": true
+}
+
+7. Verify the response:
+- returns 200 or 201
+- contains AvailabilityTemplateResponse
+- includes TenantId
+- includes ProviderId
+- includes FacilityId
+- includes ServiceOfferingId
+- includes day/time fields and slot settings
+
+8. Also verify:
+- request without token returns 401
+- request with StandardUser token returns 403 if current authorization rules require PlatformOrTenantAdmin for create
+
+9. Validate business rules for a bad template payload
+Try at least one invalid request, such as:
+- EndTimeLocal <= StartTimeLocal
+- SlotDurationMinutes <= 0
+- Capacity <= 0
+
+Expected:
+- clean validation failure
+- HTTP 400
+- no raw exception dump
+
+10. Verify list endpoint
+Call:
+- GET /careconnect/api/providers/{providerId}/availability-templates
+
+Expected:
+- returns the newly created template
+- tenant-scoped
+- authenticated access works
+
+11. Output:
+- login request used
+- provider/facility/service offering IDs used
+- create request used
+- whether creation succeeded
+- the returned availability template Id
+- whether 401/403 behavior was correct
+- whether validation failures were handled correctly
+
+Important:
+Do not implement slot generation, booking, appointments, or scheduling exceptions in this step.
+Do not change schema.
+This step is only to validate availability template creation and retrieval.

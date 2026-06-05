@@ -1,0 +1,528 @@
+```text
+You are implementing LS-LIENS-FLOW-005-02 — Transition Engine Flow Alignment for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-005-02-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Flow Alignment Outcome
+- Runtime Validation Behavior
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not leave placeholder sections. Populate with actual implementation details only.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Correct the architectural gap in LS-LIENS-FLOW-005 so the Transition Engine is explicitly aligned to the Flow service direction rather than behaving like a permanently separate Liens-local workflow authority.
+
+This feature must:
+
+1. clarify and enforce the correct boundary between:
+   - Flow service workflow execution
+   - Synq Liens task-stage transition behavior
+2. align My Tasks transition semantics to the Flow-backed architecture direction
+3. prevent further architectural drift
+4. preserve current working behavior without breaking task operations
+5. prepare the platform for LS-LIENS-FLOW-007 (Task ↔ Flow Instance Linking)
+
+This feature is NOT a full migration of task runtime into Flow.
+
+This feature is NOT:
+- a rewrite of all workflow logic
+- a Flow service redesign
+- task-to-Flow full synchronization
+- SLA / timer logic
+- approval routing
+- assignment intelligence
+- a BPM engine rebuild
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services and current platform architecture.
+
+Use:
+- existing Flow service integration patterns
+- existing Synq Liens workflow config governance patterns
+- existing repository / DTO / service / endpoint patterns
+- existing audit and notification patterns
+
+CRITICAL ARCHITECTURE RULES:
+
+1. Do NOT represent LS-LIENS-FLOW-005 as a permanent standalone Liens workflow engine
+2. Do NOT introduce more Liens-local runtime ownership than already exists
+3. Treat current Liens transition logic as:
+   - a task-stage control layer
+   - transitional architecture
+   - explicitly subordinate to future Flow-backed orchestration direction
+4. Preserve current task-stage validation behavior unless a safer aligned behavior is available
+5. Be honest in the report about what is transitional vs Flow-owned
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE
+==================================================
+
+Before implementing:
+
+Inspect and document:
+- current LS-LIENS-FLOW-005 implementation
+- current `LienWorkflowConfig`, `LienWorkflowStage`, `LienWorkflowTransition`
+- current `WorkflowTransitionValidationService`
+- current `LienTaskService.UpdateAsync` transition enforcement
+- current Flow service usage in Synq Liens:
+  - `WorkflowEndpoints.cs`
+  - `IFlowClient`
+  - case workflow instance usage
+  - product-scoped workflow access
+- current task create/update APIs and UI stage selection behavior
+- any current places where Flow workflow state and task workflow state overlap conceptually
+- tenant workflow settings UI and control-center workflow UI
+- current audit patterns for workflow config / transition changes
+
+Document in the report:
+
+1. What is Flow-owned today
+2. What is Liens-owned today
+3. What LS-LIENS-FLOW-005 currently enforces
+4. Where the architectural conflict/drift exists
+5. What this feature will correct without breaking existing runtime behavior
+
+==================================================
+STEP 2 — DEFINE THE ALIGNED OWNERSHIP MODEL
+==================================================
+
+Implement and document a clear ownership model in code structure and comments where appropriate.
+
+The target ownership model must be:
+
+### Flow service owns
+- case/lien workflow instance execution
+- workflow instance advancement/completion
+- product-level process orchestration
+
+### Synq Liens owns
+- operational tasks
+- task-specific stageing for My Tasks
+- business context (case/lien linkage)
+- product-facing configuration surfaces
+
+### Transitional rule
+The current My Tasks stage transitions remain in Liens for now, but must be clearly treated as:
+- task-stage transition control
+- not the authoritative replacement for Flow workflow execution
+- not a separate long-term workflow engine for case/lien lifecycle
+
+Make code-level naming, comments, DTO descriptions, and report language reflect this clearly.
+
+==================================================
+STEP 3 — ALIGN THE TRANSITION DOMAIN TO THE MY TASKS CONTEXT
+==================================================
+
+Refine the transition engine so it is explicitly scoped to My Tasks / task-stage behavior.
+
+--------------------------------------------------
+3.1 Naming / Semantic Alignment
+--------------------------------------------------
+
+Where safe and non-breaking, improve semantic clarity in code and UI so that transitions are understood as:
+
+- My Tasks workflow transitions
+- task-stage transitions
+- not case/lien workflow instance transitions
+
+Possible examples:
+- labels, comments, descriptions, response docs, UI section titles
+
+Do NOT break public API contracts unless necessary.
+Prefer additive clarification over destructive renaming.
+
+--------------------------------------------------
+3.2 Validation Scope
+--------------------------------------------------
+
+Ensure transition validation explicitly applies to:
+- task workflow stage movement
+
+It must NOT claim or imply that it governs:
+- case workflow instance transitions in Flow
+- lien workflow instance transitions in Flow
+
+If current code/comments/UI imply broader ownership, correct them.
+
+--------------------------------------------------
+3.3 Transitional Documentation in Code
+--------------------------------------------------
+
+Add concise code comments or docstrings in the appropriate service(s) to make this explicit:
+
+- Liens workflow transitions govern task-stage movement only
+- Flow service remains the owner of case/lien workflow execution
+- future integration may link task stages to Flow instance context, but that is not implemented here
+
+Do not add noisy comments everywhere; place them in the most relevant service/domain files only.
+
+==================================================
+STEP 4 — FLOW-AWARE TRANSITION CONTEXT READINESS
+==================================================
+
+Prepare the transition engine for future Flow linkage without implementing full synchronization yet.
+
+--------------------------------------------------
+4.1 Add Optional Flow Context Awareness Hooks
+--------------------------------------------------
+
+Where appropriate, add non-breaking placeholders/readiness points such as:
+- optional ability for validation services to accept Flow-related context later
+- DTO extensibility fields only if clearly useful and non-breaking
+- service seams for future task ↔ workflow-instance alignment
+
+Do NOT overbuild.
+Do NOT add speculative architecture layers with no immediate value.
+
+--------------------------------------------------
+4.2 Prevent Drift
+--------------------------------------------------
+
+If there are code paths that would deepen the split between:
+- task transitions
+- Flow workflow transitions
+
+adjust them so they remain clearly task-scoped and not misleading.
+
+Examples:
+- UI labels like "Workflow Transition Rules" may need clarification such as "My Tasks Transition Rules"
+- endpoint descriptions / page headers may need clarification
+- service methods may need comments clarifying task-stage scope
+
+==================================================
+STEP 5 — UI ALIGNMENT
+==================================================
+
+Update the tenant and control-center workflow settings UI so users understand what they are configuring.
+
+--------------------------------------------------
+5.1 Tenant Workflow Settings
+--------------------------------------------------
+
+In:
+- Synq Liens → Product Settings → Workflow
+
+Clarify that the transition rules being configured are for:
+- My Tasks stage movement
+or
+- task-stage transitions
+
+Do this in the cleanest possible way:
+- section subtitle
+- helper text
+- labels
+- page copy
+
+Avoid large redesign.
+
+--------------------------------------------------
+5.2 Control Center Workflow Settings
+--------------------------------------------------
+
+Mirror the same clarification in:
+- Control Center → Tenant → Synq Liens → Workflow
+
+--------------------------------------------------
+5.3 Runtime Task UI
+--------------------------------------------------
+
+If task stage selectors or movement UI currently imply broad workflow ownership, clarify minimally:
+- this controls task stage
+- not full case workflow process
+
+Only make changes where wording is actually misleading.
+Do not clutter the UI.
+
+==================================================
+STEP 6 — RUNTIME VALIDATION BEHAVIOR
+==================================================
+
+Preserve current working validation while clarifying its scope.
+
+--------------------------------------------------
+6.1 Keep Existing Enforcement
+--------------------------------------------------
+
+Maintain:
+- valid task stage transitions allowed
+- invalid task stage transitions blocked
+
+Do NOT remove runtime enforcement for tasks.
+
+--------------------------------------------------
+6.2 Scope Clarification
+--------------------------------------------------
+
+Ensure validation service and runtime errors clearly refer to:
+- task stage transitions
+or
+- My Tasks workflow transitions
+
+Avoid wording that implies:
+- entire case workflow is blocked by this engine
+- Flow workflow instance transitions are being validated here
+
+--------------------------------------------------
+6.3 No New Case/Lien Enforcement Here
+--------------------------------------------------
+
+Do NOT attempt to enforce Flow case/lien workflow transitions from this feature.
+That belongs in later Flow integration work.
+
+==================================================
+STEP 7 — API / CONTRACT ALIGNMENT
+==================================================
+
+Align API semantics and payload descriptions where needed.
+
+--------------------------------------------------
+7.1 Existing APIs
+--------------------------------------------------
+
+Review and update, where appropriate:
+- workflow config endpoints
+- transition endpoints
+- response DTO descriptions / comments
+- frontend type naming or helper descriptions
+
+Without breaking existing consumers, make it clear these transitions govern My Tasks task-stage movement.
+
+--------------------------------------------------
+7.2 Non-Breaking Requirement
+--------------------------------------------------
+
+Do not rename or remove public fields/routes unless absolutely necessary.
+Prefer:
+- helper text
+- descriptions
+- comments
+- response metadata additions
+- UI wording
+
+If you must change an API contract, document it clearly and keep backward compatibility if possible.
+
+==================================================
+STEP 8 — AUDIT INTEGRATION
+==================================================
+
+Preserve and refine audit behavior.
+
+Continue to log:
+- transition created
+- transition updated/saved
+- transition deactivated
+- transition initialized
+
+If descriptions are misleadingly broad, refine the audit descriptions to clarify:
+- task-stage transition
+- My Tasks transition configuration
+
+Do NOT flood audit with runtime validation failures.
+
+==================================================
+STEP 9 — FLOW ALIGNMENT OUTCOME
+==================================================
+
+This section must be implemented and documented explicitly.
+
+By the end of this feature, the system should be able to state clearly:
+
+1. Flow service is the workflow execution engine for case/lien processes
+2. Liens transition engine currently governs only task-stage movement
+3. This is intentional transitional architecture
+4. No new permanent divergence was introduced
+5. The system is now ready for LS-LIENS-FLOW-007 (Task ↔ Flow Instance Linking)
+
+If possible, add small architecture notes in the relevant service(s) to reinforce this boundary.
+
+==================================================
+STEP 10 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- semantic alignment updates in workflow transition domain/service
+- comment/doc clarification in relevant services
+- any minimal DTO/response metadata updates
+- any minimal validation message improvements
+- audit description refinements
+- any required service seam improvements for future Flow linking
+
+Do NOT perform a broad refactor unless necessary.
+
+==================================================
+STEP 11 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- workflow settings copy/label improvements
+- control-center workflow page copy/label improvements
+- minimal task-stage UX clarification
+- any frontend type/description cleanup needed to align semantics
+
+Do NOT redesign the workflow pages.
+
+==================================================
+STEP 12 — VALIDATION CHECKLIST
+==================================================
+
+Validate and document:
+
+### Ownership / Architecture
+- report clearly distinguishes Flow-owned vs Liens-owned behavior
+- code/comments/UI no longer misleadingly imply that Liens transitions govern full case/lien workflow execution
+- no new architectural drift introduced
+
+### Runtime
+- valid task stage transition still succeeds
+- invalid task stage transition still fails
+- runtime error wording is appropriate to task-stage semantics
+
+### UI
+- tenant workflow settings clearly indicate task-stage/My Tasks scope
+- control-center workflow settings clearly indicate same scope
+- no confusing wording remains in the touched surfaces
+
+### Audit
+- transition config audit events still emit
+- descriptions are semantically correct
+
+### Build / Run
+- backend builds
+- frontend typechecks/builds
+- app starts cleanly
+- no regression to LS-LIENS-FLOW-005 behavior
+
+If any area cannot be fully aligned due to current codebase structure, document exactly where and why.
+
+==================================================
+STEP 13 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Populate the final `/analysis/LS-LIENS-FLOW-005-02-report.md` with:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - Flow-owned findings
+   - Liens-owned findings
+   - transition engine findings
+   - current drift/conflict analysis
+
+3. Files Changed
+   - backend/frontend/config grouped clearly
+
+4. Database / Schema Changes
+   - state explicitly if none
+   - if any minor changes were needed, document them fully
+
+5. API Changes
+   - state explicitly if none
+   - otherwise document non-breaking semantic changes
+
+6. UI Changes
+   - tenant workflow settings wording/behavior changes
+   - control-center wording/behavior changes
+   - any runtime task UI wording changes
+
+7. Flow Alignment Outcome
+   - what is Flow-owned
+   - what is Liens-owned
+   - what is transitional
+   - how this feature corrected the boundary
+   - how it prepares LS-LIENS-FLOW-007
+
+8. Runtime Validation Behavior
+   - exact task-stage validation behavior preserved
+   - what is enforced
+   - what is not enforced
+
+9. Permissions / Security
+   - confirm no unintended auth surface changes
+   - confirm tenant/admin scoping preserved
+
+10. Audit Integration
+   - events preserved
+   - wording/description refinements
+
+11. Validation Results
+   - build/typecheck/manual validation
+
+12. Known Gaps / Risks
+   - remaining Flow integration gaps
+   - transitional architecture limits
+   - recommended next step
+
+13. Run Instructions
+   - build/typecheck/startup/manual testing instructions
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is complete only if:
+
+1. LS-LIENS-FLOW-005 no longer reads or behaves like a permanently separate Liens-local workflow authority
+2. task-stage transition behavior is still fully functional
+3. Flow-owned vs Liens-owned responsibilities are explicit in code, UI, and report
+4. no regression is introduced to current task transition behavior
+5. the system is clearly prepared for LS-LIENS-FLOW-007
+6. implementation is documented in `/analysis/LS-LIENS-FLOW-005-02-report.md`
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Keep this as an alignment / boundary-correction feature
+- Prefer small targeted changes over broad rewrites
+- Preserve existing working runtime behavior
+- Make semantics honest and future-safe
+- Do not overbuild Flow integration here
+- Prepare the ground for task ↔ workflow instance linking next
+
+Begin by creating `/analysis/LS-LIENS-FLOW-005-02-report.md` immediately, then inspect the codebase, document findings, and proceed with implementation.
+```

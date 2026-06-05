@@ -1,0 +1,127 @@
+Continue the LegalSynq platform upgrade.
+
+Phase F (eligibility + scoped roles) is complete. The system now runs on:
+- ProductOrganizationTypeRule
+- ScopedRoleAssignment
+
+Your task is to complete the FINAL convergence so the platform is fully consistent and ready for reuse across products.
+
+Generate a report:
+ /analysis/step6_final-convergence-and-relationship-activation.md
+
+## Goals
+
+1. make OrganizationTypeId the authoritative write model
+2. remove dependence on UserRoles in all read paths
+3. activate OrganizationRelationship in CareConnect workflows
+4. strengthen identity linkage for Provider and Facility
+5. prepare system for eventual removal of UserRoles table
+
+---
+
+## Phase A — finalize OrganizationType as source of truth
+
+Tasks:
+- update Organization.Create() to accept OrganizationTypeId
+- resolve OrgType string from OrganizationType.Code
+- ensure all create/update flows support OrganizationTypeId
+- allow fallback from OrgType string ONLY for backward compatibility
+- centralize mapping logic
+
+---
+
+## Phase B — eliminate UserRoles from read paths
+
+Tasks:
+- audit all code paths:
+  - AuthService
+  - UserRepository
+  - Admin endpoints
+  - DTO builders
+- ensure ALL role resolution uses ScopedRoleAssignment only
+- UserRoles should ONLY be written (for now), not read
+- document all remaining references
+
+---
+
+## Phase C — activate OrganizationRelationship in workflows
+
+Tasks:
+- ReferralService:
+  - when creating referral, resolve OrganizationRelationship:
+    match SourceOrganizationId + TargetOrganizationId
+    optionally filter by product (CareConnect)
+  - set Referral.OrganizationRelationshipId if found
+
+- AppointmentService:
+  - copy OrganizationRelationshipId from Referral
+
+- add helper service:
+  OrganizationRelationshipResolver
+
+- ensure:
+  - no breaking change if relationship not found
+  - null remains valid
+
+---
+
+## Phase D — strengthen Provider and Facility identity linkage
+
+Tasks:
+- ensure Provider creation can link to OrganizationId
+- ensure Facility creation links to OrganizationId when possible
+- add validation or mapping helpers where needed
+- do NOT introduce full ProviderProfile refactor yet
+
+---
+
+## Phase E — control-center minimal UI enablement
+
+Tasks:
+- wire API client functions for:
+  - org types
+  - relationship types
+  - organization relationships
+- add at least:
+  - list page for organization relationships
+  - list page for org types
+
+---
+
+## Phase F — prepare UserRoles retirement (no deletion yet)
+
+Tasks:
+- confirm:
+  - ScopedRoleAssignment coverage = 100%
+  - no read paths depend on UserRoles
+- add TODO markers:
+  "UserRoles can be safely removed after next release cycle"
+- document final removal plan in report
+
+---
+
+## Constraints
+
+- do not break APIs
+- do not remove UserRoles yet
+- do not remove OrgType string yet
+- preserve CareConnect flows fully
+- prioritize correctness over aggressive refactor
+
+---
+
+## Required report sections
+
+# LegalSynq Final Convergence
+## 1. Starting State
+## 2. Identity Convergence Changes
+## 3. Authorization Convergence Changes
+## 4. Relationship Activation in CareConnect
+## 5. Files Changed
+## 6. Remaining Legacy Dependencies
+## 7. Ready-for-Removal Checklist
+
+---
+
+Do the work now.
+Focus on completing convergence, not adding new abstractions.

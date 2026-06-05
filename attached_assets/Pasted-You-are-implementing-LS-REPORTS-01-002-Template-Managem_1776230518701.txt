@@ -1,0 +1,439 @@
+You are implementing **LS-REPORTS-01-002 — Template Management API** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story exposes the first usable API surface for managing `ReportTemplate` records and their versions. It must build on the existing clean architecture and persistence foundation without leaking EF or persistence concerns into the API layer.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-01-002-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not write code before this.
+
+## 2. Update the report continuously
+After each major step, update the report with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- issues encountered
+- decisions made
+- build/run/endpoint validation status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- report execution APIs
+- scheduling APIs
+- tenant customization APIs
+- UI
+- Dapper
+- authentication/authorization middleware
+- advanced search/filter/sort beyond what is requested
+
+## 4. Preserve architecture
+- API layer must use DTOs
+- API layer must call an application/service layer
+- API layer must NOT call EF repositories directly
+- Repository layer remains persistence-focused
+- Domain entities must not be returned directly from controllers
+
+---
+
+# STORY ID
+**LS-REPORTS-01-002 — Template Management API**
+
+---
+
+# OBJECTIVE
+Expose the first Template Management API layer so control-center workflows can create, update, version, publish, and retrieve `ReportTemplate` records through stable REST endpoints.
+
+This story must preserve:
+- clean architecture
+- product scoping
+- organization-type scoping
+- template version governance
+- portability
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. API Route Surface
+Add versioned REST endpoints under:
+
+- `/api/v1/templates`
+
+### Required endpoints
+
+#### 1. Create template
+- `POST /api/v1/templates`
+
+#### 2. Update template
+- `PUT /api/v1/templates/{templateId}`
+
+#### 3. Get template by id
+- `GET /api/v1/templates/{templateId}`
+
+#### 4. List templates by product and org type
+- `GET /api/v1/templates?productCode={code}&organizationType={type}`
+
+#### 5. Create template version
+- `POST /api/v1/templates/{templateId}/versions`
+
+#### 6. Get latest version
+- `GET /api/v1/templates/{templateId}/versions/latest`
+
+#### 7. Get published version
+- `GET /api/v1/templates/{templateId}/versions/published`
+
+#### 8. Publish version
+- `POST /api/v1/templates/{templateId}/versions/{versionNumber}/publish`
+
+Optional only if low-risk and clean:
+- `GET /api/v1/templates/{templateId}/versions`
+
+---
+
+## B. Request DTOs
+Create request DTOs for the API layer.
+
+### 1. CreateTemplateRequest
+Fields:
+- `Code`
+- `Name`
+- `Description`
+- `ProductCode`
+- `OrganizationType`
+- `IsActive`
+
+### 2. UpdateTemplateRequest
+Fields:
+- `Name`
+- `Description`
+- `ProductCode`
+- `OrganizationType`
+- `IsActive`
+
+### 3. CreateTemplateVersionRequest
+Fields:
+- `TemplateBody`
+- `OutputFormat`
+- `ChangeNotes`
+- `IsActive`
+- `CreatedByUserId`
+
+### 4. PublishTemplateVersionRequest
+Fields:
+- `PublishedByUserId`
+
+If some user fields can be inferred cleanly later, that is fine, but for this story explicit DTO fields are acceptable.
+
+---
+
+## C. Response DTOs
+Create response DTOs and do not return EF/domain entities directly.
+
+### 1. TemplateResponse
+Include:
+- `Id`
+- `Code`
+- `Name`
+- `Description`
+- `ProductCode`
+- `OrganizationType`
+- `IsActive`
+- `CurrentVersion`
+- `CreatedAtUtc`
+- `UpdatedAtUtc`
+
+### 2. TemplateVersionResponse
+Include:
+- `Id`
+- `TemplateId`
+- `VersionNumber`
+- `TemplateBody`
+- `OutputFormat`
+- `ChangeNotes`
+- `IsActive`
+- `IsPublished` if available
+- `PublishedAtUtc` if available
+- `CreatedAtUtc`
+- `CreatedByUserId`
+
+Use DTO mapping explicitly.
+
+---
+
+## D. Application / Service Layer
+Add a service layer between the API and repositories.
+
+### Recommended contract
+- `ITemplateManagementService`
+- `TemplateManagementService`
+
+### Responsibilities
+- validate requests
+- coordinate repository calls
+- enforce versioning rules
+- handle publish logic
+- map domain entities to response DTOs or service models
+- keep controllers thin
+
+Controllers/endpoints must NOT call repositories directly.
+
+---
+
+## E. Repository Extensions
+Reuse the persistence layer from previous stories.
+
+Extend repositories minimally if needed. Likely additions:
+
+### Template repository additions
+- get by code
+- update template
+- list versions by template
+- get version by version number
+- update version publish state
+- save changes atomically where needed
+
+Keep repository logic persistence-focused only.
+
+---
+
+## F. Versioning Rules
+Implement these rules in the service layer.
+
+### 1. Template creation
+- creates a `ReportTemplate` record only
+- does NOT automatically create a version unless there is a compelling reason and it is clearly documented
+- preferred model: template and version are separate actions
+
+### 2. Version creation
+- version numbers increment sequentially per template
+- latest version is highest version number
+
+### 3. Publish version
+- publishing a target version sets that version as published
+- any previously published version for the same template must be unset
+- there must be at most one published version per template
+- operation should be idempotent or return a clear success result if already published
+
+---
+
+## G. Validation Rules
+Implement basic validation.
+
+### Template validation
+- `Code` required on create
+- `Name` required
+- `ProductCode` required
+- `OrganizationType` required
+
+### Version validation
+- `TemplateBody` required
+- `OutputFormat` required
+- template must exist before version creation
+
+### Publish validation
+- template must exist
+- version must exist
+- invalid publish attempts should return clear results
+
+Use sensible 400/404/409 behavior.
+
+---
+
+## H. Error Handling
+Use consistent API responses and status codes.
+
+### Recommended behavior
+- `400` invalid request
+- `404` template/version not found
+- `409` duplicate code or conflicting action
+- `500` unexpected server failure
+
+Keep this lightweight and consistent.
+Do not overbuild a full enterprise exception framework unless something minimal already exists.
+
+---
+
+## I. Audit Hook Readiness
+If easy and low-risk, call the mock `IAuditAdapter` on:
+- template created
+- template updated
+- version created
+- version published
+
+This is optional but recommended if it can be added cleanly without blocking the story.
+
+---
+
+## J. Health & Readiness Compatibility
+Preserve:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+The service must still build and start successfully.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. template endpoints exist under `/api/v1/templates`
+2. API uses DTOs and does not return domain entities directly
+3. controllers/endpoints use a service layer, not repositories directly
+4. templates can be created
+5. templates can be updated
+6. templates can be retrieved by id
+7. templates can be listed by product and organization type
+8. template versions can be created
+9. latest version can be retrieved
+10. published version can be retrieved
+11. a version can be published
+12. publish logic ensures only one published version per template
+13. validation and basic error handling are implemented
+14. service builds successfully
+15. service starts successfully
+16. `/api/v1/health` works
+17. `/api/v1/ready` works
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-01-002-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Endpoints Added
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Add request/response DTOs
+Create the necessary request and response DTOs for templates and template versions.
+Update the report.
+
+## Step 3 — Add service layer contract and implementation
+Create:
+- `ITemplateManagementService`
+- `TemplateManagementService`
+
+Implement the orchestration logic and validation rules.
+Update the report.
+
+## Step 4 — Extend repositories minimally
+Add or refine repository methods only as needed to support the service layer.
+Do not move business logic into repositories.
+Update the report.
+
+## Step 5 — Implement template endpoints
+Add the required endpoints under `/api/v1/templates`.
+Ensure controllers/endpoints stay thin and call the service layer.
+Update the report.
+
+## Step 6 — Implement version publish logic
+Ensure single published version per template.
+Handle idempotent behavior or clear publish outcomes.
+Update the report.
+
+## Step 7 — Add validation and error handling
+Add request validation and appropriate HTTP responses.
+Keep it clean and lightweight.
+Update the report.
+
+## Step 8 — Optional audit hooks
+If clean and low-risk, add audit adapter calls for key template actions.
+Document what was done.
+Update the report.
+
+## Step 9 — Validate
+Run build/startup validation and verify at minimum:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+- create template
+- update template
+- get template by id
+- list templates by product/org type
+- create version
+- get latest version
+- get published version
+- publish version
+
+Capture outputs and issues in the report.
+
+## Step 10 — Finalize report
+Complete `/analysis/LS-REPORTS-01-002-report.md` with:
+- summary of API surface
+- DTOs added
+- service-layer decisions
+- repository extensions
+- endpoint validation results
+- build/startup status
+- known gaps
+- recommended next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Endpoints Added
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- template APIs exist under `/api/v1/templates`
+- controllers use DTOs and a service layer
+- versioning and publish logic work
+- only one published version per template is maintained
+- build/startup/health/readiness still pass
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-01-002** exactly as described.

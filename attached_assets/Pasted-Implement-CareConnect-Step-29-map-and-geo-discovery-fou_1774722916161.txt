@@ -1,0 +1,197 @@
+Implement CareConnect Step 29: map and geo-discovery foundation for providers.
+
+Goal:
+Add the first location-aware provider discovery layer so CareConnect can support map-based search later.
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect v1 baseline is complete, including:
+  - Providers
+  - Categories
+  - Referrals
+  - Scheduling foundation
+  - Appointments
+  - Notes
+  - Attachment metadata
+  - Notification intent
+- Provider search/filtering already exists
+- This step should prepare the backend for map-based discovery, but should NOT build the frontend map UI yet
+
+Important:
+Keep this implementation minimal, clean, production-minded, and consistent with the current architecture.
+
+Do NOT implement yet:
+- front-end map rendering
+- third-party map SDK integration
+- route planning
+- travel time estimation
+- clustering engine
+- geofencing
+- provider portal changes
+
+Requirements
+
+==================================================
+PART 1 — PROVIDER LOCATION MODEL
+==================================================
+
+1. Extend Provider entity with geolocation fields
+
+Add:
+- Latitude : decimal? or double?
+- Longitude : decimal? or double?
+- GeoPointSource : string?
+- GeoUpdatedAtUtc : DateTime?
+
+Use a MySQL-friendly numeric type with enough precision.
+Keep existing Provider fields intact.
+
+2. Allowed GeoPointSource values
+Use simple values such as:
+- Manual
+- Geocoded
+- Imported
+
+Do not over-engineer this.
+
+==================================================
+PART 2 — EF CORE MAPPING
+==================================================
+
+3. Update EF Core mapping for Provider
+
+Add columns for:
+- Latitude
+- Longitude
+- GeoPointSource
+- GeoUpdatedAtUtc
+
+Add indexes that help location filtering:
+- (TenantId, City, State)
+- (TenantId, Latitude, Longitude) if reasonable
+- keep existing provider indexes
+
+4. Add migration
+Create migration:
+- AddProviderGeoLocation
+
+Migration should update only the Providers table.
+
+==================================================
+PART 3 — DTO UPDATES
+==================================================
+
+5. Update Provider DTOs
+
+Update ProviderResponse to include:
+- Latitude
+- Longitude
+- GeoPointSource
+- GeoUpdatedAtUtc
+
+Update CreateProviderRequest and UpdateProviderRequest to optionally allow:
+- Latitude
+- Longitude
+- GeoPointSource
+
+This allows manual provider geolocation entry for now.
+
+==================================================
+PART 4 — SEARCH ENHANCEMENT
+==================================================
+
+6. Enhance provider search endpoint
+
+Extend existing GET /api/providers with optional query parameters:
+- latitude
+- longitude
+- radiusMiles
+
+Behavior:
+- all search remains tenant-scoped
+- if latitude/longitude/radiusMiles are provided, filter to providers with coordinates within an approximate bounding search
+- do not build perfect GIS or distance ranking yet
+- a simple bounding-box or approximate distance calculation is fine for this phase
+- provider must have both Latitude and Longitude to be included in geo search
+
+7. Keep existing provider filters working
+Continue to support:
+- name
+- categoryCode
+- city
+- state
+- acceptingReferrals
+- isActive
+- page
+- pageSize
+
+Geo filters should combine cleanly with existing filters.
+
+8. Add map-friendly response option
+If helpful, include in ProviderResponse:
+- a computed boolean like HasGeoLocation
+or just infer from Latitude/Longitude presence.
+
+==================================================
+PART 5 — VALIDATION
+==================================================
+
+9. Validate geo fields
+- Latitude must be between -90 and 90
+- Longitude must be between -180 and 180
+- radiusMiles must be > 0 and use a sensible max, such as 100
+- if latitude is supplied, longitude should also be supplied
+- invalid geo inputs return clean 400 using existing exception handling
+
+==================================================
+PART 6 — OPTIONAL HELPER
+==================================================
+
+10. Add simple geo helper/service
+Create a small helper/service such as:
+- ProviderGeoSearchHelper
+
+Responsibilities:
+- validate coordinates
+- build approximate geo filter logic
+- keep implementation simple and internal
+
+Do not add external GIS dependencies unless absolutely necessary.
+
+==================================================
+PART 7 — AUTHORIZATION
+==================================================
+
+11. Authorization rules
+Keep existing rules:
+- GET /api/providers => AuthenticatedUser
+- POST /api/providers => PlatformOrTenantAdmin
+- PUT /api/providers/{id} => PlatformOrTenantAdmin
+
+No new endpoint group needed if existing provider endpoint is enhanced cleanly.
+
+==================================================
+PART 8 — OUTPUT REQUIRED
+==================================================
+
+12. After implementation, output:
+- files created/updated
+- migration command
+- provider fields added
+- geo validation rules
+- how geo search works
+- sample curl requests for:
+  - creating provider with coordinates
+  - updating provider coordinates
+  - searching by latitude/longitude/radius
+  - combining geo search with city/state/category filters
+
+13. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- no breaking changes to existing CareConnect behavior
+- preserve strict tenant isolation
+- UTC timestamps where applicable
+- prepare cleanly for future map UI integration

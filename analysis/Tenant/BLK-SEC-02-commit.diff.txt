@@ -1,0 +1,200 @@
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs
+index e22811d7..f4165776 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs
+@@ -37,26 +37,50 @@ public static class ActivationAdminEndpoints
+ 
+     // ── Handlers ──────────────────────────────────────────────────────────────
+ 
++    // BLK-SEC-02: TenantAdmin callers are scoped to their own tenant.
++    // PlatformAdmin sees the full platform-wide queue.
+     private static async Task<IResult> GetPendingAsync(
+         IActivationRequestService service,
++        ICurrentRequestContext    ctx,
+         CancellationToken         ct)
+     {
+         var items = await service.GetPendingAsync(ct);
++
++        // Non-PlatformAdmin: filter to caller's tenant only.
++        if (!ctx.IsPlatformAdmin)
++        {
++            var callerTenantId = ctx.TenantId
++                ?? throw new InvalidOperationException("tenant_id claim is missing.");
++            items = items.Where(i => i.TenantId == callerTenantId).ToList();
++        }
++
+         return Results.Ok(new { items, count = items.Count });
+     }
+ 
++    // BLK-SEC-02: TenantAdmin may only retrieve activation requests for their own tenant.
+     private static async Task<IResult> GetByIdAsync(
+         Guid                      id,
+         IActivationRequestService service,
++        ICurrentRequestContext    ctx,
+         CancellationToken         ct)
+     {
+         var detail = await service.GetByIdAsync(id, ct);
+         if (detail is null)
+             return Results.NotFound(new { error = $"ActivationRequest '{id}' was not found." });
+ 
++        // Non-PlatformAdmin: reject cross-tenant access.
++        if (!ctx.IsPlatformAdmin)
++        {
++            var callerTenantId = ctx.TenantId
++                ?? throw new InvalidOperationException("tenant_id claim is missing.");
++            if (detail.TenantId != callerTenantId)
++                return Results.Forbid();
++        }
++
+         return Results.Ok(detail);
+     }
+ 
++    // BLK-SEC-02: TenantAdmin may only approve activation requests for their own tenant.
+     private static async Task<IResult> ApproveAsync(
+         Guid                      id,
+         [FromBody] ApproveActivationRequest request,
+@@ -67,9 +91,20 @@ public static class ActivationAdminEndpoints
+         if (request.OrganizationId == Guid.Empty)
+             return Results.BadRequest(new { error = "organizationId is required and must be a valid GUID." });
+ 
+-        var approvedByUserId = ctx.UserId;
++        // Non-PlatformAdmin: verify the activation request belongs to the caller's tenant
++        // before executing the approval.
++        if (!ctx.IsPlatformAdmin)
++        {
++            var callerTenantId = ctx.TenantId
++                ?? throw new InvalidOperationException("tenant_id claim is missing.");
++            var detail = await service.GetByIdAsync(id, ct);
++            if (detail is null)
++                return Results.NotFound(new { error = $"ActivationRequest '{id}' was not found." });
++            if (detail.TenantId != callerTenantId)
++                return Results.Forbid();
++        }
+ 
+-        var result = await service.ApproveAsync(id, request.OrganizationId, approvedByUserId, ct);
++        var result = await service.ApproveAsync(id, request.OrganizationId, ctx.UserId, ct);
+         return Results.Ok(result);
+     }
+ }
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs
+index 53f6cd34..210b02cb 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs
+@@ -50,24 +50,40 @@ public static class AdminDashboardEndpoints
+     //   - distinctBlockedUsersToday
+     //   - openReferrals (status ∈ {New, Accepted, InProgress})
+     //
+-    // No tenant filter — PlatformAdmin sees the full platform; TenantAdmin sees
+-    // the same aggregates (cross-tenant read is implicit for admins in CC).
++    // BLK-SEC-02: PlatformAdmin sees platform-wide aggregates.
++    //             TenantAdmin is scoped to their own tenant (tenant_id JWT claim).
+     private static async Task<IResult> GetDashboardAsync(
+-        CareConnectDbContext db,
+-        CancellationToken    ct)
++        CareConnectDbContext    db,
++        ICurrentRequestContext  ctx,
++        CancellationToken       ct)
+     {
+         var now    = DateTime.UtcNow;
+         var today  = now.AddHours(-24);
+         var week   = now.AddDays(-7);
+ 
+-        var referralToday   = await db.Referrals.CountAsync(r => r.CreatedAtUtc >= today, ct);
+-        var referralWeek    = await db.Referrals.CountAsync(r => r.CreatedAtUtc >= week,  ct);
+-        var openReferrals   = await db.Referrals.CountAsync(
++        // BLK-SEC-02: Derive optional tenant scope from the caller's JWT claim.
++        // PlatformAdmin → null (platform-wide).  TenantAdmin → their tenant GUID.
++        Guid? scopeTenantId = ctx.IsPlatformAdmin
++            ? null
++            : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
++
++        var referralQuery = db.Referrals.AsQueryable();
++        var blockedQuery  = db.BlockedProviderAccessLogs.AsQueryable();
++
++        if (scopeTenantId.HasValue)
++        {
++            referralQuery = referralQuery.Where(r => r.TenantId == scopeTenantId.Value);
++            blockedQuery  = blockedQuery.Where(l => l.TenantId == scopeTenantId.Value);
++        }
++
++        var referralToday   = await referralQuery.CountAsync(r => r.CreatedAtUtc >= today, ct);
++        var referralWeek    = await referralQuery.CountAsync(r => r.CreatedAtUtc >= week,  ct);
++        var openReferrals   = await referralQuery.CountAsync(
+             r => r.Status == "New" || r.Status == "NewOpened" || r.Status == "Accepted" || r.Status == "InProgress", ct);
+ 
+-        var blockedToday    = await db.BlockedProviderAccessLogs.CountAsync(l => l.AttemptedAtUtc >= today, ct);
+-        var blockedWeek     = await db.BlockedProviderAccessLogs.CountAsync(l => l.AttemptedAtUtc >= week,  ct);
+-        var blockedUsersToday = await db.BlockedProviderAccessLogs
++        var blockedToday    = await blockedQuery.CountAsync(l => l.AttemptedAtUtc >= today, ct);
++        var blockedWeek     = await blockedQuery.CountAsync(l => l.AttemptedAtUtc >= week,  ct);
++        var blockedUsersToday = await blockedQuery
+             .Where(l => l.AttemptedAtUtc >= today && l.UserId != null)
+             .Select(l => l.UserId)
+             .Distinct()
+@@ -95,12 +111,15 @@ public static class AdminDashboardEndpoints
+     // Remediation link is returned as a relative path so the frontend can
+     // construct the full URL without knowing the host:
+     //   remediationPath: /careconnect/admin/providers/provisioning?userId=<id>
++    // BLK-SEC-02: TenantAdmin is scoped to their own tenant.
++    // PlatformAdmin sees platform-wide blocked-access logs.
+     private static async Task<IResult> GetBlockedProvidersAsync(
+-        CareConnectDbContext db,
+-        [FromQuery] int      page     = 1,
+-        [FromQuery] int      pageSize = 25,
+-        [FromQuery] string?  since    = null,
+-        CancellationToken    ct       = default)
++        CareConnectDbContext    db,
++        ICurrentRequestContext  ctx,
++        [FromQuery] int         page     = 1,
++        [FromQuery] int         pageSize = 25,
++        [FromQuery] string?     since    = null,
++        CancellationToken       ct       = default)
+     {
+         page     = Math.Max(1, page);
+         pageSize = Math.Clamp(pageSize, 1, 100);
+@@ -109,9 +128,18 @@ public static class AdminDashboardEndpoints
+             ? parsedSince.ToUniversalTime()
+             : DateTime.UtcNow.AddDays(-7);
+ 
++        // BLK-SEC-02: Scope to caller's tenant for non-PlatformAdmin.
++        Guid? scopeTenantId = ctx.IsPlatformAdmin
++            ? null
++            : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
++
+         // Group by UserId+FailureReason to produce one row per unique block reason.
+         // Take the most recent log row from each group for the display columns.
+-        var query = db.BlockedProviderAccessLogs
++        var baseQuery = db.BlockedProviderAccessLogs.AsQueryable();
++        if (scopeTenantId.HasValue)
++            baseQuery = baseQuery.Where(l => l.TenantId == scopeTenantId.Value);
++
++        var query = baseQuery
+             .Where(l => l.AttemptedAtUtc >= window)
+             .GroupBy(l => new { l.UserId, l.FailureReason })
+             .Select(g => new
+diff --git a/apps/services/careconnect/CareConnect.Application/DTOs/ActivationRequestDtos.cs b/apps/services/careconnect/CareConnect.Application/DTOs/ActivationRequestDtos.cs
+index 4f72a34c..7947c2e0 100644
+--- a/apps/services/careconnect/CareConnect.Application/DTOs/ActivationRequestDtos.cs
++++ b/apps/services/careconnect/CareConnect.Application/DTOs/ActivationRequestDtos.cs
+@@ -5,6 +5,9 @@ namespace CareConnect.Application.DTOs;
+ public sealed class ActivationRequestSummary
+ {
+     public Guid    Id                { get; set; }
++    // BLK-SEC-02: TenantId included so the endpoint layer can enforce tenant-scoped
++    // list filtering for TenantAdmin callers without a second round-trip.
++    public Guid    TenantId          { get; set; }
+     public string  ProviderName      { get; set; } = string.Empty;
+     public string  ProviderEmail     { get; set; } = string.Empty;
+     public string? RequesterName     { get; set; }
+diff --git a/apps/services/careconnect/CareConnect.Application/Services/ActivationRequestService.cs b/apps/services/careconnect/CareConnect.Application/Services/ActivationRequestService.cs
+index 206eb0e0..e8e83e8f 100644
+--- a/apps/services/careconnect/CareConnect.Application/Services/ActivationRequestService.cs
++++ b/apps/services/careconnect/CareConnect.Application/Services/ActivationRequestService.cs
+@@ -98,6 +98,7 @@ public class ActivationRequestService : IActivationRequestService
+         return requests.Select(r => new ActivationRequestSummary
+         {
+             Id                = r.Id,
++            TenantId          = r.TenantId,   // BLK-SEC-02: propagated for endpoint-layer scoping
+             ProviderName      = r.ProviderName,
+             ProviderEmail     = r.ProviderEmail,
+             RequesterName     = r.RequesterName,

@@ -1,0 +1,550 @@
+Feature ID: LS-NOTIF-SMS-020
+
+Title:
+Governance Versioning, Bulk Rule Import, and Rule Effectiveness Analytics
+
+Objective:
+Extend the dynamic SMS governance platform with immutable governance rule versioning, bulk rule import/export, governance rollout safety controls, rule effectiveness analytics, governance rollback capability, and operational visibility into governance impact and enforcement quality.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- governance rule versioning
+- immutable rule snapshots
+- rule-pack versioning
+- rollback orchestration
+- bulk import/export validation
+- governance match/effectiveness analytics
+- rule lifecycle auditability
+- governance analytics APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance lifecycle UX. Do not duplicate import validation, rollback, versioning, or analytics logic in Control Center.
+
+Requirements:
+- Implement governance rule/version lifecycle management inside Notification Service.
+- Preserve LS-NOTIF-SMS-017 governance policies.
+- Preserve LS-NOTIF-SMS-018 template governance.
+- Preserve LS-NOTIF-SMS-019 dynamic rule execution.
+- Versioning and analytics must extend, not replace, existing governance behavior.
+- Rule changes must create immutable snapshots.
+- Bulk imports must validate fully before persistence.
+- Invalid imports must not partially corrupt governance state.
+- Rollback must be explicit, auditable, and safe.
+- Analytics aggregation must not impact delivery pipeline stability.
+- Do not store raw phone numbers in analytics/versioning tables.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-019 behavior.
+
+Implementation Requirements:
+1. Add immutable rule version persistence.
+2. Add immutable rule-pack version persistence.
+3. Add rule snapshot creation on create/update/disable.
+4. Add rule-pack snapshot creation on create/update/disable.
+5. Add explicit rollback support for rules and rule packs.
+6. Add bulk CSV/JSON import validation.
+7. Add bulk export support.
+8. Add rule effectiveness analytics.
+9. Add rule match analytics.
+10. Add analytics persistence or query-time aggregation, based on current codebase fit.
+11. Add admin APIs for version history, rollback, import/export, and analytics.
+12. Add Control Center governance lifecycle UI if feasible.
+13. Ensure delivery-time rule evaluation remains fast and stable.
+14. Ensure all failures degrade safely.
+
+Critical Constraints:
+- Reuse existing SmsGovernanceRulePack, SmsGovernanceRule, SmsComplianceProfile, SmsComplianceProfileAssignment, SmsGovernanceRuleEngine, SmsGovernanceRuleResolver, SmsGovernanceSimulationService, SmsTemplateGovernanceService, SmsGovernanceDecision, SmsTemplateGovernanceDecision, admin endpoint, EF/migration, audit/logging, and Control Center dynamic-rules UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite the dynamic rule engine unless required for instrumentation.
+- Do NOT replace LS-017, LS-018, or LS-019 behavior.
+- Do NOT implement AI/ML governance tuning.
+- Do NOT call external analytics, compliance, moderation, telecom, or fraud APIs.
+- Do NOT persist raw phone numbers in versioning or analytics tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-020-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-019 dynamic rule findings
+3. Existing rule-pack/rule/profile schema findings
+4. Existing simulation findings
+5. Existing template governance decision findings
+6. Existing Control Center dynamic rules UI findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. UI/route changes, if implemented
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Dynamic Governance Architecture
+- Identify:
+  - SmsGovernanceRulePack entity/table
+  - SmsGovernanceRule entity/table
+  - SmsComplianceProfile entity/table
+  - SmsComplianceProfileAssignment entity/table
+  - rule-pack create/update/disable APIs
+  - rule create/update/disable APIs
+  - SmsGovernanceRuleEngine evaluation result fields
+  - rule trace/simulation behavior
+  - existing rule analytics endpoint from LS-NOTIF-SMS-019
+  - template governance decision metadata
+  - Control Center sms-dynamic-rules page/components
+  - existing import/export patterns, if any
+  - existing transaction patterns
+  - existing audit/logging conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Rule Version Entity
+Add immutable rule version snapshots.
+
+Suggested entity:
+SmsGovernanceRuleVersion
+
+Suggested fields:
+- Id Guid
+- RuleId Guid
+- RulePackId Guid? nullable
+- VersionNumber int
+- RuleSnapshotJson string
+- ChangeType string
+- ChangeReason string? nullable
+- CreatedAt DateTime
+- CreatedBy string? nullable
+
+Suggested ChangeType values:
+- created
+- updated
+- disabled
+- rollback
+- imported
+
+Requirements:
+- Snapshot must include all rule fields needed to restore the rule.
+- Snapshot must not contain secrets.
+- VersionNumber increments per RuleId.
+- Versions are immutable.
+- Use EF/migration conventions.
+- Add indexes:
+  - RuleId, VersionNumber
+  - RulePackId, CreatedAt
+  - CreatedAt
+
+STEP 3 — Define Rule-Pack Version Entity
+Add immutable rule-pack snapshots.
+
+Suggested entity:
+SmsGovernanceRulePackVersion
+
+Suggested fields:
+- Id Guid
+- RulePackId Guid
+- VersionNumber int
+- PackSnapshotJson string
+- IncludedRulesSnapshotJson string? nullable
+- ChangeType string
+- ChangeReason string? nullable
+- CreatedAt DateTime
+- CreatedBy string? nullable
+
+Suggested ChangeType values:
+- created
+- updated
+- disabled
+- rollback
+- imported
+
+Requirements:
+- Pack snapshot must include all pack fields needed to restore the pack.
+- IncludedRulesSnapshotJson may include rule snapshots at that time.
+- Snapshot must not contain secrets.
+- VersionNumber increments per RulePackId.
+- Versions are immutable.
+- Use EF/migration conventions.
+- Add indexes:
+  - RulePackId, VersionNumber
+  - CreatedAt
+
+STEP 4 — Define Optional Rule Match Metric Entity
+Add persistence for governance rule effectiveness if current codebase supports low-risk aggregation.
+
+Suggested entity:
+SmsGovernanceRuleMatchMetric
+
+Suggested fields:
+- Id Guid
+- RuleId Guid? nullable
+- RulePackId Guid? nullable
+- TenantId Guid? nullable
+- RuleType string? nullable
+- Severity string? nullable
+- DecisionType string
+- ReasonCode string? nullable
+- MatchCount int
+- BlockCount int
+- WarnCount int
+- ReviewCount int
+- AllowCount int
+- SimulationCount int
+- LiveCount int
+- WindowStart DateTime
+- WindowEnd DateTime
+- LastMatchedAt DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+
+Requirements:
+- Store aggregate metrics only.
+- Do not store message content.
+- Do not store raw phone numbers.
+- Do not store credentials.
+- If persistence is too large, implement query-time analytics from existing decisions and document metric table as future.
+
+STEP 5 — Add Versioning Service
+Add service to create snapshots and perform rollback.
+
+Suggested interface:
+ISmsGovernanceVersioningService
+
+Suggested methods:
+- SnapshotRuleAsync(ruleId, changeType, changeReason, requestedBy, ct)
+- SnapshotRulePackAsync(rulePackId, changeType, changeReason, requestedBy, includeRules, ct)
+- GetRuleVersionsAsync(ruleId, ct)
+- GetRulePackVersionsAsync(rulePackId, ct)
+- RollbackRuleAsync(ruleId, versionNumber, requestedBy, reason, ct)
+- RollbackRulePackAsync(rulePackId, versionNumber, requestedBy, reason, ct)
+
+Requirements:
+- Snapshot before or immediately after mutations consistently; document chosen approach.
+- Rollback must create a new version with ChangeType = rollback.
+- Rollback must not delete version history.
+- Rollback must validate target version exists.
+- Rollback must restore safe fields only.
+- Use transactions where available.
+- Audit/log rollback.
+- Failure to snapshot during mutation should fail the mutation unless existing patterns require best-effort; prefer fail-safe.
+
+STEP 6 — Integrate Versioning With Existing Mutations
+Modify existing LS-019 rule-pack/rule mutation endpoints/services.
+
+Required integration points:
+- Create rule pack → snapshot created.
+- Update rule pack → snapshot created.
+- Disable rule pack → snapshot created.
+- Create rule → snapshot created.
+- Update rule → snapshot created.
+- Disable rule → snapshot created.
+- Import rule pack/rules → snapshot created with ChangeType = imported.
+- Rollback → snapshot created with ChangeType = rollback.
+
+Requirements:
+- Existing API responses remain backward compatible.
+- Do not break LS-019 behavior.
+- Snapshot metadata includes operator identity where available.
+- Snapshot JSON must be safe.
+
+STEP 7 — Add Bulk Import Service
+Add import validation and persistence service.
+
+Suggested interface:
+ISmsGovernanceImportService
+
+Suggested methods:
+- ValidateImportAsync(request, ct)
+- ImportAsync(request, requestedBy, ct)
+- ExportAsync(query, ct)
+
+Suggested import formats:
+- JSON
+- CSV
+
+Suggested JSON structure:
+{
+  "rulePack": {
+    "tenantId": null,
+    "name": "Default prohibited phrases",
+    "inheritanceMode": "merge",
+    "priority": 100
+  },
+  "rules": [
+    {
+      "ruleType": "prohibited_phrase",
+      "name": "No gambling terms",
+      "pattern": "casino",
+      "severity": "block",
+      "priority": 10,
+      "metadata": {}
+    }
+  ]
+}
+
+Suggested CSV columns:
+- rulePackName
+- tenantId
+- inheritanceMode
+- ruleType
+- name
+- pattern
+- severity
+- priority
+- enabled
+- metadataJson
+
+Requirements:
+- Validate entire import before writing anything.
+- Use transaction for persistence.
+- Reject invalid rule types.
+- Reject invalid severities.
+- Reject unsafe regex patterns.
+- Reject oversized patterns.
+- Reject invalid metadata JSON.
+- Return row-level validation errors.
+- Do not partially import invalid files.
+- Do not store secrets.
+- Import should support dry-run validation mode.
+- Import should create versions/snapshots.
+
+STEP 8 — Add Bulk Export Support
+Add export support for rule packs/rules/profiles.
+
+Supported export:
+- JSON preferred.
+- CSV if straightforward.
+
+Export must include:
+- rule packs
+- rules
+- optional profiles/assignments if safe and practical
+- version metadata optional
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Do not export secrets.
+- Do not export raw phones.
+- Support filters:
+  - tenantId
+  - rulePackId
+  - status
+  - ruleType
+  - severity
+- If returning CSV, use safe file response pattern.
+- If file responses are not established, return export-ready JSON.
+
+STEP 9 — Add Rule Match Instrumentation
+Instrument dynamic rule evaluation to support analytics.
+
+Requirements:
+- Capture matched rule id, rule pack id, tenant id, rule type, severity, decision type, reason code.
+- Do not capture message body.
+- Do not capture raw phone.
+- Do not capture full matched content.
+- For simulation, mark as simulation, not live.
+- For live sends, mark as live.
+- Instrumentation failure must not block governance evaluation.
+- If using metric table, aggregate periodically or upsert bounded counters.
+- If query-time analytics is used, ensure decisions store enough metadata to report matches.
+
+STEP 10 — Add Rule Effectiveness Analytics Service
+Add analytics service.
+
+Suggested interface:
+ISmsGovernanceAnalyticsService
+
+Suggested methods:
+- GetRuleEffectivenessAsync(query, ct)
+- GetRuleMatchAnalyticsAsync(query, ct)
+- GetFalsePositiveCandidatesAsync(query, ct)
+- GetPackEffectivenessAsync(query, ct)
+
+Suggested metrics:
+- total matches
+- block count
+- warn count
+- review count
+- allow count
+- simulation count
+- live count
+- block rate
+- review rate
+- top matched rules
+- top matched packs
+- tenant breakdown
+- rule type breakdown
+- false-positive candidates
+
+False-positive candidate heuristic examples:
+- high warn count with low block count
+- high review count with frequent operator overrides if override data exists
+- high match rate on recently created rule
+- rules frequently triggered in simulation but rarely live
+
+Requirements:
+- Use safe aggregate data only.
+- Do not expose message content.
+- Do not expose raw phones.
+- Use bounded date defaults.
+- Do not impact delivery pipeline.
+
+STEP 11 — Add Versioning / Import / Analytics APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/rules/{id}/versions
+- POST /v1/admin/sms/governance/rules/{id}/rollback
+- GET /v1/admin/sms/governance/rule-packs/{id}/versions
+- POST /v1/admin/sms/governance/rule-packs/{id}/rollback
+- POST /v1/admin/sms/governance/import/validate
+- POST /v1/admin/sms/governance/import
+- GET /v1/admin/sms/governance/export
+- GET /v1/admin/sms/governance/effectiveness
+- GET /v1/admin/sms/governance/match-analytics
+- GET /v1/admin/sms/governance/false-positive-candidates
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Use pagination where appropriate.
+- Validate rollback reason where required.
+- Return row-level import validation errors.
+- Do not expose secrets, raw phones, provider payloads, or full message content.
+- Use safe DTOs.
+
+STEP 12 — Extend Control Center UI If Feasible
+Extend existing dynamic governance UI.
+
+Suggested additions:
+- Rule version history drawer
+- Rule-pack version history drawer
+- Rollback confirmation flow
+- Bulk import modal
+- Import validation results table
+- Export button
+- Rule effectiveness dashboard
+- Match analytics table/charts
+- False-positive candidate panel
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate import validation or analytics logic.
+- No raw phone display.
+- No message body display unless simulation input provided by operator.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 13 — Documentation
+Update documentation/report notes for:
+- versioning behavior
+- snapshot contents
+- rollback semantics
+- import formats
+- validation rules
+- export behavior
+- analytics definitions
+- false-positive heuristics
+- Control Center UI additions if implemented
+
+Documentation must explain:
+- version history is immutable.
+- rollback creates a new version rather than deleting history.
+- bulk import is transactional.
+- analytics are aggregate and do not store message content.
+- no external analytics/compliance APIs are used.
+
+STEP 14 — Validation
+Perform validation/testing for:
+
+Versioning:
+- rule create creates version.
+- rule update creates version.
+- rule disable creates version.
+- rule rollback restores old state and creates rollback version.
+- rule-pack create/update/disable creates versions.
+- version history immutable.
+- version endpoints return safe snapshots.
+
+Import:
+- valid JSON import succeeds.
+- valid CSV import succeeds if CSV implemented.
+- invalid rule type rejected.
+- invalid severity rejected.
+- unsafe regex rejected.
+- malformed metadata rejected.
+- partial import does not occur.
+- dry-run validation creates no records.
+- import creates snapshots.
+
+Export:
+- export returns expected packs/rules.
+- filters work.
+- no secrets/raw phones/message content exported.
+
+Analytics:
+- rule match metrics aggregate.
+- simulation vs live counts separated.
+- block/warn/review counts correct.
+- pack effectiveness works.
+- false-positive candidates return safe aggregate info.
+- analytics date filters work.
+
+Control Center UI if implemented:
+- version drawer renders.
+- rollback confirmation works.
+- import validation table works.
+- export action works.
+- analytics panels render.
+- no sensitive data displayed.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-019 behavior preserved.
+- dynamic rule evaluation unchanged when analytics/versioning disabled.
+- LS-017 governance unchanged.
+- LS-018 template governance unchanged.
+- simulation still does not send SMS.
+- delivery pipeline unchanged.
+
+Security:
+- no raw phones stored.
+- no raw message bodies stored in analytics.
+- no credentials exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsGovernanceRuleVersion entity/table
+- SmsGovernanceRulePackVersion entity/table
+- Optional SmsGovernanceRuleMatchMetric entity/table
+- Versioning service
+- Import/export service
+- Analytics service
+- Snapshot integration with existing rule mutations
+- Rollback APIs
+- Import/export APIs
+- Effectiveness analytics APIs
+- Control Center lifecycle UI if feasible
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist raw message content in analytics
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external analytics/compliance/moderation APIs
+- Implement AI/ML governance tuning
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Replace LS-019 dynamic rule engine
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-019 behavior

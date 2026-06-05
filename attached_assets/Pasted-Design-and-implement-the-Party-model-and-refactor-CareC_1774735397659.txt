@@ -1,0 +1,114 @@
+Design and implement the Party model and refactor CareConnect to a tenant-aware, multi-organization workflow.
+
+Use the existing platform foundation:
+
+- Tenant is the account/subdomain boundary
+- Organization is the business actor (LAW_FIRM, PROVIDER, etc.)
+- Users are separate from Parties
+- ProductRoles and Capabilities are already implemented
+- JWT provides:
+  - tenant_id
+  - org_id
+  - org_type
+  - product_roles
+
+Core business rules for CareConnect:
+- Law firm refers a client (injured party)
+- Provider receives the referral
+- Referral may cross tenants
+- The client must be modeled as a first-class Party (not just inline fields)
+- Workflow participants:
+  - ReferringOrganization (LAW_FIRM)
+  - ReceivingOrganization (PROVIDER)
+  - SubjectParty (client)
+
+Goals:
+- remove reliance on TenantId as the sole owner of records
+- explicitly model workflow participants
+- prepare for cross-tenant interaction
+
+Generate the output in these exact sections:
+
+1. Party Model Design
+- define Parties table
+- include:
+  - PartyType (INDIVIDUAL initially)
+  - name fields
+  - DOB
+  - contact fields
+- define supporting tables:
+  - PartyContacts (optional)
+  - PartyAddresses (optional)
+- define future link to User (for injured party portal)
+- explain when to store snapshot fields on workflow records
+
+2. CareConnect Referral Schema Refactor
+- redesign Referrals table to include:
+  - ReferringOrganizationId
+  - ReceivingOrganizationId
+  - SubjectPartyId
+  - TenantId (still exists for partitioning)
+- define full column list
+- define indexes for:
+  - sent referrals
+  - received referrals
+  - party-based queries
+
+3. Appointment Schema Update
+- include:
+  - ReferringOrganizationId
+  - ReceivingOrganizationId
+  - SubjectPartyId
+- explain relationship to referrals
+
+4. Notes and Attachments Visibility Model
+- design:
+  - OwnerOrganizationId
+  - VisibilityScope (INTERNAL, SHARED)
+- define rules:
+  - law firm internal notes
+  - provider internal notes
+  - shared notes
+
+5. EF Core Implementation Plan
+- entity classes
+- relationships
+- navigation properties
+- DbContext updates
+
+6. Migration Plan
+- additive migration steps
+- how to:
+  - create Parties
+  - backfill existing referral client fields into Parties
+- keep backward compatibility during transition
+
+7. Backfill Strategy
+- convert:
+  - existing referral client fields → Party records
+- link:
+  - referrals → SubjectPartyId
+- handle incomplete data safely
+
+8. API Changes
+- update:
+  - create referral endpoint
+  - get referral endpoint
+- new DTOs:
+  - include party info
+- ensure backward compatibility for existing clients
+
+9. Authorization Rules (Very Important)
+- define rules:
+  - referrer can access referrals they created
+  - provider can access referrals addressed to them
+  - no other org can access
+- include code patterns using:
+  - UserContext
+  - CapabilityService
+
+10. Risks and Edge Cases
+- cross-tenant referral visibility
+- missing party data
+- duplicate party creation
+- partial migration state

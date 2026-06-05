@@ -1,0 +1,234 @@
+You are implementing feature MON-INT-02-001 — Entity Registration Bootstrap.
+
+OBJECTIVE
+Bootstrap the Monitoring Service with an initial set of real monitored entities for the LegalSynq platform so the scheduler can begin producing actual check results, current status, and alerts.
+
+This feature makes the Monitoring read model operationally useful.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Entity registration must be owned by Monitoring Service, not direct database writes
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-02-001-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT insert rows directly into MySQL tables
+- Do NOT bypass Monitoring Service domain rules
+- Do NOT modify UI components
+- Prefer minimal, reversible changes
+- Keep backend, API, and UI concerns separated
+
+PREREQUISITE CONTEXT
+- MON-INT-01-001 and MON-INT-01-002 are complete in code
+- Monitoring Service read endpoints now exist
+- The DB connection string has reportedly been added by the user
+- The next need is to register real monitored entities so status/summary/alerts return useful data
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-02-001-report.md
+
+Initialize with:
+
+# MON-INT-02-001 — Entity Registration Bootstrap
+
+## 1. Task Summary
+## 2. Monitoring Service Write Path Analysis
+## 3. Initial Entity Set Design
+## 4. Registration Implementation
+## 5. Runtime Validation
+## 6. Control Center Service-Mode Validation
+## 7. Files Changed
+## 8. Known Gaps / Risks
+## 9. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE THE CANONICAL WRITE PATH
+
+Inspect the Monitoring Service write path and determine the proper supported method for entity registration.
+
+Look at:
+- Monitoring.Api admin endpoints
+- request contracts
+- auth requirements
+- any internal bootstrap hooks already present
+- any domain/application services used for entity creation/update
+
+Determine the canonical registration path in this environment:
+
+Preferred order:
+1. Monitoring Service admin API, if callable
+2. Internal bootstrap mechanism inside Monitoring Service startup or a dedicated bootstrap utility, if API auth is blocked
+3. Do NOT use direct SQL inserts
+
+Document:
+- chosen method
+- why it is canonical
+- why other methods were rejected
+
+---
+
+STEP 3 — DESIGN THE INITIAL ENTITY SET
+
+Define a practical initial set of monitored entities using actual running platform services.
+
+At minimum consider:
+- Gateway
+- Identity
+- Documents
+- Audit
+- Liens
+- Reports
+- Comms
+- Flow
+- Notifications
+- Control Center
+
+For each chosen entity document:
+- name
+- target URL
+- scope
+- impact level
+- entity type / monitoring type
+- enabled flag
+
+Rules:
+- use real reachable URLs only
+- prefer health endpoints where appropriate
+- do not include services that are not actually present/running
+- do not invent endpoints
+
+Document the final chosen entity list in the report before registering anything.
+
+---
+
+STEP 4 — IMPLEMENT REGISTRATION USING THE CANONICAL PATH
+
+Register the chosen entities through the Monitoring Service’s supported write path.
+
+If admin API is usable:
+- use it
+- capture requests/responses
+- document auth method used
+
+If admin API is blocked due to auth mismatch:
+- implement the smallest safe internal bootstrap path inside Monitoring Service
+- this bootstrap must still go through Monitoring Service domain/application logic
+- examples allowed:
+  - a temporary startup bootstrap class
+  - a dedicated bootstrap command/service invoked by the API host
+- examples NOT allowed:
+  - raw SQL INSERTs
+  - hand-editing MySQL rows
+  - bypassing domain validation
+
+If you add temporary bootstrap code:
+- keep it isolated
+- document it clearly
+- make it reversible
+
+---
+
+STEP 5 — RUNTIME VALIDATION
+
+After registration, validate that the scheduler starts producing real monitoring data.
+
+Validate and document:
+- entity rows exist through service read APIs
+- EntityCurrentStatus rows are being produced
+- CheckResultRecord history is being produced
+- MonitoringAlert behavior is observed if any service is unhealthy
+
+Test at minimum:
+- GET /monitoring/entities
+- GET /monitoring/status
+- GET /monitoring/alerts
+- GET /monitoring/summary
+
+Also test via gateway where appropriate.
+
+Document:
+- exact endpoints called
+- sample results
+- whether integrations list is now non-empty
+- whether alerts are empty or populated and why
+
+---
+
+STEP 6 — CONTROL CENTER SERVICE-MODE VALIDATION
+
+Validate the full consumer path using Monitoring Service data.
+
+Use:
+- MONITORING_SOURCE=service
+
+Validate:
+- Control Center monitoring summary route succeeds
+- Control Center monitoring page can consume Monitoring Service data without UI changes
+- local fallback remains available if needed
+
+If UI rendering cannot be fully browser-tested, still validate the summary API path end-to-end and document clearly.
+
+---
+
+STEP 7 — ROLLBACK / FALLBACK
+
+Document safe rollback behavior:
+- how to switch Control Center back to local mode
+- how to disable bootstrap if it was added
+- how failures remain isolated to monitoring
+
+Do NOT remove the fallback.
+
+---
+
+STEP 8 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- purpose
+
+If no code changes were required beyond bootstrap/config, state that clearly.
+
+---
+
+STEP 9 — KNOWN GAPS / RISKS
+
+Document clearly:
+- auth/security limitations still present
+- any temporary bootstrap path that should be replaced later
+- any services not yet registered and why
+- any endpoints that fail or are noisy
+- performance or scheduler considerations
+
+---
+
+STEP 10 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+- MON-INT-01-003 — Monitoring Auth & Security Alignment
+- MON-INT-02-002 — Status Summary Banner
+- MON-INT-02-003 — Component Status List
+
+Choose based on actual readiness after bootstrap.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+- /analysis/MON-INT-02-001-report.md exists and was created FIRST
+- real monitored entities have been registered through a canonical Monitoring-owned path
+- summary/status endpoints return non-empty real monitoring data
+- Control Center service mode can consume Monitoring Service data
+- rollback path is documented
+- no direct DB insert bootstrap was used

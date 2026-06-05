@@ -1,0 +1,193 @@
+You are executing BLK-SEC-01-FIX — Final Security Corrections.
+
+CRITICAL:
+
+- DO NOT introduce new features
+- DO NOT modify business logic
+- ONLY fix remaining blockers from BLK-SEC-01
+- DO NOT create new commits beyond this fix (single commit only)
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Resolve the remaining blockers:
+
+1. Fix build errors in:
+   - Identity service
+   - Tenant service
+
+2. Secure:
+   - /api/admin/integrity endpoint
+
+3. Keep all existing BLK-SEC-01 behavior intact
+
+--------------------------------------------------
+
+PART A — FIX IDENTITY BUILD ERROR
+
+--------------------------------------------------
+
+Error:
+ITenantSyncAdapter not found
+
+Steps:
+
+1. Locate:
+   Identity.Api/Endpoints/AdminEndpoints.cs
+
+2. Identify:
+   - where ITenantSyncAdapter is referenced
+
+3. Fix using ONE of:
+
+Option A (preferred):
+- add correct interface import/namespace
+- ensure dependency is registered
+
+Option B:
+- if unused or legacy → remove dependency cleanly
+
+RULES:
+- do NOT stub or fake implementation
+- do NOT leave dead code
+- compile must succeed
+
+--------------------------------------------------
+
+PART B — FIX TENANT BUILD ERROR
+
+--------------------------------------------------
+
+Error:
+TenantProvisioningStatus not found
+
+Steps:
+
+1. Locate:
+   Tenant.Infrastructure/Data/Configurations/TenantConfiguration.cs
+
+2. Identify:
+   - enum or type reference
+
+3. Fix using ONE of:
+
+Option A (preferred):
+- import correct enum/type
+
+Option B:
+- if removed previously → align configuration to current model
+
+RULES:
+- no placeholder enums
+- match actual domain model
+
+--------------------------------------------------
+
+PART C — SECURE /api/admin/integrity
+
+--------------------------------------------------
+
+Locate:
+CareConnect.Api/Endpoints/CareConnectIntegrityEndpoints.cs
+
+Current:
+AllowAnonymous
+
+Fix:
+
+Option A (preferred):
+- require Admin JWT (role-based)
+
+Option B:
+- require X-Provisioning-Token
+
+Implementation requirements:
+
+- reject unauthorized → 401
+- no public access
+- no bypass in non-dev
+
+--------------------------------------------------
+
+PART D — VALIDATION
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. Identity service builds successfully
+2. Tenant service builds successfully
+3. CareConnect builds successfully
+4. /api/admin/integrity:
+   - fails without auth
+   - succeeds with valid auth
+5. No regression in onboarding
+6. No regression in provisioning
+
+--------------------------------------------------
+
+PART E — REPORT UPDATE
+
+--------------------------------------------------
+
+Update:
+
+/analysis/BLK-SEC-01-report.md
+
+Append:
+
+## 12. BLK-SEC-01-FIX Corrections
+
+### Build Fixes
+- Identity: describe fix
+- Tenant: describe fix
+
+### Integrity Endpoint Security
+- auth method applied
+- validation results
+
+--------------------------------------------------
+
+PART F — COMMIT
+
+--------------------------------------------------
+
+Create ONE commit:
+
+Message:
+[BLK-SEC-01-FIX] Resolve build errors + secure integrity endpoint
+
+--------------------------------------------------
+
+PART G — DIFF EXTRACTION
+
+--------------------------------------------------
+
+Run:
+
+git show <commit-id> > /analysis/BLK-SEC-01-FIX-commit.diff.txt
+
+Create:
+
+/analysis/BLK-SEC-01-FIX-commit-summary.md
+
+Include:
+- commit ID
+- files changed
+- fixes applied
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- all services build
+- no public admin endpoint
+- report updated
+- diff + summary generated
+
+--------------------------------------------------
+
+END

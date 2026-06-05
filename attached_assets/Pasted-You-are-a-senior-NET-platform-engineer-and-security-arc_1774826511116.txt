@@ -1,0 +1,344 @@
+You are a senior .NET platform engineer and security architect.
+
+Your task is to implement **ClamAV-based malware scanning as an internal capability of the .NET Documents Service**, while keeping the scanning logic modular, secure, and production-appropriate.
+
+## Primary Goal
+
+Add production-ready malware scanning to the **.NET Documents Service** so that scanning is treated as part of the Documents Service platform, but implemented as a **separate internal scanning module / background workflow**, not mixed directly into controller logic.
+
+This must preserve clean architecture and keep the service maintainable.
+
+---
+
+## Architectural Direction
+
+The Documents Service should remain the single product/service boundary.
+
+Inside that service boundary, implement:
+
+* Documents API
+* Documents application logic
+* Documents persistence
+* Documents scan-status enforcement
+* Documents internal background scan processing
+* ClamAV integration via provider abstraction
+
+### Important design rule
+
+ClamAV is part of the Documents Service solution, but it should be integrated through infrastructure + background processing, not directly embedded into route handlers.
+
+---
+
+## Desired Production Model
+
+Use this model:
+
+1. User uploads a document
+2. Documents Service stores the file in a **quarantine location**
+3. Document/version record is created with:
+
+   * `scanStatus = Pending`
+4. A scan job is queued or internally scheduled
+5. Internal background worker processes the job
+6. Worker calls `ClamAvFileScannerProvider`
+7. Worker updates document/version scan result:
+
+   * `Clean`
+   * `Infected`
+   * `Failed`
+8. Access APIs must deny access unless scan policy allows it
+9. If clean, file is promoted to clean storage or marked safe for access
+10. Audit all critical scan events
+
+---
+
+## Scope
+
+Implement this for the **.NET Documents Service** only.
+
+Do NOT modify the Node.js service.
+
+Do NOT collapse clean architecture layers.
+
+---
+
+## Design Constraints
+
+### Keep these boundaries
+
+* API layer handles requests only
+* Application layer orchestrates scan workflow
+* Infrastructure layer implements ClamAV and storage details
+* Background worker handles async scanning
+* Domain layer remains provider-agnostic
+
+### Required abstractions
+
+Use or extend:
+
+* `IFileScannerProvider`
+* storage abstraction
+* audit service
+* document repository
+* version repository
+
+Add any additional abstractions if needed, such as:
+
+* `IScanJobQueue`
+* `IScanJobDispatcher`
+* `IScanProcessingService`
+
+---
+
+## Implementation Requirements
+
+### 1. Internal scan workflow
+
+Implement an async internal workflow inside the .NET Documents Service.
+
+Preferred approach:
+
+* use a background worker (`IHostedService` / `BackgroundService`)
+* queue scan jobs in-process initially, but structure code so it can later be replaced with Redis/SQS/etc.
+
+Required behavior:
+
+* upload does NOT do full inline production scan
+* uploaded files should enter `Pending`
+* background worker scans them
+* access remains blocked until allowed by scan policy
+
+### 2. ClamAV provider
+
+Implement:
+
+* `ClamAvFileScannerProvider`
+
+Requirements:
+
+* connect to ClamAV daemon (`clamd`) over TCP
+* configurable host/port
+* safe timeout handling
+* return structured scan result:
+
+  * status
+  * threats
+  * duration
+  * engine info if available
+
+Also keep:
+
+* `NullScannerProvider`
+* `MockScannerProvider`
+
+### 3. Quarantine model
+
+Implement a quarantine-safe storage model.
+
+At minimum:
+
+* newly uploaded files must not be treated as clean immediately
+* either:
+
+  * store under a quarantine prefix/path
+  * or mark with a quarantine state while awaiting scan
+
+Preferred:
+
+* quarantine storage key / prefix
+* clean storage key / prefix
+
+If promotion/move is too large for one pass, document and implement the safest minimal version.
+
+### 4. Scan status enforcement
+
+Ensure access endpoints enforce scan policy.
+
+At minimum:
+
+* `Infected` → always blocked
+* `Pending` → blocked in production-safe mode
+* `Failed` → blocked in production-safe mode
+* `Clean` → allowed
+* `Skipped` → only allowed when intentionally configured
+
+Make behavior config-driven where appropriate.
+
+### 5. Audit events
+
+Audit all scan lifecycle events, including:
+
+* scan requested
+* scan started
+* scan completed clean
+* scan failed
+* infected file detected
+* access denied due to scan status
+
+### 6. Configuration
+
+Add config for:
+
+* ClamAV host/port
+* scanner provider selection
+* require clean scan for access
+* scan worker polling/queue settings
+* quarantine prefix/path
+* clean prefix/path if applicable
+* scan timeout
+
+### 7. Swagger / API documentation impact
+
+If any API behavior changes due to async scanning, document it in analysis:
+
+* upload response behavior
+* pending scan semantics
+* access denied while pending
+
+You do not need to rewrite all OpenAPI docs now, but document the impact.
+
+---
+
+## Suggested .NET Structure
+
+Use the existing .NET Documents Service structure and extend it cleanly.
+
+Possible additions:
+
+* `Documents.Application/Services/ScanOrchestrationService.cs`
+* `Documents.Application/Services/ScanJobService.cs`
+* `Documents.Infrastructure/Scanner/ClamAvFileScannerProvider.cs`
+* `Documents.Infrastructure/Scanner/InMemoryScanJobQueue.cs`
+* `Documents.Api/Background/DocumentScanWorker.cs`
+
+These are suggestions, not hard requirements.
+
+---
+
+## Delivery Phases
+
+### Phase 1 — Design and architecture for internal scanning
+
+Analyze the current .NET Documents Service and design the internal ClamAV workflow.
+
+Create:
+`/analysis/dotnet_clamav_phase1_design.md`
+
+Include:
+
+* current upload flow
+* current scan flow
+* new target flow
+* architecture decisions
+* tradeoffs
+* risks
+
+---
+
+### Phase 2 — Core scanner infrastructure
+
+Implement:
+
+* `ClamAvFileScannerProvider`
+* scanner config
+* provider wiring
+* timeout/error handling
+* keep mock/null providers working
+
+Create:
+`/analysis/dotnet_clamav_phase2_provider.md`
+
+---
+
+### Phase 3 — Internal scan job workflow
+
+Implement:
+
+* in-process scan job queue or dispatcher
+* background worker
+* async scan processing flow
+* document/version scan status updates
+
+Create:
+`/analysis/dotnet_clamav_phase3_worker.md`
+
+---
+
+### Phase 4 — Quarantine and access enforcement
+
+Implement:
+
+* quarantine-safe storage behavior
+* scan-status-aware access enforcement
+* promotion strategy if implemented
+* access denial for unsafe scan states
+
+Create:
+`/analysis/dotnet_clamav_phase4_quarantine_and_access.md`
+
+---
+
+### Phase 5 — Audit, configuration, and parity review
+
+Implement/finalize:
+
+* audit events
+* config docs
+* run instructions
+* dev/test workflow
+* parity notes
+* remaining production gaps
+
+Create:
+`/analysis/dotnet_clamav_phase5_review.md`
+
+Also create:
+`/analysis/dotnet_clamav_final_summary.md`
+
+---
+
+## Quality Requirements
+
+* Keep the .NET Documents Service buildable
+* Do not break the existing .NET implementation
+* Preserve clean architecture
+* Keep Node.js untouched
+* Prefer safe defaults
+* Fail closed where reasonable
+* Do not expose infected or pending files through access endpoints
+
+---
+
+## Important Security Rules
+
+* Infected files must never be accessible
+* Pending files should be blocked by default in production-safe mode
+* Scan failures should not silently allow file access unless explicitly configured
+* Quarantine content must not be treated as clean
+* Audit scan failures and infected detections
+* Do not log sensitive file content
+
+---
+
+## Final Deliverables
+
+Required analysis files:
+
+* `/analysis/dotnet_clamav_phase1_design.md`
+* `/analysis/dotnet_clamav_phase2_provider.md`
+* `/analysis/dotnet_clamav_phase3_worker.md`
+* `/analysis/dotnet_clamav_phase4_quarantine_and_access.md`
+* `/analysis/dotnet_clamav_phase5_review.md`
+* `/analysis/dotnet_clamav_final_summary.md`
+
+Also make real code changes in the .NET Documents Service.
+
+---
+
+## Start now
+
+1. inspect the current .NET Documents Service
+2. design the internal ClamAV architecture
+3. implement Phase 1 and generate:
+   `/analysis/dotnet_clamav_phase1_design.md`
+4. continue through the remaining phases in order

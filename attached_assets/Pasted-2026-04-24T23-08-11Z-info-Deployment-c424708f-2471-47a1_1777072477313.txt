@@ -1,0 +1,197 @@
+2026-04-24T23:08:11Z info: Deployment: c424708f-2471-47a1-abec-0f9b07cf77b7
+2026-04-24T23:08:11Z info: Build: 7b95ca00-e0ca-4288-a81c-98035364d9d0
+2026-04-24T23:08:11Z info: Running Security Scan
+2026-04-24T23:10:30Z info: Security Scan Complete
+2026-04-24T23:10:36Z info: Installing packages
+--> npm install
+
+
+added 151 packages, removed 7 packages, changed 36 packages, and audited 234 packages in 13s
+
+49 packages are looking for funding
+  run `npm fund` for details
+
+
+2 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.13.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+npm notice To update run: npm install -g npm@11.13.0
+npm notice
+
+2026-04-24T23:10:53Z info: Starting Build
+Using next binary: /home/runner/workspace/node_modules/next/dist/bin/next
+====== Building web app ======
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /home/runner/workspace/pnpm-lock.yaml as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /home/runner/workspace/apps/web/pnpm-lock.yaml
+
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+   ▲ Next.js 15.5.15
+
+   - Environments: .env.local, .env.production
+   - Experiments (use with caution):
+     · serverActions
+
+
+   Creating an optimized production build ...
+
+ ✓ Compiled successfully in 21.7s
+
+   Linting and checking validity of types ...
+
+   Collecting page data ...
+
+   Generating static pages (0/112) ...
+
+   Generating static pages (28/112) 
+
+   Generating static pages (56/112) 
+
+   Generating static pages (84/112) 
+
+ ✓ Generating static pages (112/112)
+
+   Finalizing page optimization ...
+
+   Collecting build traces ...
+
+Route (app)                                                 Size  First Load JS
+┌ ƒ /                                                      255 B         103 kB
+├ ƒ /_not-found                                            998 B         104 kB
+├ ƒ /.well-known/tenant-verify                             255 B         103 kB
+├ ƒ /accept-invite                                       2.67 kB         111 kB
+├ ƒ /access-denied                                         233 B         107 kB
+├ ƒ /activity                                              255 B         103 kB
+├ ƒ /admin/organizations                                   255 B         103 kB
+├ ƒ /admin/products                                        255 B         103 kB
+├ ƒ /admin/tenants                                         255 B         103 kB
+├ ƒ /admin/users                                         1.89 kB         105 kB
+├ ƒ /ai/dashboard                                          255 B         103 kB
+├ ƒ /api/admin/branding-metrics                            255 B         103 kB
+├ ƒ /api/audit/[...path]                                   255 B         103 kB
+├ ƒ /api/auth/accept-invite                                255 B         103 kB
+├ ƒ /api/auth/change-password                              255 B         103 kB
+├ ƒ /api/auth/forgot-password                              255 B         103 kB
+├ ƒ /api/auth/login                                        255 B         103 kB
+├ ƒ /api/auth/logout                                       255 B         103 kB
+├ ƒ /api/auth/me                                           255 B         103 kB
+├ ƒ /api/auth/reset-password                               255 B         103 kB
+├ ƒ /api/branding/logo/[docId]                             255 B         103 kB
+├ ƒ /api/branding/logo/public                              255 B         103 kB
+├ ƒ /api/careconnect/[...path]                             255 B         103 kB
+├ ƒ /api/flow/[...path]                                    255 B         103 kB
+├ ƒ /api/fund/[...path]                                    255 B         103 kB
+├ ƒ /api/geocode/address                                   255 B         103 kB
+├ ƒ /api/health                                            255 B         103 kB
+├ ƒ /api/identity/[...path]                                255 B         103 kB
+├ ƒ /api/lien/[...path]                                    255 B         103 kB
+├ ƒ /api/notifications/list                                255 B         103 kB
+├ ƒ /api/notifications/stats                               255 B         103 kB
+├ ƒ /api/org-config                                        255 B         103 kB
+├ ƒ /api/profile/avatar                                    255 B         103 kB
+├ ƒ /api/profile/avatar/[id]                               255 B         103 kB
+├ ƒ /api/profile/phone                                     255 B         103 kB
+├ ƒ /api/public/careconnect/[...path]                      255 B         103 kB
+├ ƒ /api/tenant-branding                                   255 B         103 kB
+├ ○ /apple-icon.png                                          0 B            0 B
+├ ƒ /careconnect/admin/activations                         233 B         107 kB
+├ ƒ /careconnect/admin/activations/[id]                  1.56 kB         108 kB
+├ ƒ /careconnect/admin/analytics/activation                678 B         107 kB
+├ ƒ /careconnect/admin/dashboard                           233 B         107 kB
+├ ƒ /careconnect/admin/performance                         233 B         107 kB
+├ ƒ /careconnect/admin/providers/blocked                   233 B         107 kB
+├ ƒ /careconnect/admin/providers/provisioning            2.68 kB         106 kB
+├ ƒ /careconnect/admin/referrals                           233 B         107 kB
+├ ƒ /careconnect/appointments                              174 B         107 kB
+├ ƒ /careconnect/appointments/[id]                       3.81 kB         118 kB
+├ ƒ /careconnect/dashboard                               1.23 kB         108 kB
+├ ƒ /careconnect/my-network                              5.49 kB         111 kB
+├ ƒ /careconnect
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+====== Building control center ======
+
+[control-center] Using next binary: /home/runner/workspace/apps/control-center/node_modules/next/dist/bin/next
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+This information is used to shape Next.js' roadmap and prioritize features.
+
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+   ▲ Next.js 15.5.15
+
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+
+   Creating an optimized production build ...
+
+ ✓ Compiled successfully in 19.4s
+
+   Linting and checking validity of types ...
+
+Failed to compile.
+
+./src/app/platform-users/[userId]/page.tsx:121:70
+Type error: Argument of type 'string' is not assignable to parameter of type '{ id: string; email: string; tenantId: string; tenantName: string; }'.
+
+  119 |                 {/* Impersonation */}
+  120 |                 {(() => {
+> 121 |                   const action = startImpersonationAction.bind(null, user.id);
+      |                                                                      ^
+  122 |                   return (
+  123 |                     <form action={action}>
+  124 |                       <button
+
+Failed to compile.
+
+./src/app/platform-users/[userId]/page.tsx:121:70
+Type error: Argument of type 'string' is not assignable to parameter of type '{ id: string; email: string; tenantId: string; tenantName: string; }'.
+
+  119 |                 {/* Impersonation */}
+  120 |                 {(() => {
+> 121 |                   const action = startImpersonationAction.bind(null, user.id);
+      |                                                                      ^
+  122 |                   return (
+  123 |                     <form action={action}>
+  124 |                       <button
+
+Failed to compile.
+
+./src/app/platform-users/[userId]/page.tsx:121:70
+Type error: Argument of type 'string' is not assignable to parameter of type '{ id: string; email: string; tenantId: string; tenantName: string; }'.
+
+  119 |                 {/* Impersonation */}
+  120 |                 {(() => {
+> 121 |                   const action = startImpersonationAction.bind(null, user.id);
+      |                                                                      ^
+  122 |                   return (
+  123 |                     <form action={action}>
+  124 |                       <button
+
+Next.js build worker exited with code: 1 and signal: null

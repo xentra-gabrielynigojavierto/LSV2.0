@@ -1,0 +1,165 @@
+Implement LS-LIENS-CASE-001 — Case Liens Tab UI.
+
+Goal:
+Complete the Case Detail → Liens tab so it matches the reference layout and fits the current Case page design system.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Liens
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the Liens tab body content in the Case Detail page.
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- routing
+- APIs/services
+- role-access
+- provider-mode
+- Details tab
+- global header structure
+
+--------------------------------------------------
+CORE REQUIREMENTS
+--------------------------------------------------
+
+1. LEFT PANEL
+Implement the Liens tab main content with:
+- Liens section/card
+- search input
+- add/link lien button if supported
+- liens table
+- totals/footer row if supportable
+- Updates section below
+
+2. RIGHT PANEL
+Keep communications-only:
+- Email
+- SMS
+- communication contacts / shortcuts if already established
+
+3. LAYOUT
+- keep using LayoutSplit
+- keep expand/collapse behavior intact
+- keep same Case page design language
+
+--------------------------------------------------
+TABLE TARGET
+--------------------------------------------------
+
+Match the reference structure as closely as current data allows.
+
+Suggested columns:
+- Lien ID
+- Facility Name
+- Initial Service Date
+- Purchase Date
+- Purchase Amount
+- Billing Amount
+- Lien Status
+- Row actions
+
+Use real data where available.
+Use temporary visual fallback only if needed for display completeness.
+
+--------------------------------------------------
+UPDATES SECTION
+--------------------------------------------------
+
+Add an Updates section below the liens table.
+
+Suggested columns:
+- Timestamp
+- Lien ID
+- Actions
+- Description
+- Updated By
+
+Use real data if available, otherwise clearly documented visual fallback.
+
+--------------------------------------------------
+ICON REQUIREMENT
+--------------------------------------------------
+
+Use Remix / Tabler / Solar icons consistently and subtly.
+
+--------------------------------------------------
+TEMPORARY FALLBACK RULE
+--------------------------------------------------
+
+If needed, use TEMP visual fallback data only for:
+- liens table display completeness
+- updates rows
+- totals row
+
+Do NOT replace real logic.
+Comment clearly:
+TEMP: visual fallback data for UI review only
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-001-report.md
+
+2. Initialize with:
+   - objective
+   - scope
+   - current Liens tab analysis
+   - planned table structure
+   - right panel preservation plan
+
+3. DURING implementation:
+   - update after each step
+   - include files changed, fields mapped, fallback usage, actions supported/deferred
+
+4. FINAL:
+   - summarize final implementation
+   - validation results
+   - remaining gaps
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze current Liens tab
+T002 — Build liens table section
+T003 — Add search + action controls
+T004 — Add totals/footer row if supportable
+T005 — Add Updates section below
+T006 — Preserve communications-only right panel
+T007 — Validate LayoutSplit behavior
+T008 — Add fallback data only if needed
+T009 — Final validation
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Liens tab complete
+- liens table present
+- updates section present
+- communications-only right panel preserved
+- LayoutSplit intact
+- no regressions
+- report complete
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change top nav or side nav.
+Do NOT change fonts or colors.

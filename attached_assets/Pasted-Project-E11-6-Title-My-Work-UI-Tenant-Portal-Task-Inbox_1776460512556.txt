@@ -1,0 +1,344 @@
+Project: E11.6
+Title: My Work UI — Tenant Portal Task Inbox
+
+You are implementing the tenant-facing My Work UI on top of the completed task system (E11.1–E11.7).
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.6-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around tenant portal structure, routing, API client patterns, task action handling, and UI state management.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - UI components added
+   - API integration details
+   - state management approach
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: production-ready or needs iteration
+
+REPORT FORMAT
+
+# E11.6 Report
+
+## Scope Executed
+## Assumptions
+## Repository / UI Architecture Notes
+## My Work Page Notes
+## Task List / Component Notes
+## API Integration Notes
+## State Management Notes
+## UX / Interaction Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose the task system to tenant users through a My Work UI where they can:
+- view their assigned tasks
+- understand task context and status
+- start, complete, and cancel tasks
+- indirectly progress workflows via task completion (E11.7 binding)
+
+This must be a clean, task-centric inbox — not a workflow editor.
+
+SCOPE INCLUDES
+
+- My Work page (tenant portal)
+- task list UI (table or cards)
+- integration with My Tasks API
+- task actions:
+  - start
+  - complete
+  - cancel
+- loading / empty / error states
+- refresh after actions
+- minimal workflow context linking
+- documentation/reporting
+
+DO NOT BUILD
+
+- task reassignment UI
+- team/role queue UI
+- bulk actions
+- advanced filtering/search builder
+- notification center UI
+- workflow editing UI
+- fan-out routing UI
+- join/multi-task coordination UI
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use the existing APIs:
+  - GET /api/v1/tasks/me
+  - POST /api/v1/workflow-tasks/{id}/start
+  - POST /api/v1/workflow-tasks/{id}/complete
+  - POST /api/v1/workflow-tasks/{id}/cancel
+- NOT reimplement workflow logic in the UI
+- treat backend as source of truth
+- reflect task completion → workflow progression via refresh
+- preserve tenant isolation and auth behavior
+- maintain performance and responsiveness
+
+CURRENT CONTEXT
+
+Already completed:
+- task entity + creation
+- task lifecycle
+- My Tasks API
+- task completion → workflow progression binding
+- tenant portal UI exists
+
+This phase surfaces all of that to users.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. MY WORK PAGE
+
+Add a new tenant portal page or route:
+- name: "My Work"
+
+Requirements:
+- accessible via main navigation
+- consistent with portal layout
+- standalone inbox view
+- no dependency on specific product pages
+
+Recommended:
+- left nav item: "My Work"
+
+---
+
+2. TASK LIST UI
+
+Render tasks from My Tasks API.
+
+Each task must display:
+- title
+- status
+- priority
+- stepKey (or friendly label)
+- workflow name and/or product key (if available)
+- createdAt / updatedAt
+- optional description preview
+
+Requirements:
+- list must be scannable
+- highlight actionable tasks (Open / InProgress)
+- avoid exposing internal engine fields
+
+Layout:
+- use existing UI pattern (table or cards)
+- consistent spacing and typography
+
+---
+
+3. API INTEGRATION
+
+Fetch data from:
+GET /api/v1/tasks/me
+
+Requirements:
+- fetch on page load
+- support query params (status, page, pageSize) if needed
+- avoid duplicate requests
+- use existing API client pattern
+
+---
+
+4. TASK ACTIONS
+
+Support:
+
+- Start (Open → InProgress)
+- Complete (InProgress → Completed → workflow progression)
+- Cancel (Open/InProgress → Cancelled if backend allows)
+
+Requirements:
+- action buttons must match task status
+- hide invalid actions
+- do not allow invalid transitions in UI
+
+Important:
+- Complete may trigger workflow progression (E11.7)
+- UI must treat completion as a state-changing operation beyond the task itself
+
+---
+
+5. STATE REFRESH
+
+After any action:
+
+Requirements:
+- refresh task list
+- reflect updated task status
+- reflect newly created tasks (if workflow advanced and assigned back to user)
+
+Recommended:
+- mutation → refetch list
+- avoid complex optimistic updates
+
+---
+
+6. FILTERING
+
+Minimum:
+- status filter:
+  - All
+  - Open
+  - InProgress
+  - Completed
+  - Cancelled
+
+Optional (if trivial):
+- priority
+
+Requirements:
+- simple UI controls
+- align with existing portal filter patterns
+
+---
+
+7. ORDERING
+
+Default:
+- Open / InProgress first
+- then by recency
+
+Requirements:
+- align with backend ordering where possible
+- feel like a work queue, not history
+
+---
+
+8. STATES
+
+Loading:
+- spinner or skeleton
+
+Empty:
+- "No tasks assigned"
+- "You're all caught up"
+
+Error:
+- error message
+- retry option if possible
+
+Requirements:
+- must not crash UI
+- all states handled explicitly
+
+---
+
+9. WORKFLOW CONTEXT NAVIGATION
+
+If feasible:
+
+- allow user to open related workflow/record
+- use workflowInstanceId and context fields
+
+Requirements:
+- optional if routing is not yet stable
+- document limitations if deferred
+
+---
+
+10. ACTION ERROR HANDLING
+
+Handle:
+
+- 409 (stale or concurrency)
+- 422 (invalid transition)
+- 404 (task not found)
+
+Recommended messages:
+- "This task was already updated. Please refresh."
+- "This task cannot be completed from its current state."
+- "The workflow has already moved forward."
+
+Requirements:
+- user-friendly messaging
+- no raw error dumps
+
+---
+
+11. NON-INTERFERENCE
+
+You MUST confirm:
+- tenant portal builds successfully
+- existing navigation unchanged
+- workflow UI unaffected
+- APIs unchanged
+- no regression in platform behavior
+
+---
+
+VALIDATION REQUIREMENTS
+
+Functional:
+- My Work page loads
+- tasks render correctly
+- Start works
+- Complete works (and workflow progresses)
+- Cancel works
+- list refreshes after actions
+
+UX:
+- status/priority visible
+- actions context-aware
+- states (loading/empty/error) handled
+
+Integration:
+- uses correct APIs
+- reflects workflow progression indirectly
+
+Security:
+- user sees only their tasks
+- auth enforced
+
+Performance:
+- no noticeable slowdown
+- no redundant API calls
+
+Build:
+- frontend builds successfully
+- no runtime errors
+
+---
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E11.6-report.md
+2. Inspect tenant portal structure and routing
+3. Add My Work page
+4. Implement task list rendering
+5. Integrate API fetch
+6. Add task actions
+7. Add refresh logic
+8. Add filtering
+9. Add loading/empty/error states
+10. Validate and finalize report
+
+---
+
+SUCCESS CONDITION
+
+- users can access My Work page
+- tasks are visible and actionable
+- task completion triggers workflow progression (via backend)
+- UI is stable and usable as a work inbox
+- no platform regression
+
+---
+
+FAILURE CONDITION
+
+- UI reimplements backend logic incorrectly
+- invalid actions exposed
+- task state not reflected correctly
+- workflow progression not visible after completion
+- performance or stability issues

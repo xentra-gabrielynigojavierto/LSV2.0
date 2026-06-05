@@ -1,0 +1,336 @@
+You are working in the LegalSynq monorepo.
+
+Your task is to **fix and complete the Platform Audit/Event Service so it is production-ready, compliant, and safely deployable**, based on the existing implementation (Steps 1–22) and the Step 23 rollout plan.
+
+Do NOT redesign the system.
+Do NOT remove existing working functionality.
+Make **targeted, additive, production-safe changes**.
+
+---
+
+# PRIMARY OBJECTIVE
+
+Resolve all critical blockers and missing production capabilities so that:
+
+* query auth works in Bearer mode
+* retention cannot delete protected records
+* background jobs actually run
+* export and archival are safe
+* integrity model is reliable under concurrency
+* the system is observable and deployable
+* the platform can safely begin onboarding producers
+
+---
+
+# CRITICAL FIXES (MUST DO FIRST)
+
+## 1. Fix JWT Query Authentication (BLOCKER)
+
+Problem:
+
+* `AddJwtBearer()` is not registered
+* Bearer mode always returns 401
+
+Do:
+
+* Add `JwtOptions` config model
+* Register:
+
+  * `AddAuthentication().AddJwtBearer(...)`
+  * `app.UseAuthentication()` BEFORE query middleware
+* Ensure `ClaimsCallerResolver` works with claims:
+
+  * tenant_id
+  * role
+  * user_id
+* Add startup validation:
+
+  * if Mode=Bearer and Jwt config missing → log ERROR and fail startup
+
+Add:
+
+* integration tests for Bearer mode (valid, invalid, cross-tenant)
+
+---
+
+## 2. Enforce Legal Hold (COMPLIANCE BLOCKER)
+
+Problem:
+
+* `LegalHoldEnabled=true` does nothing
+
+Do:
+
+* Create `LegalHold` entity + migration
+* Add repository
+* Modify `RetentionService`:
+
+  * if active hold → NEVER eligible for deletion
+* Add API:
+
+  * create hold
+  * release hold
+  * query holds
+* Audit-log hold actions
+
+Add safety:
+
+* if `DryRun=false` AND LegalHoldEnabled=true BUT table missing → FAIL STARTUP
+
+---
+
+## 3. Activate Background Jobs (BLOCKER)
+
+Problem:
+
+* jobs exist but never run
+
+Do:
+
+* Implement and register:
+
+  * `IntegrityCheckpointHostedService`
+  * `RetentionHostedService`
+  * `ExportProcessingJob`
+* Use `BackgroundService` (NOT Quartz yet)
+
+Ensure:
+
+* graceful shutdown
+* configurable intervals
+* single execution per interval (no overlap)
+
+---
+
+## 4. Fix Retention Execution Safety
+
+Do:
+
+* Implement archive-before-delete flow
+* NEVER delete unless:
+
+  * archival succeeded
+  * NOT on legal hold
+* Add:
+
+  * `MaxDeletesPerRun`
+  * detailed logging
+* Default:
+
+  * safe mode
+
+---
+
+## 5. Implement Archival Provider
+
+Do:
+
+* Create `LocalArchivalProvider`
+* Create `S3ArchivalProvider`
+* Use NDJSON format
+* Validate config at startup
+
+---
+
+## 6. Fix Export System (Async + Durable)
+
+Do:
+
+* Implement background export job
+* Use storage provider (S3 or local)
+* Return jobId immediately
+* Add polling endpoint
+
+---
+
+# HIGH PRIORITY CORRECTIONS (ADD THESE)
+
+## 7. Add Legacy Audit Cutover Awareness
+
+Problem:
+
+* legacy `AuditEvents` still exists
+
+Do:
+
+* DO NOT delete legacy system
+* Add:
+
+  * documentation: legacy vs new model
+  * flag: `Audit:UseCanonicalStore`
+* Ensure:
+
+  * new APIs use `AuditEventRecords`
+  * no accidental mixing
+
+Add report section explaining:
+
+* how cutover will happen later
+
+---
+
+## 8. Fix Hash Chain Concurrency Risk
+
+Problem:
+
+* concurrent inserts can fork hash chain
+
+Do ONE of:
+
+Option A (preferred simple):
+
+* lock per `(TenantId, SourceSystem)` using DB transaction
+
+Option B:
+
+* use last-record fetch with retry on conflict
+
+Ensure:
+
+* no forked chains
+* deterministic ordering
+
+Document limitations
+
+---
+
+## 9. Add Audit-of-Audit Logging
+
+Do:
+
+* every query to `/audit/*` generates:
+
+  * `AuditLogAccessed` event
+
+Include:
+
+* actor
+* filters used
+* scope
+* timestamp
+
+---
+
+## 10. Enforce Correlation Metadata
+
+Do:
+
+* ensure every ingest has:
+
+  * correlationId OR generate one
+* propagate:
+
+  * requestId
+  * sessionId
+* log missing cases
+
+---
+
+## 11. Strengthen Multi-Tenant Safety
+
+Do:
+
+* double-check all query paths enforce tenant constraints
+* add defensive checks in repository layer if needed
+* log any rejected cross-tenant attempt
+
+---
+
+## 12. Improve Observability
+
+Add:
+
+* OpenTelemetry tracing
+* correlationId in logs
+* metrics hooks (basic)
+
+Ensure:
+
+* errors are structured
+* no sensitive data leaks
+
+---
+
+# OPTIONAL BUT RECOMMENDED
+
+## 13. Event Forwarding (Outbox Pattern)
+
+* implement Outbox table
+* background relay job
+* no-op fallback allowed
+
+---
+
+## 14. Add Chaos / Failure Tests
+
+* DB down
+* duplicate idempotency
+* partial batch failure
+
+---
+
+# DO NOT DO
+
+* Do NOT introduce Kafka yet
+* Do NOT redesign architecture
+* Do NOT remove legacy audit tables
+* Do NOT enable destructive retention in production defaults
+
+---
+
+# FILES TO MODIFY
+
+Focus on:
+
+* Program.cs
+* Configuration/*
+* Services/*
+* Jobs/*
+* Repositories/*
+* Controllers/*
+* Data/*
+* Tests/*
+* Docs/*
+
+---
+
+# OUTPUT REQUIREMENT
+
+After completing changes, generate a report:
+
+/analysis/step23_fix_report.md
+
+---
+
+# REPORT FORMAT
+
+# Platform Audit Service – Production Fixes
+
+## 1. Issues Found
+
+## 2. Fixes Applied
+
+## 3. Security Improvements
+
+## 4. Compliance Improvements
+
+## 5. Data Safety Improvements
+
+## 6. Remaining Risks
+
+## 7. Next Steps (Step 24 readiness)
+
+---
+
+# FINAL INSTRUCTION
+
+Do the work now.
+
+Prioritize safety, correctness, and compliance over speed.
+
+If something cannot be fully completed:
+
+* implement the foundation
+* document clearly what remains
+
+Do NOT leave silent gaps.

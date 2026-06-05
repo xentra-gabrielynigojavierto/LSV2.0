@@ -1,0 +1,302 @@
+Feature ID: UIX-003-03
+Feature Title: Access Control Backend Completion
+
+Implement UIX-003-03 for the LegalSynq Control Center and Identity service.
+
+Context:
+- UIX-003 is complete
+- UIX-003-01 is complete:
+  - TenantAdmin enablement is in place
+  - tenant isolation is enforced in BFF + backend
+- UIX-003-02 is complete:
+  - admin UX is polished
+  - mutation feedback is improved
+  - invite flow UX is improved
+- Current gap:
+  - some user security/admin actions in the Control Center still rely on `simulateAction()`
+  - audit activity is not exposed in the UI
+  - last login / session metadata is incomplete or not surfaced consistently
+- This feature is a backend-completion pass to turn remaining placeholder admin actions into real functionality
+
+Objective:
+Complete the remaining operational admin/security actions so the Control Center can perform real backend-backed account control actions for users.
+
+This feature should make these actions real:
+- reset password
+- lock account
+- unlock account
+- force logout
+- audit event exposure (read-only)
+- last login / session metadata exposure
+
+========================================
+CORE RULES
+========================================
+
+1. Replace placeholder/simulated admin actions with real backend-backed behavior
+2. Preserve tenant isolation and TenantAdmin vs PlatformAdmin scope rules
+3. Keep backend as the security authority
+4. Do NOT redesign identity/session architecture
+5. Do NOT introduce MFA in this feature
+6. Prefer additive changes; do not rewrite working UIX-003 flows
+
+========================================
+MVP SCOPE FOR UIX-003-03
+========================================
+
+Implement real functionality for:
+
+1. Reset Password (admin-triggered)
+- admin can trigger a password reset flow for a user in scope
+- use existing or newly completed reset token infrastructure
+- do NOT expose raw password or temp password in UI
+- preferred behavior: trigger reset email / reset workflow
+
+2. Lock / Unlock User
+- admin can lock a user account
+- admin can unlock a user account
+- locked users cannot authenticate successfully
+- lock state should be visible in user detail and user actions
+
+3. Force Logout
+- admin can revoke all active sessions for a user
+- existing session validation must make revoked sessions unusable
+- force logout should be visible as a real admin action
+
+4. Audit Event Exposure (read-only)
+- expose recent user security/admin activity to the Control Center
+- sufficient for user detail visibility
+- read-only only
+
+5. Last Login / Session Metadata
+- ensure last login is persisted and exposed
+- expose active session count and/or recent session metadata if available
+- enough to make user detail more informative
+
+========================================
+DO NOT IMPLEMENT IN UIX-003-03
+========================================
+
+Do NOT implement unless trivially required:
+- MFA enrollment
+- backup codes
+- trusted devices
+- anomaly detection
+- device fingerprint UX redesign
+- advanced audit analytics dashboard
+- permission editor
+- org switching
+- product role redesign
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+Implement or complete the backend behavior needed for these admin actions.
+
+1. Lock / Unlock Endpoints
+Implement and verify:
+- POST /identity/api/admin/users/{id}/lock
+- POST /identity/api/admin/users/{id}/unlock
+
+Requirements:
+- TenantAdmin can only act on users in their tenant
+- PlatformAdmin retains broader scope where intended
+- update user lock state in persistent storage
+- locked users must be blocked during login/authentication
+- emit audit event
+
+If the Users table lacks fields, add them safely:
+- IsLocked
+- LockedUntilUtc nullable (optional if using simple boolean lock)
+- FailedLoginCount only if needed, but do not overbuild brute-force logic here
+
+2. Admin Reset Password Endpoint
+Implement and verify:
+- POST /identity/api/admin/users/{id}/reset-password
+
+Requirements:
+- triggers password reset workflow without exposing plaintext password
+- preferred behavior: create reset token + send email / dev log fallback
+- enforce tenant scoping for TenantAdmin
+- emit audit event
+
+3. Force Logout Endpoint
+Implement and verify:
+- POST /identity/api/admin/users/{id}/force-logout
+
+Requirements:
+- revoke all active sessions for the user
+- increment SessionVersion if that is the existing invalidation model
+- ensure already-issued tokens become unusable as intended
+- emit audit event
+
+4. Audit / Security Summary Query
+Implement and verify read-only query support for:
+- GET /identity/api/admin/users/{id}/security
+or equivalent endpoint(s) if you already have a usable pattern
+
+Return enough data for the UI to show:
+- last login
+- active session count
+- recent security/admin events
+- lock state
+- invite state if already relevant
+- reset/force-logout actions if represented in events
+
+Use existing audit log/event store if available; otherwise create the smallest usable read model needed for this feature.
+
+5. Login / Auth Behavior
+Ensure auth logic now enforces:
+- inactive users cannot log in
+- locked users cannot log in
+- force-logged-out users’ sessions become invalid
+- last login updated on successful login
+
+If some of this already exists, verify and document it rather than rewriting it.
+
+========================================
+CONTROL CENTER — FRONTEND / BFF
+========================================
+
+Replace placeholder actions with real backend-backed flows.
+
+1. UserActions component
+Update the existing user actions so these are no longer simulated:
+- reset password
+- lock
+- unlock
+- force logout
+
+Requirements:
+- real BFF routes
+- confirmation for destructive actions
+- clear success/error feedback
+- refresh user detail after mutation
+
+2. BFF Route Handlers
+Add/update BFF handlers as needed for:
+- POST /api/identity/admin/users/[id]/lock
+- POST /api/identity/admin/users/[id]/unlock
+- POST /api/identity/admin/users/[id]/reset-password
+- POST /api/identity/admin/users/[id]/force-logout
+- GET /api/identity/admin/users/[id]/security   (if needed by page fetch strategy)
+
+Use `requireAdmin()` and preserve current authorization model.
+
+3. User Detail Page
+Extend `/tenant-users/[id]` so it can show a real security/admin context panel or extend existing detail sections with:
+- last login
+- lock state
+- active session count
+- recent security/admin events
+- force logout action result visibility
+
+You may add or refine components such as:
+- UserSecurityPanel
+- SecurityEventsList
+- AccountStatusCard
+- SessionSummaryCard
+
+Do not redesign the whole page; extend existing layout.
+
+4. UX Rules
+- show clear success messages for lock/unlock/reset/force logout
+- show clear conflict or forbidden errors
+- keep actions disabled while requests are in flight
+- clearly distinguish:
+  - reset password triggers a workflow
+  - force logout signs the user out of active sessions
+  - lock/unlock changes future login ability
+- if audit/security data is unavailable for some fields, show a graceful placeholder, not fake data
+
+========================================
+TENANTADMIN / PLATFORMADMIN BEHAVIOR
+========================================
+
+Preserve current model:
+
+TenantAdmin:
+- may operate only on users in their own tenant
+- may see only their tenant’s security/admin data
+
+PlatformAdmin:
+- may operate with broader scope where existing architecture supports it
+
+Non-admin:
+- blocked from all these actions
+
+Backend must enforce this independently of BFF.
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation, an admin should be able to:
+
+1. open a user detail page
+2. lock a user account
+3. unlock a user account
+4. trigger password reset for a user
+5. force logout a user
+6. see recent security/admin events
+7. see last login and lock/session state if available
+
+And the platform should enforce:
+1. locked user cannot log in
+2. inactive user cannot log in
+3. force-logged-out sessions become unusable
+4. TenantAdmin cannot perform any of the above outside their tenant
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-003-03-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Backend Endpoints Implemented / Verified
+6. Database / Model Changes
+7. Auth / Session Behavior Changes
+8. BFF Routes Implemented / Updated
+9. Control Center UI Changes
+10. Reset Password Flow Implementation
+11. Lock / Unlock Implementation
+12. Force Logout Implementation
+13. Audit / Security Event Exposure
+14. TenantAdmin / PlatformAdmin Scope Handling
+15. Known Issues / Remaining Gaps
+16. Manual Test Results
+17. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- admin reset password action is real
+- lock action is real
+- unlock action is real
+- force logout action is real
+- locked users cannot log in
+- inactive users cannot log in
+- force-logged-out sessions become unusable
+- last login is exposed
+- recent security/admin events visible
+- tenant admin scope enforced
+- platform admin behavior preserved
+- no simulateAction remains for these actions
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend existing UIX-003 work; do not rewrite
+- replace simulated actions with real behavior
+- if any backend dependency is missing, implement the smallest safe version needed
+- preserve working tenant isolation and admin scoping
+- save the report to /analysis/UIX-003-03-report.md

@@ -1,0 +1,373 @@
+You are implementing **LS-REPORTS-00-003 — Audit Integration** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story integrates the Reports Service with the **v2 shared Audit service** so report lifecycle events are recorded through the platform’s real audit pathway instead of mock/local-only hooks.
+
+This is an integration-hardening story. Do NOT redesign unrelated services or add export/scheduling/UI work.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-00-003-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not write code before this.
+
+## 2. Update the report continuously
+After each major step, update the report with:
+- step completed
+- files created
+- files modified
+- integration notes
+- configuration notes
+- validation results
+- issues encountered
+- decisions made
+- build/run/API status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- export generation
+- scheduling
+- UI
+- broad observability redesign
+- auth middleware redesign
+- queue/retry infrastructure redesign
+- unrelated platform service changes
+
+## 4. Preserve architecture
+- service layers should continue to call an audit abstraction, not hardcoded transport directly
+- business services must not handcraft ad hoc audit payloads everywhere
+- keep adapter/client boundaries clean
+- preserve mock fallback when real audit integration is not configured
+
+## 5. Preserve current functionality
+Do not break:
+- template APIs
+- assignment APIs
+- tenant override APIs
+- execution APIs
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-00-003 — Audit Integration**
+
+---
+
+# OBJECTIVE
+Integrate the Reports Service with the **v2 shared Audit service** so report-related actions are recorded through the platform’s real audit pathway instead of mock/local-only hooks.
+
+This story must:
+- replace mock-only audit behavior with a real shared-service integration path
+- standardize audit event payloads
+- propagate tenant/user/correlation context consistently
+- keep audit calls non-blocking so primary report operations are not interrupted
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Review Current Audit Usage
+First inspect the current Reports Service audit touchpoints and identify all existing audit hook calls.
+
+At minimum, audit coverage should include:
+- template created
+- template updated
+- template version created
+- template version published
+- template assignment created
+- template assignment updated
+- tenant override created
+- tenant override updated
+- tenant override deactivated
+- report execution started
+- report execution completed
+- report execution failed
+
+Document in the report:
+- where audit calls existed before
+- what changed in this story
+
+---
+
+## B. Standard Audit Event Model
+Create a typed, reusable audit payload model.
+
+### Recommended DTO
+- `AuditEventDto`
+
+### Suggested fields
+- `EventType`
+- `OccurredAtUtc`
+- `TenantId`
+- `ProductCode`
+- `EntityType`
+- `EntityId`
+- `ActorUserId`
+- `CorrelationId`
+- `RequestId`
+- `Outcome`
+- `Metadata` or `MetadataJson`
+
+You may also introduce supporting DTOs or typed metadata helpers if useful.
+
+### Rules
+- keep the model platform-agnostic
+- do not leak controller-specific or EF-specific details into the audit DTO
+- centralize the payload shape instead of building inconsistent anonymous objects in services
+
+---
+
+## C. Shared Audit Service Adapter / Client
+Implement a real shared Audit service integration path.
+
+### Preferred structure
+- refine `IAuditAdapter` if needed
+- add a real implementation such as `SharedAuditAdapter`
+- preserve `MockAuditAdapter` as fallback
+
+### Real adapter behavior
+- send typed audit events to the shared Audit service
+- use a typed HTTP client or the platform-standard transport pattern if already established elsewhere
+- keep transport implementation isolated in Infrastructure
+
+### Important
+Do NOT hardwire business services to HTTP calls directly.
+
+---
+
+## D. Configuration
+Add configuration needed for the real audit integration.
+
+### Suggested config
+- `AuditService:Enabled`
+- `AuditService:BaseUrl`
+- `AuditService:TimeoutSeconds`
+- `AuditService:EndpointPath`
+- auth placeholder if needed for future
+- any mock/real mode toggle if clean
+
+Document:
+- default behavior when config is missing
+- how mock fallback works
+
+---
+
+## E. Audit Event Builder / Mapping
+Centralize audit event construction so service code stays consistent.
+
+### Acceptable approaches
+- `AuditEventFactory`
+- `AuditEventBuilder`
+- reusable helper methods inside a focused mapping component
+
+### Requirement
+Business services should not all build raw event payloads differently.
+There must be a shared mapping approach.
+
+---
+
+## F. Context Propagation
+Ensure audit events consistently include:
+- tenant context when applicable
+- actor/user context
+- request/correlation context
+- product context where applicable
+
+Use the existing request/context models already introduced in prior stories.
+
+If some context is unavailable in a given flow, document the fallback behavior.
+
+---
+
+## G. Non-Blocking Dispatch
+Audit failures must not fail the primary operation.
+
+### Required behavior
+- audit calls wrapped safely
+- warning/error logged locally on failure
+- primary action still succeeds
+
+Do NOT introduce hard failures for audit dispatch in this story.
+
+---
+
+## H. DI / Mode Selection
+Update DI so:
+- real shared audit adapter is used when configured/enabled
+- mock audit adapter is used when not configured
+- readiness can distinguish the state
+
+---
+
+## I. Readiness Behavior
+Update readiness behavior for audit adapter state.
+
+`/api/v1/ready` should reflect:
+- `ok` when real audit integration is configured and healthy
+- `mock` when fallback mode is used
+- `fail` only when real audit mode is expected but unavailable
+
+If current readiness probes need refinement, do it carefully and document the result.
+
+---
+
+## J. Validation and Error Handling
+Validate at minimum:
+- required audit event fields populated
+- event type non-empty
+- correlation/request identifiers passed when available
+- real adapter handles service failure gracefully
+- mock fallback works unchanged
+
+---
+
+## K. Preserve Existing APIs
+Existing APIs must continue to work with audit integration active or in mock mode.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. a real shared Audit service integration path exists
+2. a standardized audit payload model exists
+3. current report lifecycle events are mapped to audit events
+4. tenant/user/correlation context is propagated into audit payloads
+5. mock fallback still works when real audit integration is not configured
+6. audit failures do not fail primary report operations
+7. `/api/v1/ready` reflects audit integration state appropriately
+8. service builds successfully
+9. service starts successfully
+10. existing APIs continue to work
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-00-003-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Audit Integration Summary
+- Configuration Summary
+- Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Review current audit usage
+Inspect existing audit calls and document baseline behavior.
+Update the report.
+
+## Step 3 — Add standardized audit DTO/model
+Create reusable audit event models and any supporting DTOs/helpers.
+Update the report.
+
+## Step 4 — Implement real shared audit adapter/client
+Add the real adapter implementation and preserve mock fallback.
+Update the report.
+
+## Step 5 — Add configuration and DI selection
+Add config models/settings and wire real vs mock adapter selection through DI.
+Update the report.
+
+## Step 6 — Add centralized audit event mapping/builder
+Implement a shared audit event factory/builder/mapping layer and update business services to use it consistently.
+Update the report.
+
+## Step 7 — Update readiness behavior
+Refine readiness checks so audit adapter status is reported as `ok`, `mock`, or `fail` as appropriate.
+Update the report.
+
+## Step 8 — Validate
+Run build/startup validation and test at minimum:
+- service startup with mock audit mode
+- service startup with real audit mode configured
+- a representative template/assignment/override/execution operation still succeeds
+- audit failure does not fail the business operation
+- `/api/v1/health` still works
+- `/api/v1/ready` reflects audit mode correctly
+
+Update the report.
+
+## Step 9 — Finalize report
+Complete `/analysis/LS-REPORTS-00-003-report.md` with:
+- audit event coverage summary
+- adapter/client summary
+- configuration summary
+- readiness behavior summary
+- validation results
+- build/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Audit Integration Summary
+- Configuration Summary
+- Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- Reports Service uses the real shared Audit service path when configured
+- standardized audit payloads are used
+- context propagation is consistent
+- primary operations remain resilient to audit failures
+- mock fallback still works
+- readiness reflects audit mode correctly
+- architecture remains clean
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-00-003** exactly as described.

@@ -1,0 +1,163 @@
+You are working inside the existing LegalSynq repo.
+
+This step is focused on making the new Control Center deployable in two modes:
+
+1. embedded mode inside the existing `apps/web` app at `/control-center`
+2. isolated host mode on a separate subdomain, e.g. `controlcenter.legalsynq.com`
+
+Important:
+Do NOT convert Control Center into a separate repo.
+Do NOT switch stacks.
+Do NOT rewrite the existing operator portal.
+Do NOT build tenant/admin feature pages yet.
+
+Critical constraint:
+Control Center must continue using the exact same stack and core architectural conventions as the operator portal:
+- Next.js App Router
+- TypeScript
+- Tailwind
+- same auth/session model
+- same BFF/proxy style
+- same server/client API split
+- same shell/component conventions where practical
+
+Goal of this step:
+Refactor or harden the current Phase 1 Control Center scaffold so it can later be deployed to a separate host/subdomain with minimal rework.
+
+Deployment requirement:
+The Control Center must be able to support a future deployment model such as:
+- operator portal on one host
+- control center on `controlcenter.legalsynq.com`
+
+without tightly depending on `/control-center` path-prefix assumptions everywhere.
+
+Tasks:
+
+1. Inspect the current Phase 1 Control Center implementation and identify all path-coupled assumptions.
+Look for:
+- hardcoded `/control-center/...` links
+- route assumptions in nav builders
+- middleware assumptions
+- auth redirect assumptions
+- shell navigation assumptions
+- API proxy assumptions
+- any environment/config assumptions that would break on a dedicated host
+
+2. Introduce a Control Center route/base-path abstraction.
+Create a small centralized config/helper so Control Center URLs are not scattered or hardcoded.
+Examples of what this abstraction should support:
+- path-prefix mode: `/control-center/...`
+- root-host mode on a dedicated host: `/...`
+- easy switching via config/env
+
+Do not overengineer this.
+Keep it lightweight and consistent with the existing app.
+
+3. Add Control Center app config/env support.
+Create a simple, typed config/helper for things like:
+- whether Control Center is mounted under a path prefix or at host root
+- optional Control Center app origin / public base URL
+- optional flag like `NEXT_PUBLIC_CONTROL_CENTER_STANDALONE`
+- any helper needed to build internal links safely
+
+Use the same environment/config style already used in the repo.
+
+4. Refactor Control Center navigation and dashboard links to use the centralized route helper.
+Update:
+- `control-center-nav.ts`
+- `control-center-shell.tsx` if needed
+- `app/(control-center)/control-center/page.tsx`
+- any other new Control Center links
+so they no longer hardcode path strings directly where avoidable.
+
+5. Ensure layout and auth redirects remain valid in both deployment modes.
+Review:
+- `requirePlatformAdmin()`
+- layout redirects
+- any navigation fallback behavior
+Make sure the design will still work if Control Center is later mounted at host root on a dedicated subdomain.
+
+6. Review middleware and route-group design for future split deployment.
+Do not fully split the app now.
+But make the current code easy to extract/deploy independently later.
+Document:
+- what already works
+- what still depends on the shared app
+- what would need to move if Control Center became its own deployed frontend
+
+7. Review API proxy design for separate-host deployment.
+Make sure the current identity proxy and future service proxies will still make sense if Control Center is deployed as its own frontend host.
+Document any assumptions about:
+- cookies
+- gateway origin
+- same-site/cross-subdomain auth behavior
+- BFF routes
+- session cookie domain requirements
+
+Important:
+You do NOT need to solve all infrastructure/auth cookie issues in code right now.
+But you must identify them clearly and make the frontend code structure deployment-safe.
+
+Implementation rules:
+- Keep changes incremental
+- Reuse existing stack and conventions
+- Do not introduce a new routing library
+- Do not introduce a new config framework
+- Do not create a separate app yet
+- Prefer a small `lib/control-center-config.ts` and/or `lib/control-center-routes.ts` style solution
+- Keep code compilable
+- Preserve existing `/control-center` behavior for now
+
+Expected deliverables:
+
+A. Code changes that:
+- centralize Control Center route generation
+- centralize Control Center config
+- remove avoidable hardcoded path-prefix assumptions
+- preserve current functionality
+
+B. A markdown report with these exact sections:
+
+# Control Center Deployment Readiness Report
+
+## 1. Current Coupling to Path-Prefix Deployment
+List all current assumptions tied to `/control-center`.
+
+## 2. Changes Made
+Summarize code changes that improve deployability to a separate host/subdomain.
+
+## 3. New Routing/Config Abstractions
+Explain the new helpers/config and how they should be used.
+
+## 4. What Already Supports Separate Deployment
+Explain what is now deployment-safe.
+
+## 5. Remaining Gaps for `controlcenter.legalsynq.com`
+Be specific about remaining issues such as:
+- cookie domain
+- auth redirects
+- BFF origin assumptions
+- gateway/CORS
+- middleware scope
+- environment config
+
+## 6. Recommended Deployment Model
+Recommend the cleanest future model for:
+- same repo
+- same stack
+- separate host/subdomain
+Explain whether this should eventually become:
+- a separate Next.js app in the monorepo
+- or remain one app with host-based behavior
+and why
+
+## 7. Actionable Guidance for the Next Step
+Recommend the next implementation step after this hardening work.
+
+Output requirements:
+1. First show the file-by-file implementation plan
+2. Then generate the code
+3. Then show the report in chat
+4. Then save the report to:
+
+/control_center_deployment_readiness_report.md

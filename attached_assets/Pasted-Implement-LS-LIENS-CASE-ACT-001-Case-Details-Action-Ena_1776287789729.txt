@@ -1,0 +1,161 @@
+Implement LS-LIENS-CASE-ACT-001 — Case Details Action Enablement.
+
+Goal:
+Enable the lower-level actions inside Case Detail → Details so the existing edit UI becomes real, usable functionality.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Details
+
+Focus only on action enablement for:
+1. Plaintiff Info
+2. Case Tracking
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the action behavior for the Details tab.
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- routing
+- other tabs
+- global header structure
+
+Do NOT fake persistence.
+
+--------------------------------------------------
+CORE REQUIREMENTS
+--------------------------------------------------
+
+1. PLAINTIFF INFO ACTION
+- wire edit action
+- open existing modal or form
+- prefill current values
+- support save/cancel
+- validate inputs
+- show success/error feedback
+- refresh displayed data after save
+
+2. CASE TRACKING ACTION
+- wire edit action
+- open edit mode or modal
+- prefill current values
+- support save/cancel
+- validate inputs
+- show success/error feedback
+- refresh displayed data after save
+
+--------------------------------------------------
+API / DATA DISCOVERY
+--------------------------------------------------
+
+Before implementing:
+- inspect current API/service support for case updates
+- determine which fields are actually supported
+- wire only supported persistence honestly
+- document unsupported fields clearly
+
+Do NOT pretend unsupported fields save.
+
+--------------------------------------------------
+VALIDATION
+--------------------------------------------------
+
+Add client-side validation where appropriate:
+- required fields
+- email format
+- date format
+- phone formatting if supported
+
+Save must be blocked on invalid input.
+
+--------------------------------------------------
+SAVE / CANCEL BEHAVIOR
+--------------------------------------------------
+
+- Save shows loading state
+- Duplicate submissions prevented
+- Success updates UI immediately
+- Failure preserves user input and shows clear error
+- Cancel discards unsaved changes
+
+--------------------------------------------------
+ROLE / PERMISSION RULE
+--------------------------------------------------
+
+Respect current role access and provider-mode behavior.
+Do not expose active edit actions to unauthorized users.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-ACT-001-report.md
+
+2. Initialize with:
+   - objective
+   - scope
+   - current Details action analysis
+   - expected API support
+   - planned edit/save flows
+
+3. DURING implementation:
+   - update after each step
+   - include:
+     - files changed
+     - fields supported vs unsupported
+     - validation implemented
+     - save/cancel behavior
+     - issues found and fixes applied
+
+4. FINAL:
+   - summarize final implementation
+   - validation results
+   - remaining unsupported fields/gaps
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze existing Plaintiff Info and Case Tracking actions
+T002 — Inspect available case update APIs/services
+T003 — Wire Plaintiff Info edit flow
+T004 — Add Plaintiff Info validation
+T005 — Wire Case Tracking edit flow
+T006 — Add Case Tracking validation
+T007 — Add save/cancel/loading/error/success behavior
+T008 — Refresh UI after save
+T009 — Final validation
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Plaintiff Info edit works
+- Case Tracking edit works
+- supported fields save correctly
+- invalid forms are blocked
+- save/cancel behavior works
+- success/error feedback shown
+- UI refreshes correctly
+- no regressions
+- report complete
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change fonts/colors/navigation.
+Do NOT fake persistence.

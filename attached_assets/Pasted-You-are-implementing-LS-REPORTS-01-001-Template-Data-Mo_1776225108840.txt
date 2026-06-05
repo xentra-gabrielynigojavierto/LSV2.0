@@ -1,0 +1,95 @@
+You are implementing **LS-REPORTS-01-001 — Template Data Model & Persistence Foundation** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This is the first story introducing **real persistence**. You must integrate MySQL and EF Core while preserving the clean architecture and portability established in previous stories.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-01-001-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not write code before this.
+
+---
+
+## 2. Update the report continuously
+After each step, update the report with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- issues encountered
+- decisions made
+- build/migration status
+
+---
+
+## 3. Keep scope controlled
+Do NOT implement:
+- report execution logic
+- report builder
+- scheduling
+- UI
+- Dapper (comes later)
+- tenant customization (beyond basic readiness)
+
+---
+
+## 4. Maintain architecture integrity
+- Keep Domain layer clean (no EF dependencies)
+- Use Infrastructure for EF implementation
+- Use Contracts for interfaces
+- Preserve adapter-based design
+
+---
+
+# STORY ID
+**LS-REPORTS-01-001 — Template Data Model & Persistence Foundation**
+
+---
+
+# OBJECTIVE
+Introduce the persistence foundation using MySQL and EF Core, and implement the core data model for report templates and versioning.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+---
+
+## A. Add Dependencies
+
+Add required packages:
+
+- `Microsoft.EntityFrameworkCore`
+- `Microsoft.EntityFrameworkCore.Design`
+- `Pomelo.EntityFrameworkCore.MySql`
+
+Ensure compatibility with .NET 8.
+
+---
+
+## B. Configuration
+
+### Add connection string
+
+In configuration (appsettings.json or equivalent):
+
+```json
+"ConnectionStrings": {
+  "ReportsDb": "server=localhost;port=3306;database=reports_db;user=root;password=YOUR_PASSWORD"
+}

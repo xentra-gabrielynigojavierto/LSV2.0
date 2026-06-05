@@ -1,0 +1,466 @@
+LSCC-007 — CareConnect UX Layer (Workflow Usability & Efficiency)
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-007
+
+Initial implementation report:
+- /analysis/LSCC-007-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-007-XX.md
+
+Examples:
+- /analysis/LSCC-007-report.md
+- /analysis/LSCC-007-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Improve the usability and operational efficiency of CareConnect by turning the referral experience into a fast, clear, and actionable work queue.
+
+This feature focuses on:
+- referral inbox / queue UX
+- filtering and search
+- role-based quick actions
+- better referral detail layout
+- smoother navigation
+- clearer status visibility
+
+Do NOT introduce new backend workflows or broaden product scope.
+
+This is a frontend-first UX layer on top of the existing referral engine and hardening work.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Referral inbox / work queue improvements
+B. Search
+C. Status filtering
+D. Role-based quick actions
+E. Referral detail page usability improvements
+F. Navigation improvements
+G. Status visibility improvements
+H. Empty / loading / error states
+I. Report
+
+Do NOT implement:
+- new backend workflow states
+- onboarding
+- notifications center
+- analytics expansion
+- appointment workflow expansion
+- bulk actions
+- messaging/chat
+- new domain models
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Frontend-only unless a truly minimal support change is unavoidable
+2. Reuse existing CareConnect APIs and client methods
+3. Do NOT modify apps/services/audit or unrelated infrastructure
+4. Do NOT duplicate backend business logic in frontend
+5. Respect existing authorization, org scoping, and role visibility
+6. Separate:
+   - queue/list presentation
+   - filter/search state
+   - quick action UI
+   - API integration
+7. Do NOT hardcode statuses beyond intentional display mapping
+8. Preserve existing referral engine behavior from LSCC-005 / 005-01 / 005-02
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary target areas:
+
+- apps/web/src/app/(platform)/careconnect/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/lib/careconnect-api.ts
+- apps/web/src/types/careconnect.ts
+
+Likely relevant existing files/components:
+- referral detail page
+- referrals list page
+- referral delivery card
+- referral audit timeline
+- status badge
+- toast system
+
+Do NOT spend time fixing unrelated platform services in this feature.
+Do NOT use this feature for audit-service or infrastructure work.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Already implemented:
+- referral creation and provider routing
+- secure token access
+- provider acceptance
+- resend / revoke / retry automation
+- referral delivery card
+- referral audit timeline
+- toast feedback
+- basic dashboard analytics
+
+Current gap:
+- referrals page is not yet a strong work queue
+- common actions are still too buried
+- filtering/search is too limited
+- detail page usability can be improved without changing behavior
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. REFERRAL INBOX / WORK QUEUE
+--------------------------------------------------
+
+Route:
+- /careconnect/referrals
+
+Transform this page into a practical work queue.
+
+Per row/card, show at minimum:
+- referred party name
+- provider name
+- created date
+- status badge
+- lightweight delivery state if relevant
+- quick actions
+
+Role-based titles:
+- Law firm: "Sent Referrals"
+- Provider: "Referral Inbox" or "Received Referrals"
+
+Visual rules:
+- New/Pending referrals should stand out
+- Accepted referrals should remain clear but lower emphasis
+- keep the layout scannable and not overloaded
+
+--------------------------------------------------
+B. SEARCH
+--------------------------------------------------
+
+Add a search input.
+
+Component:
+- ReferralSearchInput
+
+Behavior:
+- debounced text filtering
+- case-insensitive
+- combines with status filter
+
+Preferred searchable fields:
+- referred party / patient name
+- provider name
+- referral id if already available cheaply
+
+Use existing APIs if possible.
+If current list data already includes enough fields, client-side filtering is acceptable.
+Do NOT force a backend redesign for complex search.
+
+--------------------------------------------------
+C. STATUS FILTER
+--------------------------------------------------
+
+Add a status filter bar.
+
+Component:
+- ReferralFilterBar
+
+Minimum options:
+- All
+- Pending (map UI label to backend New if needed)
+- Accepted
+
+Rules:
+- combines with search
+- deterministic
+- empty state shown when no results match
+
+Optional:
+- persist filter state in query params if low-risk and clean
+- otherwise local state is acceptable
+
+--------------------------------------------------
+D. ROLE-BASED QUICK ACTIONS
+--------------------------------------------------
+
+Add quick actions directly in the referral queue.
+
+Component:
+- ReferralQuickActions
+
+Law firm actions:
+- View
+- Resend Email
+- Revoke Link
+
+Provider actions:
+- View
+- Accept
+
+Rules:
+- only show actions that are valid for that role and referral state
+- use existing APIs
+- use existing toast patterns for success/failure
+- disable or hide actions that are not allowed
+- optimistic UI is allowed only if reconciled with backend result
+
+Do NOT add new backend endpoints unless truly unavoidable and very small.
+
+--------------------------------------------------
+E. STATUS VISIBILITY
+--------------------------------------------------
+
+Status must be:
+- prominent
+- consistent
+- color-coded using existing badge patterns
+
+Use backend truth.
+If UI uses "Pending" while backend uses "New", keep the mapping explicit and minimal.
+
+--------------------------------------------------
+F. REFERRAL DETAIL PAGE USABILITY
+--------------------------------------------------
+
+Route:
+- /careconnect/referrals/{id}
+
+Improve usability and visual hierarchy without changing behavior.
+
+Required page structure:
+1. Header / identity + prominent status
+2. Primary action area
+3. Referral details
+4. Delivery / access controls
+5. Audit timeline / activity
+
+Do NOT remove:
+- ReferralDeliveryCard
+- ReferralAuditTimeline
+- existing referral detail content
+
+Only reorganize and improve clarity.
+
+Actions should be grouped clearly:
+- provider accept
+- referrer resend/revoke
+- existing supporting actions
+
+--------------------------------------------------
+G. NAVIGATION IMPROVEMENTS
+--------------------------------------------------
+
+Improve movement between:
+- dashboard
+- referrals list
+- referral detail
+- provider detail where relevant
+
+Requirements:
+- clear back navigation
+- preserve user context where reasonable
+- avoid dead-end navigation
+- avoid confusing role-based redirects
+- keep navigation lightweight and consistent
+
+--------------------------------------------------
+H. EMPTY / LOADING / ERROR STATES
+--------------------------------------------------
+
+Every updated screen/surface must support:
+- loading
+- empty
+- error
+
+Examples:
+- "No referrals yet"
+- "No referrals match your filters"
+- "Unable to load referrals"
+
+No blank or ambiguous states.
+
+--------------------------------------------------
+I. UI COMPONENTS
+--------------------------------------------------
+
+Create or update only what is needed.
+
+Likely new/updated components:
+- ReferralQueueToolbar
+- ReferralSearchInput
+- ReferralFilterBar
+- ReferralQuickActions
+- ReferralQueueRow or enhanced existing row/card
+- ReferralPageHeader
+
+Reuse existing:
+- StatusBadge
+- ReferralDeliveryCard
+- ReferralAuditTimeline
+- Toast system
+
+Do NOT create redundant parallel components when extending existing ones is cleaner.
+
+--------------------------------------------------
+J. DATA / API USAGE
+--------------------------------------------------
+
+Use existing APIs for:
+- referral list
+- accept
+- resend
+- revoke
+- notifications/delivery state
+- audit timeline
+
+Allowed:
+- small query param support for search/filter if needed and low-risk
+
+Not allowed:
+- broad backend redesign
+- unrelated service changes
+- new workflow logic
+
+--------------------------------------------------
+K. EDGE CASES
+--------------------------------------------------
+
+Handle these cleanly:
+- accepted referral → no Accept action
+- failed/retrying/exhausted delivery → visible but not noisy
+- long names / dense records → readable truncation/layout
+- empty results → clear empty state
+- unauthorized access → rely on backend, do not bypass
+- API failure on quick action → show error toast / message and keep UI consistent
+
+--------------------------------------------------
+L. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add tests for:
+
+1. referral queue/list rendering
+2. role-based quick action visibility
+3. search behavior
+4. status filter behavior
+5. quick action API triggers:
+   - accept
+   - resend
+   - revoke
+6. empty state rendering
+7. detail page layout/component presence in correct role/state combinations
+
+If full UI testing is limited:
+- test component logic and API integration layers
+- document the limitation in the report
+
+--------------------------------------------------
+M. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-007-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Referral inbox/work queue changes
+- structure
+- role differences
+- scanability improvements
+
+3. Search + filter implementation
+- where filtering happens
+- status mapping if used
+- any URL-state behavior
+
+4. Quick actions
+- what actions appear for which roles/states
+- APIs used
+
+5. Referral detail usability changes
+- layout/order changes
+- reused components
+
+6. Navigation changes
+- what improved
+
+7. Components added/updated
+- concise list
+
+8. API usage / support changes
+- any query params added
+- any minimal backend support change if absolutely required
+
+9. Tests
+- what scenarios are covered
+- what remains uncovered
+
+10. Known limitations
+- anything intentionally deferred
+
+11. Recommended next step
+- smallest logical follow-up after UX layer
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. Referral inbox/work queue redesign
+2. Search
+3. Status filter
+4. Quick actions
+5. Referral detail usability improvements
+6. Navigation improvements
+7. Empty/loading/error states
+8. Tests
+9. Report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-007 is complete ONLY if:
+
+1. /careconnect/referrals behaves like a work queue
+2. search works
+3. status filtering works
+4. quick actions reduce the need to open referral detail for routine tasks
+5. status is clearly visible in queue and detail views
+6. referral detail page is more usable without losing existing functionality
+7. navigation is smoother and clearer
+8. LSCC-005 / 005-01 / 005-02 behaviors remain intact
+9. report exists at:
+   /analysis/LSCC-007-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this disciplined and frontend-focused.
+Do not drift into backend or infrastructure work.
+This feature should make CareConnect feel faster, clearer, and more operationally efficient without changing the core referral engine.

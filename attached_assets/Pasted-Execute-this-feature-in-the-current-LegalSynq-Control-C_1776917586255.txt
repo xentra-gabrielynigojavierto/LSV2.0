@@ -1,0 +1,210 @@
+Execute this feature in the current LegalSynq Control Center codebase.
+
+Feature ID: CC-UX-NAV-001
+Title: Control Center Navigation Hub Refactor
+
+Objective
+Refactor the Control Center navigation so the user no longer has to scroll through a very long left sidebar. The left nav should become minimal, with a persistent Home entry that always returns to the Control Center landing page. The landing page should become a navigation hub made of category boxes/cards. When a category box is clicked, show the list of navigation items under that category in the page body.
+
+Important UX intent
+- The current left sidebar is too long and resets to the top after navigation.
+- Replace that experience with:
+  1. a compact left sidebar
+  2. a Home entry in the left sidebar
+  3. category boxes/cards on the landing page body
+  4. clicking a category shows the links for that category in the body
+- Preserve all existing route paths and pages. This is a navigation experience refactor, not an information architecture rewrite.
+
+You MUST create the report file first:
+- Create `/analysis/CC-UX-NAV-001-report.md` before making changes.
+- Update it incrementally as you work.
+- At the end include:
+  - codebase analysis
+  - files changed
+  - component-level summary
+  - route behavior summary
+  - validation results
+  - known gaps / follow-ups
+
+Codebase context to inspect first
+Start by auditing these files and any directly related imports/usages:
+- `apps/control-center/src/lib/nav.ts`
+- `apps/control-center/src/components/shell/cc-sidebar.tsx`
+- `apps/control-center/src/components/shell/cc-shell.tsx`
+- `apps/control-center/src/app/page.tsx`
+
+Expected architecture
+Use the existing `CC_NAV` structure as the single source of truth for navigation groups and their items.
+Do not hardcode a second navigation definition if avoidable.
+
+Functional requirements
+
+1) Minimal left sidebar
+Refactor the Control Center sidebar so it is no longer the full long multi-section nav.
+Required behavior:
+- Keep a persistent left sidebar.
+- Add a clear `Home` item at the top that routes to `/`.
+- The sidebar should not render the full long list of all sections.
+- Preferred behavior:
+  - show only:
+    - Home
+    - optionally the currently selected category and its child links
+  - OR
+  - show Home plus a very small category selector entry if needed
+- The sidebar must be short enough that it does not require vertical scrolling in normal desktop use.
+
+2) Dashboard becomes navigation hub
+Refactor `apps/control-center/src/app/page.tsx` so the dashboard includes a prominent section near the top for navigation groups.
+Required behavior:
+- Render one card/box per top-level navigation group from `CC_NAV`.
+- Each card shows:
+  - group heading
+  - icon if you can derive one reasonably from the first item or a mapped group icon
+  - number of links in that group
+  - optional health/status summary only if easy and non-blocking
+- Clicking a group card must show that group’s child navigation items in the page body.
+- Use a stable URL-driven selection, not only local transient state.
+  Preferred options:
+  - query param: `/?group=identity`
+  - or route segment if cleaner
+- Selected group state must survive refresh and direct linking.
+
+3) Group detail panel/body section
+When a navigation group is selected from the landing page:
+- Display a section in the page body with:
+  - group title
+  - optional short helper text
+  - cards or list rows for every navigation item under that group
+- Each item should show:
+  - label
+  - icon
+  - badge/status if present (`LIVE`, `IN PROGRESS`, `MOCKUP`)
+  - short route preview only if visually clean
+- Clicking the item opens the existing target route.
+- The selected group view should look like a clean app launcher / admin hub, not a long plain text list.
+
+4) Route-aware context on non-home pages
+On pages other than `/`, keep navigation usable without reintroducing the long scrolling problem.
+Required behavior:
+- Sidebar still shows Home.
+- Sidebar may also show only the current group’s child items when the active route belongs to a group.
+- Determine the current group from the active pathname by matching against `CC_NAV`.
+- Do not show all groups and all items again in the sidebar.
+
+5) Preserve existing pages and route contracts
+- Do not rename existing routes.
+- Do not break current pages such as tenants, tenant users, roles, monitoring, notifications, synqaudit, workflows, etc.
+- Only refactor how navigation is surfaced.
+
+6) Fix the “nav resets to top” experience
+Since the full scrollable nav is being removed, that problem should largely disappear.
+Still ensure:
+- no unnecessary scroll restoration issues in the new sidebar
+- selected category remains visible and obvious
+- home/dashboard navigation feels deterministic
+
+7) Visual expectations
+Match existing Control Center styling language.
+Use the current design system/Tailwind conventions already in the app.
+Target:
+- clean admin console look
+- compact left rail
+- dashboard cards with good spacing
+- no giant empty areas
+- body content remains the primary focus
+
+8) Accessibility and usability
+- keyboard accessible
+- selected group visibly highlighted
+- selected nav item visibly highlighted
+- proper link semantics
+- no hidden critical navigation behind hover-only behavior
+
+Implementation guidance
+
+A) Navigation utilities
+Add a small utility layer if needed to support:
+- slugifying group headings from `CC_NAV`
+- reverse lookup from slug -> section
+- reverse lookup from pathname -> owning section
+- deriving a presentable group model for dashboard cards
+
+B) Sidebar refactor
+Refactor `cc-sidebar.tsx` to support a compact mode for Control Center:
+- Home link always visible
+- contextual links only
+- remove full multi-section scrolling layout
+- keep current styling quality and active state treatment
+
+C) Dashboard refactor
+Refactor `app/page.tsx`:
+- preserve current operational summary widgets
+- add a new “Navigation Hub” area near the top, ideally below the page intro and above or near the metric cards
+- when a group is selected, show its child nav items in a dedicated panel/grid below the group cards
+
+D) State approach
+Prefer URL-based selection using query params for group selection.
+Example:
+- `/` => default dashboard with group cards and maybe a default intro panel
+- `/?group=identity` => dashboard plus the Identity group items shown
+This avoids losing state on refresh and makes the experience shareable.
+
+E) Default behavior
+When no group is selected:
+- show the group cards
+- show a friendly prompt like “Select a category to open its tools”
+- optionally auto-select the first useful group only if it feels better, but explicit empty/default state is acceptable
+
+F) Optional enhancement if easy
+If helpful, show recently used links or pinned shortcuts on the home dashboard, but only if it is quick and clean. Do not let this expand scope.
+
+Acceptance criteria
+The feature is complete only if all of the following are true:
+
+1. The left sidebar no longer contains the full long navigation tree.
+2. The left sidebar contains a Home link that returns to `/`.
+3. The dashboard displays category/group boxes sourced from `CC_NAV`.
+4. Clicking a group box shows that group’s navigation items in the page body.
+5. Selected group survives refresh via URL state.
+6. Existing routes still work.
+7. Non-home pages still provide a usable compact contextual nav.
+8. No long-scroll sidebar remains in the Control Center.
+9. The UI looks intentional and production-ready, not like a temporary prototype.
+
+Files likely to change
+At minimum expect changes in:
+- `apps/control-center/src/lib/nav.ts`
+- `apps/control-center/src/components/shell/cc-sidebar.tsx`
+- `apps/control-center/src/components/shell/cc-shell.tsx`
+- `apps/control-center/src/app/page.tsx`
+
+You may add new components/helpers if it improves structure, for example:
+- `apps/control-center/src/lib/nav-utils.ts`
+- `apps/control-center/src/components/dashboard/navigation-group-grid.tsx`
+- `apps/control-center/src/components/dashboard/navigation-group-panel.tsx`
+
+Validation steps
+After implementation:
+1. Run the app.
+2. Open the Control Center dashboard.
+3. Confirm Home is present in the sidebar.
+4. Confirm the sidebar is compact and no longer long-scroll.
+5. Confirm group boxes render from `CC_NAV`.
+6. Click at least these groups and verify child navigation appears in the body:
+   - Identity
+   - Tenants
+   - Notifications
+   - SynqAudit
+   - Operations
+7. Open at least one child link from each of the above and verify route loads correctly.
+8. Refresh on a URL with selected group state and verify the selected group remains shown.
+9. Verify a non-home route still has a usable compact sidebar with Home plus contextual links.
+10. Document validation results in the report.
+
+Output
+When done, update `/analysis/CC-UX-NAV-001-report.md` with:
+- what was changed
+- exact files changed
+- any deviations from this prompt
+- screenshots or textual UI validation notes
+- remaining minor improvements if any

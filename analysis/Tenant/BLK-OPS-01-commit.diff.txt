@@ -1,0 +1,182 @@
+diff --git a/apps/gateway/Gateway.Api/Program.cs b/apps/gateway/Gateway.Api/Program.cs
+index cc0233bc..516fc244 100644
+--- a/apps/gateway/Gateway.Api/Program.cs
++++ b/apps/gateway/Gateway.Api/Program.cs
+@@ -1,4 +1,5 @@
+ using System.Text;
++using BuildingBlocks;
+ using Contracts;
+ using Microsoft.AspNetCore.Authentication.JwtBearer;
+ using Microsoft.IdentityModel.Tokens;
+@@ -16,6 +17,17 @@ var jwtSection = builder.Configuration.GetSection("Jwt");
+ var signingKey = jwtSection["SigningKey"]
+     ?? throw new InvalidOperationException("Jwt:SigningKey is not configured.");
+ 
++// ── BLK-OPS-01: Production fail-fast ─────────────────────────────────────────
++// Validates that all required production secrets are present and not placeholder
++// values before any services are registered or requests are accepted.
++if (!builder.Environment.IsDevelopment())
++{
++    var v = new RuntimeConfigValidator(builder.Configuration, ServiceName);
++    v.RequireNotPlaceholder("Jwt:SigningKey")
++     .RequireNonEmpty("PublicTrustBoundary:InternalRequestSecret")
++     .RequireNotPlaceholder("PublicTrustBoundary:InternalRequestSecret");
++}
++
+ builder.Services
+     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+     .AddJwtBearer(options =>
+diff --git a/apps/services/careconnect/CareConnect.Api/Program.cs b/apps/services/careconnect/CareConnect.Api/Program.cs
+index d3f45bf7..c2661100 100644
+--- a/apps/services/careconnect/CareConnect.Api/Program.cs
++++ b/apps/services/careconnect/CareConnect.Api/Program.cs
+@@ -1,5 +1,6 @@
+ using System.Security.Claims;
+ using System.Threading.RateLimiting;
++using BuildingBlocks;
+ using BuildingBlocks.Authorization;
+ using BuildingBlocks.Authentication.ServiceTokens;
+ using BuildingBlocks.Context;
+@@ -118,25 +119,26 @@ builder.Services.AddRateLimiter(options =>
+     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+ });
+ 
+-// ── BLK-SEC-01: Production fail-fast ──────────────────────────────────────────
+-// Both provisioning tokens must be set in non-Development environments.
+-// An empty token means no X-Provisioning-Token header is sent to downstream services,
+-// which will reject calls if they have a real ProvisioningSecret configured.
++// ── BLK-OPS-01: Production fail-fast (supersedes BLK-SEC-01 inline checks) ────
++// Validates all required secrets and service URLs before any requests are accepted.
++// Uses RuntimeConfigValidator for consistent error messages and placeholder detection.
+ if (!builder.Environment.IsDevelopment())
+ {
+-    var tenantToken = builder.Configuration["TenantService:ProvisioningToken"];
+-    if (string.IsNullOrWhiteSpace(tenantToken))
+-        throw new InvalidOperationException(
+-            "TenantService:ProvisioningToken is not configured. " +
+-            "Set this value to authenticate CareConnect → Tenant service calls. " +
+-            "In Development, an empty token is intentional (Tenant service dev-mode bypass).");
+-
+-    var identityToken = builder.Configuration["IdentityService:ProvisioningToken"];
+-    if (string.IsNullOrWhiteSpace(identityToken))
+-        throw new InvalidOperationException(
+-            "IdentityService:ProvisioningToken is not configured. " +
+-            "Set this value to authenticate CareConnect → Identity membership calls. " +
+-            "In Development, an empty token is intentional (Identity service dev-mode bypass).");
++    var v = new RuntimeConfigValidator(builder.Configuration, "careconnect");
++    v
++        // JWT signing key must be real — not a placeholder
++        .RequireNotPlaceholder("Jwt:SigningKey")
++        // Trust boundary secret — must match Gateway and Web BFF
++        .RequireNonEmpty("PublicTrustBoundary:InternalRequestSecret")
++        .RequireNotPlaceholder("PublicTrustBoundary:InternalRequestSecret")
++        // Service URLs — must be absolute URLs in production
++        .RequireAbsoluteUrl("TenantService:BaseUrl")
++        .RequireAbsoluteUrl("IdentityService:BaseUrl")
++        // Provisioning tokens — required for CareConnect → Tenant and Identity calls
++        .RequireNonEmpty("TenantService:ProvisioningToken")
++        .RequireNonEmpty("IdentityService:ProvisioningToken")
++        // Database connection string — must not contain placeholder password
++        .RequireConnectionString("ConnectionStrings:CareConnectDb");
+ }
+ 
+ var app = builder.Build();
+diff --git a/apps/services/identity/Identity.Api/Program.cs b/apps/services/identity/Identity.Api/Program.cs
+index 9155007d..034d9cba 100644
+--- a/apps/services/identity/Identity.Api/Program.cs
++++ b/apps/services/identity/Identity.Api/Program.cs
+@@ -1,5 +1,6 @@
+ using System.Text;
+ using System.Threading.RateLimiting;
++using BuildingBlocks;
+ using Contracts;
+ using Identity.Api.Endpoints;
+ using Identity.Infrastructure;
+@@ -30,35 +31,22 @@ var signingKey   = jwtSection["SigningKey"]
+ var issuer       = jwtSection["Issuer"]   ?? "legalsynq-identity";
+ var audience     = jwtSection["Audience"] ?? "legalsynq-platform";
+ 
+-// ── Email delivery pre-flight checks ─────────────────────────────────────────
+-// Both values must be present for invitation and password-reset emails to work.
+-// Failing at startup (in non-development environments) prevents silent runtime
+-// drops where invites or admin-triggered password-reset emails are never sent.
+-var notifSection   = builder.Configuration.GetSection("NotificationsService");
+-var notifBaseUrl   = notifSection["BaseUrl"];
+-var portalBaseUrl  = notifSection["PortalBaseUrl"];
+-
++// ── BLK-OPS-01: Production fail-fast (supersedes BLK-SEC-01 inline checks) ────
++// Both email values must be present for invitation and password-reset emails to work.
++// Failing at startup prevents silent runtime drops where emails are never sent.
+ if (!builder.Environment.IsDevelopment())
+ {
+-    if (string.IsNullOrWhiteSpace(notifBaseUrl))
+-        throw new InvalidOperationException(
+-            "NotificationsService:BaseUrl is not configured. " +
+-            "Set this value so the Identity service can dispatch invitation and password-reset emails.");
+-
+-    if (string.IsNullOrWhiteSpace(portalBaseUrl))
+-        throw new InvalidOperationException(
+-            "NotificationsService:PortalBaseUrl is not configured. " +
+-            "Set this value so invitation and password-reset links point to the correct tenant portal URL.");
+-
+-    // BLK-SEC-01: Provisioning secret must be set in non-Development environments.
+-    // An empty secret activates dev-mode bypass on /assign-tenant, /assign-roles,
+-    // and /api/internal/tenant-provisioning/provision — making them publicly callable.
+-    var provisioningSecret = builder.Configuration["TenantService:ProvisioningSecret"];
+-    if (string.IsNullOrWhiteSpace(provisioningSecret))
+-        throw new InvalidOperationException(
+-            "TenantService:ProvisioningSecret is not configured. " +
+-            "Set this secret to secure all internal provisioning and membership endpoints. " +
+-            "In Development, an empty secret activates dev-mode bypass intentionally.");
++    var v = new RuntimeConfigValidator(builder.Configuration, "identity");
++    v
++        // JWT signing key must be real — not a placeholder
++        .RequireNotPlaceholder("Jwt:SigningKey")
++        // Provisioning secret gates all internal provisioning and membership endpoints
++        .RequireNonEmpty("TenantService:ProvisioningSecret")
++        // Notifications service — required for invitation and password-reset emails
++        .RequireAbsoluteUrl("NotificationsService:BaseUrl")
++        .RequireNonEmpty("NotificationsService:PortalBaseUrl")
++        // Database connection string
++        .RequireConnectionString("ConnectionStrings:IdentityDb");
+ }
+ 
+ builder.Services
+diff --git a/apps/services/tenant/Tenant.Api/Program.cs b/apps/services/tenant/Tenant.Api/Program.cs
+index 7be5eaa5..109c16ef 100644
+--- a/apps/services/tenant/Tenant.Api/Program.cs
++++ b/apps/services/tenant/Tenant.Api/Program.cs
+@@ -1,4 +1,5 @@
+ using System.Text;
++using BuildingBlocks;
+ using BuildingBlocks.Authorization;
+ using Contracts;
+ using Microsoft.AspNetCore.Authentication.JwtBearer;
+@@ -57,18 +58,17 @@ builder.Services.Configure<TenantFeatures>(
+ 
+ builder.Services.AddInfrastructure(builder.Configuration);
+ 
+-// ── BLK-SEC-01: Production fail-fast ──────────────────────────────────────────
+-// Provisioning secret must be set in non-Development environments.
+-// An empty secret activates dev-mode bypass on all token guards, which would make
+-// every internal provisioning endpoint publicly callable in production.
++// ── BLK-OPS-01: Production fail-fast (supersedes BLK-SEC-01 inline checks) ────
+ if (!builder.Environment.IsDevelopment())
+ {
+-    var provisioningSecret = builder.Configuration["TenantService:ProvisioningSecret"];
+-    if (string.IsNullOrWhiteSpace(provisioningSecret))
+-        throw new InvalidOperationException(
+-            "TenantService:ProvisioningSecret is not configured. " +
+-            "Set this secret to secure the /provision endpoint against unauthenticated access. " +
+-            "In Development, an empty secret activates dev-mode bypass intentionally.");
++    var v = new RuntimeConfigValidator(builder.Configuration, "tenant");
++    v
++        // JWT signing key must be real — not a placeholder
++        .RequireNotPlaceholder("Jwt:SigningKey")
++        // Provisioning secret gates all internal provisioning endpoints
++        .RequireNonEmpty("TenantService:ProvisioningSecret")
++        // Database connection string
++        .RequireConnectionString("ConnectionStrings:TenantDb");
+ }
+ 
+ var app = builder.Build();

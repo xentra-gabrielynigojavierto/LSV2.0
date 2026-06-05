@@ -1,0 +1,318 @@
+You are continuing feature MON-INT-01-001 — Monitoring Read API Integration.
+
+OBJECTIVE
+Now that MonitoringService-source.zip has been uploaded into the Replit workspace, complete the actual Monitoring Service integration into the LegalSynq platform as the authoritative backend for monitoring data, and wire the Control Center abstraction layer to consume it.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- All monitoring data must originate from Monitoring Service once integration is enabled
+
+MANDATORY EXECUTION RULES
+- Create or update the report file FIRST at: /analysis/MON-INT-01-001-report.md
+- If the report already exists, continue updating it incrementally; do not replace prior findings
+- Update the report after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT fabricate success
+- Do NOT introduce placeholder endpoints
+- Do NOT modify UI components
+- Do NOT reintroduce monitoring logic into Control Center
+- Prefer minimal, reversible changes
+- Keep backend, API, and UI strictly separated
+
+---
+
+STEP 1 — UPDATE REPORT FIRST
+
+Open or create:
+- /analysis/MON-INT-01-001-report.md
+
+Add a new continuation section at the top or append clearly:
+
+## Continuation Update
+- MonitoringService-source.zip is now available in the Replit workspace
+- Integration work is resuming from source intake
+- Previous blocker B1 is resolved if the source is successfully found and unpacked
+
+Continue using these report sections:
+
+# MON-INT-01-001 — Monitoring Read API Integration
+
+## 1. Task Summary
+## 2. Monitoring Service Source Discovery
+## 3. Monitoring Service Intake
+## 4. Solution Integration
+## 5. Configuration & Environment Setup
+## 6. Database Integration (monitoring_db)
+## 7. Gateway (YARP) Integration
+## 8. Runtime Integration
+## 9. Control Center Integration (Abstraction Layer)
+## 10. End-to-End Validation
+## 11. Files Changed
+## 12. Known Gaps / Blockers
+## 13. Recommended Next Feature
+
+Explicitly state that the report was updated FIRST before additional work resumed.
+
+---
+
+STEP 2 — LOCATE THE UPLOADED ZIP
+
+Search the current Replit workspace thoroughly for:
+- MonitoringService-source.zip
+- any newly uploaded monitoring archive
+- any unpacked monitoring source folder if Replit auto-extracted it
+
+Check likely locations such as:
+- workspace root
+- attached_assets/
+- uploads/
+- tmp/
+- any user-upload folder visible in the workspace
+
+Document:
+- exact path found
+- file size if available
+- whether it is a zip or already unpacked folder
+
+If not found:
+- stop and document exact evidence
+- do not continue fake integration
+
+---
+
+STEP 3 — UNPACK AND INTAKE MONITORING SERVICE
+
+If the zip is found:
+- unpack it into:
+  apps/services/monitoring/
+
+Use a clean structure. If the zip contains a top-level wrapper folder, normalize the final layout so the actual projects land under:
+- apps/services/monitoring/Monitoring.Api
+- apps/services/monitoring/Monitoring.Application
+- apps/services/monitoring/Monitoring.Domain
+- apps/services/monitoring/Monitoring.Infrastructure
+
+Document:
+- actual folder structure
+- project files found
+- appsettings files found
+- Program.cs / entry point
+- migrations folder if present
+- any deviations from expected structure
+
+If the source is already unpacked:
+- move/copy it into the target structure carefully
+- document exactly what you did
+
+---
+
+STEP 4 — SOLUTION INTEGRATION
+
+Add the Monitoring projects to:
+- LegalSynq.sln
+
+At minimum include:
+- Monitoring.Api
+- Monitoring.Application
+- Monitoring.Domain
+- Monitoring.Infrastructure
+
+Validate:
+- solution/project references are correct
+- dotnet build of the monitoring service succeeds if possible
+- solution remains consistent
+
+If the whole solution build is too expensive or noisy, at minimum build:
+- Monitoring.Api
+and document the scope of validation performed
+
+---
+
+STEP 5 — CONFIGURATION & ENVIRONMENT SETUP
+
+Inspect the Monitoring service configuration and align it to platform conventions.
+
+Ensure Monitoring.Api has configuration for:
+- ConnectionStrings:MonitoringDb
+- Jwt:Issuer
+- Jwt:Audience
+- Jwt:SigningKey
+- AuditClient settings
+- service URL/port
+
+Use:
+- port 5013 unless the code clearly specifies another port or a conflict exists
+
+Do NOT hardcode secrets.
+
+Update configuration only as needed to make the service align with existing platform patterns.
+
+Document:
+- files changed
+- keys expected from environment
+- whether appsettings already existed and what you adjusted
+
+---
+
+STEP 6 — DATABASE INTEGRATION (monitoring_db)
+
+Inspect the Monitoring service persistence layer:
+- verify EF Core / Pomelo MySQL usage
+- inspect DbContext
+- inspect migrations if present
+
+Validate:
+- whether ConnectionStrings__MonitoringDb is the expected environment key
+- whether the service can attempt startup against monitoring_db
+- whether migrations exist and what they appear to create
+
+Do NOT perform destructive operations blindly.
+
+If migrations exist:
+- document whether they should be run
+- document any likely schema overlap/conflict with Control Center's existing system_health_services table
+
+If you can safely test DB connectivity without destructive migration, do so and document results.
+
+If DB secrets are missing:
+- classify as blocker clearly, but continue all non-blocked integration work
+
+---
+
+STEP 7 — GATEWAY (YARP) INTEGRATION
+
+Update:
+- apps/gateway/Gateway.Api/appsettings.json
+
+Add Monitoring routes and cluster using the exact existing service pattern.
+
+Required routes:
+- /monitoring/health
+- /monitoring/info
+- /monitoring/{**catch-all}
+
+Required cluster:
+- monitoring-cluster → http://localhost:5013
+
+Choose route order numbers consistent with existing patterns and avoid conflicts.
+
+Validate:
+- JSON remains valid
+- route structure matches platform conventions
+
+---
+
+STEP 8 — RUNTIME INTEGRATION
+
+Update the platform dev runtime/startup script(s), likely:
+- scripts/run-dev.sh
+or equivalent if the repo uses another runner
+
+Add Monitoring service startup with the same pattern used for other .NET services.
+
+Validate:
+- Monitoring service starts or at least attempts startup
+- any boot errors are captured precisely
+- no other service startup logic is broken
+
+---
+
+STEP 9 — CONTROL CENTER INTEGRATION (ABSTRACTION LAYER)
+
+Modify ONLY:
+- apps/control-center/src/lib/monitoring-source.ts
+
+Implement the service branch:
+
+IF MONITORING_SOURCE === 'service':
+- fetch Monitoring summary from the service through the gateway
+- target:
+  GET http://localhost:5010/monitoring/api/monitoring/summary
+  or use existing gateway env variable if already available in this app
+
+Requirements:
+- use existing MonitoringSummary type
+- use robust error handling
+- keep local fallback behavior untouched
+- do not modify UI files
+- do not modify page components
+- do not duplicate logic
+
+Document the exact URL and behavior.
+
+---
+
+STEP 10 — END-TO-END VALIDATION
+
+Validate as far as possible:
+
+A. Monitoring service build
+B. Monitoring service startup
+C. Gateway route reachability
+D. Control Center abstraction service branch
+E. MONITORING_SOURCE=service behavior
+F. No UI regressions
+
+At minimum, attempt and document:
+- dotnet build for Monitoring.Api
+- Monitoring service startup logs
+- gateway config validity
+- a direct request to Monitoring health/info endpoint if startup works
+- a request path from Control Center abstraction to Monitoring summary if startup works
+
+If full end-to-end is blocked by missing secrets or DB config:
+- document the exact stopping point
+- distinguish code integration success from environment/runtime blockers
+
+---
+
+STEP 11 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- moved
+
+Include short purpose for each.
+
+---
+
+STEP 12 — KNOWN GAPS / BLOCKERS
+
+Document clearly:
+- missing secrets
+- DB conflicts
+- auth issues
+- route mismatches
+- response-shape mismatches
+- startup failures
+
+Be precise. No vague statements.
+
+---
+
+STEP 13 — RECOMMEND NEXT FEATURE
+
+If Monitoring service is integrated in code and the main remaining issues are runtime/config related:
+- recommend MON-INT-01-002 — Platform Routing & Service Wiring Validation
+
+If the main remaining issue is a direct follow-up fix to this feature:
+- recommend MON-INT-01-001-01 with a precise suffix purpose
+
+Base the recommendation on actual findings.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+- /analysis/MON-INT-01-001-report.md has been updated FIRST
+- Monitoring source has been located and unpacked into apps/services/monitoring
+- solution/project integration has been completed
+- gateway config has been added
+- runtime wiring has been added
+- monitoring-source.ts service branch has been implemented
+- validation has been performed as far as environment permits
+- blockers are documented precisely
+- no fake implementation has been introduced

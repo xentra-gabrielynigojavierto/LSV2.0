@@ -1,0 +1,540 @@
+# LS-TENANT-003 — Group Management (Tenant Scope)
+
+## Objective
+
+Implement **full tenant group management UI and workflows**, enabling tenant admins to:
+
+* create and manage groups
+* assign users to groups
+* assign product access to groups
+* assign roles to groups
+* understand how groups drive inherited access
+
+This feature unlocks **scalable access management via inheritance**, making LS-TENANT practical for real-world usage.
+
+At completion, tenant admins must be able to:
+
+```text
+Create Group → Assign Users → Assign Roles/Products → Drive Access at Scale
+```
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-TENANT-003-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The feature is **incomplete without the report**
+* Replit must generate the report automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Groups as Inheritance Engine
+
+* groups are the primary mechanism for scalable access
+* roles + products assigned to groups propagate to users
+
+### Backend-Driven Truth
+
+* all group data and mutations must use LS-COR-AUT APIs
+* no client-side inference of access
+
+### Explainability
+
+* UI must clearly show how group assignments affect user access
+
+---
+
+## In Scope
+
+---
+
+# 1. Group List Page
+
+## Route
+
+```text
+/tenant/authorization/groups
+```
+
+## File
+
+```text
+app/(platform)/tenant/authorization/groups/page.tsx
+```
+
+---
+
+## UI Requirements
+
+### Table Columns
+
+* Group Name
+* Description
+* Status
+* Members Count
+* Products Count
+* Roles Count
+* Actions
+
+---
+
+## Features
+
+### Search
+
+* by group name
+
+### Filters
+
+* status (active/inactive)
+
+### Pagination
+
+* required
+
+---
+
+## Actions
+
+* Create Group
+* Edit Group
+* Open Group Detail
+* Archive / Deactivate Group (if supported)
+
+---
+
+## API
+
+```text
+GET /identity/api/tenants/{tenantId}/groups
+```
+
+---
+
+# 2. Create / Edit Group
+
+---
+
+## Modal or Page
+
+### Fields
+
+* Group Name (required)
+* Description (optional)
+* Status (Active/Inactive)
+
+---
+
+## Validation
+
+* name required
+* no duplicates (backend enforced)
+
+---
+
+## API
+
+```text
+POST /identity/api/tenants/{tenantId}/groups
+PUT /identity/api/tenants/{tenantId}/groups/{groupId}
+```
+
+---
+
+# 3. Group Detail Page
+
+## Route
+
+```text
+/tenant/authorization/groups/[groupId]
+```
+
+---
+
+## Layout Sections
+
+---
+
+## A. Group Summary
+
+* Name
+* Description
+* Status
+* Created / Updated (if available)
+
+---
+
+## B. Members (CRITICAL)
+
+### Display
+
+* list users:
+
+  * name
+  * email
+  * status
+
+---
+
+### Actions
+
+* Add Member
+* Remove Member
+
+---
+
+### API
+
+```text
+POST /identity/api/tenants/{tenantId}/groups/{groupId}/members
+DELETE /identity/api/tenants/{tenantId}/groups/{groupId}/members/{userId}
+```
+
+---
+
+## C. Product Access (Group-Level)
+
+### Display
+
+List products assigned to group.
+
+---
+
+### Actions
+
+* Add product
+* Remove product
+
+---
+
+### API
+
+```text
+PUT /identity/api/tenants/{tenantId}/groups/{groupId}/products/{productCode}
+DELETE /identity/api/tenants/{tenantId}/groups/{groupId}/products/{productCode}
+```
+
+---
+
+## D. Role Assignments (Group-Level)
+
+### Display
+
+List roles assigned to group.
+
+---
+
+### Actions
+
+* Assign role
+* Remove role
+
+---
+
+### API
+
+```text
+POST /identity/api/tenants/{tenantId}/groups/{groupId}/roles
+DELETE /identity/api/tenants/{tenantId}/groups/{groupId}/roles/{roleCode}
+```
+
+---
+
+## E. Effective Access Preview (NEW & IMPORTANT)
+
+### Purpose
+
+Show what access this group **grants to its members**
+
+---
+
+### Display
+
+#### Products
+
+* effective products from group
+
+#### Roles
+
+* roles assigned to group
+
+#### Permissions
+
+* permissions derived from roles
+
+---
+
+### Data Source
+
+Preferred:
+
+```text
+GET /identity/api/tenants/{tenantId}/groups/{groupId}/access-preview
+```
+
+Fallback:
+
+* derive from roles + permission mappings (backend recommended)
+
+---
+
+### Example
+
+```text
+Group: Finance Team
+
+Grants:
+- SYNQ_FUND
+- Role: FUND_APPROVER
+
+Permissions:
+- SYNQ_FUND.application:approve
+- SYNQ_FUND.application:view
+```
+
+---
+
+## F. Impact Indicator (Important UX)
+
+Show:
+
+```text
+"This group affects X users"
+```
+
+and optionally:
+
+```text
+"Impacts Y permissions across members"
+```
+
+---
+
+# 4. User Selection UX
+
+---
+
+## Add Member
+
+### Requirements
+
+* searchable user picker
+* exclude already-added users
+* show:
+
+  * name
+  * email
+
+---
+
+## Remove Member
+
+* confirmation modal required
+
+---
+
+# 5. Role & Product Assignment UX
+
+---
+
+## Requirements
+
+* dropdown selectors
+* disable already-assigned items
+* confirmation for removal
+
+---
+
+## Data Sources
+
+* roles → `GET /identity/api/admin/roles`
+* products → `GET /identity/api/admin/products`
+
+---
+
+# 6. API Integration Layer Updates
+
+---
+
+## Extend `tenant-api.ts`
+
+Add:
+
+* getGroups
+* createGroup
+* updateGroup
+* addGroupMember
+* removeGroupMember
+* assignGroupProduct
+* removeGroupProduct
+* assignGroupRole
+* removeGroupRole
+* getGroupAccessPreview
+
+---
+
+# 7. Security Rules
+
+---
+
+## Must Enforce
+
+* tenant admin only
+* tenant boundary enforced
+* no cross-tenant group access
+* backend validates all operations
+
+---
+
+# 8. Validation Rules
+
+---
+
+## Frontend
+
+* required fields
+* prevent duplicate assignments
+* disable invalid actions
+
+---
+
+## Backend
+
+* enforce uniqueness
+* enforce tenant scope
+* return clear errors
+
+---
+
+# 9. UX Requirements
+
+---
+
+## Feedback
+
+* success toasts
+* error handling
+* loading states
+
+---
+
+## Empty States
+
+```text
+No members in this group
+No roles assigned
+No product access configured
+```
+
+---
+
+## Layout
+
+* sections clearly separated
+* use cards or panels
+* consistent with user detail page
+
+---
+
+# 10. Testing Requirements
+
+---
+
+## Unit Tests
+
+* component rendering
+* modal interactions
+* picker logic
+
+---
+
+## Integration Tests
+
+* group CRUD
+* member assignment
+* role/product assignment
+* access preview
+
+---
+
+## Security Tests
+
+* non-admin blocked
+* cross-tenant blocked
+
+---
+
+## Regression Tests
+
+* LS-TENANT-002 unaffected
+* navigation intact
+
+---
+
+# Acceptance Criteria
+
+* group list page functional
+* create/edit group works
+* group detail page implemented
+* member management works
+* product assignment works
+* role assignment works
+* access preview displayed
+* UI usable and responsive
+* system builds cleanly
+* report generated
+
+---
+
+# Implementation Notes
+
+* reuse patterns from LS-TENANT-002
+* prioritize clarity over complexity
+* ensure access preview is understandable
+* keep UI consistent across user/group pages
+
+---
+
+# Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-TENANT-003-report.md` MUST include:
+
+1. group list implementation
+2. create/edit group flows
+3. group detail implementation
+4. member management flows
+5. role/product assignment flows
+6. access preview implementation
+7. API integrations
+8. validation rules
+9. test results
+10. build status
+11. known limitations
+12. assumptions
+
+---
+
+# Final Goal
+
+After this feature:
+
+Tenant admins can:
+
+* manage groups
+* assign users to groups
+* assign roles/products to groups
+* understand inherited access
+
+This enables **scalable, maintainable authorization management** within a tenant.

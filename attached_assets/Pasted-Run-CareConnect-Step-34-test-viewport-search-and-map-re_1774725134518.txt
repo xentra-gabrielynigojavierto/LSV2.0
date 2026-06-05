@@ -1,0 +1,84 @@
+Run CareConnect Step 34: test viewport search and map-ready provider discovery end to end.
+
+Goal:
+Verify that the CareConnect map-ready provider discovery layer works in practice:
+- viewport search returns providers inside the bounding box
+- map-friendly provider responses are correct
+- combined filters behave correctly
+- validation errors are handled cleanly
+- tenant isolation remains intact
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- Provider geolocation fields and geo-aware search already exist
+- Map-ready viewport search code has already been generated and reviewed
+- This step is for testing, not adding new features
+
+Tasks
+
+1. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+2. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+3. Confirm at least 2 providers exist in the tenant and that they have coordinates.
+If providers do not yet have coordinates, update them with realistic sample coordinates.
+
+4. Test viewport search using either:
+- GET /careconnect/api/providers with viewport params
+or
+- GET /careconnect/api/providers/map if that endpoint was added
+
+Use a bounding box that should include one provider and exclude another.
+
+5. Verify:
+- providers inside viewport are returned
+- providers outside viewport are excluded
+- providers without coordinates are excluded when viewport search is used
+
+6. Test combined filters:
+- viewport + categoryCode
+- viewport + acceptingReferrals
+- viewport + city
+- viewport + state
+- viewport + page/pageSize
+
+7. If radius search still exists, test how radius + viewport are handled according to the implemented rule:
+- either combined safely
+or
+- rejected cleanly with 400
+
+8. Validate error handling:
+- northLat < southLat => 400
+- invalid latitude => 400
+- invalid longitude => 400
+- invalid viewport combinations => clean 400
+
+9. Confirm response shape is map-friendly:
+- coordinates present
+- HasGeoLocation present if implemented
+- categories present
+- any display/marker summary fields are populated correctly if implemented
+
+10. Verify tenant isolation:
+- viewport search remains tenant-scoped
+- no cross-tenant provider leakage
+
+11. Output:
+- which endpoint was tested
+- sample requests used
+- whether providers inside/outside viewport were filtered correctly
+- whether combined filters worked
+- whether validation failures were handled correctly
+- whether the response shape is suitable for future map UI use
+
+Important:
+Do not add a frontend map UI in this step.
+Do not add geocoding, route planning, or external map SDKs.
+This step is only to validate the backend map-ready discovery behavior.

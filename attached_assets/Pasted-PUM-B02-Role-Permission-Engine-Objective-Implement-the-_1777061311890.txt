@@ -1,0 +1,338 @@
+PUM-B02 — Role & Permission Engine
+
+Objective:
+Implement the foundational Role & Permission Engine inside the LegalSynq Identity service.
+
+This block creates the authorization foundation required for:
+- Platform internal admin company users
+- Tenant admins and tenant users
+- Product-specific access for future Commerce, Support, Liens, Fund, CareConnect, Task, Monitoring, and other services
+- Future JWT claims and middleware enforcement
+
+IMPORTANT:
+Create the report file FIRST before making code changes:
+
+/analysis/PUM-B02-report.md
+
+Update this report incrementally after each major step.
+
+Required report sections:
+1. Codebase Analysis
+2. Existing Role / Permission Findings
+3. Database / Migration Changes
+4. Domain / Application Changes
+5. API Changes
+6. Files Changed
+7. Validation Results
+8. Known Gaps / Deferred Items
+9. Final Assessment
+
+Scope:
+Implement backend/domain foundation only.
+
+In Scope:
+- Inspect existing Identity role, group, permission, claim, and admin-access structures
+- Reuse existing role/permission structures wherever possible
+- Add or normalize role and permission concepts if missing
+- Support platform-level roles
+- Support tenant-level roles
+- Support product-aware roles for future services
+- Add permission definitions/constants for core platform user management
+- Add role-to-permission mapping
+- Add user-to-role assignment model if not already present
+- Add safe additive migration if needed
+- Add service-layer logic to resolve effective permissions for a user
+- Add API endpoints to:
+  - list roles
+  - list permissions
+  - assign role to user
+  - remove role from user
+  - get user effective permissions
+- Preserve existing authentication behavior
+- Preserve existing tenant user behavior
+- Do not build UI
+
+Out of Scope:
+- Portal UI
+- Tenant user management UI
+- Product access UI
+- Invitation emails
+- Notifications integration
+- Audit integration
+- Commerce integration
+- Support integration
+- Full JWT claim enforcement middleware
+- Custom tenant-defined roles
+- Permission management UI
+
+Core Concepts:
+The design must support the following access dimensions:
+
+1. Platform Scope
+Used for admin company users operating through admin.legalsynq.net.
+
+Examples:
+- PlatformAdmin
+- PlatformOps
+- PlatformSupport
+- PlatformBilling
+- PlatformAuditor
+
+2. Tenant Scope
+Used for tenant users operating through [tenant-subdomain].baseurl.
+
+Examples:
+- TenantAdmin
+- TenantManager
+- TenantStaff
+- TenantViewer
+
+3. Product Scope
+Used for product-specific access.
+
+Examples:
+- CommerceBillingAdmin
+- CommerceFinanceUser
+- CommerceViewer
+- SupportManager
+- SupportAgent
+- SupportViewer
+- LiensAdmin
+- LiensUser
+- FundAdmin
+- FundUser
+- CareConnectAdmin
+- CareConnectUser
+
+Important Design Rule:
+Do not hardcode Commerce or Support integration behavior yet.
+Only create a product-aware role/permission model that can support them later.
+
+Suggested Permission Naming Convention:
+Use stable string permission keys.
+
+Examples:
+- platform.users.read
+- platform.users.manage
+- platform.roles.read
+- platform.roles.manage
+- platform.tenants.read
+- platform.products.read
+- tenant.users.read
+- tenant.users.manage
+- tenant.settings.read
+- tenant.settings.manage
+- commerce.billing.read
+- commerce.billing.manage
+- support.tickets.read
+- support.tickets.manage
+- monitoring.read
+- audit.read
+
+Implementation Requirements:
+
+PUM-B02-R01:
+Identity must have a clear Role model or reuse an existing one.
+
+PUM-B02-R02:
+Identity must have a clear Permission model or reusable permission definition structure.
+
+PUM-B02-R03:
+Roles must support scope classification:
+- Platform
+- Tenant
+- Product
+
+PUM-B02-R04:
+Roles must be mappable to one or more permissions.
+
+PUM-B02-R05:
+Users must be assignable to one or more roles.
+
+PUM-B02-R06:
+Role assignment must support future scoping by tenant and product without requiring a rewrite.
+
+Preferred shape if compatible with existing architecture:
+UserRoleAssignment
+- Id
+- UserId
+- RoleId
+- TenantId nullable
+- ProductKey nullable
+- CreatedAtUtc
+- CreatedByUserId nullable
+- IsActive
+
+PUM-B02-R07:
+The system must expose a backend method/service to resolve effective permissions for a user.
+
+Effective permissions must consider:
+- direct user role assignments
+- role permission mappings
+- active role assignments only
+- scope metadata where available
+
+PUM-B02-R08:
+Add admin API endpoint to list roles.
+
+Suggested endpoint:
+GET /identity/api/admin/roles
+or match the existing route convention if different.
+
+PUM-B02-R09:
+Add admin API endpoint to list permissions.
+
+Suggested endpoint:
+GET /identity/api/admin/permissions
+or match the existing route convention if different.
+
+PUM-B02-R10:
+Add admin API endpoint to assign a role to a user.
+
+Suggested endpoint:
+POST /identity/api/admin/users/{userId}/roles
+
+Request body should support:
+- roleId or roleKey
+- tenantId nullable
+- productKey nullable
+
+PUM-B02-R11:
+Add admin API endpoint to remove/deactivate a role assignment from a user.
+
+Suggested endpoint:
+DELETE /identity/api/admin/users/{userId}/roles/{assignmentId}
+
+PUM-B02-R12:
+Add admin API endpoint to get a user's effective permissions.
+
+Suggested endpoint:
+GET /identity/api/admin/users/{userId}/permissions
+
+PUM-B02-R13:
+Database changes must be additive and safe.
+
+PUM-B02-R14:
+Existing authentication and login behavior must not be broken.
+
+PUM-B02-R15:
+Backend build must complete with zero errors.
+
+Implementation Guidance:
+1. Inspect the existing Identity service before coding.
+2. Identify whether roles/groups/permissions already exist.
+3. Prefer extending current structures instead of creating duplicates.
+4. If groups already behave like roles, either:
+   - reuse them cleanly, or
+   - create a compatibility layer and document the decision.
+5. Do not delete or rename existing tables unless absolutely required.
+6. Use additive migrations only.
+7. Use stable string keys for roles and permissions where possible.
+8. Seed baseline roles and permissions only if the existing project already uses seeding patterns.
+9. If seeding does not exist, create a safe startup initializer only if consistent with current architecture.
+10. Keep product-specific roles generic and future-ready.
+11. Do not wire Commerce or Support endpoints yet.
+12. Do not require UI changes.
+13. Do not implement full authorization middleware yet, but structure the engine so PUM-B08 can consume it later.
+14. Update /analysis/PUM-B02-report.md after each major implementation step.
+
+Suggested Baseline Roles:
+Create or support the following role keys if no equivalent already exists:
+
+Platform:
+- PlatformAdmin
+- PlatformOps
+- PlatformSupport
+- PlatformBilling
+- PlatformAuditor
+
+Tenant:
+- TenantAdmin
+- TenantManager
+- TenantStaff
+- TenantViewer
+
+Product-ready:
+- CommerceBillingAdmin
+- CommerceFinanceUser
+- CommerceViewer
+- SupportManager
+- SupportAgent
+- SupportViewer
+- LiensAdmin
+- LiensUser
+- FundAdmin
+- FundUser
+- CareConnectAdmin
+- CareConnectUser
+
+Suggested Baseline Permissions:
+Create or support the following permission keys if no equivalent already exists:
+
+Platform:
+- platform.users.read
+- platform.users.manage
+- platform.roles.read
+- platform.roles.manage
+- platform.tenants.read
+- platform.tenants.manage
+- platform.products.read
+- platform.products.manage
+
+Tenant:
+- tenant.users.read
+- tenant.users.manage
+- tenant.settings.read
+- tenant.settings.manage
+
+Product:
+- commerce.billing.read
+- commerce.billing.manage
+- support.tickets.read
+- support.tickets.manage
+- liens.cases.read
+- liens.cases.manage
+- fund.requests.read
+- fund.requests.manage
+- careconnect.records.read
+- careconnect.records.manage
+
+Operations:
+- monitoring.read
+- audit.read
+
+API Behavior:
+- Invalid userId returns 404
+- Invalid roleId or roleKey returns 404 or 400 based on existing conventions
+- Duplicate active role assignment should not create duplicate active rows
+- Removing a role assignment should prefer soft deactivate if the platform already uses soft delete patterns
+- Effective permissions endpoint should return unique permission keys only once
+
+Validation:
+Run the appropriate validation commands for this repository, including:
+- dotnet build
+- relevant Identity tests if available
+- migration validation if applicable
+- endpoint compilation validation
+
+Required Report Content:
+In /analysis/PUM-B02-report.md, include:
+- Existing role/permission structures found
+- Whether new tables were added or existing tables reused
+- Migration names and schema changes
+- API endpoints added/changed
+- Example role keys and permission keys supported
+- Validation commands and results
+- Any known deferred security hardening
+- Final requirement-by-requirement assessment
+
+Do not stop at partial implementation unless blocked by existing codebase constraints.
+If blocked, implement the safest compatible version and document the blocker clearly in /analysis/PUM-B02-report.md.
+
+Final output:
+After implementation, provide only:
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B02-report.md was created and updated

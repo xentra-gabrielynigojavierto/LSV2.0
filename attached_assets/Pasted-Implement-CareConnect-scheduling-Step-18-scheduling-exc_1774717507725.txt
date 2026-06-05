@@ -1,0 +1,218 @@
+Implement CareConnect scheduling Step 18: scheduling exceptions / blackout dates.
+
+Goal:
+Add scheduling exceptions so provider/facility availability can be blocked or overridden for specific date/time ranges.
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect already supports:
+  - Facilities
+  - ServiceOfferings
+  - ProviderAvailabilityTemplates
+  - AppointmentSlots
+  - slot generation
+  - Appointments
+  - appointment lifecycle
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+
+Important:
+Keep this implementation minimal, clean, production-minded, and consistent with the current architecture.
+
+Do NOT implement yet:
+- notifications/reminders
+- provider portal
+- recurring exception rules
+- ICS/calendar sync
+- document integration
+- payment integration
+- geo search
+
+Requirements
+
+==================================================
+PART 1 — NEW ENTITY
+==================================================
+
+1. Create ProviderAvailabilityException entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- ProviderId : Guid
+- FacilityId : Guid?
+- StartAtUtc : DateTime
+- EndAtUtc : DateTime
+- ExceptionType : string
+- Reason : string?
+- IsActive : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+Allowed ExceptionType values:
+- Unavailable
+- Holiday
+- Vacation
+- Blocked
+
+Keep domain clean:
+- no EF attributes
+- use UTC timestamps
+- enterprise-friendly naming
+
+==================================================
+PART 2 — EF CORE MAPPING
+==================================================
+
+2. Add EF Core mapping
+
+Table name:
+- ProviderAvailabilityExceptions
+
+Primary key:
+- Id
+
+Indexes:
+- (TenantId, ProviderId, StartAtUtc)
+- (TenantId, FacilityId, StartAtUtc) if FacilityId is used
+- (TenantId, StartAtUtc, EndAtUtc)
+
+Relationships:
+- exception belongs to Provider
+- exception optionally belongs to Facility
+
+3. Update CareConnectDbContext
+- add DbSet<ProviderAvailabilityException>
+- register mapping cleanly
+
+4. Add migration
+Create migration:
+- AddProviderAvailabilityExceptions
+
+==================================================
+PART 3 — EXCEPTION CRUD
+==================================================
+
+5. Add DTOs
+
+CreateAvailabilityExceptionRequest
+- FacilityId
+- StartAtUtc
+- EndAtUtc
+- ExceptionType
+- Reason
+- IsActive
+
+UpdateAvailabilityExceptionRequest
+- FacilityId
+- StartAtUtc
+- EndAtUtc
+- ExceptionType
+- Reason
+- IsActive
+
+AvailabilityExceptionResponse
+- Id
+- TenantId
+- ProviderId
+- FacilityId
+- StartAtUtc
+- EndAtUtc
+- ExceptionType
+- Reason
+- IsActive
+
+6. Add endpoints
+
+Implement:
+- GET /api/providers/{id}/availability-exceptions
+- POST /api/providers/{id}/availability-exceptions
+- PUT /api/availability-exceptions/{id}
+
+Behavior:
+- tenant-scoped
+- reads require AuthenticatedUser
+- writes require PlatformOrTenantAdmin
+
+==================================================
+PART 4 — VALIDATION
+==================================================
+
+7. Validation rules
+- Provider must exist in tenant
+- Facility must exist in tenant if provided
+- EndAtUtc > StartAtUtc
+- ExceptionType must be one of:
+  - Unavailable
+  - Holiday
+  - Vacation
+  - Blocked
+- date range should be reasonable
+- exception must be tenant-scoped
+
+If invalid:
+- return clean 400 using existing exception handling pattern
+
+==================================================
+PART 5 — SLOT BLOCKING BEHAVIOR
+==================================================
+
+8. Integrate exceptions into slot generation
+When generating slots:
+- do not generate slots that fall inside an active exception window for the provider
+- if FacilityId is specified on the exception, apply it only to matching facility
+- if FacilityId is null, apply to all slots for that provider in the tenant
+
+9. Add slot blocking utility for existing slots
+Implement a simple admin endpoint:
+
+- POST /api/providers/{id}/slots/apply-exceptions
+
+Behavior:
+- tenant-scoped
+- scans existing slots for the provider
+- any slot overlapping an active exception window should be set to:
+  - Status = Blocked
+- do not touch slots that already have booked appointments unless the current logic requires preserving them; keep this simple and safe
+- if a slot has ReservedCount > 0, do not auto-delete it
+- just prevent future use by marking it Blocked where safe
+
+10. Slot listing behavior
+Ensure GET /api/slots still works and blocked slots can be filtered or seen by status.
+
+==================================================
+PART 6 — AUTHORIZATION
+==================================================
+
+11. Authorization rules
+Keep:
+- GET /api/providers/{id}/availability-exceptions => AuthenticatedUser
+- POST /api/providers/{id}/availability-exceptions => PlatformOrTenantAdmin
+- PUT /api/availability-exceptions/{id} => PlatformOrTenantAdmin
+- POST /api/providers/{id}/slots/apply-exceptions => PlatformOrTenantAdmin
+
+==================================================
+PART 7 — OUTPUT REQUIRED
+==================================================
+
+12. After implementation, output:
+- files created/updated
+- migration command
+- allowed exception types
+- how slot generation respects exceptions
+- how apply-exceptions works for existing slots
+- sample curl requests for:
+  - create exception
+  - list exceptions
+  - apply exceptions to existing slots
+  - list blocked slots
+
+13. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- no breaking changes to existing booking flow
+- preserve strict tenant isolation
+- UTC timestamps everywhere

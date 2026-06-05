@@ -1,0 +1,508 @@
+LSCC-01-001-01 — Referral State Machine Correction
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-001-01
+
+Report path:
+- /analysis/LSCC-01-001-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Correct the CareConnect referral lifecycle so it matches the intended governed state machine model.
+
+This feature must:
+
+1. introduce the missing `InProgress` referral state
+2. remove `Scheduled` from the active referral lifecycle
+3. decouple referral workflow from appointment workflow
+4. enforce strict backend transition rules
+5. preserve existing LSCC-01-001 foundation (auth, status normalization patterns, tests, APIs) wherever possible
+6. migrate legacy referral data safely
+
+This is a surgical correction, not a rewrite.
+
+Do NOT redesign the appointment lifecycle here.
+Do NOT expand notifications.
+Do NOT tackle org-linkage / row-level access fixes here.
+Do NOT broaden product scope.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Corrected canonical referral state model
+B. Corrected referral transition matrix
+C. Strict backend transition enforcement
+D. Legacy data/status migration from Scheduled → InProgress
+E. Frontend alignment to corrected referral states
+F. Test updates/additions
+G. Report
+
+Do NOT implement:
+- appointment state machine changes beyond preserving compatibility
+- org scoping fixes
+- admin queue changes
+- analytics changes
+- broad UX redesign
+- unrelated platform refactors
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Keep changes minimal and surgical
+2. Preserve all strong foundation work from LSCC-01-001 unless this feature explicitly corrects it
+3. Use a single source of truth for referral states
+4. Centralize transition validation
+5. Do NOT allow arbitrary referral status mutation from clients
+6. Reuse existing referral history/timeline infrastructure where possible
+7. Separate referral lifecycle from appointment lifecycle
+8. Make migration safe and idempotent
+9. Avoid introducing new workflow states beyond those required here
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/referrals/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT use this feature to redesign unrelated infrastructure or services.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-01-001 implemented:
+- capability-based authorization
+- status normalization
+- referral workflow rules
+- availability API
+- strong test coverage
+
+However, the referral lifecycle is currently misaligned:
+- referral lifecycle still uses `Scheduled`
+- `InProgress` is missing
+- referral state is partially coupled to appointment semantics
+
+This feature must correct that model while preserving stability.
+
+==================================================
+CORRECTED CANONICAL REFERRAL STATES
+==================================================
+
+Final referral states for active workflow:
+
+- New
+- Accepted
+- InProgress
+- Completed
+- Rejected
+- Cancelled
+
+Important:
+- `Scheduled` must NOT remain an active referral workflow state
+- `Scheduled` may exist only as a legacy compatibility alias during migration if absolutely required
+- if current implementation uses `Declined`, choose one naming strategy and standardize
+
+Preferred naming:
+- Rejected
+
+If renaming Declined → Rejected is too risky for this iteration:
+- keep Declined as the canonical stored value
+- but document the mapping clearly
+- DO NOT introduce both as first-class active states
+
+Preferred outcome:
+- one canonical negative terminal state only
+
+==================================================
+CORRECTED TRANSITION MATRIX
+==================================================
+
+Allowed transitions:
+
+From New:
+- Accepted
+- Rejected
+- Cancelled
+
+From Accepted:
+- InProgress
+- Cancelled
+
+From InProgress:
+- Completed
+- Cancelled
+
+Terminal states:
+- Rejected
+- Completed
+- Cancelled
+
+No transitions allowed from terminal states.
+
+Explicit rules:
+- Accepted → Completed is NOT allowed
+- New → Completed is NOT allowed
+- Scheduled must not appear in active referral transitions after correction
+
+==================================================
+ROLE OWNERSHIP RULES
+==================================================
+
+Provider / Receiver:
+- New → Accepted
+- New → Rejected
+- Accepted → InProgress
+- InProgress → Completed
+- may Cancel where current workflow rules allow provider-side cancellation
+
+Referrer / Law Firm:
+- may Cancel when allowed by business rules
+
+Admin:
+- do NOT broaden admin override power in this feature
+- preserve existing safe behavior only if already present
+- prefer strict workflow discipline
+
+If cancellation permissions differ by role in current implementation:
+- keep the safest minimal rule
+- document it clearly in the report
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. CANONICAL REFERRAL STATE SOURCE OF TRUTH
+--------------------------------------------------
+
+Update/refine the canonical referral state definition so that:
+
+- `InProgress` exists as a first-class active state
+- `Scheduled` is removed from active referral lifecycle usage
+- the same state source is used across:
+  - domain model
+  - DTOs
+  - validators
+  - API responses
+  - frontend state rendering
+
+If legacy values still need to be accepted temporarily:
+- add the narrowest possible compatibility mapping
+- document exactly where and why
+
+Do NOT leave drifting duplicate state definitions across layers.
+
+--------------------------------------------------
+B. TRANSITION GUARD / VALIDATOR
+--------------------------------------------------
+
+Implement or tighten a centralized referral transition validator.
+
+Example intent only:
+- ValidateReferralTransition(currentState, nextState, actorRole)
+- CanTransitionReferral(...)
+
+It must enforce:
+1. valid state transitions only
+2. role ownership rules
+3. no transitions from terminal states
+4. explicit rejection of invalid transitions
+
+Rules:
+- do NOT scatter transition rules across endpoints/controllers
+- do NOT let the client set arbitrary status values
+- transition logic must be testable in isolation
+
+--------------------------------------------------
+C. BACKEND TRANSITION HANDLING
+--------------------------------------------------
+
+Referrals must transition only through controlled backend logic.
+
+Requirements:
+- arbitrary status mutation from client must not bypass validation
+- transition endpoints/update paths must enforce the corrected matrix
+- invalid transitions must fail explicitly
+- stale/repeated transition requests must not create duplicate side effects
+
+Required supported actions after this correction:
+- Accept
+- Reject
+- Mark InProgress
+- Complete
+- Cancel
+
+Implementation style:
+- use the smallest clean approach compatible with current codebase
+- one controlled update/transition path is preferred if safe
+- explicit action endpoints are acceptable if cleaner
+
+--------------------------------------------------
+D. REMOVE REFERRAL/APPOINTMENT COUPLING
+--------------------------------------------------
+
+`Scheduled` must be treated as an appointment-domain concern, not an active referral lifecycle state.
+
+Requirements:
+- remove `Scheduled` from referral transition matrix
+- remove/refactor referral code paths that treat `Scheduled` as a required referral state
+- keep appointment states unchanged unless compatibility is required for this correction
+
+Important:
+- booking an appointment may still exist as a separate concern
+- but it must not define the active referral state machine in this feature
+
+--------------------------------------------------
+E. LEGACY DATA MIGRATION
+--------------------------------------------------
+
+Perform a safe migration for existing referral data.
+
+Required mapping rule:
+
+- Referral.Status: `Scheduled` → `InProgress`
+- Referral history/status history: any referral-status history entries using `Scheduled` as a referral state must be migrated to `InProgress`
+
+Rules:
+- migration must be safe and idempotent
+- migration must preserve workflow continuity
+- migration must not create fake user-triggered transition history
+- migration should be clearly documented in the report
+
+If there are legacy aliases like Received/Contacted from earlier work:
+- keep the minimal compatibility needed
+- do NOT let them interfere with the corrected active model
+
+--------------------------------------------------
+F. HISTORY / AUDIT ALIGNMENT
+--------------------------------------------------
+
+Every successful user-driven transition must record:
+
+- referral id
+- from state
+- to state
+- actor user id if available
+- actor role/type if available
+- timestamp
+
+Requirements:
+- reuse existing referral history/timeline infrastructure where possible
+- migration-induced changes should not be represented as fresh user actions unless that is already how your migration history model works
+- InProgress → Cancelled must be clearly distinguishable
+- if cancellation reason is easy and safe to add, you may include it
+- otherwise defer cancellation reason capture and document that
+
+--------------------------------------------------
+G. FRONTEND ALIGNMENT
+--------------------------------------------------
+
+Update the referral UI to match the corrected state model.
+
+Minimum requirements:
+
+1. Remove `Scheduled` as a user-visible referral workflow state
+2. Display `InProgress` in lists/detail/timeline where relevant
+3. Align action visibility to corrected states
+
+Minimum action visibility expectations:
+- New:
+  - Provider sees Accept / Reject
+  - Referrer sees Cancel only if allowed
+- Accepted:
+  - Provider sees Start / Mark InProgress
+  - Referrer sees Cancel if allowed
+- InProgress:
+  - Provider sees Complete
+  - Cancel shown only if role/rules allow
+- Terminal states:
+  - no transition actions shown
+
+Rules:
+- use backend truth
+- if legacy `Scheduled` still appears in fetched old data during rollout, map it to `InProgress` in the UI rather than exposing Scheduled as an active referral label
+- do not redesign unrelated referral pages
+
+--------------------------------------------------
+H. DATA INTEGRITY RULES
+--------------------------------------------------
+
+Must enforce:
+
+1. Accepted → Completed is blocked
+2. New → Completed is blocked
+3. terminal → anything is blocked
+4. double accept / double complete / double cancel does not create duplicate history
+5. unauthorized participant cannot transition
+6. stale UI actions fail cleanly and safely
+
+Idempotency minimum:
+- if a repeated request arrives after state already changed, do not duplicate transition side effects
+- do not duplicate history entries
+- fail safely and explicitly
+
+--------------------------------------------------
+I. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. legacy Scheduled referrals in database
+- mapped/migrated to InProgress
+
+2. repeat clicks / network retries
+- no duplicate transitions/history
+
+3. accept after reject/cancel/complete
+- blocked
+
+4. complete without InProgress
+- blocked
+
+5. cancel after Completed
+- blocked
+
+6. missing referral
+- safe not found handling
+
+7. unauthorized org participant
+- safe authorization failure
+
+--------------------------------------------------
+J. TESTING (MINIMUM)
+--------------------------------------------------
+
+Update/add focused tests for:
+
+Backend:
+1. New → Accepted allowed
+2. New → Rejected allowed
+3. Accepted → InProgress allowed
+4. InProgress → Completed allowed
+5. InProgress → Cancelled allowed
+6. Accepted → Completed blocked
+7. Scheduled legacy value maps/migrates to InProgress
+8. terminal-state protections
+9. role-based transition authorization
+10. duplicate/repeated transition handling
+11. transition history recording
+
+Frontend:
+1. `InProgress` renders correctly
+2. `Scheduled` is not shown as an active referral workflow state
+3. action visibility matches role/state
+4. terminal states show no transition actions
+
+Also:
+- existing LSCC-01-001 tests should continue to pass after expectation updates
+- pre-existing unrelated failures must not be counted as regressions, but note them if still present
+
+--------------------------------------------------
+K. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-001-01-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Corrected canonical referral state model
+- exact final states
+- any compatibility mapping used
+
+3. Corrected transition matrix
+- allowed transitions
+- role ownership rules
+
+4. Backend enforcement
+- how transition validation is centralized
+- how arbitrary mutation is prevented
+
+5. Legacy migration
+- exact Scheduled → InProgress handling
+- any additional compatibility paths retained
+
+6. Frontend alignment
+- which states/actions changed
+- how legacy Scheduled is handled in UI during rollout
+
+7. History / audit
+- what transition data is recorded
+- how migration effects are represented
+
+8. Tests
+- what scenarios are covered
+- what gaps remain
+
+9. Known limitations / deferred items
+- e.g. cancellation reason deferred, admin override unchanged, org linkage still deferred, etc.
+
+10. Recommended next step
+- smallest logical follow-up after the correction
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. update canonical referral state source of truth
+2. update transition rules/validator
+3. wire strict backend transition handling
+4. add migration for Scheduled → InProgress
+5. align history/audit behavior
+6. update frontend state display and action visibility
+7. update/add tests
+8. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-001-01 is complete ONLY if:
+
+1. `InProgress` is fully implemented as a canonical referral state
+2. `Scheduled` is removed from the active referral lifecycle
+3. referral and appointment workflows are correctly decoupled
+4. only valid referral transitions are possible
+5. Accepted → Completed is blocked
+6. InProgress → Cancelled is allowed
+7. legacy data is migrated safely
+8. frontend reflects the corrected workflow
+9. LSCC-01-001 foundation remains intact
+10. report exists at:
+   /analysis/LSCC-01-001-01-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this surgical and domain-correct.
+Do not rewrite the foundation.
+Do not drift into appointments, notifications, or org-linkage work.
+This feature exists to correct the referral state machine so Epic 01 rests on the right workflow model.

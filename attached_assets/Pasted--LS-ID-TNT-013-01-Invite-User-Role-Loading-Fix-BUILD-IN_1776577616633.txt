@@ -1,0 +1,324 @@
+# LS-ID-TNT-013-01 — Invite User Role Loading Fix
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing a focused corrective fix on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+
+This fix MUST:
+- Be incremental (NO rewrites)
+- Restore the broken Invite User modal role-loading flow
+- Preserve all existing identity lifecycle, access, enforcement, and governance behavior
+- Validate the actual current codebase before making changes
+- Keep backend, BFF, API, and frontend concerns clearly separated
+- Include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- Preserve tenant isolation and authorization boundaries
+- Document the exact root cause in the report
+
+---
+
+## FIX OBJECTIVE
+
+Restore the Invite User modal so tenant admins can successfully load and select valid tenant-assignable roles again.
+
+The current production-visible symptom is:
+- Invite modal opens
+- first name / last name / email fields render
+- role field fails with:
+  `Unable to load roles right now.`
+
+This is an operational blocker for user onboarding and must be fixed end-to-end.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- broader redesign of Users page
+- new role model architecture
+- product permission governance changes
+- Control Center changes unless directly required by shared code
+- invite email redesign
+- broad access model refactor
+- speculative role filtering redesign without validating actual backend support
+
+ONLY IMPLEMENT:
+- diagnosis of failing role-load path
+- fix for the actual failure cause
+- restoration of valid tenant-assignable role loading in Invite User modal
+- response-shape/auth/BFF/client parsing corrections as needed
+- minimal retry/loading/error-state improvements only if needed for correctness
+- end-to-end validation of invite flow after repair
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-013-01-report.md
+
+Initialize with:
+
+# LS-ID-TNT-013-01 — Invite User Role Loading Fix
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Current Invite Modal Role-Loading Flow
+## 4. Root Cause Analysis
+## 5. Files Changed
+## 6. Backend / BFF Fixes
+## 7. Frontend Fixes
+## 8. Response Shape / Contract Notes
+## 9. Testing Results
+## 10. Known Issues / Gaps
+## 11. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for the Invite User modal data flow:
+
+### Frontend
+- Invite User modal component
+- Users page component that opens the modal
+- client hook / API function used to load roles
+- loading/error state logic for the role selector
+- how the modal currently parses the role response
+
+### BFF / proxy
+- tenant portal BFF route used for role loading
+- auth guard used by that route
+- request forwarding path to identity/gateway
+- whether token forwarding/session extraction is correct
+
+### Backend
+- identity endpoint actually used for roles
+- whether tenant admin is authorized to call it
+- whether endpoint returns:
+  - full role list
+  - assignable role list
+  - filtered role list
+- actual response shape
+- whether recent permission/auth hardening changed this endpoint behavior
+
+DO NOT assume the failure source until validated.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Current Invite Modal Role-Loading Flow
+
+---
+
+## STEP 2 — REPRODUCE AND IDENTIFY THE FAILURE
+
+Validate the actual failure path.
+
+You must determine:
+- exact request URL called when modal opens
+- exact HTTP status code
+- exact response body
+- whether failure is due to:
+  - 401 unauthorized
+  - 403 forbidden
+  - 404 route mismatch
+  - 500 backend error
+  - 200 success with wrong payload shape
+  - client-side parsing/filtering bug
+
+Also check:
+- whether the modal expects `data`
+- or `data.roles`
+- or `roles`
+- or some other shape
+
+Document the exact root cause clearly.
+
+Update report:
+## 4. Root Cause Analysis
+
+---
+
+## STEP 3 — FIX THE ACTUAL FAILURE SOURCE
+
+Based on validated findings, apply the smallest correct fix.
+
+Possible fix classes include:
+
+### A. Frontend parsing fix
+Examples:
+- `response.data` vs `response.data.data`
+- `response.data.roles` vs `response.data`
+- incorrect array mapping
+- null-safe handling
+
+### B. BFF route fix
+Examples:
+- wrong path forwarding
+- wrong auth/session extraction
+- wrong guard
+- missing token header
+
+### C. Backend endpoint / auth fix
+Examples:
+- TenantAdmin wrongly blocked
+- endpoint contract changed
+- assignable-role filtering broken
+
+Requirements:
+- do not patch around the symptom blindly
+- correct the actual cause
+- preserve current security boundaries
+
+Update report:
+## 5. Files Changed
+## 6. Backend / BFF Fixes
+## 7. Frontend Fixes
+## 8. Response Shape / Contract Notes
+
+---
+
+## STEP 4 — ENSURE CORRECT ROLE SOURCE FOR INVITE FLOW
+
+After restoring loading, validate that the Invite User modal shows the correct role set.
+
+Requirements:
+- only valid tenant-assignable roles should be shown
+- platform-only roles must not appear
+- product roles should only appear if the current architecture explicitly supports assigning them in invite flow
+- if a dedicated assignable-role endpoint exists, prefer it
+- if current code uses a broader role endpoint, ensure correct filtering is applied
+
+Document:
+- which endpoint/source is now used
+- what filtering is applied
+- why it is correct for tenant invitation
+
+Update report:
+## 8. Response Shape / Contract Notes
+## 9. Testing Results
+
+---
+
+## STEP 5 — RESTORE UI STATES CORRECTLY
+
+The Invite User modal role field must behave correctly in all three states:
+
+### Loading
+- show spinner/skeleton/select loading state
+
+### Success
+- show populated role selector
+- clear prior error state
+
+### Failure
+- show inline error only on genuine load failure
+- no broken ambiguous state
+
+If retry behavior already exists or can be added minimally and safely, use it.
+Do not redesign the modal.
+
+Update report:
+## 7. Frontend Fixes
+
+---
+
+## STEP 6 — VALIDATE END-TO-END INVITE FLOW
+
+After the role-loading fix:
+- open Invite User modal
+- load roles successfully
+- select a valid role
+- submit invite
+- confirm invite succeeds
+- confirm invite email / invite creation behavior remains unchanged
+
+Also validate:
+- edit-user role loading still works
+- tenant permission UI still works
+- control center role/permission UI still works
+- backend permission enforcement still works
+
+Update report:
+## 9. Testing Results
+
+---
+
+## STEP 7 — PRESERVE AUTHORIZATION BOUNDARIES
+
+Validate and ensure:
+- tenant admins can load valid invite roles for their own tenant
+- tenant admins cannot load/manipulate platform-only governance data through this path
+- unauthorized users remain blocked
+- no cross-tenant role leakage occurs
+- backend/BFF remain authoritative
+
+Update report:
+## 9. Testing Results
+## 10. Known Issues / Gaps
+
+---
+
+## STEP 8 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 10. Known Issues / Gaps
+## 11. Final Status = Complete
+
+Your final report must clearly state:
+- what request path was failing
+- what the exact root cause was
+- what was changed
+- whether the fix was frontend, BFF, backend, or mixed
+- what role source the modal now uses
+- whether the invite flow is fully operational again
+- whether any related limitations remain
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Invite User modal successfully loads roles
+✔ Loaded roles are valid for tenant assignment
+✔ Platform-only roles are not exposed
+✔ Tenant admin can complete invite flow end-to-end
+✔ Error message only appears when role loading genuinely fails
+✔ Response parsing matches the actual API contract
+✔ Tenant authorization boundaries remain intact
+✔ Existing user-management and permission-management flows do not regress
+✔ Root cause is documented clearly in the report
+✔ The fix restores operational usability of user invitation
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working Invite User modal role loading
+2. Working end-to-end invite flow
+3. Completed report:
+/analysis/LS-ID-TNT-013-01-report.md
+
+---
+
+END OF IMPLEMENTATION

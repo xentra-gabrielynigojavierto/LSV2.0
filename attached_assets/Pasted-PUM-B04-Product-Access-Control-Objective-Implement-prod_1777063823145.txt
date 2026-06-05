@@ -1,0 +1,304 @@
+PUM-B04 — Product Access Control
+
+Objective:
+Implement product access control in the LegalSynq Identity service.
+
+This block defines which users can access which LegalSynq products and prepares Identity to support product-based navigation, product authorization, and future Commerce/Support integration.
+
+IMPORTANT:
+Create the report file FIRST before making code changes:
+
+/analysis/PUM-B04-report.md
+
+Update this report incrementally after each major step.
+
+Required report sections:
+1. Codebase Analysis
+2. Existing Product / Access Model Findings
+3. Database / Migration Changes
+4. Domain / Application Changes
+5. API Changes
+6. Files Changed
+7. Validation Results
+8. Known Gaps / Deferred Items
+9. Final Assessment
+
+Scope:
+Implement backend product access control only.
+
+In Scope:
+- Inspect existing product, tenant product, subscription, entitlement, role, permission, and user access structures
+- Reuse existing structures wherever possible
+- Support listing available products
+- Support assigning product access to a user
+- Support removing/deactivating product access from a user
+- Support listing a user’s product access
+- Support checking whether a user has access to a product
+- Support product-scoped role assignment if compatible with existing role/permission model
+- Use PUM-B02 Role.Scope == Product where applicable
+- Preserve tenant isolation and existing authentication behavior
+- Add safe additive migration only if required
+
+Out of Scope:
+- Commerce service integration
+- Support service integration
+- Product-specific business authorization
+- Portal UI
+- Navigation UI
+- Invitation emails
+- Notifications integration
+- Audit integration
+- Customer portal access layer
+- Full JWT claim enforcement middleware
+
+Core Design Rule:
+Product access must be separate from role assignment.
+
+Use this principle:
+- Product access defines WHERE a user can go.
+- Roles/permissions define WHAT a user can do there.
+
+Do not overload roles as the only representation of product access.
+
+Functional Requirements:
+
+PUM-B04-R01:
+Identity must support a product catalog or reuse an existing platform product table/model.
+
+Product records should support:
+- productKey
+- displayName
+- description optional
+- isActive
+- createdAtUtc
+- updatedAtUtc where available
+
+Suggested product keys:
+- liens
+- fund
+- careconnect
+- task
+- commerce
+- support
+- monitoring
+- audit
+- documents
+- notifications
+
+Use existing platform product keys if already defined in the codebase.
+
+PUM-B04-R02:
+Identity must support user product access assignment.
+
+Preferred model if no equivalent exists:
+UserProductAccess
+- Id
+- UserId
+- TenantId nullable
+- ProductKey
+- IsActive
+- GrantedAtUtc
+- GrantedByUserId nullable
+- RevokedAtUtc nullable
+- RevokedByUserId nullable
+
+PUM-B04-R03:
+Product access assignment must be idempotent.
+
+Rules:
+- Duplicate active access for the same UserId + TenantId + ProductKey must not create duplicate active rows.
+- Re-granting previously revoked access should reactivate existing access if compatible with existing patterns.
+
+PUM-B04-R04:
+Identity must support removing/revoking product access from a user.
+
+Rules:
+- Prefer soft revoke/deactivate.
+- Do not delete the user.
+- Do not remove unrelated tenant roles.
+- Do not remove unrelated product access.
+
+PUM-B04-R05:
+Identity must support listing a user’s product access.
+
+Suggested endpoint:
+GET /identity/api/admin/users/{userId}/products
+
+Response should include:
+- productKey
+- displayName if available
+- tenantId nullable
+- isActive
+- grantedAtUtc
+- revokedAtUtc nullable
+
+PUM-B04-R06:
+Identity must support assigning product access to a user.
+
+Suggested endpoint:
+POST /identity/api/admin/users/{userId}/products
+
+Request body:
+{
+  "productKey": "commerce",
+  "tenantId": "guid optional"
+}
+
+Rules:
+- user must exist
+- product must exist or be recognized
+- tenantId, if supplied, must exist
+- if tenantId is supplied, user must belong to that tenant under current tenant model
+- platform users may receive product access with tenantId null where appropriate
+- tenant users should normally receive product access with tenantId set to their tenant
+
+PUM-B04-R07:
+Identity must support revoking product access from a user.
+
+Suggested endpoint:
+DELETE /identity/api/admin/users/{userId}/products/{productKey}
+
+Optional query parameter:
+- tenantId
+
+Rules:
+- revoke only the matching user/product/tenant context
+- if not found, return 404 or safe no-op according to existing conventions
+
+PUM-B04-R08:
+Identity must support checking product access.
+
+Suggested endpoint:
+GET /identity/api/admin/users/{userId}/products/{productKey}/access
+
+Optional query parameter:
+- tenantId
+
+Response:
+{
+  "hasAccess": true,
+  "productKey": "commerce",
+  "tenantId": "guid optional"
+}
+
+PUM-B04-R09:
+If product-scoped roles are already compatible with the existing model, support assigning a Product-scoped role in the product access context.
+
+Suggested endpoint:
+POST /identity/api/admin/users/{userId}/products/{productKey}/roles
+
+Request body:
+{
+  "roleId": "guid optional",
+  "roleKey": "string optional",
+  "tenantId": "guid optional"
+}
+
+Rules:
+- role must exist
+- role.Scope must equal Product
+- product access must exist before product role assignment
+- duplicate active product role assignment must not create duplicates
+- defer this if existing `ScopedRoleAssignment` cannot safely represent product context; document clearly if deferred
+
+PUM-B04-R10:
+If product-scoped roles are implemented, support removing/revoking product role assignment.
+
+Suggested endpoint:
+DELETE /identity/api/admin/users/{userId}/products/{productKey}/roles/{assignmentId}
+
+Rules:
+- only remove assignment for that user/product/tenant context
+- do not affect tenant or platform roles
+
+PUM-B04-R11:
+Product access APIs must preserve tenant isolation.
+
+Rules:
+- PlatformAdmin can manage product access across tenants
+- TenantAdmin should manage product access only for users in their tenant if that pattern already exists
+- If authorization layer cannot fully enforce this yet, preserve existing secured endpoint behavior and document deferred hardening
+
+PUM-B04-R12:
+Database changes must be additive and safe.
+
+PUM-B04-R13:
+Existing authentication and login behavior must not be broken.
+
+PUM-B04-R14:
+Backend build must complete with zero errors.
+
+Implementation Guidance:
+1. Inspect the Identity service and platform data model first.
+2. Search for existing:
+   - Product
+   - ProductKey
+   - TenantProduct
+   - ProductSubscription
+   - Entitlement
+   - FeatureFlag
+   - UserProductAccess
+   - ScopedRoleAssignment product fields
+3. Reuse existing product catalog/entitlement structures where possible.
+4. Do not create duplicate product catalog tables if one already exists.
+5. If no suitable user-product access model exists, create a minimal additive `UserProductAccess` model/table.
+6. Use stable product keys, lowercase where possible.
+7. Do not hardcode Commerce/Support business behavior.
+8. Seed product catalog only if the codebase already uses seed/init patterns.
+9. If product catalog belongs in another platform service, create a local recognized product key registry instead and document the decision.
+10. Product access should work before product-scoped roles are required.
+11. Treat product-scoped role support as additive if safe, but do not force risky schema changes.
+12. Do not build UI.
+13. Do not integrate Commerce or Support yet.
+14. Update /analysis/PUM-B04-report.md after each major implementation step.
+
+Suggested API Routes:
+Use these only if they fit existing conventions:
+
+GET    /identity/api/admin/products
+GET    /identity/api/admin/users/{userId}/products
+POST   /identity/api/admin/users/{userId}/products
+DELETE /identity/api/admin/users/{userId}/products/{productKey}
+GET    /identity/api/admin/users/{userId}/products/{productKey}/access
+POST   /identity/api/admin/users/{userId}/products/{productKey}/roles
+DELETE /identity/api/admin/users/{userId}/products/{productKey}/roles/{assignmentId}
+
+API Behavior:
+- Invalid userId returns 404
+- Invalid tenantId returns 404
+- Invalid productKey returns 404 or 400 based on existing conventions
+- Duplicate active access returns existing assignment or safe no-op
+- Revoked access can be reactivated if compatible with existing patterns
+- Non-Product role assignment through product role endpoint returns 400
+- Product role assignment without active product access returns 400 or 409
+
+Validation:
+Run the appropriate validation commands for this repository, including:
+- dotnet build
+- relevant Identity tests if available
+- migration validation if applicable
+- endpoint compilation validation
+
+Required Report Content:
+In /analysis/PUM-B04-report.md, include:
+- Existing product/access structures found
+- Whether a product catalog already existed or a registry/table was added
+- Whether a user-product access model already existed or was added
+- Migration names and schema changes
+- API endpoints added/changed
+- Explanation of how product access is separate from roles
+- Whether product-scoped roles were implemented or deferred
+- Validation commands and results
+- Known gaps, especially any tenant isolation or product-role limitations
+- Final requirement-by-requirement assessment
+
+Do not stop at partial implementation unless blocked by existing codebase constraints.
+If blocked, implement the safest compatible version and document the blocker clearly in /analysis/PUM-B04-report.md.
+
+Final output:
+After implementation, provide only:
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B04-report.md was created and updated

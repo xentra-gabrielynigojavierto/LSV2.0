@@ -1,0 +1,389 @@
+Implement a UI body-only redesign for the Tenant Portal → Synq Liens → Case section based on the provided design reference.
+
+--------------------------------------------------
+CRITICAL CONTEXT (MUST FOLLOW)
+--------------------------------------------------
+
+This implementation is for:
+
+- Tenant Portal
+- Product: Synq Liens
+- Section: Case
+
+Apply changes ONLY within:
+👉 Synq Liens → Case section body content
+
+Pages in scope:
+1. Case List Page (body only)
+2. Case Detail Page (body only)
+
+Do NOT modify:
+- top navigation
+- side navigation
+- global shell layout
+- other products
+- other modules outside the Case section, except only where a shared reusable body component is required
+
+--------------------------------------------------
+STRICT DESIGN CONSTRAINTS
+--------------------------------------------------
+
+- KEEP the current top navigation EXACTLY as-is
+- KEEP the current side navigation EXACTLY as-is
+- KEEP the existing font family EXACTLY as-is
+- KEEP the existing color scheme EXACTLY as-is
+- DO NOT introduce new fonts
+- DO NOT introduce new color palettes
+- DO NOT change global styling tokens
+- DO NOT redesign the shell
+
+This task is:
+👉 layout + structure + spacing + component organization ONLY
+
+--------------------------------------------------
+SCREEN REPLICATION PRIORITY
+--------------------------------------------------
+
+Use the provided reference as a layout/composition target for the Synq Liens Case section body.
+
+Priority order:
+1. Replicate the Case Detail page body in its default split-panel state
+2. Replicate the Case Detail page body in expanded/collapsed panel behavior
+3. Replicate the Case List page body using the same design language
+
+Important:
+- Do NOT invent new information architecture
+- Do NOT add or remove business fields unless necessary because the current system lacks an exact equivalent
+- Recompose existing data into the new layout rather than changing the underlying page logic
+- Match the reference primarily on:
+  - section placement
+  - relative panel sizing
+  - spacing rhythm
+  - table density
+  - action placement
+  - visual hierarchy
+- Keep current fonts, colors, and shell unchanged
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create:
+     /analysis/LS-LIENS-UI-DESIGN-001-report.md
+
+2. Initialize with:
+   - Objective
+   - Exact scope (Tenant Portal → Synq Liens → Case)
+   - Screen replication priority
+   - Design interpretation from the reference
+   - Planned layout changes
+   - Explicit statement that top nav, side nav, fonts, and colors are unchanged
+   - Explicit plan for temporary mock display data for visual review only
+
+3. DURING implementation:
+   - Update the report AFTER EACH step
+   - Include:
+     - step id
+     - files modified
+     - UI decisions
+     - issues + fixes
+     - whether change is visual-only or shared reusable component work
+
+4. FINAL:
+   - Final summary
+   - validation results
+   - exact files changed
+   - list of remaining visual gaps
+   - note whether temporary mock display data was added and where
+
+--------------------------------------------------
+DESIGN INTENT (FROM REFERENCE)
+--------------------------------------------------
+
+Implement the body content using these principles:
+
+1. Clean enterprise content canvas
+- white primary background
+- subtle section separation
+- compact spacing
+- minimal visual noise
+- thin borders, subtle shadows or no shadow
+
+2. Page header within the body
+- title on the left
+- primary actions on the right
+- compact and structured, not oversized
+
+3. Detail layout
+- LEFT = primary record details and working content
+- RIGHT = contextual side panel
+- left panel is dominant
+- right panel is narrower and vertically stacked
+
+4. Section design
+- card-style sections
+- consistent section headers
+- compact label/value layout
+- clear hierarchy between:
+  - summary
+  - details
+  - related items
+  - notes/activity/documents
+
+5. Tables
+- compact rows
+- clean headers
+- restrained borders
+- enterprise density
+
+6. Forms and inline controls
+- keep current behavior
+- align spacing and grouping visually
+- no logic changes
+
+--------------------------------------------------
+BODY-ONLY RULES
+--------------------------------------------------
+
+- Do NOT touch top nav
+- Do NOT touch side nav
+- Do NOT change shell layout structure
+- Any spacing changes must remain inside the page body components
+- Do NOT move global shell elements
+- Do NOT restyle unrelated pages
+
+--------------------------------------------------
+ARCHITECTURE RULES
+--------------------------------------------------
+
+- Keep all service-layer patterns intact
+- Keep all API calls intact
+- Keep routing intact
+- Keep provider-mode logic intact
+- Keep role-access logic intact
+- Keep bulk operations intact
+- No direct HTTP in components
+- No backend changes for this task unless absolutely required for a shared UI dependency
+- Prefer component refactoring over page rewrites where possible
+- Preserve existing business fields and workflows
+
+--------------------------------------------------
+SPLIT PANEL INTERACTION REQUIREMENT
+--------------------------------------------------
+
+Implement reusable expand/collapse behavior for Case detail pages.
+
+Create:
+👉 SplitPanelLayout (or equivalent reusable component)
+
+Behavior:
+- Default: split view
+- LEFT expanded:
+  - left panel = full width
+  - right panel = hidden
+- RIGHT expanded:
+  - right panel = full width
+  - left panel = hidden
+- Ability to restore split mode
+
+State model:
+- split
+- left-expanded
+- right-expanded
+
+Apply this behavior to:
+1. Case Detail page
+
+Rules:
+- body-only behavior
+- no impact to top nav or side nav
+- no data logic changes
+- no provider-mode or role-access changes
+- local state only
+- no global store required
+
+UI rules:
+- place small toggle controls at the divider between panels
+- subtle enterprise styling
+- not primary CTA buttons
+- intuitive controls:
+  - collapse right / expand left
+  - collapse left / expand right
+  - restore split mode
+
+Layout rules:
+- default split ratio roughly 70/30
+- preserve scroll behavior
+- prevent broken overflow
+- smooth transitions preferred if simple and safe
+
+--------------------------------------------------
+TEMPORARY MOCK DISPLAY DATA FOR VISUAL REVIEW (REQUIRED)
+--------------------------------------------------
+
+For THIS TASK ONLY, add temporary mock display data for the Case section so the redesigned body can be visually reviewed even when real data is sparse or inconsistent.
+
+IMPORTANT RULES:
+- This mock display data is VISUAL REVIEW SUPPORT ONLY
+- It must NOT replace real API/service logic
+- It must NOT become the production source of truth
+- It must be isolated and removable
+- It must be used only to fill missing/empty states in the Case section UI during visual review
+- If real data exists, real data should still be used first
+
+Preferred implementation approach:
+- Create a small visual-review-only mock module for the Case section body
+- Use it only as a fallback for non-critical display sections where current live data is missing
+- Do NOT fabricate backend mutations or workflow outcomes
+- Do NOT mock business actions
+- Do NOT alter service responses
+
+Use mock display data only for visual completeness in areas such as:
+- summary labels/cards
+- related item rows
+- notes preview blocks
+- activity preview blocks
+- sidebar widgets
+- empty tables/cards that need realistic visual density
+
+The mock display data should be realistic for a Synq Liens Case context, for example:
+- case number
+- claimant/client name
+- incident date
+- lien summary values
+- servicing status
+- related tasks/activity rows
+- related notes/documents previews
+
+Also:
+- clearly label in code comments that this is temporary visual review fallback data
+- document exactly where it is used in the report
+- keep it scoped to the Case section only
+- do not use it to bypass missing real data on actions or workflow logic
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze Current Case Pages
+- inspect current Case list + detail body structure
+- document:
+  - current sections
+  - current data blocks
+  - current right-side contextual content
+  - current reusable components
+- log findings in report
+
+T002 — Define Reusable Body Patterns
+- identify reusable layout primitives needed for the redesign
+- create/refine patterns for:
+  - page body header
+  - section card
+  - metadata row block
+  - related table block
+  - contextual sidebar block
+- log reusable patterns in report
+
+T003 — Create SplitPanelLayout
+- implement split / left-expanded / right-expanded
+- add divider toggle controls
+- ensure stable scroll/overflow behavior
+- log design decisions in report
+
+T004 — Add Temporary Case Visual Review Mock Data
+- create isolated mock display data fallback for Case section only
+- use it only where needed to visually review layout density/composition
+- do not interfere with real services or workflow logic
+- document exactly where fallback is used
+
+T005 — Redesign Case List Body
+- update only the body content area of the Case list page
+- keep:
+  - filters
+  - bulk selection
+  - actions
+  - role/provider-mode behavior
+- improve:
+  - spacing
+  - table density
+  - header/action alignment
+  - section structure
+- no logic changes
+
+T006 — Redesign Case Detail Body
+- rebuild the Case detail body to match the reference:
+  - left main content
+  - right contextual side panel
+  - compact section cards
+  - lower related sections
+- use SplitPanelLayout
+- preserve all real data wiring and existing behavior
+- use temporary mock display fallback only where needed for visual completeness
+
+T007 — Refine Section Hierarchy
+- normalize:
+  - spacing
+  - borders
+  - section header hierarchy
+  - table paddings
+  - metadata layout
+- keep fonts and colors unchanged
+
+T008 — Align Case-Related Modals / Inline Panels
+- if a modal or inline panel is visually inconsistent with the new body design, restyle body content only
+- do not change behavior
+
+T009 — Split Panel Validation
+- verify:
+  - split state works
+  - left-expanded works
+  - right-expanded works
+  - restore works
+  - no overflow/scroll breakage
+
+T010 — Final Validation
+- confirm:
+  - top nav unchanged
+  - side nav unchanged
+  - fonts unchanged
+  - colors unchanged
+  - real logic intact
+  - temporary mock display fallback is isolated and documented
+
+--------------------------------------------------
+DO NOT
+--------------------------------------------------
+
+- do not redesign top nav
+- do not redesign side nav
+- do not change fonts
+- do not change colors
+- do not alter services/APIs
+- do not alter routing
+- do not break provider mode
+- do not break role access
+- do not replace real data with mock data
+- do not use mock data for mutations or workflow logic
+- do not introduce a new UI framework
+- do not redesign modules outside Synq Liens → Case
+- do not implement draggable resize; expand/collapse only
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Tenant Portal → Synq Liens → Case body visually aligns to the reference
+- Top nav and side nav remain unchanged
+- Existing fonts and colors remain unchanged
+- Case Detail uses a clean left-main / right-context layout
+- Split panel behavior works correctly
+- Case List and Case Detail feel like one design system
+- Existing functionality remains intact
+- Temporary mock display data supports visual review without replacing real logic
+- Report is complete and traceable
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT change top nav or side nav.
+Do NOT change fonts or colors.

@@ -1,0 +1,178 @@
+Feature ID: UIX-002-01
+Feature Title: Tenant User Management Hardening Pass
+
+You are implementing UIX-002-01 for the LegalSynq Control Center.
+
+Context:
+- UIX-002 MVP is already implemented
+- The feature is structurally strong, but a hardening pass is required before it is considered production-ready
+- This iteration must be focused and corrective, not a redesign
+- Keep the existing architecture:
+  - separate Control Center admin portal
+  - Identity service as backend authority
+  - tenant-aware platform model
+  - TenantAdmin vs PlatformAdmin scope
+  - BFF/gateway pattern
+- Backend remains the security boundary
+
+Objective:
+Close the remaining gaps in UIX-002 so tenant user management is secure, usable, and implementation-complete for MVP.
+
+========================================
+REQUIRED FIXES
+========================================
+
+1. Deactivate User Endpoint
+The feature currently assumes deactivate exists, but the implementation/report needs to be made explicit and complete.
+
+Implement and verify:
+- POST /identity/api/admin/users/{id}/deactivate
+
+Requirements:
+- sets user inactive
+- inactive users cannot log in
+- emits audit event
+- frontend action is wired and tested
+- report must explicitly list this endpoint in backend implementation
+
+2. Tenant Scoping Enforcement
+Enforce and document tenant scoping across ALL admin endpoints.
+
+Requirements:
+- TenantAdmin may access only records in their own tenant
+- PlatformAdmin may access across tenants
+- apply this consistently to:
+  - users
+  - memberships
+  - groups
+  - invitations
+  - permissions visibility if tenant-scoped
+- if an endpoint is cross-tenant only for PlatformAdmin, state that clearly
+
+Implementation requirement:
+- ensure queries are actually filtered by tenant context where required
+- do not rely only on frontend UX to scope records
+
+3. Membership Safety Rules
+Prevent invalid membership state.
+
+Add validation:
+- cannot remove a user’s last remaining organization membership
+- cannot remove a primary membership unless another membership is first designated primary
+- set-primary operation must clear previous primary membership safely within the same tenant
+
+Return:
+- 409 Conflict for invalid membership state changes
+
+4. Group Tenant Boundary Enforcement
+Groups must be strictly tenant-scoped.
+
+Requirements:
+- a group can only contain users from the same tenant
+- group membership operations must reject cross-tenant users
+- group detail/list queries must respect tenant scope for TenantAdmin
+- document enforcement clearly in report
+
+5. Minimal Invite Acceptance Flow
+Current invites are not operational enough if there is no acceptance path.
+
+Implement a minimal invite acceptance flow:
+- define and implement:
+  - POST /identity/auth/accept-invite
+- accept raw token + required password fields
+- validate token hash, expiry, and invitation status
+- mark invite accepted
+- activate user if appropriate
+- support a minimal onboarding path
+
+If full UI is too large for this iteration, backend endpoint plus minimal frontend placeholder page is acceptable, but it must be usable and documented.
+
+6. Invite Form UX Fix
+Remove any requirement for manually entering tenant ID / tenant UUID in the invite form.
+
+Requirements:
+- tenant must be resolved automatically from authenticated admin context
+- invite form should only ask for business-relevant fields
+- report must explicitly state this was fixed
+
+7. Basic User Search / Filter
+Improve usability of the user list.
+
+Add at minimum:
+- search by name or email
+- filter by active/inactive status
+- optional filter by role or group if low effort
+
+This can be server-side or client-side depending on current implementation, but it must be functional and documented.
+
+8. Permissions Page Clarification
+Permissions are currently informational only.
+
+Requirements:
+- clearly label the permissions page as read-only / informational in MVP
+- explain that enforcement still occurs in backend authorization model
+- do not present it as a fully assignable permission editor
+
+========================================
+DO NOT ADD IN THIS ITERATION
+========================================
+
+Do NOT implement these unless already required by one of the fixes above:
+- MFA
+- session/device management
+- force logout
+- avatar/photo upload
+- custom role builder
+- per-user permission overrides
+- advanced audit dashboard
+- product access assignment UI
+
+========================================
+OUTPUT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-002-01-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Fixes Implemented
+5. Backend Endpoint Changes
+6. Tenant Scoping Enforcement
+7. Membership Validation Rules
+8. Group Boundary Enforcement
+9. Invite Acceptance Flow
+10. Frontend UX Improvements
+11. Search / Filter Improvements
+12. Remaining MVP Gaps
+13. Known Issues / Blockers
+14. Manual Test Results
+15. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- deactivate endpoint implemented
+- inactive users blocked from login
+- tenant admin scoping enforced
+- platform admin cross-tenant access preserved
+- cannot remove last membership
+- cannot remove primary membership incorrectly
+- group membership tenant boundary enforced
+- accept-invite flow implemented
+- invite form no longer requires manual tenant ID
+- users list search works
+- users list status filter works
+- permissions page clearly marked informational
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- Keep this as a focused hardening pass
+- Do not rewrite UIX-002 from scratch
+- Clearly distinguish what was fixed vs what already existed
+- Save the report to /analysis/UIX-002-01-report.md

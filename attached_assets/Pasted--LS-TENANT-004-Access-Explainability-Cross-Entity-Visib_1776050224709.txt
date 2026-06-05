@@ -1,0 +1,558 @@
+# LS-TENANT-004 — Access & Explainability (Cross-Entity Visibility)
+
+## Objective
+
+Deliver a **unified Access & Explainability layer** in the tenant portal that allows tenant admins to:
+
+* understand **who has access to what**
+* understand **why access exists**
+* trace **access across users, groups, roles, and permissions**
+* identify **policy impacts and restrictions**
+
+This feature transforms the system from **manageable** → **fully explainable and auditable**.
+
+At completion, tenant admins must be able to answer:
+
+```text
+Who has access?
+Why do they have it?
+Where does it come from?
+What is restricting it?
+```
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-TENANT-004-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The feature is **incomplete without the report**
+* Replit must generate the report automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Single Source of Truth
+
+* MUST reuse LS-COR-AUT APIs:
+
+  * access-debug
+  * policy evaluation
+  * effective access resolution
+
+### No Derived Authorization Logic in UI
+
+* UI must render backend truth, not compute access
+
+### Explainability First
+
+* every permission must show:
+
+  * source (role/group/direct)
+  * inheritance path
+  * policy impact
+
+---
+
+## In Scope
+
+---
+
+# 1. Access Overview Page (New Core Page)
+
+## Route
+
+```text
+/tenant/authorization/access
+```
+
+---
+
+## Purpose
+
+Provide a **central access visibility dashboard**.
+
+---
+
+## Sections
+
+---
+
+## A. Access Summary Widgets
+
+Display:
+
+* Total Users
+* Total Groups
+* Users with Direct Access
+* Users with Group-Based Access
+* Total Unique Permissions
+* Total Roles
+
+---
+
+## B. Access Distribution
+
+Visual summary:
+
+* Users by Product
+* Users by Role
+* Top Groups by Membership
+
+(Simple charts or lists acceptable)
+
+---
+
+## C. Quick Filters
+
+Allow filtering by:
+
+* Product
+* Role
+* Permission
+* Group
+
+---
+
+# 2. User Access Explorer (Critical Feature)
+
+---
+
+## Purpose
+
+Explore **user-level access deeply across the system**
+
+---
+
+## UI
+
+Table:
+
+| User | Product | Roles | Permissions | Source | Policy Impact |
+
+---
+
+## Features
+
+* search user
+* filter by product/role/permission
+* expand row → full access detail
+
+---
+
+## Expand View
+
+Show:
+
+* roles (direct vs group)
+* permissions with full chain
+* group sources
+* policy restrictions
+
+---
+
+## Data Source
+
+```text
+GET /identity/api/admin/users/{id}/access-debug
+```
+
+---
+
+# 3. Permission-Centric View (NEW & IMPORTANT)
+
+---
+
+## Purpose
+
+Answer:
+
+> “Who has this permission?”
+
+---
+
+## UI
+
+Permission list:
+
+| Permission | Users | Roles | Groups |
+
+---
+
+## Click Permission → Drilldown
+
+Show:
+
+### A. Users with Permission
+
+* list users
+* show source (direct/group)
+
+### B. Roles Granting Permission
+
+* role list
+
+### C. Groups Granting Permission
+
+* group list
+
+---
+
+## Data Strategy
+
+### Preferred
+
+New backend endpoint:
+
+```text
+GET /identity/api/permissions/{permissionCode}/access
+```
+
+---
+
+### Fallback (if needed)
+
+* aggregate from users (less efficient)
+
+---
+
+# 4. Group Impact Explorer
+
+---
+
+## Purpose
+
+Answer:
+
+> “What does this group actually do?”
+
+---
+
+## UI
+
+Group → Impact view:
+
+* members
+* roles
+* permissions
+* products
+
+---
+
+## Enhancement over LS-TENANT-003
+
+Add:
+
+* **permission-level visibility**
+* **user impact listing**
+
+---
+
+# 5. Policy Impact Visualization (ABAC Integration)
+
+---
+
+## Purpose
+
+Expose ABAC decisions to tenant admins.
+
+---
+
+## UI
+
+Within user access + permission views:
+
+### Show:
+
+* policy evaluated
+* allow/deny
+* rule results
+* deny override indicator
+
+---
+
+## Example
+
+```text
+Permission: SYNQ_FUND.application:approve
+
+Policy:
+- approval.limit (Deny)
+- Rule: amount < 50000 → FAILED
+
+Result: DENIED
+```
+
+---
+
+## Data Source
+
+Reuse:
+
+* access-debug
+* policy evaluation outputs
+
+---
+
+# 6. Access Path Visualization (Very Important UX)
+
+---
+
+## Purpose
+
+Show **how access is derived**
+
+---
+
+## Example UI
+
+```text
+User → Group → Role → Permission
+```
+
+Example:
+
+```text
+John Doe
+→ Finance Team (Group)
+→ FUND_APPROVER (Role)
+→ SYNQ_FUND.application:approve (Permission)
+```
+
+---
+
+## Requirements
+
+* visual chain or structured tree
+* clearly labeled sources
+
+---
+
+# 7. Global Access Search
+
+---
+
+## Purpose
+
+Single search bar:
+
+```text
+Search users, roles, permissions, groups
+```
+
+---
+
+## Results
+
+Grouped by:
+
+* Users
+* Permissions
+* Roles
+* Groups
+
+---
+
+## Behavior
+
+Click result → navigate to detail/explorer
+
+---
+
+# 8. Cross-Entity Linking
+
+---
+
+## Requirements
+
+From any screen:
+
+* user → groups → roles → permissions
+* permission → users → groups → roles
+* group → users → roles → permissions
+
+👉 Everything must be navigable
+
+---
+
+# 9. Backend Enhancements (If Needed)
+
+---
+
+## Strongly Recommended Endpoints
+
+### Permission Access Map
+
+```text
+GET /permissions/{code}/access
+```
+
+### Group Access Preview (enhanced)
+
+```text
+GET /groups/{id}/access-preview
+```
+
+### Optional Aggregation
+
+```text
+GET /tenant/{id}/access-summary
+```
+
+---
+
+# 10. UX Requirements
+
+---
+
+## Visual Standards
+
+Use clear badges:
+
+* Direct → Blue
+* Group → Purple
+* Role → Gray
+* Allow → Green
+* Deny → Red
+
+---
+
+## Requirements
+
+* expandable sections
+* clear hierarchy
+* readable chains
+* no clutter
+
+---
+
+## Empty States
+
+```text
+No access found
+No permissions assigned
+No policy restrictions
+```
+
+---
+
+# 11. Performance Considerations
+
+---
+
+## Must Avoid
+
+* N+1 access-debug calls for large lists
+
+---
+
+## Strategies
+
+* lazy loading for detail views
+* aggregation endpoints
+* pagination
+
+---
+
+# 12. Testing Requirements
+
+---
+
+## Unit Tests
+
+* access chain rendering
+* permission mapping
+* filters/search
+
+---
+
+## Integration Tests
+
+* user access explorer
+* permission drilldown
+* group impact view
+
+---
+
+## Security Tests
+
+* tenant isolation
+* no cross-tenant access
+* no unauthorized data exposure
+
+---
+
+## Regression Tests
+
+* LS-TENANT-002 intact
+* LS-TENANT-003 intact
+
+---
+
+# Acceptance Criteria
+
+* access overview page implemented
+* user access explorer functional
+* permission-centric view functional
+* group impact explorer enhanced
+* policy impact visible
+* access path visualization working
+* cross-linking enabled
+* UI usable and performant
+* system builds cleanly
+* report generated
+
+---
+
+# Implementation Notes
+
+* prioritize explainability over density
+* avoid overloading single screens
+* build progressively if needed (tabs/sections)
+* reuse existing UI patterns
+
+---
+
+# Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-TENANT-004-report.md` MUST include:
+
+1. access overview implementation
+2. user explorer implementation
+3. permission-centric view
+4. group impact enhancements
+5. policy visualization
+6. access path rendering
+7. backend endpoints added/used
+8. performance considerations
+9. test results
+10. build status
+11. known limitations
+12. assumptions
+
+---
+
+# Final Goal
+
+After this feature:
+
+Tenant admins can:
+
+* see all access across the system
+* understand why access exists
+* trace inheritance paths
+* identify policy restrictions
+
+This completes:
+
+> **Full transparency and explainability of authorization at tenant level**

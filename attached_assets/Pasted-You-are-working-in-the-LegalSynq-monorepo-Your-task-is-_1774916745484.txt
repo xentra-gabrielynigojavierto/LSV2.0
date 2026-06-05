@@ -1,0 +1,330 @@
+You are working in the LegalSynq monorepo.
+
+Your task is to implement:
+
+# Step 28 — SynqAudit UI (Audit Investigation System)
+
+---
+
+# WHAT YOU ARE BUILDING
+
+You are building:
+
+→ **SynqAudit UI — a full audit investigation and compliance workspace**
+
+This is:
+
+* embedded inside the Control Center
+* powered by the canonical audit system (already stabilized in Step 27)
+* used for investigation, traceability, and compliance workflows
+
+This is NOT:
+
+* a simple audit table
+* a new standalone app
+* a redesign of the backend
+
+---
+
+# PRIMARY OBJECTIVE
+
+Create a UI that allows users to:
+
+1. search and filter audit events efficiently
+2. investigate events with full context (actor, entity, before/after)
+3. trace workflows using correlation IDs
+4. understand system behavior through timelines and graphs
+5. perform compliance tasks (export, legal hold, verification)
+
+---
+
+# PHASE A — SYNQAUDIT MODULE STRUCTURE
+
+Add a new section in Control Center:
+
+## Navigation
+
+SynqAudit
+
+Sub-pages:
+
+1. Overview
+2. Investigation
+3. Trace
+4. Exports
+5. Integrity
+6. Legal Holds
+
+---
+
+# PHASE B — INVESTIGATION WORKSPACE (CORE)
+
+Create:
+
+/control-center/synqaudit/investigation
+
+## Layout
+
+Top:
+
+* search + filters
+
+Left:
+
+* event stream
+
+Right:
+
+* event detail panel
+
+---
+
+## B1. Event Stream
+
+Build a high-density table:
+
+Columns:
+
+* Timestamp
+* Event Type
+* Actor
+* Entity
+* Severity
+
+Features:
+
+* pagination or infinite scroll
+* row selection
+* color-coded severity
+
+---
+
+## B2. Filters
+
+Include:
+
+* tenant
+* event type
+* actor
+* entity
+* severity
+* date range
+* correlationId
+* free text
+
+Filters must:
+
+* call backend API
+* combine cleanly
+* update results instantly
+
+---
+
+## B3. Event Detail Panel
+
+Show:
+
+1. Metadata
+2. Actor
+3. Entity
+4. Action
+5. Before / After diff
+6. Trace context
+7. Raw JSON
+
+Must be:
+
+* structured
+* readable
+* expandable
+
+---
+
+# PHASE C — CORRELATION TRACE VIEW
+
+Create:
+
+/control-center/synqaudit/trace/[correlationId]
+
+Display:
+
+* ordered chain of events
+* timeline flow
+
+Each event shows:
+
+* type
+* timestamp
+* actor
+* service
+
+---
+
+# PHASE D — ACTIVITY VISUALIZATION
+
+Add:
+
+* events over time
+* error/warn spikes
+
+Keep visuals:
+
+* simple
+* fast
+* readable
+
+---
+
+# PHASE E — EXPORT UI
+
+Create:
+
+/control-center/synqaudit/exports
+
+Features:
+
+* request export
+* view status
+* download file
+
+---
+
+# PHASE F — INTEGRITY PANEL
+
+Create:
+
+/control-center/synqaudit/integrity
+
+Display:
+
+* hash chain health
+* verification results
+
+---
+
+# PHASE G — LEGAL HOLD UI
+
+Create:
+
+/control-center/synqaudit/legal-holds
+
+Features:
+
+* create hold
+* release hold
+* list holds
+
+---
+
+# PHASE H — TENANT PORTAL VERSION
+
+Create:
+
+/tenant/audit
+
+Features:
+
+* event list
+* filters (limited)
+* detail panel
+
+Constraints:
+
+* tenant-only data
+* no platform visibility
+
+---
+
+# PHASE I — DESIGN SYSTEM
+
+Use:
+
+* React
+* Tailwind
+
+Guidelines:
+
+* clean, dense layout
+* minimal padding
+* professional look
+* consistent spacing
+* readable tables
+
+---
+
+# PHASE J — PERFORMANCE
+
+Ensure:
+
+* lazy loading
+* efficient rendering
+* non-blocking API calls
+
+---
+
+# PHASE K — SECURITY
+
+Ensure:
+
+* Control Center → full access
+* Tenant portal → scoped access
+* backend enforces security
+
+---
+
+# FILES TO MODIFY
+
+Control Center:
+
+* components/synqaudit/*
+* pages/synqaudit/*
+* api/auditClient.ts
+
+Tenant Portal:
+
+* pages/audit/*
+* components/audit/*
+
+---
+
+# REQUIRED OUTPUT
+
+Write:
+
+/analysis/step28_synqaudit_ui.md
+
+---
+
+# REPORT FORMAT
+
+# Step 28 — SynqAudit UI
+
+## 1. Pages Created
+
+## 2. Components Built
+
+## 3. API Integrations
+
+## 4. UX Decisions
+
+## 5. Performance Considerations
+
+## 6. Security Considerations
+
+## 7. Next Enhancements
+
+---
+
+# FINAL INSTRUCTION
+
+Do the work now.
+
+This is not a UI polish step.
+
+This is building:
+
+→ a **production audit investigation system**
+→ inside the Control Center
+→ powered by your canonical audit platform
+
+Make it usable, clear, and powerful.

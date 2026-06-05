@@ -1,0 +1,346 @@
+You are implementing CC2-INT-B04 — Identity Integration (Core) for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B04-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This work MUST build on:
+   - CC2-INT-B01 (service replacement)
+   - CC2-INT-B02 (gateway + audit + monitoring)
+   - CC2-INT-B03 (documents + notifications)
+
+5. This is NOT optional or partial:
+   You are replacing the remaining local/temporary auth model with the **LegalSynq Identity service**.
+
+6. Do NOT create a parallel auth system.
+   Do NOT keep long-term reliance on local portal accounts.
+
+7. Preserve architecture rules:
+   - Shared Identity (single source of truth)
+   - Separate Common Portal (external actors)
+   - Separate Tenant Portal (lien companies)
+   - CareConnect remains product/domain owner, NOT identity owner
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Integrate CareConnect with the LegalSynq Identity service such that:
+
+- All actors (Lien Company, Provider, Law Firm) are Identity-backed users
+- Access is controlled via:
+  - user type
+  - product access
+  - tenant association (where applicable)
+- Local portal auth is eliminated or reduced to transitional fallback only
+
+At the end of this block:
+- Identity is the authoritative source of users
+- CareConnect uses Identity for authentication and authorization context
+- Token-based onboarding bridges into Identity correctly
+
+--------------------------------------------------
+
+ACTOR MODEL (MANDATORY)
+
+You MUST implement and enforce this model:
+
+| Actor | Identity Type | Portal | Tenant Link |
+|------|---------------|--------|-------------|
+| Lien Company User | Identity user | Tenant Portal | YES |
+| Provider | Identity user | Common Portal | NO (default) |
+| Law Firm | Identity user | Common Portal | NO (default) |
+
+Access MUST be driven by:
+- roles / claims
+- product access
+- tenantId (for lien companies only)
+
+--------------------------------------------------
+
+PART A — CURRENT AUTH AUDIT
+
+You MUST locate and document:
+
+- existing portal auth flows
+- any local account tables/models
+- JWT handling (if partially implemented)
+- session/cookie usage
+- token-based access (referral tokens, provider tokens)
+
+Classify each as:
+- keep (aligned with Identity)
+- replace
+- transitional
+
+--------------------------------------------------
+
+PART B — IDENTITY SERVICE INTEGRATION
+
+--------------------------------------------------
+
+B.1 Integrate Identity Client
+
+You MUST:
+
+- connect CareConnect to Identity service APIs
+- use platform-approved client patterns
+- ensure JWT validation is handled via platform middleware (already partially done in B02)
+
+--------------------------------------------------
+
+B.2 User Resolution
+
+All authenticated requests must resolve:
+
+- userId (Identity)
+- user type (LienCompany / Provider / LawFirm)
+- tenantId (if applicable)
+- product access (CareConnect)
+
+You MUST ensure this context is available in:
+
+- API endpoints
+- application services
+- authorization checks
+
+--------------------------------------------------
+
+PART C — TOKEN → IDENTITY BRIDGE (CRITICAL)
+
+--------------------------------------------------
+
+This is the most important part of this block.
+
+Current system uses:
+- referral tokens
+- provider tokens
+- activation flows
+
+You MUST convert this into:
+
+> **Token-based onboarding into Identity**
+
+--------------------------------------------------
+
+C.1 Law Firm Activation Flow
+
+When a law firm uses a referral token:
+
+- If Identity user exists:
+  - log them in / attach session
+- If NOT:
+  - create Identity user
+  - assign:
+    - type = LAW_FIRM
+    - product access = CareConnect
+- link referral context
+
+--------------------------------------------------
+
+C.2 Provider Activation Flow
+
+When provider uses token:
+
+- same pattern as above
+- assign:
+  - type = PROVIDER
+  - product access = CareConnect
+
+--------------------------------------------------
+
+C.3 Lien Company Users
+
+- MUST already exist in Identity
+- MUST be tenant-linked
+- CareConnect must trust Identity claims for:
+  - tenantId
+  - roles
+
+--------------------------------------------------
+
+PART D — REMOVE / REDUCE LOCAL AUTH
+
+--------------------------------------------------
+
+You MUST:
+
+- identify all local auth logic:
+  - portal account tables
+  - password handling
+  - local login endpoints
+- remove or deprecate them
+
+If removal is not immediately possible:
+- isolate clearly as transitional
+- ensure they are NOT the primary auth path
+
+--------------------------------------------------
+
+PART E — AUTHORIZATION MODEL
+
+--------------------------------------------------
+
+You MUST implement:
+
+1. Role / type-based access:
+   - LIEN_COMPANY
+   - PROVIDER
+   - LAW_FIRM
+
+2. Product access enforcement:
+   - user must have CareConnect access
+
+3. Tenant enforcement:
+   - only for lien company users
+
+4. Endpoint-level authorization:
+   - public endpoints → allow anonymous
+   - portal endpoints → require authenticated Identity user
+   - tenant endpoints → require tenant-bound user
+
+--------------------------------------------------
+
+PART F — JWT / SESSION ALIGNMENT
+
+--------------------------------------------------
+
+Ensure:
+
+- JWTs issued by Identity are validated
+- claims are correctly consumed:
+  - sub (userId)
+  - tenantId
+  - roles
+  - product access
+- cookies/session (BFF pattern) remain compatible
+
+Do NOT:
+- issue your own JWTs
+- duplicate Identity logic
+
+--------------------------------------------------
+
+PART G — CONFIGURATION
+
+--------------------------------------------------
+
+You MUST configure:
+
+- Identity service base URL
+- auth settings
+- product access mapping
+- any required client credentials
+
+Remove:
+- local auth config (where applicable)
+
+--------------------------------------------------
+
+PART H — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST test and document:
+
+IDENTITY
+
+1. Lien company user can access tenant endpoints
+2. Provider user can access common portal endpoints
+3. Law firm user can access common portal endpoints
+4. Unauthorized users are blocked correctly
+
+TOKEN BRIDGE
+
+5. Law firm token creates Identity user if not exists
+6. Provider token creates Identity user if not exists
+7. Existing users reuse Identity account
+8. Token flow correctly links to referral/provider context
+
+AUTH
+
+9. JWT validation works
+10. Claims are correctly mapped
+11. Product access enforced
+12. Tenant scoping enforced
+
+CLEANUP
+
+13. Local auth not used for primary flows
+14. No duplicate auth paths active
+
+SYSTEM
+
+15. dotnet build succeeds
+16. service runs correctly
+17. no regression in referral flow
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B04-report.md
+
+Use this exact structure:
+
+# CC2-INT-B04 Report
+
+## 1. Summary
+What was implemented
+
+## 2. Current Auth Audit
+What existed and what changed
+
+## 3. Identity Integration
+How Identity is wired and used
+
+## 4. Token → Identity Bridge
+Activation flows and user creation
+
+## 5. Authorization Model
+Roles, access, tenant enforcement
+
+## 6. Cleanup of Local Auth
+What was removed or deprecated
+
+## 7. Configuration Changes
+New settings and removed configs
+
+## 8. Test Results
+Pass/fail with notes
+
+## 9. Issues / Gaps
+Anything incomplete or deferred
+
+--------------------------------------------------
+
+DO NOT:
+
+- create a second identity system
+- keep long-term local auth
+- merge Common Portal and Tenant Portal
+- bypass Identity for convenience
+- introduce new product features
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+- Identity is the source of truth
+- token flows create or resolve Identity users
+- local auth is removed or isolated
+- system builds and runs
+- report is complete at:
+  /analysis/CC2-INT-B04-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

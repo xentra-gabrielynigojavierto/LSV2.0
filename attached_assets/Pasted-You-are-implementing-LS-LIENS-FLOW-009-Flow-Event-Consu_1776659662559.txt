@@ -1,0 +1,530 @@
+You are implementing LS-LIENS-FLOW-009 — Flow Event Consumption (Real-Time Task Sync) for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-009-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Event Consumption Model
+- Runtime Event Handling Behavior
+- Flow Integration Architecture
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not leave placeholder sections. Populate with actual implementation details only.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Enable real-time synchronization between:
+
+- Flow workflow instance step changes
+AND
+- Synq Liens tasks linked to those workflow instances
+
+This feature must ensure:
+
+1. when a Flow workflow step changes, related tasks update automatically
+2. tasks remain continuously aligned with Flow, not only on read
+3. system becomes event-driven instead of purely reactive
+4. orchestration behavior becomes near-real-time and reliable
+
+This is the next step after:
+- FLOW-007 task ↔ Flow instance linking
+- FLOW-008 task ↔ Flow stage synchronization
+
+==================================================
+CRITICAL ARCHITECTURE RULES
+==================================================
+
+1. Flow remains the source of truth for workflow execution
+2. Liens consumes Flow events and updates task state accordingly
+3. Event handling must be:
+   - idempotent
+   - safe
+   - non-blocking
+4. Duplicate or delayed events must not corrupt task state
+5. Do NOT introduce polling
+6. Do NOT redesign the full platform messaging architecture
+7. Prefer internal-first event ingestion if no production bus/webhook pipeline already exists
+8. Reuse FLOW-008 synchronization logic instead of duplicating it
+
+==================================================
+STEP 1 — CODEBASE ANALYSIS
+==================================================
+
+Before implementing, inspect and document:
+
+- current Flow service integration points in Synq Liens
+- `IFlowClient` capabilities
+- FLOW-007 task linkage fields:
+  - `WorkflowInstanceId`
+  - `WorkflowStepKey`
+- FLOW-008 synchronization logic and any mapping helper/service created there
+- current task fetch/update/sync paths
+- current audit publisher patterns
+- current internal API auth / system-to-system auth patterns
+- whether the codebase already has:
+  - webhook/event ingestion endpoints
+  - internal event handler patterns
+  - message queue / event bus connectors
+  - background worker infrastructure
+
+Document clearly in the report:
+1. how Flow currently can or cannot emit step-change notifications into Liens
+2. what minimal viable integration path is available now
+3. whether an internal endpoint is required for MVP
+4. how tenant/product scoping will be enforced
+5. how existing FLOW-008 sync logic can be reused
+
+==================================================
+STEP 2 — DEFINE THE EVENT MODEL
+==================================================
+
+Define a standardized event contract for Flow step changes.
+
+At minimum support an event payload like:
+
+{
+  "eventType": "workflow.step.changed",
+  "tenantId": "<guid>",
+  "productCode": "SYNQ_LIENS",
+  "workflowInstanceId": "<guid>",
+  "previousStepKey": "<string|null>",
+  "currentStepKey": "<string>",
+  "timestamp": "<iso8601>"
+}
+
+Requirements:
+- validate required fields
+- enforce tenant isolation
+- include only the minimal fields needed for task synchronization
+- use stable naming consistent with platform conventions where possible
+
+If platform event naming differs, align to existing conventions and document the final contract clearly.
+
+==================================================
+STEP 3 — IMPLEMENT EVENT INGESTION
+==================================================
+
+If no existing event bus/webhook consumer is already wired for this path, create a new internal event ingestion endpoint.
+
+Recommended endpoint:
+POST /api/liens/internal/flow-events
+
+Requirements:
+- internal/system-level protection only
+- not publicly open
+- validate payload
+- validate tenant and product scope
+- dispatch to a dedicated event handler service
+
+If a better existing internal event ingestion pattern already exists in the codebase, use it instead and document why.
+
+Do NOT expose this endpoint as a general public API.
+
+==================================================
+STEP 4 — IMPLEMENT EVENT HANDLER SERVICE
+==================================================
+
+Create a dedicated event handler, for example:
+
+- `FlowEventHandler`
+or
+- `TaskFlowSyncEventHandler`
+
+When receiving:
+- workflow.step.changed
+
+Behavior:
+1. validate event
+2. find all tasks where:
+   - `WorkflowInstanceId == event.workflowInstanceId`
+3. for each relevant task:
+   - resolve mapped task stage from `currentStepKey`
+   - reuse FLOW-008 mapping rules
+4. if mapped stage differs from task's current stage:
+   - update task stage
+   - update `WorkflowStepKey`
+   - persist changes
+   - emit audit event
+5. if already aligned:
+   - no-op
+6. if no valid stage mapping exists:
+   - no-op or mark unmapped behavior according to FLOW-008 conventions
+   - document behavior clearly
+
+==================================================
+STEP 5 — REUSE / CENTRALIZE SYNCHRONIZATION LOGIC
+==================================================
+
+Do NOT duplicate FLOW-008 stage-sync logic.
+
+Refactor shared synchronization behavior into a reusable service if not already done.
+
+Recommended service:
+- `TaskFlowSyncService`
+
+This shared service must be reusable by:
+- FLOW-008 read-time sync
+- FLOW-009 event-driven sync
+
+It should encapsulate:
+- Flow step → task stage mapping
+- sync status evaluation
+- safe task update rules
+- fallback behavior when no mapping exists
+- idempotent no-op behavior when already aligned
+
+Document how reuse was achieved.
+
+==================================================
+STEP 6 — BULK UPDATE STRATEGY
+==================================================
+
+Implement efficient lookup/update behavior.
+
+Requirements:
+- batch query tasks by `WorkflowInstanceId`
+- avoid N+1 queries where possible
+- update only tasks that actually need changes
+- do not rewrite all matching tasks blindly
+- keep writes minimal
+
+If multiple tasks are linked to the same workflow instance:
+- process all relevant tasks deterministically
+- emit audit only for actual changes
+
+==================================================
+STEP 7 — IDEMPOTENCY AND SAFETY
+==================================================
+
+Event handling must be idempotent.
+
+Rules:
+- duplicate identical events must not cause duplicate state changes
+- already-aligned tasks must not be rewritten unnecessarily
+- stale events must not regress state if a newer step is already stored, when determinable
+
+Implement the safest available strategy supported by the current codebase.
+
+If the payload timestamp can be trusted:
+- use it to ignore older events if useful
+
+If not:
+- rely on current Flow state lookup or current persisted state for safe no-op behavior
+
+Document the chosen strategy clearly.
+
+==================================================
+STEP 8 — AUDIT INTEGRATION
+==================================================
+
+Add audit events as appropriate.
+
+Recommended:
+- `liens.task.stage_synced`
+  - when event-driven sync changes task stage
+- `liens.task.stage_sync_rejected`
+  - only if needed and useful for actual rejected manual changes, not for event no-ops
+
+For `liens.task.stage_synced`, include where practical:
+- taskId
+- workflowInstanceId
+- previousStage
+- newStage
+- previousStepKey
+- currentStepKey
+- syncSource = FLOW_EVENT
+
+Do NOT flood audit:
+- no audit for no-op events
+- no audit for duplicate events that change nothing
+- no audit spam for unmapped/no-task cases unless platform patterns strongly support it
+
+==================================================
+STEP 9 — ERROR HANDLING
+==================================================
+
+Implement safe failure behavior.
+
+Requirements:
+- invalid payload → reject safely with clear internal error response
+- unknown `workflowInstanceId` → no-op
+- no matching tasks → no-op
+- duplicate event → no-op
+- mapping failure → no-op or unsynced behavior per FLOW-008 conventions
+- task update failure for one task should not corrupt unrelated tasks
+
+Do NOT:
+- crash request pipeline
+- block other operations
+- make task system dependent on event delivery for correctness
+
+==================================================
+STEP 10 — OPTIONAL INTERNAL TEST HOOK
+==================================================
+
+If Flow cannot yet emit real events into Liens in this environment, provide a safe internal test/simulation path.
+
+Recommended:
+POST /api/liens/internal/flow-events/test
+or equivalent internal-only helper
+
+Purpose:
+- manual validation
+- QA/testing
+- report verification
+
+If not needed because real event wiring exists, do not add unnecessary endpoints.
+
+==================================================
+STEP 11 — UI BEHAVIOR
+==================================================
+
+No major UI redesign is required.
+
+Requirements:
+- tasks should reflect updated stage on next fetch after event processing
+- existing FLOW-008 sync status UI should continue working
+- if helpful, optionally surface "updated by workflow" metadata in a subtle way
+- do not clutter the UI
+
+Do NOT build live websockets/push UI unless the current platform already supports it and it is trivial to reuse.
+Near-real-time backend sync is enough for this feature.
+
+==================================================
+STEP 12 — AUTOMATION COMPATIBILITY
+==================================================
+
+Ensure automation remains compatible.
+
+Rules:
+- auto-generated tasks linked to Flow instances must still sync correctly when Flow emits step-change events
+- event-driven sync must not conflict with FLOW-003 generation logic
+- newly created tasks after an event should still derive correct Flow context via FLOW-007/FLOW-008 paths
+
+Document exact interaction behavior.
+
+==================================================
+STEP 13 — FLOW INTEGRATION ARCHITECTURE
+==================================================
+
+Document and preserve the correct architecture boundary:
+
+- Flow owns workflow execution and emits workflow state changes
+- Liens owns tasks
+- Liens consumes Flow state changes to keep tasks aligned
+- This feature does NOT make tasks authoritative over Flow
+- This feature does NOT create bidirectional orchestration yet
+
+Be explicit in the report about:
+1. what changed technically
+2. what remains future work
+3. how this prepares the next orchestration phase
+
+==================================================
+STEP 14 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- event contract models/DTOs
+- internal event ingestion endpoint or equivalent event consumer
+- event handler service
+- reusable sync service refactor (if needed)
+- batch task lookup/update behavior
+- idempotency safeguards
+- audit hooks
+- minimal logging/fallback behavior
+
+Keep domain boundaries clear:
+1. Flow workflow execution
+2. Liens task runtime
+3. task ↔ Flow linkage
+4. read-time sync (FLOW-008)
+5. event-driven sync (FLOW-009)
+6. task → Flow advancement (future, not here)
+
+==================================================
+STEP 15 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- only minimal UI/type changes required to support updated sync status if needed
+- maintain existing task detail/drawer visibility for Flow info
+- do not redesign task UI
+- do not add heavy real-time client infrastructure unless trivially reusable
+
+Preserve existing styling and conventions.
+
+==================================================
+STEP 16 — VALIDATION CHECKLIST
+==================================================
+
+Validate and document:
+
+### Event Handling
+- Flow step change event is received correctly
+- relevant tasks are identified by `WorkflowInstanceId`
+- only relevant tasks are updated
+
+### Sync Behavior
+- task stage updates automatically after event
+- no need to manually open the task to trigger alignment
+- `WorkflowStepKey` updates correctly
+- audit event emitted only when actual sync occurs
+
+### Idempotency
+- duplicate event does not duplicate updates
+- already-aligned task results in no-op
+- stale or repeated payload does not corrupt state
+
+### Fallback
+- invalid payload rejected safely
+- no matching tasks → safe no-op
+- Flow event absence does not break task system
+- existing FLOW-008 read-time sync still works
+
+### UI
+- synced stage is visible on next fetch
+- no regression to task detail/drawer behavior
+- no regression to task create/edit flows
+
+### Build / Run
+- backend builds
+- frontend builds/typechecks
+- app starts cleanly
+
+If any limitation exists because Flow cannot yet emit real events directly, document exactly how the integration is tested and what remains transitional.
+
+==================================================
+STEP 17 — REQUIRED REPORT CONTENT
+==================================================
+
+Populate the final `/analysis/LS-LIENS-FLOW-009-report.md` with:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - available Flow event/integration paths
+   - task sync findings
+   - reuse of FLOW-008 logic
+   - chosen MVP ingestion strategy
+
+3. Files Changed
+   - backend/frontend/database/config grouped clearly
+
+4. Database / Schema Changes
+   - state explicitly if none
+   - otherwise document fully
+
+5. API Changes
+   - internal endpoint/event consumer additions
+   - any payload/response changes
+
+6. UI Changes
+   - what changed
+   - what intentionally remained unchanged
+
+7. Event Consumption Model
+   - event contract
+   - ingestion design
+   - tenant/product scoping
+
+8. Runtime Event Handling Behavior
+   - how tasks are found
+   - how sync is applied
+   - idempotency behavior
+   - no-op behavior
+
+9. Flow Integration Architecture
+   - what Flow owns
+   - what Liens owns
+   - how this feature enables real-time orchestration without tight coupling
+
+10. Permissions / Security
+   - internal endpoint protection
+   - no auth surface expansion or exact minimal change
+
+11. Audit Integration
+   - events added
+   - non-noisy logging choices
+
+12. Validation Results
+   - build/typecheck/manual validation
+
+13. Known Gaps / Risks
+   - event delivery limitations
+   - mapping limitations
+   - future bidirectional orchestration work
+   - recommended next step
+
+14. Run Instructions
+   - build/typecheck/startup/testing instructions
+   - how to trigger/test the event flow
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is complete only if:
+
+1. Flow step change events can update linked tasks automatically
+2. tasks update without requiring manual task access
+3. event handling is idempotent and safe
+4. FLOW-008 sync logic is reused rather than duplicated
+5. no regression is introduced to existing task behavior
+6. implementation is documented in `/analysis/LS-LIENS-FLOW-009-report.md`
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Keep the event system simple and internal-first
+- Avoid over-engineering; no full message bus is required if not already present
+- Reuse existing patterns aggressively
+- Prioritize deterministic and safe updates
+- Preserve architectural clarity:
+  - Flow = orchestration source of truth
+  - Liens = task execution and event consumer
+
+Begin by creating:
+/analysis/LS-LIENS-FLOW-009-report.md
+
+Then inspect the codebase, document findings, and proceed with implementation.

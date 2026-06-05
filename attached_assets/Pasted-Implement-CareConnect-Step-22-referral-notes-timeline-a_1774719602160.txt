@@ -1,0 +1,357 @@
+Implement CareConnect Step 22: referral notes timeline + appointment notes + attachments integration prep.
+
+Goal:
+Make CareConnect operationally useful for coordinators by adding:
+1. referral notes timeline
+2. appointment notes
+3. attachment metadata model and API prep for future SynqDocs integration
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect already supports:
+  - Providers
+  - Referrals
+  - Referral status history
+  - Scheduling foundation
+  - AppointmentSlots
+  - Appointments
+  - appointment lifecycle
+  - ProviderAvailabilityExceptions
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+
+Important:
+This step should prepare the notes and attachment layer only.
+Do NOT implement actual file upload/storage integration yet.
+Do NOT integrate S3 or SynqDocs yet.
+Do NOT add notifications or reminders yet.
+
+Requirements
+
+==================================================
+PART 1 — REFERRAL NOTES
+==================================================
+
+1. Create ReferralNote entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- ReferralId : Guid
+- NoteType : string
+- Content : string
+- IsInternal : bool
+- CreatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedAtUtc : DateTime
+- UpdatedByUserId : Guid?
+
+Allowed NoteType values:
+- General
+- Intake
+- Scheduling
+- Clinical
+- Admin
+
+2. Add EF Core mapping
+
+Table name:
+- ReferralNotes
+
+Primary key:
+- Id
+
+Indexes:
+- (TenantId, ReferralId, CreatedAtUtc)
+- (TenantId, NoteType)
+
+Relationship:
+- many notes to one Referral
+
+3. Add endpoints
+
+Implement:
+- GET /api/referrals/{id}/notes
+- POST /api/referrals/{id}/notes
+- PUT /api/referral-notes/{id}
+
+Behavior:
+- tenant-scoped
+- notes returned ordered newest first
+- authenticated users can read
+- PlatformOrTenantAdmin can create/update
+
+4. Add DTOs
+
+CreateReferralNoteRequest
+- NoteType
+- Content
+- IsInternal
+
+UpdateReferralNoteRequest
+- NoteType
+- Content
+- IsInternal
+
+ReferralNoteResponse
+- Id
+- ReferralId
+- NoteType
+- Content
+- IsInternal
+- CreatedAtUtc
+- CreatedByUserId
+- UpdatedAtUtc
+- UpdatedByUserId
+
+==================================================
+PART 2 — APPOINTMENT NOTES
+==================================================
+
+5. Create AppointmentNote entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- AppointmentId : Guid
+- NoteType : string
+- Content : string
+- IsInternal : bool
+- CreatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedAtUtc : DateTime
+- UpdatedByUserId : Guid?
+
+Allowed NoteType values:
+- General
+- Scheduling
+- Reminder
+- Outcome
+- Admin
+
+6. Add EF Core mapping
+
+Table name:
+- AppointmentNotes
+
+Primary key:
+- Id
+
+Indexes:
+- (TenantId, AppointmentId, CreatedAtUtc)
+- (TenantId, NoteType)
+
+Relationship:
+- many notes to one Appointment
+
+7. Add endpoints
+
+Implement:
+- GET /api/appointments/{id}/notes
+- POST /api/appointments/{id}/notes
+- PUT /api/appointment-notes/{id}
+
+Behavior:
+- tenant-scoped
+- notes returned newest first
+- authenticated users can read
+- PlatformOrTenantAdmin can create/update
+
+8. Add DTOs
+
+CreateAppointmentNoteRequest
+- NoteType
+- Content
+- IsInternal
+
+UpdateAppointmentNoteRequest
+- NoteType
+- Content
+- IsInternal
+
+AppointmentNoteResponse
+- Id
+- AppointmentId
+- NoteType
+- Content
+- IsInternal
+- CreatedAtUtc
+- CreatedByUserId
+- UpdatedAtUtc
+- UpdatedByUserId
+
+==================================================
+PART 3 — ATTACHMENT METADATA PREP
+==================================================
+
+9. Create ReferralAttachment entity
+
+Goal:
+Store metadata only for now, not file bytes.
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- ReferralId : Guid
+- FileName : string
+- ContentType : string
+- FileSizeBytes : long
+- ExternalDocumentId : string?
+- ExternalStorageProvider : string?
+- Status : string
+- Notes : string?
+- CreatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedAtUtc : DateTime
+- UpdatedByUserId : Guid?
+
+Allowed Status values:
+- Pending
+- Linked
+- Failed
+
+10. Create AppointmentAttachment entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- AppointmentId : Guid
+- FileName : string
+- ContentType : string
+- FileSizeBytes : long
+- ExternalDocumentId : string?
+- ExternalStorageProvider : string?
+- Status : string
+- Notes : string?
+- CreatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedAtUtc : DateTime
+- UpdatedByUserId : Guid?
+
+11. Add EF Core mapping
+
+Tables:
+- ReferralAttachments
+- AppointmentAttachments
+
+Indexes:
+- (TenantId, ReferralId, CreatedAtUtc)
+- (TenantId, AppointmentId, CreatedAtUtc)
+- (TenantId, Status)
+
+Relationships:
+- many attachments to one Referral
+- many attachments to one Appointment
+
+12. Add metadata-only endpoints
+
+Implement:
+- GET /api/referrals/{id}/attachments
+- POST /api/referrals/{id}/attachments
+- GET /api/appointments/{id}/attachments
+- POST /api/appointments/{id}/attachments
+
+Behavior:
+- POST creates metadata records only
+- no file upload handling yet
+- future SynqDocs integration should be easy to plug in
+
+13. Add DTOs
+
+CreateAttachmentMetadataRequest
+- FileName
+- ContentType
+- FileSizeBytes
+- ExternalDocumentId
+- ExternalStorageProvider
+- Status
+- Notes
+
+AttachmentMetadataResponse
+- Id
+- FileName
+- ContentType
+- FileSizeBytes
+- ExternalDocumentId
+- ExternalStorageProvider
+- Status
+- Notes
+- CreatedAtUtc
+- CreatedByUserId
+
+==================================================
+PART 4 — VALIDATION
+==================================================
+
+14. Validation rules
+
+Referral/Appointment notes:
+- NoteType required and must be valid
+- Content required, max 4000
+- parent entity must exist in tenant
+
+Attachment metadata:
+- FileName required, max 500
+- ContentType required, max 200
+- FileSizeBytes >= 0
+- Status must be valid
+- parent entity must exist in tenant
+
+==================================================
+PART 5 — AUTHORIZATION
+==================================================
+
+15. Authorization rules
+
+Reads:
+- GET /api/referrals/{id}/notes => AuthenticatedUser
+- GET /api/appointments/{id}/notes => AuthenticatedUser
+- GET /api/referrals/{id}/attachments => AuthenticatedUser
+- GET /api/appointments/{id}/attachments => AuthenticatedUser
+
+Writes:
+- POST/PUT notes => PlatformOrTenantAdmin
+- POST attachment metadata => PlatformOrTenantAdmin
+
+Keep health/info unchanged.
+
+==================================================
+PART 6 — MIGRATION
+==================================================
+
+16. Add migration
+Create migration:
+- AddReferralAppointmentNotesAndAttachments
+
+Migration should create ONLY:
+- ReferralNotes
+- AppointmentNotes
+- ReferralAttachments
+- AppointmentAttachments
+
+==================================================
+PART 7 — OUTPUT REQUIRED
+==================================================
+
+17. After implementation, output:
+- files created/updated
+- migration command
+- endpoint list
+- allowed note types
+- allowed attachment statuses
+- sample curl requests for:
+  - add referral note
+  - list referral notes
+  - add appointment note
+  - list appointment notes
+  - add referral attachment metadata
+  - list referral attachments
+
+18. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- no breaking changes to existing CareConnect behavior
+- preserve strict tenant isolation
+- UTC timestamps everywhere
+- prepare for future SynqDocs integration without implementing it yet

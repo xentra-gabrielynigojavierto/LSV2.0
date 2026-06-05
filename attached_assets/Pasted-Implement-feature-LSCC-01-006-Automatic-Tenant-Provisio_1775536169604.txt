@@ -1,0 +1,98 @@
+Implement feature LSCC-01-006 — Automatic Tenant Provisioning and Subdomain-Based Login.
+
+Context:
+The system is currently hosted on Replit. We want new tenants created in Control Center to be provisioned automatically for subdomain-based access using an AWS-backed provisioning integration. In production, users should not need to enter a tenant code on login. The tenant should be resolved from the subdomain/host. Development and Replit-safe fallback behavior must remain available.
+
+Goals:
+1. When a PlatformAdmin creates a tenant in Control Center, automatically generate or validate a unique tenant subdomain.
+2. Persist the tenant-domain mapping in the correct tenant/domain model used for host-based resolution.
+3. Trigger a backend AWS provisioning integration/service to provision or configure the subdomain/domain routing needed for the tenant.
+4. Track provisioning status on the tenant and expose it in Control Center.
+5. Update login behavior so production resolves tenant from the host/subdomain and does not require tenant code entry.
+6. Keep a dev-only/manual fallback for local or Replit development where host-based routing may not exist.
+7. Add retry support for failed provisioning.
+8. Do not move hosting off Replit. This feature is about provisioning/integration and host-based tenant detection, not a hosting migration.
+
+Requirements:
+- Add optional preferred subdomain input in Control Center tenant creation flow.
+- If blank, auto-generate slug from tenant name.
+- Slug rules:
+  - lowercase only
+  - alphanumeric and hyphen only
+  - cannot start or end with hyphen
+  - unique across tenants
+  - reject reserved names
+  - deterministic collision handling
+- Add provisioning statuses at minimum:
+  - Pending
+  - InProgress
+  - Active
+  - Failed
+- Store:
+  - assigned hostname/subdomain
+  - provisioning status
+  - last attempted timestamp
+  - failure reason if present
+- Implement backend service abstraction for provisioning. Do not place AWS logic in UI components.
+- Provisioning must be idempotent and retry-safe.
+- Tenant-domain mapping must be the source of truth for host-based resolution.
+- Production login:
+  - resolve tenant from host/subdomain
+  - hide tenant code field
+- Dev/Replit:
+  - allow explicit fallback via env flag/manual override if needed
+- Unknown or inactive subdomain:
+  - fail safely with user-friendly fallback
+- Add admin visibility in Control Center for hostname, provisioning status, and retry action.
+- Add logging/audit-friendly traces for:
+  - tenant created
+  - slug assigned/generated
+  - provisioning started
+  - provisioning succeeded
+  - provisioning failed
+  - retry requested
+
+Implementation guidance:
+- Reuse existing tenant resolution/domain mapping architecture where possible.
+- Reuse existing login host/subdomain detection where possible and harden it.
+- Keep changes incremental and shippable.
+- Separate UI, backend/service logic, and domain resolution concerns cleanly.
+- If the codebase already has host-based tenant resolution, extend it rather than replacing it.
+- Ensure production-specific behavior is controlled by environment/config, not hardcoded assumptions.
+- Since the platform is on Replit, document any AWS DNS target/proxy assumptions required for production routing.
+
+Validation checklist:
+1. Create tenant with explicit subdomain.
+2. Create tenant with auto-generated subdomain.
+3. Verify collision handling.
+4. Verify tenant-domain mapping persistence.
+5. Verify provisioning status transitions.
+6. Verify failed provisioning stores error state.
+7. Verify retry path works and is idempotent.
+8. Verify login resolves tenant from host/subdomain.
+9. Verify production login hides tenant code.
+10. Verify dev/Replit fallback still works.
+11. Verify unknown subdomain fails safely.
+12. Verify admin can see hostname and provisioning state.
+13. Verify logs/debug traces are present.
+
+Deliverables:
+- Code changes implementing the feature
+- Any necessary schema/model updates
+- Any env/config changes clearly documented
+- A concise note on AWS integration assumptions
+- A completion report saved to:
+
+/analysis/LSCC-01-006-report.md
+
+The report must include:
+1. Summary
+2. Files changed
+3. Schema/model changes
+4. AWS integration/provisioning approach
+5. Environment/config changes
+6. What was implemented
+7. What was reused from existing architecture
+8. Validation results against each checklist item
+9. Known issues / follow-ups
+10. Exact manual test steps

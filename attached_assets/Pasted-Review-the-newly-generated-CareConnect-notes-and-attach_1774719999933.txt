@@ -1,0 +1,242 @@
+Review the newly generated CareConnect notes and attachment-metadata implementation before applying any migration.
+
+Goal:
+Validate correctness, safety, and scope of:
+- ReferralNotes
+- AppointmentNotes
+- ReferralAttachments
+- AppointmentAttachments
+before database changes are applied.
+
+Context:
+- CareConnect scheduling and booking are already working
+- New code includes:
+  - referral notes timeline
+  - appointment notes
+  - attachment metadata model and endpoints
+- Migration has been created but should NOT be applied yet
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. ENTITY REVIEW
+==================================================
+
+Confirm ONLY these new additions exist:
+- ReferralNote
+- AppointmentNote
+- ReferralAttachment
+- AppointmentAttachment
+
+Ensure NO accidental additions:
+- actual file upload handling
+- S3 integration
+- SynqDocs connector logic
+- background jobs
+- notifications/reminders
+- provider portal logic
+- payment logic
+
+==================================================
+2. REFERRALNOTE REVIEW
+==================================================
+
+Check:
+- fields are correct:
+  - Id
+  - TenantId
+  - ReferralId
+  - NoteType
+  - Content
+  - IsInternal
+  - CreatedAtUtc
+  - CreatedByUserId
+  - UpdatedAtUtc
+  - UpdatedByUserId
+
+Confirm:
+- table name is ReferralNotes
+- indexes are correct:
+  - (TenantId, ReferralId, CreatedAtUtc)
+  - (TenantId, NoteType)
+
+Allowed NoteType values should be exactly:
+- General
+- Intake
+- Scheduling
+- Clinical
+- Admin
+
+==================================================
+3. APPOINTMENTNOTE REVIEW
+==================================================
+
+Check:
+- fields are correct:
+  - Id
+  - TenantId
+  - AppointmentId
+  - NoteType
+  - Content
+  - IsInternal
+  - CreatedAtUtc
+  - CreatedByUserId
+  - UpdatedAtUtc
+  - UpdatedByUserId
+
+Confirm:
+- table name is AppointmentNotes
+- indexes are correct:
+  - (TenantId, AppointmentId, CreatedAtUtc)
+  - (TenantId, NoteType)
+
+Allowed NoteType values should be exactly:
+- General
+- Scheduling
+- Reminder
+- Outcome
+- Admin
+
+==================================================
+4. ATTACHMENT ENTITY REVIEW
+==================================================
+
+Check ReferralAttachment fields:
+- Id
+- TenantId
+- ReferralId
+- FileName
+- ContentType
+- FileSizeBytes
+- ExternalDocumentId
+- ExternalStorageProvider
+- Status
+- Notes
+- CreatedAtUtc
+- CreatedByUserId
+- UpdatedAtUtc
+- UpdatedByUserId
+
+Check AppointmentAttachment fields:
+- Id
+- TenantId
+- AppointmentId
+- FileName
+- ContentType
+- FileSizeBytes
+- ExternalDocumentId
+- ExternalStorageProvider
+- Status
+- Notes
+- CreatedAtUtc
+- CreatedByUserId
+- UpdatedAtUtc
+- UpdatedByUserId
+
+Confirm tables:
+- ReferralAttachments
+- AppointmentAttachments
+
+Indexes should be appropriate for:
+- (TenantId, ReferralId, CreatedAtUtc)
+- (TenantId, AppointmentId, CreatedAtUtc)
+- (TenantId, Status)
+
+Allowed Status values should be exactly:
+- Pending
+- Linked
+- Failed
+
+==================================================
+5. ATTACHMENT SCOPE REVIEW
+==================================================
+
+Verify:
+- POST attachment endpoints create metadata rows only
+- there is NO actual file storage or upload implementation
+- there is NO direct S3/AWS upload code
+- there is NO SynqDocs integration yet
+- the model is cleanly prepared for future integration
+
+==================================================
+6. ENDPOINT REVIEW
+==================================================
+
+Confirm endpoints:
+
+Referral notes:
+- GET /api/referrals/{id}/notes
+- POST /api/referrals/{id}/notes
+- PUT /api/referral-notes/{id}
+
+Appointment notes:
+- GET /api/appointments/{id}/notes
+- POST /api/appointments/{id}/notes
+- PUT /api/appointment-notes/{id}
+
+Referral attachments:
+- GET /api/referrals/{id}/attachments
+- POST /api/referrals/{id}/attachments
+
+Appointment attachments:
+- GET /api/appointments/{id}/attachments
+- POST /api/appointments/{id}/attachments
+
+==================================================
+7. AUTHORIZATION REVIEW
+==================================================
+
+Confirm:
+- note and attachment reads => AuthenticatedUser
+- note creates/updates => PlatformOrTenantAdmin
+- attachment metadata creates => PlatformOrTenantAdmin
+
+==================================================
+8. TENANT ISOLATION REVIEW
+==================================================
+
+Verify:
+- all reads are tenant-scoped
+- all writes are tenant-scoped
+- parent Referral / Appointment must exist in tenant
+- cross-tenant access returns 404 or filtered results appropriately
+
+==================================================
+9. VALIDATION REVIEW
+==================================================
+
+Confirm:
+- note content required, max length enforced
+- note type must be valid
+- attachment metadata fields validated cleanly
+- invalid status/type returns 400
+- no raw DB exceptions leak
+
+==================================================
+10. MIGRATION REVIEW
+==================================================
+
+Confirm migration name is:
+- AddReferralAppointmentNotesAndAttachments
+or equivalent clean name
+
+Confirm migration creates ONLY:
+- ReferralNotes
+- AppointmentNotes
+- ReferralAttachments
+- AppointmentAttachments
+
+If the migration includes unrelated tables/columns, identify and fix before applying.
+
+==================================================
+11. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- confirmation that notes and attachments are modeled correctly
+- confirmation that attachment endpoints are metadata-only
+- confirmation that migration is SAFE to apply
+- final list of changed files

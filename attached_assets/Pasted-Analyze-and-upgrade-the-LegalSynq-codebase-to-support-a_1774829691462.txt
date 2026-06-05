@@ -1,0 +1,239 @@
+Analyze and upgrade the LegalSynq codebase to support a new multi-tenant, multi-product platform architecture with configurable organization types, first-class cross-organizational relationships, and product-ready foundation reuse.
+
+You are working in a monorepo. Focus on backend architecture first, then preserve API compatibility where possible.
+
+## Primary goal
+
+Refactor the current LegalSynq platform so it can:
+1. support configurable organization types instead of hard-coded org type strings
+2. support cross-organizational relationships as first-class platform entities
+3. support scoped product access and role assignment
+4. use the platform identity model as the base for CareConnect and future products
+5. preserve current working flows where possible, especially CareConnect provider map, search, referral creation, and appointment scheduling
+
+## Important constraints
+
+- Do NOT break existing compilation if avoidable
+- Prefer additive migration steps over destructive rewrites
+- Keep backward compatibility where practical by using nullable new columns and transitional mappings
+- Preserve current API response shapes unless explicitly improved
+- Keep existing map display and provider selection behavior working
+- If a full rename would create too much churn, use transitional models/adapters first
+- Generate a detailed implementation report
+
+## Required deliverables
+
+1. Analyze the current code and identify the exact files that must be changed
+2. Implement the new platform foundation in phases
+3. Generate a report and save it to:
+   /analysis/step1_platform-foundation-upgrade.md
+
+The report must include:
+- summary of what exists today
+- architectural gaps
+- exact files changed
+- schema/entity changes
+- migration plan
+- API compatibility notes
+- frontend impact notes
+- open risks / deferred items
+
+## Architecture target
+
+### New platform concepts to introduce
+
+Add these new entities in Identity:
+- OrganizationType
+- RelationshipType
+- OrganizationRelationship
+- ProductOrganizationTypeRule
+- ProductRelationshipTypeRule
+- ScopedRoleAssignment
+- optional ProductBlueprint placeholder if useful
+
+### Refactor these existing entities
+
+1. Organization
+Current:
+- OrgType string
+
+Target:
+- OrganizationTypeId
+- OrganizationType navigation property
+
+2. ProductRole
+Current:
+- EligibleOrgType string?
+
+Target:
+- remove or deprecate EligibleOrgType
+- move eligibility to ProductOrganizationTypeRule
+
+3. UserRoleAssignment
+Current:
+- UserId
+- RoleId
+- OrganizationId?
+
+Target:
+- evolve into ScopedRoleAssignment with:
+  - ScopeType
+  - TenantId?
+  - OrganizationId?
+  - OrganizationRelationshipId?
+  - ProductId?
+  - IsActive
+  - AssignedAtUtc
+  - AssignedByUserId?
+
+4. AuthService
+Current:
+- resolves product roles from primary org membership and EligibleOrgType
+
+Target:
+- resolves product access from:
+  - organization memberships
+  - organization products
+  - product org-type rules
+  - scoped role assignments
+  - relationship-scoped access where present
+
+### CareConnect alignment target
+
+Refactor CareConnect so it consumes platform identity better:
+- Provider should move toward ProviderProfile linked to Organization
+- Facility should gain OrganizationId
+- Referral should gain OrganizationRelationshipId
+- Appointment should gain OrganizationRelationshipId
+
+Preserve current functionality:
+- provider search
+- provider map
+- marker display
+- referral creation
+- appointment scheduling
+
+## Files to inspect first
+
+### Identity
+- apps/services/identity/Identity.Domain/Organization.cs
+- apps/services/identity/Identity.Domain/OrgType.cs
+- apps/services/identity/Identity.Domain/ProductRole.cs
+- apps/services/identity/Identity.Domain/UserRoleAssignment.cs
+- apps/services/identity/Identity.Application/Services/AuthService.cs
+- apps/services/identity/Identity.Infrastructure/Services/JwtTokenService.cs
+- apps/services/identity/Identity.Infrastructure/Repositories/UserRepository.cs
+- apps/services/identity/Identity.Infrastructure/Data/IdentityDbContext.cs
+- apps/services/identity/Identity.Infrastructure/Data/Configurations/*
+- apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+
+### Shared building blocks
+- shared/building-blocks/BuildingBlocks/Authorization/OrgType.cs
+- shared/building-blocks/BuildingBlocks/Context/CurrentRequestContext.cs
+
+### CareConnect
+- apps/services/careconnect/CareConnect.Domain/Provider.cs
+- apps/services/careconnect/CareConnect.Domain/Facility.cs
+- apps/services/careconnect/CareConnect.Domain/Referral.cs
+- apps/services/careconnect/CareConnect.Domain/Appointment.cs
+- apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+- apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
+- apps/services/careconnect/CareConnect.Application/DTOs/ProviderResponse.cs
+- apps/services/careconnect/CareConnect.Infrastructure/Data/*
+- apps/services/careconnect/CareConnect.Infrastructure/Repositories/*
+
+### Frontend compatibility
+- apps/web/src/types/index.ts
+- apps/web/src/types/careconnect.ts
+- apps/control-center/src/types/index.ts
+- apps/control-center/src/lib/control-center-api.ts
+
+## Phase-by-phase implementation instructions
+
+### Phase 1: introduce platform organization type catalog
+- Add OrganizationType domain model, EF config, DbSet, migration
+- Seed current system types:
+  - INTERNAL
+  - LAW_FIRM
+  - PROVIDER
+  - FUNDER
+  - LIEN_OWNER
+- Add OrganizationTypeId to Organizations
+- Keep OrgType temporarily if needed for migration compatibility
+- Backfill OrganizationTypeId from existing OrgType values
+- Update Organization aggregate and EF config
+- Replace direct hard-coded validation with DB-backed or transitional validation logic
+
+### Phase 2: add organization relationship graph
+- Add RelationshipType
+- Add OrganizationRelationship
+- Add ProductRelationshipTypeRule
+- Add EF configs, indexes, and migration
+- Seed a few relationship types:
+  - REFERS_TO
+  - ACCEPTS_REFERRALS_FROM
+  - FUNDED_BY
+  - SERVICES_FOR
+  - ASSIGNS_LIEN_TO
+  - MEMBER_OF_NETWORK
+- Add basic admin query support for these models
+
+### Phase 3: refactor product eligibility
+- Add ProductOrganizationTypeRule
+- Backfill from existing ProductRole.EligibleOrgType seed values
+- Update ProductRole seeding logic
+- Update AuthService to resolve product access using the new rule table
+- Keep transitional support for EligibleOrgType until migration is complete
+
+### Phase 4: scoped access model
+- Add ScopedRoleAssignment
+- Migrate existing UserRoleAssignment records into scoped assignments
+- Update repositories and auth flow
+- Keep JWT claims compatible, but enrich if helpful
+- Avoid breaking CurrentRequestContext consumers
+
+### Phase 5: align CareConnect to platform identity
+- Introduce OrganizationId for provider identity, either by:
+  1. adding OrganizationId directly to Provider as a transitional step, or
+  2. creating ProviderProfile if manageable
+- Add OrganizationId to Facility
+- Add OrganizationRelationshipId to Referral
+- Add OrganizationRelationshipId to Appointment
+- Update service logic to set or validate relationship context
+- Preserve current provider map/search contracts
+
+### Phase 6: admin/control-center groundwork
+- Add admin endpoints for:
+  - organization types
+  - relationship types
+  - organization relationships
+  - product organization type rules
+  - product relationship type rules
+- Update control-center types if needed, but do not fully redesign UI unless necessary
+
+## Coding guidance
+
+- Prefer small, well-structured commits or clearly separated file changes
+- Use EF Core migrations where the project already uses them
+- Preserve seed IDs where appropriate
+- Add comments only where the migration logic is non-obvious
+- Avoid unnecessary renames that ripple through the entire frontend
+
+## Required output format in the report
+
+Write /analysis/step1_platform-foundation-upgrade.md with these sections:
+
+# LegalSynq Platform Foundation Upgrade
+## 1. Current State
+## 2. Architecture Gaps
+## 3. Target Changes Implemented
+## 4. Files Changed
+## 5. Schema and Migration Details
+## 6. CareConnect Compatibility Notes
+## 7. Remaining Gaps / Next Steps
+
+## Final instruction
+
+Do the work now.
+Implement as much of the architecture upgrade as is practical in this codebase without destabilizing the existing app.
+Then generate the report.

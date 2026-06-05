@@ -1,0 +1,376 @@
+# LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental authorization UX coverage feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity, access, authorization, governance, and explainability behavior
+- Reuse the shared frontend permission/session surfaces and explainability primitives already established
+- Keep backend authority intact; frontend permission-aware UI is UX-only
+- Keep frontend, API, and backend concerns clearly separated
+- Include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Be honest in the report about exact UI coverage achieved
+- Focus on broad coverage of meaningful actions, not cosmetic refactoring
+
+---
+
+## FEATURE OBJECTIVE
+
+Extend the shared permission-aware UI model across the remaining high-value product surfaces so that header actions, row actions, workflow actions, and key form/detail actions broadly reflect authorization state in the interface.
+
+This feature should materially reduce remaining permission-related dead ends across product UIs.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Backend permission model redesign
+- Tenant Portal permission-management redesign
+- Control Center governance redesign
+- ABAC/policy activation
+- Broad product redesigns
+- Per-user permission editing
+- Replacing backend enforcement with frontend-only gates
+- Claiming full platform coverage unless every relevant surface is actually implemented and validated
+
+ONLY IMPLEMENT:
+- Broader rollout of existing shared permission-aware UI patterns
+- Broader rollout of existing shared disabled-state explainability where appropriate
+- Permission-aware treatment for validated remaining product action surfaces
+- Minimal supporting frontend plumbing only if needed
+- Honest documentation of exact products/pages/actions covered and deferred
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-015-001-report.md
+
+Initialize with:
+
+# LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Coverage Baseline
+## 4. Remaining Action Surface Inventory
+## 5. Coverage Scope Selection
+## 6. Shared Pattern Reuse Strategy
+## 7. Files Changed
+## 8. Frontend Implementation
+## 9. Backend Alignment / Error Handling
+## 10. Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Existing permission-aware UI coverage
+- components already covered by LS-ID-TNT-015
+- components already covered by LS-ID-TNT-015-004
+- what shared hooks/utilities/components exist now:
+  - `usePermission(...)`
+  - `PermissionCodes`
+  - `ForbiddenBanner`
+  - `PermissionTooltip`
+  - `disabled-reasons`
+  - any shared menu/action utilities
+
+### Remaining product action surfaces
+Audit the actual product UI for remaining meaningful action points, including where present:
+- page header actions
+- row action menus
+- primary CTA buttons
+- workflow transition actions
+- detail page edit/save/update actions
+- export/run/resend/revoke/approve actions
+- side-panel or drawer actions
+- contextual menus
+
+### Existing patterns per product
+Validate how the current codebase structures actions in:
+- SynqLien
+- SynqFund
+- CareConnect
+- Insights
+
+Do NOT assume parity across products. Document the real component patterns and gaps.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Coverage Baseline
+## 4. Remaining Action Surface Inventory
+
+---
+
+## STEP 2 — SELECT AND DOCUMENT THE ROLLOUT SCOPE
+
+Choose the validated remaining high-value surfaces to cover in this feature.
+
+Requirements:
+- prioritize high-frequency, high-value, user-visible actions
+- prioritize surfaces with the clearest permission semantics
+- extend coverage broadly, but do not over-claim totality if some surfaces remain unsuitable or unclear
+- include products with meaningful uncovered surfaces
+
+You MUST document:
+- which products are covered
+- which pages/components/actions are newly covered
+- which remain unchanged
+- why that scope was selected
+
+Likely candidates (validate before use):
+- SynqLien case/lien row actions
+- SynqLien detail header/workflow actions
+- SynqFund list/header/detail actions beyond ReviewDecisionPanel
+- CareConnect appointment/booking/admin surfaces
+- Insights execute/export/report actions
+
+Update report:
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 3 — REUSE SHARED PERMISSION-AWARE UI PATTERNS
+
+Apply the existing shared patterns rather than inventing new ones.
+
+Requirements:
+- use shared permission hooks/utilities
+- use shared explainability primitives where appropriate
+- use shared permission code constants
+- do not create per-page custom permission frameworks unless absolutely necessary
+- if a product currently uses role-based helpers (e.g. Liens), integrate carefully and document how the permission-aware model coexists with or extends those helpers
+
+Document:
+- what shared patterns were reused
+- any minimal extensions needed
+- any product-specific adapters needed and why
+
+Update report:
+## 6. Shared Pattern Reuse Strategy
+## 8. Frontend Implementation
+
+---
+
+## STEP 4 — APPLY CONSISTENT HIDE / DISABLE / READ-ONLY RULES
+
+Use the established model consistently across the newly covered scope.
+
+Requirements:
+- hide actions when visibility adds no user value
+- disable with explanation when visibility helps workflow understanding
+- use read-only mode where view is allowed but edit is not
+- keep action ordering stable
+- avoid inconsistent treatment for the same class of action within the same product/surface
+
+Document the exact rule application per covered surface.
+
+Update report:
+## 6. Shared Pattern Reuse Strategy
+## 8. Frontend Implementation
+
+---
+
+## STEP 5 — COVER HEADER ACTIONS, ROW MENUS, AND KEY DETAIL/FORM ACTIONS
+
+Implement permission-aware UI for the selected scope.
+
+You should cover, where present and meaningful:
+- header actions
+- row menu actions
+- primary CTA buttons
+- workflow transition controls
+- edit/save/update actions on detail pages
+- export / execute / resend / revoke / approve actions
+
+Requirements:
+- align exact UI gating to the same permission codes the backend enforces
+- preserve existing layouts and flows
+- preserve existing authorized-user behavior
+- do not leave obvious high-value actions ungated in newly selected surfaces
+
+Update report:
+## 8. Frontend Implementation
+
+---
+
+## STEP 6 — HANDLE PRODUCT-SPECIFIC CASES CORRECTLY
+
+### SynqLien
+If Liens still primarily uses role-based `useRoleAccess()` / `can()`:
+- validate where that model is already sufficient
+- extend or adapt only where needed
+- do not break existing accurate role-based gating
+- document clearly whether Liens is covered by role-aware, permission-aware, or hybrid treatment in each newly covered surface
+
+### SynqFund
+Extend beyond the previously covered review panel where meaningful:
+- list actions
+- detail header actions
+- processing/payout actions
+- export/report actions if present
+
+### CareConnect
+Extend beyond previously covered referral actions where meaningful:
+- appointment actions
+- booking/admin/provider actions
+- list/header/contextual actions
+
+### Insights
+Only cover Insights if the actual UI and permission mappings are present and validated.
+Do not fabricate coverage.
+
+Update report:
+## 8. Frontend Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 7 — PRESERVE BACKEND AUTHORITY AND 403 FALLBACKS
+
+Validate and ensure:
+- backend remains authoritative
+- all protected actions are still enforced server-side
+- frontend coverage reduces dead ends but does not become the only control
+- stale-session or direct-path backend denials still surface clearly and stably
+
+Requirements:
+- preserve existing forbidden/error handling
+- avoid duplicate/conflicting user messages
+- document any remaining fail-open or stale-token edge cases honestly
+
+Update report:
+## 9. Backend Alignment / Error Handling
+## 10. Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 8 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- LS-ID-TNT-015 permission-aware UI already covered
+- LS-ID-TNT-015-004 explainability behavior already covered
+- backend permission enforcement
+- Tenant Portal permission UI
+- Control Center governance UI
+- route-level product access enforcement
+- invite/activation/password reset
+- product pages outside the selected coverage scope
+
+Explicitly validate:
+- authorized users still see and can use actions normally
+- unauthorized users get cleaner UX, not broken UX
+- no new hydration/runtime/TypeScript issues are introduced
+
+Update report:
+## 10. Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — TESTING
+
+Test and document each scenario.
+
+### Coverage validation
+For each newly covered product/action:
+- authorized user sees and can use the action
+- unauthorized user gets the intended hide/disable/read-only behavior
+- action ordering remains stable
+- explanations appear where intended
+- no dead-end click paths remain in the covered scope unless explicitly documented
+
+### Backend alignment
+- forced/direct unauthorized action still receives backend denial
+- stale-session/backend-denied case is still handled cleanly
+- no frontend-only authorization assumptions are introduced
+
+### Regression
+- previously covered CareConnect/Fund surfaces still work
+- tenant permission UI still works
+- control center governance UI still works
+- route-level product access still works
+- identity lifecycle flows remain stable
+- no TypeScript/build/runtime regressions occur
+
+Update report:
+## 10. Testing Results
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what products/pages/components/actions were newly covered
+- what shared patterns were reused
+- how hide/disable/read-only rules were applied
+- how backend-denied UX was preserved
+- what still remains uncovered and why
+- whether the product UI is now broadly permission-aware or still only partially covered
+
+---
+
+## SUCCESS CRITERIA
+
+✔ A validated set of remaining high-value product UI action surfaces is now permission-aware
+✔ Shared permission guard/utilities are reused consistently
+✔ Shared explainability patterns are applied where appropriate
+✔ Header actions, row actions, and key detail/form actions in the covered scope align with permission state
+✔ Workflow actions in the covered scope align with permission and workflow state
+✔ Backend remains authoritative for all protected actions
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-015-004 behavior does not regress
+✔ Coverage boundaries and remaining gaps are documented honestly
+✔ The number of avoidable permission-related dead ends is materially reduced across the covered scope
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working broader permission-aware UI coverage across the validated product scope
+2. Reuse of shared explainability and permission-aware UI primitives
+3. Preserved backend-aligned permission-denied UX
+4. Completed report:
+/analysis/LS-ID-TNT-015-001-report.md
+
+---
+
+END OF IMPLEMENTATION

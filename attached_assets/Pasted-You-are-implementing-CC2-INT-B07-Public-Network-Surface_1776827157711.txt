@@ -1,0 +1,178 @@
+You are implementing CC2-INT-B07 — Public Network Surface + Subdomain Routing for CareConnect.
+
+CRITICAL:
+
+1. Create report FIRST:
+   /analysis/CC2-INT-B07-report.md
+
+2. Update report incrementally.
+
+3. This builds on:
+   - B06-01 (shared provider registry)
+   - B06-02 (provider access stage)
+
+4. DO NOT modify provider data model again.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Implement the public CareConnect surface:
+
+- URL stage uses:
+    [tenant-subdomain].[baseurl]/network
+
+- Common Portal uses:
+    careconnect.[baseurl]
+
+- Routing must resolve:
+    subdomain → tenant → network
+
+--------------------------------------------------
+
+PART A — SUBDOMAIN RESOLUTION
+
+--------------------------------------------------
+
+Implement middleware/service:
+
+Input:
+- request host (e.g. acme.legalsynq.net)
+
+Resolve:
+- subdomain = "acme"
+- tenant = matching tenant/org
+
+Store in request context.
+
+--------------------------------------------------
+
+PART B — PUBLIC NETWORK ROUTE
+
+--------------------------------------------------
+
+Implement route:
+
+GET /network
+
+Behavior:
+
+- resolve tenant from subdomain
+- load tenant networks
+
+If ONE network:
+- return that network
+
+If MULTIPLE:
+- return list (basic selector)
+
+--------------------------------------------------
+
+PART C — PUBLIC PROVIDER SURFACE
+
+--------------------------------------------------
+
+Expose:
+
+- provider list
+- map markers
+
+Reuse:
+- existing provider/map APIs
+
+DO NOT duplicate logic
+
+--------------------------------------------------
+
+PART D — STAGE-AWARE ACCESS
+
+--------------------------------------------------
+
+Enforce:
+
+URL stage:
+- access via /network only
+- no login required
+- no portal access
+
+COMMON_PORTAL:
+- redirect to:
+    careconnect.[baseurl]
+
+TENANT:
+- redirect to tenant portal
+
+--------------------------------------------------
+
+PART E — FRONTEND (PUBLIC)
+
+--------------------------------------------------
+
+Create public UI:
+
+- network landing
+- provider list
+- map view
+
+Reuse:
+- ProviderMap
+- existing DTOs
+
+--------------------------------------------------
+
+PART F — SECURITY
+
+--------------------------------------------------
+
+Ensure:
+
+- no cross-tenant leakage
+- subdomain strictly controls data
+- no internal IDs exposed
+
+--------------------------------------------------
+
+PART G — TESTING
+
+--------------------------------------------------
+
+Validate:
+
+1. acme.legalsynq.net/network loads correct network
+2. providers displayed correctly
+3. map works
+4. no cross-tenant leakage
+5. COMMON_PORTAL providers redirect correctly
+6. TENANT providers redirect correctly
+7. URL providers can access referral URLs only
+8. builds succeed
+
+--------------------------------------------------
+
+REPORT FORMAT
+
+/analysis/CC2-INT-B07-report.md
+
+# CC2-INT-B07 Report
+
+## 1. Summary
+## 2. Subdomain Resolution
+## 3. Public Network Routing
+## 4. Provider Surface
+## 5. Stage Enforcement
+## 6. UI
+## 7. Test Results
+## 8. Issues
+
+--------------------------------------------------
+
+DO NOT:
+
+- duplicate provider registry
+- break B06-01 or B06-02 logic
+- merge portals
+- add new unrelated features
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

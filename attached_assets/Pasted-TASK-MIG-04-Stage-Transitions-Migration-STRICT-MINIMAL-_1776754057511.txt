@@ -1,0 +1,390 @@
+TASK-MIG-04 — Stage Transitions Migration (STRICT MINIMAL MODEL)
+
+OBJECTIVE:
+Introduce and migrate the Liens task-board stage transition model into the Task service using the **smallest possible schema and logic** so Task can own allowed task-stage movement rules without recreating workflow/orchestration behavior.
+
+This step is ONLY about simple task-stage transitions.
+
+NON-NEGOTIABLE RULES:
+- DO NOT migrate Flow orchestration transitions
+- DO NOT add rules engine
+- DO NOT add conditions JSON
+- DO NOT add branching logic
+- DO NOT add automation hooks/actions
+- DO NOT redesign workflow behavior
+- DO NOT delete Liens transition tables in this step
+- ZERO UI behavior regression
+- MUST preserve existing Liens task-board movement behavior
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- MUST inspect actual code/schema before implementation
+- NO placeholders
+
+STRICT MODEL:
+The ONLY transition model allowed in Task in this prompt is:
+
+- `from_stage_id`
+- `to_stage_id`
+- tenant/product scope
+- active/inactive flag
+- ordering metadata only if needed
+
+Nothing beyond that.
+
+CRITICAL BOUNDARY:
+- `liens_WorkflowTransitions` = task-board allowed moves → can move to Task
+- `flow_workflow_transitions` = orchestration graph transitions → must stay in Flow
+- Do NOT blur these concepts anywhere in implementation
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-04-report.md
+
+Initialize with:
+
+# TASK-MIG-04 Report — Stage Transitions Migration
+
+## 1. Codebase Analysis
+## 2. Schema Comparison
+## 3. Minimal Transition Model Design
+## 4. Task Schema Additions
+## 5. Data Migration Execution
+## 6. Dual-Read / Fallback Logic
+## 7. Runtime Compatibility
+## 8. Validation Results
+## 9. Rollback Plan
+## 10. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the actual codebase for all Liens transition usage.
+
+Liens:
+- `liens_WorkflowTransitions`
+- entity/configuration/repository/service usage
+- where transitions are read in:
+  - task-board movement validation
+  - manual stage change validation
+  - start-stage or default-stage logic if any
+  - any UI endpoints that return allowed moves
+- identify every code path that depends on Liens transition IDs or Liens transition tables
+
+Task:
+- confirm there is currently NO equivalent transition model
+- inspect stage config usage in Task
+- determine what minimal transition API and persistence support is required
+
+Document:
+- all fields in Liens transition schema
+- runtime read/write paths
+- semantic meaning of each field
+- which fields are truly necessary vs just Liens-specific wrapper/admin metadata
+
+Update:
+## 1. Codebase Analysis
+## 2. Schema Comparison
+
+--------------------------------------------------
+STEP 2 — DESIGN THE MINIMAL MODEL
+--------------------------------------------------
+
+Design the Task-side transition model using the strict minimal rule.
+
+Preferred minimal schema shape:
+- Id
+- TenantId
+- SourceProductCode
+- FromStageId
+- ToStageId
+- IsActive
+- SortOrder (only if the current Liens behavior needs deterministic ordering)
+- optional ProductSettingsJson ONLY if absolutely required
+
+Rules:
+- no rules/conditions columns
+- no event types
+- no automation hooks
+- no workflow engine metadata
+- no branching semantics beyond multiple rows
+
+You MUST explicitly decide:
+1. whether transition IDs should be preserved from Liens
+2. whether `WorkflowConfigId` wrapper semantics can be flattened into `(TenantId, SourceProductCode)`
+3. whether any Liens-only metadata must be retained and where
+
+Bias toward:
+- ID preservation if it reduces compatibility risk
+- wrapper flattening if safe
+- no extra metadata unless absolutely required
+
+Update:
+## 3. Minimal Transition Model Design
+
+--------------------------------------------------
+STEP 3 — ADD TASK SCHEMA
+--------------------------------------------------
+
+Create the Task-side transition schema.
+
+Recommended table:
+- `tasks_StageTransitions`
+
+Recommended columns:
+- `Id`
+- `TenantId`
+- `SourceProductCode`
+- `FromStageId`
+- `ToStageId`
+- `IsActive`
+- `SortOrder` (if needed)
+- timestamps only if the Task service standard strongly expects them
+
+Add:
+- EF entity
+- configuration
+- repository
+- service methods
+- DTOs
+- endpoint(s) needed for migration + runtime reads
+
+Indexes should support:
+- by tenant/product
+- by from-stage
+- by to-stage if useful
+- uniqueness for duplicate prevention, e.g. `(TenantId, SourceProductCode, FromStageId, ToStageId)`
+
+Rules:
+- keep schema generic
+- backward compatible
+- no Liens-specific columns unless absolutely required
+- migration name should be clear
+
+Apply migration.
+
+Update:
+## 4. Task Schema Additions
+
+--------------------------------------------------
+STEP 4 — DATA MIGRATION
+--------------------------------------------------
+
+Implement migration logic to copy/upsert Liens stage transitions into Task.
+
+For each tenant/product transition set in:
+- `liens_WorkflowTransitions`
+
+Create/update rows in:
+- `tasks_StageTransitions`
+
+Requirements:
+- `SourceProductCode = SYNQ_LIENS`
+- migration must be idempotent
+- preserve from/to mapping exactly
+- preserve active/inactive behavior
+- preserve ordering if the current Liens behavior depends on it
+- no duplicate rows
+- log:
+  - created
+  - updated
+  - skipped
+  - failed
+
+Important:
+- Do NOT delete Liens transition rows
+- Do NOT change transition semantics
+- If stage IDs were preserved in MIG-03, use those same IDs directly
+
+Update:
+## 5. Data Migration Execution
+
+--------------------------------------------------
+STEP 5 — DUAL-READ IMPLEMENTATION
+--------------------------------------------------
+
+Modify Liens transition resolution so runtime reads can prefer Task while retaining Liens fallback.
+
+Apply this to all transition-resolution paths that matter for:
+- task-board movement validation
+- manual stage change validation
+- any endpoint that returns allowed moves
+
+Read path rule:
+1. Try Task service first
+2. If missing / unavailable, fall back to Liens DB
+3. Log which source was used
+
+Rules:
+- Task = primary
+- Liens = fallback
+- no behavior regression
+- no forced final cutover yet
+
+Important:
+If any runtime code expects original Liens transition IDs, preserve compatibility.
+
+Update:
+## 6. Dual-Read / Fallback Logic
+
+--------------------------------------------------
+STEP 6 — RUNTIME COMPATIBILITY
+--------------------------------------------------
+
+This step is critical.
+
+Ensure transition migration does NOT break:
+- task-board allowed moves
+- stage change validation
+- existing start-stage behavior
+- stage ordering semantics
+- UI rendering of available moves
+- any admin management flows for transitions
+
+Specifically verify:
+- transitions still operate over the same stage IDs introduced in MIG-03
+- no path mistakenly uses Flow orchestration transitions
+- no new Task logic begins interpreting transitions as process logic
+- Liens runtime behavior remains identical
+
+If Liens still performs validation logic itself:
+- keep that logic
+- only change the read source (Task-first, Liens-fallback)
+
+Document exactly how compatibility is preserved.
+
+Update:
+## 7. Runtime Compatibility
+
+--------------------------------------------------
+STEP 7 — WRITE-THROUGH BEHAVIOR
+--------------------------------------------------
+
+For Liens admin transition writes:
+
+Keep Liens DB authoritative during this migration step, but implement best-effort sync to Task service using the same proven pattern as prior migrations where appropriate.
+
+Applies to:
+- create transition
+- update transition
+- activate/deactivate transition
+- reorder transition if supported
+
+Rules:
+- write to Liens DB first
+- sync to Task second
+- Task sync failure must NOT break admin save
+- startup/background sync may reconcile later
+
+If there is no admin transition write path in scope, document that clearly and implement only what the codebase actually uses.
+
+Update:
+## 6. Dual-Read / Fallback Logic
+## 7. Runtime Compatibility
+
+--------------------------------------------------
+STEP 8 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. Existing Liens task-board transition behavior unchanged
+2. Task service stores Liens transitions correctly
+3. Task-first transition reads work
+4. Liens fallback works when Task transition data missing
+5. Migration is idempotent (running twice causes no duplicates)
+6. Mixed state works (some tenants migrated, some not)
+7. Allowed moves are preserved exactly
+8. Inactive transitions remain inactive
+9. No runtime path accidentally uses Flow orchestration transitions
+10. No runtime errors if Task service is temporarily unavailable
+11. Existing Task behavior for non-Liens consumers remains unchanged
+
+Verify builds for all changed services.
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 8. Validation Results
+
+--------------------------------------------------
+STEP 9 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting Liens runtime reads to Liens-only
+- keeping Task transition data untouched
+- disabling sync job / sync path
+- no data loss
+- no schema rollback required unless strictly necessary
+
+If Task schema was extended, explain whether rollback requires reversing the migration or whether the added fields are harmless if left in place.
+
+Update:
+## 9. Rollback Plan
+
+--------------------------------------------------
+STEP 10 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any metadata not migrated
+- any wrapper-config semantics flattened or lost
+- transition ID risks
+- stage-reference risks
+- any admin-flow limitations
+- any future cleanup required before ownership flip
+- confirmation that this model is intentionally NOT a workflow engine
+
+Update:
+## 10. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-04 is complete only if:
+
+1. Liens transition configuration exists in Task service
+2. Liens can read transition config from Task successfully
+3. Liens fallback still works
+4. Task-board movement behavior remains unchanged
+5. Allowed moves are preserved exactly
+6. No workflow/orchestration logic is introduced into Task
+7. Migration is idempotent
+8. Safe to proceed later to alignment / ownership steps
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT migrate Flow orchestration transitions
+- Do NOT add rules/conditions engine
+- Do NOT add automation hooks/actions
+- Do NOT add workflow-definition logic to Task
+- Do NOT delete `liens_WorkflowTransitions`
+- Do NOT redesign generation rules
+- Do NOT force final ownership cutover yet
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens transition entities / repositories / services / admin endpoints
+- Task transition entities / DTOs / services / endpoints
+- Liens ↔ Task service client
+- any startup/background sync component if needed
+- migrations only if required for safe schema addition
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

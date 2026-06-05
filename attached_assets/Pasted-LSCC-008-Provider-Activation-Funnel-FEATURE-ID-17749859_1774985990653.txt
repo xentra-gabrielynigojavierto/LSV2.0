@@ -1,0 +1,482 @@
+LSCC-008 — Provider Activation Funnel
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-008
+
+Initial implementation report:
+- /analysis/LSCC-008-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-008-XX.md
+
+Examples:
+- /analysis/LSCC-008-report.md
+- /analysis/LSCC-008-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Build the minimum viable provider activation funnel so referred providers who are not yet activated platform users can be converted into active tenant users while preserving referral context end-to-end.
+
+This feature must:
+
+1. detect whether a provider is already an active tenant
+2. route active providers into the authenticated portal flow
+3. route pending providers into a lightweight activation funnel
+4. preserve referral context through signup/login
+5. return the provider to the correct referral after auth
+6. track key activation funnel events
+
+Do NOT build a full onboarding platform.
+Do NOT redesign auth broadly.
+Do NOT add billing/subscription logic.
+Do NOT expand into advanced analytics.
+
+This is a focused growth feature on top of the existing referral engine and secure token flows.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Provider state detection for referral-view flow
+B. Pending-provider activation landing experience
+C. Active-provider authenticated deep-link routing
+D. Signup/login context preservation for referral return
+E. Minimal activation funnel tracking
+F. Edge-case handling for invalid/accepted/not-found states
+G. Report
+
+Do NOT implement:
+- full onboarding wizard
+- tenant admin setup UI
+- billing or subscriptions
+- role management UI
+- full lifecycle analytics dashboard
+- notifications center
+- unrelated CareConnect UX work
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse LSCC-005 / 005-01 / 005-02 referral email + token flows where possible
+2. Preserve existing secure token strategy unless a minimal extension is necessary
+3. Separate:
+   - provider state detection
+   - public activation landing page
+   - auth redirect/return flow
+   - event tracking
+4. Do NOT duplicate referral acceptance logic in multiple places if existing portal detail flow can be reused
+5. Do NOT expose more referral data publicly than LSCC-005 already allows
+6. Do NOT guess provider activation state; use deterministic existing identity/tenant linkage
+7. Keep the feature minimal and growth-focused
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+- possibly identity/auth integration points already used by login/signup flows
+
+Frontend:
+- apps/web/src/app/referrals/...
+- apps/web/src/app/(platform)/careconnect/...
+- apps/web/src/components/auth/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/lib/...
+
+Do NOT use this feature to refactor unrelated infrastructure.
+Do NOT redesign the existing referral engine.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Already implemented:
+- referral creation and provider notification email
+- secure view-token links
+- pending provider accept page
+- active tenant provider deep-link through login + returnTo
+- acceptance confirmation emails
+- resend/revoke/retry infrastructure
+- audit/event infrastructure
+- referral detail page inside authenticated portal
+
+Current gap:
+- pending providers can accept a referral, but there is no explicit provider activation funnel
+- there is no structured conversion path from referral email → activated account → referral in portal
+- there is limited lifecycle visibility for activation progress
+
+LSCC-008 should turn the referral flow into a provider growth funnel.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. PROVIDER STATE DETECTION
+--------------------------------------------------
+
+When a provider accesses the referral-view flow, determine provider state using deterministic existing system data.
+
+States:
+1. Pending
+   - provider exists in CareConnect/provider data
+   - provider does not have activated tenant/platform access
+
+2. Active
+   - provider has active tenant/platform access path
+
+3. Unknown / NotFound
+   - provider record or referral mapping cannot be resolved safely
+
+Rules:
+- use existing provider organization/identity linkage where possible
+- do NOT guess based on email heuristics alone unless already an explicit platform rule
+- document the exact state-detection rule in the report
+
+This detection must drive routing.
+
+--------------------------------------------------
+B. PENDING PROVIDER ACTIVATION LANDING PAGE
+--------------------------------------------------
+
+Create or enhance the pending-provider referral landing experience.
+
+This page must be lightweight and focused.
+
+Minimum page content:
+1. referral summary
+   - referred party / patient name
+   - referring law firm
+   - concise referral context
+2. pending-provider state messaging
+3. benefits of activating account
+4. primary CTA:
+   - "Activate & Accept Referral"
+5. secondary CTA (if appropriate and low-risk):
+   - "Already have an account? Log in"
+
+Rules:
+- preserve existing secure token access behavior
+- do not reveal unnecessary data beyond current public referral accept scope
+- if referral is already accepted, show accepted-state messaging rather than activation CTA
+- if token is invalid/expired/revoked, reuse or extend existing invalid-token flow safely
+
+Activation messaging should emphasize value, e.g.:
+- manage referrals in one place
+- track referral status
+- access provider workflow tools
+- reduce email-only coordination
+
+Keep the page concise and conversion-oriented.
+
+--------------------------------------------------
+C. ACTIVE PROVIDER ROUTING
+--------------------------------------------------
+
+If provider state is Active:
+
+1. redirect to login if not authenticated
+2. preserve destination via returnTo
+3. after login, land on the relevant referral in the authenticated portal
+4. provider can accept from the existing or minimally adapted referral detail flow
+
+Requirements:
+- do not build a duplicate portal acceptance screen if one already exists
+- preserve secure referral context throughout
+- do not leak referral data before auth beyond the current public token rules
+- ensure authenticated destination is deterministic and correct
+
+--------------------------------------------------
+D. SIGNUP / ACTIVATION ENTRY
+--------------------------------------------------
+
+For Pending providers, implement the minimal activation entry path.
+
+Preferred route shape:
+- /signup?referralId=...&returnTo=...
+
+Adapt to existing auth conventions if a different signup route is already standard.
+
+Minimum required behavior:
+1. clicking "Activate & Accept Referral" starts signup/activation
+2. referral context is preserved through signup/login
+3. after successful activation/authentication:
+   - provider lands on the referral detail page in the portal
+4. provider can then accept the referral from there
+
+Rules:
+- if auto-login after signup already exists, reuse it
+- if signup leads to login first, preserve returnTo cleanly
+- do not redesign the entire auth flow
+- use the smallest viable extension to current login/signup patterns
+
+If direct tenant provisioning is not fully automated in current architecture:
+- implement the furthest safe step possible
+- clearly document any manual or deferred activation completion step in the report
+- do not fake activation completion
+
+--------------------------------------------------
+E. RETURN-TO / CONTEXT PRESERVATION
+--------------------------------------------------
+
+Preserve referral context across:
+
+- email link
+- state detection
+- activation landing
+- signup
+- login
+- authenticated referral detail destination
+
+Context must survive:
+- unauthenticated entry
+- signup transition
+- login transition
+
+Use explicit route params/query params rather than implicit history.
+
+At minimum preserve:
+- referral identifier or secure token-derived referral context
+- returnTo destination
+- provider flow source when useful
+
+Do NOT allow open redirects.
+Reuse existing guards already used in login form returnTo handling.
+
+--------------------------------------------------
+F. ACTIVATION FUNNEL TRACKING
+--------------------------------------------------
+
+Track the key funnel stages with the smallest practical event model.
+
+Minimum events:
+- ReferralViewed
+- ActivationStarted
+- ActivationCompleted
+- ReferralAccepted
+
+Optional if easily available:
+- LoginRedirected
+- SignupStarted
+- SignupCompleted
+
+Preferred implementation:
+- reuse existing audit/event infrastructure
+- or add minimal CareConnect-scoped event writes if needed
+
+Requirements:
+- events should be attributable to referral/provider context where possible
+- do not overbuild a full analytics system
+- enough tracking must exist to understand conversion steps later
+
+--------------------------------------------------
+G. REFERRAL ACCEPTANCE AFTER ACTIVATION
+--------------------------------------------------
+
+Post-activation acceptance behavior must remain consistent with existing referral rules.
+
+Requirements:
+- accepting the referral from the portal must still trigger the existing accepted-state logic
+- existing confirmation emails should continue to work
+- duplicate acceptance remains prevented
+- if the referral was accepted before the provider completes activation, the portal must show accepted state instead of prompting acceptance again
+
+Do NOT create conflicting acceptance paths.
+
+--------------------------------------------------
+H. INVALID / SAFE FALLBACK FLOWS
+--------------------------------------------------
+
+Handle all of these safely:
+
+1. invalid token
+   - show invalid-token page
+
+2. expired or revoked token
+   - same safe invalid path
+
+3. provider already active but referral missing
+   - safe fallback / not-found handling without leaking extra information
+
+4. provider unknown or ambiguous state
+   - safe fallback page or support message
+   - do not guess or widen access
+
+5. referral already accepted
+   - show accepted state, no activation CTA
+
+6. partial auth/activation failures
+   - preserve context as much as possible
+   - show clear next step
+
+--------------------------------------------------
+I. UI / UX REQUIREMENTS
+--------------------------------------------------
+
+The activation funnel pages must be:
+- simple
+- focused
+- conversion-oriented
+- mobile-friendly enough for basic usage
+- visually consistent with the current platform
+
+Do NOT over-design.
+Do NOT build a complex marketing page.
+
+Minimum UX outcomes:
+- provider understands what the referral is
+- provider understands why activation helps
+- provider has one clear next action
+
+--------------------------------------------------
+J. API / SERVICE CHANGES
+--------------------------------------------------
+
+Add only the smallest backend/service changes required.
+
+Acceptable additions if needed:
+- provider state resolution support
+- activation funnel event write method(s)
+- public route resolution response enhancements
+
+Not acceptable:
+- broad identity platform redesign
+- new generalized onboarding backend
+- large auth model rewrite
+
+--------------------------------------------------
+K. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+1. provider state detection
+   - pending
+   - active
+   - unknown/notfound
+
+2. route resolution
+   - pending provider goes to activation landing
+   - active provider goes to login/returnTo or direct portal path
+   - invalid token goes to invalid flow
+
+3. returnTo/context preservation
+   - preserved through login/signup path
+   - open redirect guard still holds
+
+4. accepted referral edge case
+   - accepted referral does not show activation CTA
+
+5. activation tracking
+   - required funnel events are emitted/written
+
+6. portal acceptance continuity
+   - after activation/auth, provider lands at correct referral
+
+If full frontend auth-flow tests are difficult:
+- test URL builders, resolver logic, and service-layer event logic
+- document any limitation in the report
+
+Pre-existing unrelated test failures must not be counted as regressions, but note them if still present.
+
+--------------------------------------------------
+L. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-008-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Provider state detection
+- exact rule used
+- how pending vs active is determined
+
+3. Pending-provider activation flow
+- page(s) used
+- CTA behavior
+- benefit messaging included
+
+4. Active-provider routing
+- login/returnTo flow
+- authenticated destination
+
+5. Context preservation
+- how referral context survives across steps
+- open redirect safeguards
+
+6. Funnel tracking
+- what events are captured
+- where they are stored
+
+7. Acceptance continuity
+- how post-activation acceptance works
+- how already-accepted referrals are handled
+
+8. Tests
+- what scenarios are covered
+- any gaps remaining
+
+9. Known limitations / deferred items
+- anything intentionally left for future onboarding work
+
+10. Recommended next step
+- smallest logical follow-up after provider activation funnel
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. Inspect existing referral token resolution and active/pending provider routing
+2. Implement or refine provider state detection
+3. Build pending-provider activation landing experience
+4. Implement signup/login context preservation for referral return
+5. Reuse portal referral acceptance destination for active or activated providers
+6. Add activation funnel tracking events
+7. Handle accepted/invalid/unknown edge cases
+8. Add tests
+9. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-008 is complete ONLY if:
+
+1. pending providers are routed into an activation funnel
+2. active providers are routed into the authenticated portal flow
+3. signup/login preserves referral context and returns providers to the correct referral
+4. activation funnel events are tracked
+5. referral acceptance remains consistent with existing logic
+6. invalid/accepted/unknown edge cases are handled safely
+7. LSCC-005 / 005-01 / 005-02 / 007 / 007-01 behaviors remain intact
+8. report exists at:
+   /analysis/LSCC-008-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this feature focused on conversion and context preservation.
+Do not drift into a full onboarding platform.
+Build the smallest activation funnel that turns referred providers into authenticated platform users while preserving the referral journey end-to-end.

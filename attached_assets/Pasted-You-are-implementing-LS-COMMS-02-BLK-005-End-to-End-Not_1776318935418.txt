@@ -1,0 +1,522 @@
+You are implementing LS-COMMS-02-BLK-005 — End-to-End Notifications Integration Testing for SynqComm.
+
+OBJECTIVE:
+Validate and harden the real integration path between SynqComm and Notifications for outbound email delivery and delivery-status reconciliation. This block is focused on end-to-end contract testing, integration safety, idempotency, failure-path handling, callback validation, and operational hardening.
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the communication system of record.
+- Notifications remains the outbound delivery engine.
+- Documents remains the owner of binaries.
+- SynqComm continues as an independent service under /apps/services/synqcomm with its own physically separate database.
+- SynqComm must NOT piggyback on another service database.
+- SynqComm must NOT use cross-database joins for core logic.
+- This block must validate the actual integration contract established in prior work:
+  - outbound email orchestration through Notifications
+  - delivery state reconciliation back into SynqComm
+  - attachment metadata handoff
+  - sender/template-aware composition
+- Do NOT add unrelated product features in this block.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+- LS-COMMS-02-BLK-001 — Email Intake and Threading
+- LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status
+- LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion
+- LS-COMMS-02-BLK-004 — Tenant-Configurable Sender Addresses and Email Templates
+
+CURRENT FOUNDATION ALREADY EXISTS:
+- Outbound email is orchestrated from SynqComm through Notifications via INotificationsServiceClient and POST /v1/notifications
+- Delivery status flows back through a dedicated SynqComm integration endpoint
+- Sender config and template composition are now supported and persisted
+- Notifications payloads already include sender, template, threading, recipients, and attachment metadata
+- 88 total tests are already passing from prior blocks 
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-02-BLK-005-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-02-BLK-005-report.md
+
+Initialize it with:
+
+# LS-COMMS-02-BLK-005 — End-to-End Notifications Integration Testing Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Validate and harden the end-to-end SynqComm ↔ Notifications integration for outbound email delivery, status reconciliation, idempotency, failure handling, and attachment-aware payload flow.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- SynqComm remains the communication system of record
+- Notifications remains the outbound delivery engine
+- Documents remains owned by Documents service
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Review existing Notifications integration and identify gaps
+- [ ] Step 2: Design end-to-end integration test and hardening approach
+- [ ] Step 3: Validate outbound contract and payload mapping
+- [ ] Step 4: Validate delivery callback/status reconciliation flow
+- [ ] Step 5: Implement idempotency and duplicate-event protections
+- [ ] Step 6: Harden callback authentication and internal integration boundaries
+- [ ] Step 7: Validate attachment handoff and sender/template propagation
+- [ ] Step 8: Add operational diagnostics and error handling improvements
+- [ ] Step 9: Add automated integration-focused tests
+- [ ] Step 10: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND IDENTIFY E2E GAPS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current OutboundEmailService behavior
+- current NotificationsServiceClient implementation
+- current payload shape sent to Notifications
+- current delivery-status callback endpoint and authorization model
+- current email delivery state persistence
+- current sender/template composition behavior
+- current attachment metadata flow
+- current audit events emitted for outbound email lifecycle
+- whether Notifications service code/contracts are present in the repo and can be validated directly
+- whether an existing service-to-service auth pattern exists elsewhere in the monorepo
+- whether there is an existing idempotency or webhook signature verification pattern already used elsewhere
+
+Update the report with:
+- current integration contract findings
+- weak spots or gaps discovered
+- exact E2E testing strategy selected
+- exact hardening changes selected
+- any assumptions required
+
+IMPORTANT:
+This block is primarily about validation and hardening of existing behavior, not inventing new communication features.
+Build incrementally and surgically.
+
+--------------------------------------------------
+STEP 3 — DESIGN E2E INTEGRATION TEST AND HARDENING STRATEGY
+--------------------------------------------------
+
+This block must validate and harden:
+- SynqComm outbound send request → Notifications payload contract
+- Notifications response handling in SynqComm
+- Notifications delivery callback/update → SynqComm delivery state reconciliation
+- idempotent handling of duplicate sends and duplicate callbacks
+- failure-path handling when Notifications is unavailable or returns errors
+- preservation of sender/template/threading/recipient/attachment metadata through the integration seam
+
+Key design principles:
+- preserve service boundaries
+- make callback/update processing safe and idempotent
+- do not require cross-service DB access
+- prefer internal contract/integration tests if both services are present in the repo
+- if Notifications cannot be run directly in this block, build robust contract tests and mocked E2E flows that validate real payload shape and reconciliation logic
+- do not weaken security for internal integration
+
+Update the report with the chosen strategy before coding.
+
+--------------------------------------------------
+STEP 4 — VALIDATE AND HARDEN OUTBOUND NOTIFICATIONS CONTRACT
+--------------------------------------------------
+
+Review and, if necessary, improve the SynqComm → Notifications outbound contract.
+
+Required validations:
+- payload includes resolved sender data:
+  - fromEmail
+  - fromDisplayName
+  - replyToEmail
+- payload includes rendered subject/body or template references per the chosen existing model
+- payload includes:
+  - to
+  - cc
+  - bcc
+  - attachments metadata
+  - threading metadata (internetMessageId, inReplyTo, references)
+  - idempotency/correlation identifier
+- payload shape is deterministic and documented
+- Notifications response handling captures:
+  - notificationsRequestId
+  - providerName
+  - providerMessageId if available
+  - initial status
+
+If Notifications contract needs tightening:
+- create/update normalized request/response records/DTOs/clients cleanly
+- document any contract dependency on Notifications service changes
+- do not introduce provider-specific fields into SynqComm domain logic beyond what is necessary for correlation
+
+--------------------------------------------------
+STEP 5 — VALIDATE AND HARDEN DELIVERY STATUS CALLBACK / RECONCILIATION FLOW
+--------------------------------------------------
+
+Review and, if necessary, improve the Notifications → SynqComm status update path.
+
+Required behavior:
+- accept normalized delivery status updates
+- correlate by providerMessageId and/or internetMessageId and/or notificationsRequestId
+- update EmailDeliveryState safely
+- update EmailMessageReference SentAtUtc when appropriate
+- reject or safely ignore unmatched callbacks based on documented rules
+- record audit events for status changes
+- preserve terminal-state protections already implemented
+
+Required hardening:
+- duplicate callbacks must be idempotent
+- out-of-order callbacks must be handled safely
+- unknown statuses must map safely to UNKNOWN or be rejected with clear handling
+- terminal states should not be overwritten incorrectly
+- repeated terminal-state callbacks should not corrupt state
+
+Document the exact reconciliation rules in the report.
+
+--------------------------------------------------
+STEP 6 — IMPLEMENT IDEMPOTENCY AND DUPLICATE-PROTECTION HARDENING
+--------------------------------------------------
+
+Harden both outbound send and callback handling.
+
+Required protections:
+- outbound send request should not create duplicate delivery state or duplicate email references when the same logical send is replayed unexpectedly
+- duplicate Notifications responses/callbacks should not create duplicate state transitions
+- idempotency/correlation identifiers must be stored and used consistently
+- retries owned by Notifications must not cause SynqComm record duplication
+
+If the existing implementation already partially handles this, extend or prove it with explicit tests and any necessary repository/service changes.
+
+Potential areas to improve:
+- unique lookup/correlation methods by notificationsRequestId/providerMessageId/internetMessageId
+- compare-and-ignore logic for duplicate status updates
+- terminal-state no-op protections
+- resend differentiation if the same message is intentionally resent in the future (document if deferred)
+
+--------------------------------------------------
+STEP 7 — HARDEN CALLBACK AUTHENTICATION / INTERNAL INTEGRATION BOUNDARIES
+--------------------------------------------------
+
+This is an important security step.
+
+The prior report identified that the delivery-status callback currently uses standard auth and should move toward stronger internal/system integration protection. :contentReference[oaicite:1]{index=1}
+
+Implement the cleanest pattern supported by the current platform, for example:
+- service-to-service token/authentication
+- internal integration permission/role
+- signed internal request validation
+- known internal client credential pattern already used in the repo
+
+Requirements:
+- delivery-status endpoint must NOT be generally callable by ordinary end users
+- keep authorization aligned with platform conventions
+- document exact auth model used for Notifications → SynqComm integration
+- if full production-grade service-auth infrastructure is not available in the repo, implement the best clean seam and document the gap precisely
+
+Do not weaken auth just to make tests easier.
+
+--------------------------------------------------
+STEP 8 — VALIDATE ATTACHMENT HANDOFF AND SENDER/TEMPLATE PROPAGATION
+--------------------------------------------------
+
+Validate end-to-end propagation of:
+- sender config resolution
+- template/rendered subject/body
+- recipient sets (to/cc/bcc)
+- attachment metadata
+- threading metadata
+
+Required checks:
+- Notifications client receives the correct final sender identity
+- template/rendered content is preserved accurately
+- attachments linked in SynqComm are handed off to Notifications as metadata/document references
+- BCC remains hidden in SynqComm-visible APIs while still present in Notifications payload
+- threading metadata survives the send pipeline and remains matchable for inbound replies
+
+If gaps are found, fix them cleanly and document them.
+
+--------------------------------------------------
+STEP 9 — ADD OPERATIONAL DIAGNOSTICS AND ERROR HANDLING IMPROVEMENTS
+--------------------------------------------------
+
+Improve observability and failure handling without adding unrelated features.
+
+Required improvements where appropriate:
+- structured logging around outbound send request
+- structured logging around Notifications response/callback reconciliation
+- better business errors for:
+  - Notifications unavailable
+  - malformed Notifications response
+  - invalid callback payload
+  - unmatched callback correlation
+  - duplicate send/callback
+- preserve audit coverage for error/rejection cases
+- optionally add a small internal diagnostic response or metadata fields useful for troubleshooting if consistent with current API patterns
+
+Do not build a new monitoring system.
+Use current logging/audit patterns.
+
+--------------------------------------------------
+STEP 10 — EXTEND APIs ONLY AS NEEDED
+--------------------------------------------------
+
+Keep API changes minimal and focused on hardening.
+
+Review and update, if needed:
+- POST /api/synqcomm/email/send
+- POST /api/synqcomm/email/delivery-status
+- GET /api/synqcomm/conversations/{conversationId}/email-delivery
+
+Potential improvements:
+- clearer callback contract DTO
+- internal-only authorization model for delivery-status
+- richer response/diagnostic metadata on send for internal troubleshooting
+- clearer error contract for unmatched delivery events
+
+Do not add unrelated admin or UI endpoints.
+
+--------------------------------------------------
+STEP 11 — DATABASE / PERSISTENCE CHANGES
+--------------------------------------------------
+
+Only add persistence changes if genuinely needed for hardening.
+
+Possible additions, only if required:
+- idempotency/correlation support fields or indexes
+- stronger unique/index constraints for callback matching
+- additional diagnostics fields on EmailDeliveryState
+- notificationsRequestId indexing if not already sufficient
+
+Examples of useful indexes if not already present:
+- IX_EmailDelivery_TenantId_NotificationsRequestId
+- IX_EmailDelivery_TenantId_ProviderMessageId
+- IX_EmailRefs_TenantId_InternetMessageId
+- IX_EmailRefs_TenantId_MessageId
+
+Do not add speculative schema.
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema/index changes if any are added.
+
+--------------------------------------------------
+STEP 12 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend or validate the existing audit integration for E2E integration events.
+
+Required audit coverage where feasible:
+- outbound email requested
+- outbound email queued/sent/delivered/failed/bounced
+- duplicate callback ignored
+- unmatched callback received
+- callback rejected due to auth/integration rule
+- Notifications unavailable / outbound request failed
+- sender/template/recipient/attachment metadata resolution already captured as needed
+- correlation identifiers included where appropriate
+
+If the existing audit events are already sufficient, confirm and document that.
+If not, extend them cleanly.
+
+--------------------------------------------------
+STEP 13 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include integration-focused tests.
+
+Minimum required test coverage:
+
+Test 1 — Outbound Payload Contract
+- send outbound email
+- verify Notifications client receives correct sender/template/threading/recipient/attachment payload
+
+Test 2 — Successful Delivery Lifecycle
+- queued -> sent -> delivered
+- verify SynqComm delivery state transitions correctly
+
+Test 3 — Failed Delivery Lifecycle
+- queued -> failed or bounced
+- verify SynqComm stores failure metadata correctly
+
+Test 4 — Duplicate Callback Idempotency
+- same delivery callback processed twice
+- verify no duplicate/corrupt state
+
+Test 5 — Out-of-Order Callback Safety
+- delivered arrives before sent or duplicate terminal state arrives
+- verify safe handling per documented rules
+
+Test 6 — Unmatched Callback Handling
+- callback with unknown providerMessageId/internetMessageId
+- verify safe reject or logged gap behavior
+
+Test 7 — Notifications Unavailable / Send Failure
+- Notifications client fails or returns invalid response
+- verify outbound request fails safely and audit/error handling occurs
+
+Test 8 — Internal Callback Auth Protection
+- unauthorized caller cannot hit delivery-status endpoint
+- authorized/internal path succeeds
+
+Test 9 — Sender/Template/Attachment Propagation
+- sender config + template + attachments used on outbound
+- verify correct propagation through Notifications contract
+
+Test 10 — BCC Confidentiality Preserved
+- BCC present in Notifications payload
+- verify BCC still absent from visible SynqComm APIs
+
+Test 11 — Prior Threading Regression
+- verify inbound/outbound threading behavior from earlier blocks still works after hardening
+
+Prefer:
+- service-layer + HTTP integration-style tests
+- mocked Notifications client where needed
+- real endpoint authorization tests where feasible
+- if Notifications service exists in repo and is runnable, add contract/integration tests against its API shape
+
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 14 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Notifications remains the outbound delivery engine
+- end-to-end send + callback path is validated and hardened
+- idempotency protections are in place
+- callback authentication/internal protection is improved
+- sender/template/threading/recipient/attachment propagation is verified
+- no unrelated product/UI features were added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves SynqComm, Notifications, and Documents boundaries.
+
+## Notifications Contract Validation
+Explain what payload/response contract was validated or improved.
+
+## Delivery Reconciliation Design
+Explain how callbacks are correlated, normalized, and protected.
+
+## Idempotency and Duplicate Protection
+Explain what safeguards were added.
+
+## Internal Callback Security
+Explain how the delivery-status endpoint is protected.
+
+## Diagnostics and Error Handling
+Explain the operational hardening added.
+
+## Audit Integration
+Explain which end-to-end integration events are now captured.
+
+## Database Changes
+Explain any schema/index/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-03-BLK-001 — Operational Queues, Assignment, and SLA Tracking
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST preserve Notifications as the outbound delivery engine
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit/logging pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on end-to-end Notifications integration validation and hardening
+- MUST NOT add unrelated UI or workflow features
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- validated outbound contract with Notifications
+- hardened delivery-status reconciliation
+- idempotent duplicate-safe callback handling
+- stronger internal protection for delivery-status integration
+- verified sender/template/recipient/attachment propagation
+- improved operational diagnostics
+- automated tests proving the end-to-end integration behavior
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-02-BLK-005-report.md

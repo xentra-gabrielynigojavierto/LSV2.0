@@ -1,0 +1,118 @@
+Generate the EF Core implementation and migration plan for the identity/core schema of a tenant-aware, multi-organization, product-role platform.
+
+Use this schema design as the baseline, with these required corrections:
+
+CORRECTION 1:
+- Subdomain routing must remain tenant-based, not organization-based.
+- Do NOT use OrganizationDomains as the primary subdomain routing table.
+- Add either:
+  - a TenantDomains table, or
+  - tenant-level subdomain/domain fields on Tenants
+- OrganizationDomains may still be used for organization-owned email domains or future custom domains, but tenant subdomain resolution must happen at the tenant layer.
+
+CORRECTION 2:
+- SynqLien role mapping must reflect the business model:
+  - PROVIDER -> SYNQLIEN_SELLER
+  - LIEN_OWNER -> SYNQLIEN_BUYER
+  - LIEN_OWNER -> SYNQLIEN_HOLDER
+
+Important architectural rules:
+- Tenant remains the account boundary and subdomain boundary
+- Organization remains the business actor inside a tenant
+- Users remain separate from Parties
+- Product access is separate from ProductRole
+- ProductRole is separate from Capability
+- authorization must resolve through organization membership, product role, and capability
+- Roles/UserRoles may remain for admin/UI convenience and backward compatibility
+- Users.TenantId may remain temporarily during migration, but UserOrganizationMemberships becomes the primary organization access model
+
+Current schema direction to implement:
+- keep existing Tenants
+- keep existing Products
+- keep existing TenantProducts
+- keep existing Users
+- keep existing Roles
+- keep existing UserRoles
+- add Organizations
+- add tenant-level domain support
+- add OrganizationDomains if needed for org email/custom domains
+- add OrganizationProducts
+- add ProductRoles
+- add Capabilities
+- add RoleCapabilities
+- add UserOrganizationMemberships
+- add UserRoleAssignments
+
+Generate the output in these exact sections:
+
+1. EF Core Entity Plan
+- list each entity class to create or update
+- show which are new vs existing
+- note which entities use composite keys
+- note which entities are pure joins vs joins with payload
+
+2. DbContext and Configuration Plan
+- show which DbSet properties need to be added or updated
+- describe all IEntityTypeConfiguration classes needed
+- specify key relationships and delete behaviors
+- specify unique indexes and important query indexes
+
+3. Migration Plan
+- give the migration sequence in order
+- separate:
+  - additive migrations
+  - seed data migrations
+  - cleanup/deprecation migrations
+- explicitly include the stale Applications table cleanup in identity_db
+
+4. Concrete Table Changes
+For each existing table that changes, specify:
+- what stays
+- what changes
+- what remains temporary for backward compatibility
+
+For each new table, specify:
+- key columns
+- foreign keys
+- important indexes
+- any seed data dependencies
+
+5. Seed Data Implementation Plan
+- generate the initial seed data strategy for:
+  - Products (reuse existing where possible)
+  - ProductRoles
+  - Capabilities
+  - RoleCapabilities
+  - system Roles if needed
+- include corrected SynqLien mappings
+- include CareConnect and SynqFund roles and capabilities
+- explain whether seeding should be done in EF migrations, DbContext model seeding, or application startup
+
+6. Backfill Plan
+- explain how to backfill Organizations for existing tenants
+- explain how to backfill UserOrganizationMemberships for existing users
+- explain how to handle tenants with no obvious org type yet
+- explain how to preserve login behavior during transition
+
+7. Auth / JWT Integration Notes
+- specify exactly what new claims should be added
+- specify how login should resolve:
+  - tenant
+  - primary organization membership
+  - enabled organization products
+  - product roles
+- clarify what is computed into the JWT and what is resolved at request time
+- keep capabilities out of the JWT unless you strongly justify otherwise
+
+8. Open Issues / Recommended Decisions
+- identify the most important decisions still not fully closed
+- call out any risks in using Users.TenantId temporarily
+- call out any future step needed for multi-organization-per-user session switching
+
+Implementation requirements:
+- target EF Core with MySQL
+- prefer explicit entity configuration classes
+- use Guid/char(36) compatibility with the current schema style
+- preserve backward compatibility where practical
+- do not remove existing auth behavior in the first migration wave
+- make the output implementation-oriented, not just conceptual

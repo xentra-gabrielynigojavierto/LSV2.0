@@ -1,0 +1,221 @@
+Implement the Identity service for the LegalSynq .NET monorepo using .NET 8, EF Core, and MySQL.
+
+Existing context
+
+The monorepo already has:
+
+apps/services/identity/Identity.Api
+apps/services/identity/Identity.Application
+apps/services/identity/Identity.Domain
+apps/services/identity/Identity.Infrastructure
+shared/contracts/Contracts
+shared/building-blocks/BuildingBlocks
+Goal
+
+Add MySQL + EF Core support and implement the initial Identity data model for:
+
+Tenants
+Users
+Roles
+UserRoles
+Products
+TenantProducts
+Requirements
+1. Add required NuGet packages
+
+Use the latest stable versions compatible with .NET 8 for:
+
+Microsoft.EntityFrameworkCore
+Microsoft.EntityFrameworkCore.Design
+Pomelo.EntityFrameworkCore.MySql
+
+Only add packages where needed:
+
+Identity.Infrastructure
+Identity.Api if needed for migrations startup
+2. Create Domain entities
+
+Create the following entities in Identity.Domain:
+
+Tenant
+User
+Role
+UserRole
+Product
+TenantProduct
+Entity rules
+Tenant
+
+Properties:
+
+Id (Guid)
+Name
+Code
+IsActive
+CreatedAtUtc
+UpdatedAtUtc
+User
+
+Properties:
+
+Id (Guid)
+TenantId (Guid)
+Email
+PasswordHash
+FirstName
+LastName
+IsActive
+CreatedAtUtc
+UpdatedAtUtc
+Role
+
+Properties:
+
+Id (Guid)
+TenantId (Guid nullable or non-nullable based on design choice)
+Name
+Description
+IsSystemRole
+CreatedAtUtc
+UpdatedAtUtc
+UserRole
+
+Properties:
+
+UserId
+RoleId
+AssignedAtUtc
+Product
+
+Properties:
+
+Id (Guid)
+Name
+Code
+Description
+IsActive
+CreatedAtUtc
+TenantProduct
+
+Properties:
+
+TenantId
+ProductId
+IsEnabled
+EnabledAtUtc
+3. Add EF Core DbContext
+
+Create IdentityDbContext in Identity.Infrastructure.
+
+Requirements:
+
+map all entities
+use Fluent API
+define primary keys
+define unique indexes:
+Tenant.Code unique
+User.Email unique within Tenant
+Role.Name unique within Tenant
+Product.Code unique
+define relationships
+use table names:
+Tenants
+Users
+Roles
+UserRoles
+Products
+TenantProducts
+4. Add configuration classes
+
+Use IEntityTypeConfiguration<T> classes in Infrastructure for each entity.
+
+5. Add database registration
+
+In Identity.Api, register IdentityDbContext with MySQL.
+
+Use configuration like:
+
+ConnectionStrings:IdentityDb
+
+Use ServerVersion.AutoDetect(connectionString).
+
+6. Add appsettings
+
+Update:
+
+appsettings.json
+appsettings.Development.json
+
+Use placeholder connection string:
+
+server=localhost;port=3306;database=identity_db;user=root;password=yourpassword
+7. Add startup database migration support
+
+In Program.cs, add optional automatic migration on startup for Development only.
+
+8. Add initial migration
+
+Create the first migration for the Identity schema.
+
+Migration name:
+
+InitialIdentitySchema
+9. Add seed data
+
+Seed the following:
+
+Products:
+SynqFund
+SynqLiens
+SynqCareConnect
+SynqPay
+SynqAI
+One default tenant:
+Name: LegalSynq Internal
+Code: LEGALSYNQ
+System roles for that tenant:
+PlatformAdmin
+TenantAdmin
+StandardUser
+
+Use deterministic GUIDs or a clean seed strategy.
+
+10. Add minimal API endpoints
+
+Add these endpoints in Identity.Api:
+
+GET /health
+GET /info
+GET /api/tenants
+GET /api/products
+
+Use simple DTOs, not domain entities directly.
+
+11. Keep boundaries clean
+Domain contains entities only
+Infrastructure contains EF Core
+Api contains endpoints and DI wiring
+Application can remain minimal for now but should be referenced correctly
+12. Do NOT add yet
+JWT issuing
+login endpoint
+password hashing implementation
+refresh tokens
+permissions matrix
+external auth providers
+13. Output
+
+Provide:
+
+all files created/updated
+package commands used
+migration commands used
+how to run the service
+expected database tables
+
+Important:
+
+keep naming clean and enterprise-ready
+use UTC timestamps
+use MySQL-compatible types
+use Guid keys consistently

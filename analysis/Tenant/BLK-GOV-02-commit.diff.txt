@@ -1,0 +1,539 @@
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs
+index f4165776..42332851 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/ActivationAdminEndpoints.cs
+@@ -4,6 +4,8 @@
+ // GET  /api/admin/activations          — list pending activation requests
+ // GET  /api/admin/activations/{id}     — detail for one activation request
+ // POST /api/admin/activations/{id}/approve — approve + link provider to org
++//
++// BLK-GOV-02: Uses AdminTenantScope helpers — replaces inline manual tenant checks.
+ using BuildingBlocks.Authorization;
+ using BuildingBlocks.Context;
+ using CareConnect.Application.DTOs;
+@@ -37,71 +39,65 @@ public static class ActivationAdminEndpoints
+ 
+     // ── Handlers ──────────────────────────────────────────────────────────────
+ 
+-    // BLK-SEC-02: TenantAdmin callers are scoped to their own tenant.
+-    // PlatformAdmin sees the full platform-wide queue.
++    // BLK-GOV-02: AdminTenantScope.PlatformWide — PlatformAdmin sees all; TenantAdmin filtered.
+     private static async Task<IResult> GetPendingAsync(
+         IActivationRequestService service,
+         ICurrentRequestContext    ctx,
++        HttpContext               http,
+         CancellationToken         ct)
+     {
++        var scope = AdminTenantScope.PlatformWide(ctx, http);
++        if (scope.IsError) return scope.Error!;
++
+         var items = await service.GetPendingAsync(ct);
+ 
+         // Non-PlatformAdmin: filter to caller's tenant only.
+-        if (!ctx.IsPlatformAdmin)
+-        {
+-            var callerTenantId = ctx.TenantId
+-                ?? throw new InvalidOperationException("tenant_id claim is missing.");
+-            items = items.Where(i => i.TenantId == callerTenantId).ToList();
+-        }
++        if (!scope.IsPlatformWide)
++            items = items.Where(i => i.TenantId == scope.TenantId!.Value).ToList();
+ 
+         return Results.Ok(new { items, count = items.Count });
+     }
+ 
+-    // BLK-SEC-02: TenantAdmin may only retrieve activation requests for their own tenant.
++    // BLK-GOV-02: AdminTenantScope.CheckOwnership — TenantAdmin may only retrieve their own tenant's requests.
+     private static async Task<IResult> GetByIdAsync(
+         Guid                      id,
+         IActivationRequestService service,
+         ICurrentRequestContext    ctx,
++        HttpContext               http,
+         CancellationToken         ct)
+     {
+         var detail = await service.GetByIdAsync(id, ct);
+         if (detail is null)
+             return Results.NotFound(new { error = $"ActivationRequest '{id}' was not found." });
+ 
+-        // Non-PlatformAdmin: reject cross-tenant access.
+-        if (!ctx.IsPlatformAdmin)
+-        {
+-            var callerTenantId = ctx.TenantId
+-                ?? throw new InvalidOperationException("tenant_id claim is missing.");
+-            if (detail.TenantId != callerTenantId)
+-                return Results.Forbid();
+-        }
++        var deny = AdminTenantScope.CheckOwnership(ctx, detail.TenantId, http);
++        if (deny is not null) return deny;
+ 
+         return Results.Ok(detail);
+     }
+ 
+-    // BLK-SEC-02: TenantAdmin may only approve activation requests for their own tenant.
++    // BLK-GOV-02: AdminTenantScope.CheckOwnership — TenantAdmin may only approve their own tenant's requests.
+     private static async Task<IResult> ApproveAsync(
+         Guid                      id,
+         [FromBody] ApproveActivationRequest request,
+         IActivationRequestService service,
+         ICurrentRequestContext    ctx,
++        HttpContext               http,
+         CancellationToken         ct)
+     {
+         if (request.OrganizationId == Guid.Empty)
+             return Results.BadRequest(new { error = "organizationId is required and must be a valid GUID." });
+ 
+-        // Non-PlatformAdmin: verify the activation request belongs to the caller's tenant
++        // For non-PlatformAdmin: verify the activation request belongs to the caller's tenant
+         // before executing the approval.
+         if (!ctx.IsPlatformAdmin)
+         {
+-            var callerTenantId = ctx.TenantId
+-                ?? throw new InvalidOperationException("tenant_id claim is missing.");
+             var detail = await service.GetByIdAsync(id, ct);
+             if (detail is null)
+                 return Results.NotFound(new { error = $"ActivationRequest '{id}' was not found." });
+-            if (detail.TenantId != callerTenantId)
+-                return Results.Forbid();
++
++            var deny = AdminTenantScope.CheckOwnership(ctx, detail.TenantId, http);
++            if (deny is not null) return deny;
+         }
+ 
+         var result = await service.ApproveAsync(id, request.OrganizationId, ctx.UserId, ct);
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/AdminBackfillEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/AdminBackfillEndpoints.cs
+index 3d4d7ac6..c4d071a8 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/AdminBackfillEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/AdminBackfillEndpoints.cs
+@@ -1,4 +1,6 @@
+ // LSCC-002-01: Admin appointment org-ID backfill endpoint.
++// BLK-GOV-01: Added PlatformAdmin path with required ?tenantId query parameter.
++// BLK-GOV-02: Migrated to AdminTenantScope.SingleTenant — removes inline branching.
+ using BuildingBlocks.Authorization;
+ using BuildingBlocks.Context;
+ using CareConnect.Infrastructure.Data;
+@@ -22,14 +24,15 @@ namespace CareConnect.Api.Endpoints;
+ ///   - Safe:          appointments whose parent Referral also has NULL org IDs are counted
+ ///                    as "unresolved" and left unchanged.
+ ///
++/// Authorization: PlatformOrTenantAdmin.
++///   PlatformAdmin must supply ?tenantId=&lt;guid&gt; (SingleTenant mode — one tenant at a time).
++///   TenantAdmin is automatically scoped to their own tenant.
++///
+ /// Response (always 200):
+ ///   updated    — appointments that had at least one NULL org ID and were backfilled.
+ ///   skipped    — appointments whose parent Referral also had NULL org IDs (no action possible).
+ ///   alreadySet — appointments already having both org IDs (not touched).
+-///
+-/// Authorization: PlatformOrTenantAdmin.
+ /// </summary>
+-// LSCC-002-01: POST /api/admin/appointments/backfill-org-ids
+ public static class AdminBackfillEndpoints
+ {
+     public static IEndpointRouteBuilder MapAdminBackfillEndpoints(
+@@ -43,30 +46,17 @@ public static class AdminBackfillEndpoints
+     }
+ 
+     // LSCC-002-01: Walk legacy appointments with missing org IDs; copy from parent Referral.
+-    // BLK-GOV-01: PlatformAdmin must supply ?tenantId=<guid> — operation is always tenant-scoped.
+-    //             TenantAdmin is automatically scoped to their own tenant.
++    // BLK-GOV-02: AdminTenantScope.SingleTenant — PlatformAdmin requires ?tenantId; TenantAdmin auto-scoped.
+     private static async Task<IResult> BackfillAppointmentOrgIdsAsync(
+         CareConnectDbContext    db,
+-        ICurrentRequestContext ctx,
+-        [FromQuery] Guid?      tenantId,
+-        CancellationToken      ct)
++        ICurrentRequestContext  ctx,
++        [FromQuery] Guid?       tenantId,
++        HttpContext             http,
++        CancellationToken       ct)
+     {
+-        Guid scopeTenantId;
+-        if (ctx.IsPlatformAdmin)
+-        {
+-            if (!tenantId.HasValue)
+-                return Results.BadRequest(new
+-                {
+-                    error = "PlatformAdmin must supply ?tenantId=<guid>. " +
+-                            "This endpoint operates on a single tenant at a time.",
+-                });
+-            scopeTenantId = tenantId.Value;
+-        }
+-        else
+-        {
+-            scopeTenantId = ctx.TenantId
+-                ?? throw new InvalidOperationException("tenant_id claim is missing.");
+-        }
++        var scope = AdminTenantScope.SingleTenant(ctx, tenantId, http);
++        if (scope.IsError) return scope.Error!;
++        var scopeTenantId = scope.TenantId!.Value;
+ 
+         // Load all appointments where at least one org ID is missing.
+         var candidates = await db.Appointments
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs
+index 210b02cb..ecd32830 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/AdminDashboardEndpoints.cs
+@@ -7,9 +7,8 @@
+ //   GET /api/admin/referrals               — referral monitor (platform-wide for PlatformAdmin,
+ //                                            tenant-scoped for TenantAdmin)
+ //
+-// All endpoints require PlatformOrTenantAdmin.  They query CareConnectDbContext
+-// directly (no application-layer service needed — queries are purely read-only
+-// projections with no domain behaviour).
++// All endpoints require PlatformOrTenantAdmin.
++// BLK-GOV-02: Uses AdminTenantScope helpers — replaces fragile inline ternaries.
+ using BuildingBlocks.Authorization;
+ using BuildingBlocks.Context;
+ using CareConnect.Infrastructure.Data;
+@@ -44,36 +43,28 @@ public static class AdminDashboardEndpoints
+     // ──────────────────────────────────────────────────────────────────────────
+     // GET /api/admin/dashboard
+     // ──────────────────────────────────────────────────────────────────────────
+-    // Returns aggregate counts over rolling 24-hour and 7-day windows:
+-    //   - referralCountToday / referralCountLast7Days
+-    //   - blockedAccessCountToday / blockedAccessCountLast7Days
+-    //   - distinctBlockedUsersToday
+-    //   - openReferrals (status ∈ {New, Accepted, InProgress})
+-    //
+-    // BLK-SEC-02: PlatformAdmin sees platform-wide aggregates.
+-    //             TenantAdmin is scoped to their own tenant (tenant_id JWT claim).
++    // Returns aggregate counts over rolling 24-hour and 7-day windows.
++    // BLK-GOV-02: PlatformAdmin sees platform-wide (null scope); TenantAdmin scoped.
+     private static async Task<IResult> GetDashboardAsync(
+         CareConnectDbContext    db,
+         ICurrentRequestContext  ctx,
++        HttpContext             http,
+         CancellationToken       ct)
+     {
++        var scope = AdminTenantScope.PlatformWide(ctx, http);
++        if (scope.IsError) return scope.Error!;
++
+         var now    = DateTime.UtcNow;
+         var today  = now.AddHours(-24);
+         var week   = now.AddDays(-7);
+ 
+-        // BLK-SEC-02: Derive optional tenant scope from the caller's JWT claim.
+-        // PlatformAdmin → null (platform-wide).  TenantAdmin → their tenant GUID.
+-        Guid? scopeTenantId = ctx.IsPlatformAdmin
+-            ? null
+-            : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
+-
+         var referralQuery = db.Referrals.AsQueryable();
+         var blockedQuery  = db.BlockedProviderAccessLogs.AsQueryable();
+ 
+-        if (scopeTenantId.HasValue)
++        if (scope.TenantId.HasValue)
+         {
+-            referralQuery = referralQuery.Where(r => r.TenantId == scopeTenantId.Value);
+-            blockedQuery  = blockedQuery.Where(l => l.TenantId == scopeTenantId.Value);
++            referralQuery = referralQuery.Where(r => r.TenantId == scope.TenantId.Value);
++            blockedQuery  = blockedQuery.Where(l => l.TenantId == scope.TenantId.Value);
+         }
+ 
+         var referralToday   = await referralQuery.CountAsync(r => r.CreatedAtUtc >= today, ct);
+@@ -105,22 +96,20 @@ public static class AdminDashboardEndpoints
+     // GET /api/admin/providers/blocked
+     // ──────────────────────────────────────────────────────────────────────────
+     // Returns the most-recent blocked-access log entry per (UserId, FailureReason)
+-    // pair, with an attempt count over the last 7 days.  Supports pagination via
+-    // ?page=1&pageSize=25 and an optional ?since=<ISO-datetime> window filter.
+-    //
+-    // Remediation link is returned as a relative path so the frontend can
+-    // construct the full URL without knowing the host:
+-    //   remediationPath: /careconnect/admin/providers/provisioning?userId=<id>
+-    // BLK-SEC-02: TenantAdmin is scoped to their own tenant.
+-    // PlatformAdmin sees platform-wide blocked-access logs.
++    // pair, with an attempt count over the last 7 days.
++    // BLK-GOV-02: PlatformAdmin platform-wide; TenantAdmin scoped.
+     private static async Task<IResult> GetBlockedProvidersAsync(
+         CareConnectDbContext    db,
+         ICurrentRequestContext  ctx,
++        HttpContext             http,
+         [FromQuery] int         page     = 1,
+         [FromQuery] int         pageSize = 25,
+         [FromQuery] string?     since    = null,
+         CancellationToken       ct       = default)
+     {
++        var scope = AdminTenantScope.PlatformWide(ctx, http);
++        if (scope.IsError) return scope.Error!;
++
+         page     = Math.Max(1, page);
+         pageSize = Math.Clamp(pageSize, 1, 100);
+ 
+@@ -128,16 +117,9 @@ public static class AdminDashboardEndpoints
+             ? parsedSince.ToUniversalTime()
+             : DateTime.UtcNow.AddDays(-7);
+ 
+-        // BLK-SEC-02: Scope to caller's tenant for non-PlatformAdmin.
+-        Guid? scopeTenantId = ctx.IsPlatformAdmin
+-            ? null
+-            : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
+-
+-        // Group by UserId+FailureReason to produce one row per unique block reason.
+-        // Take the most recent log row from each group for the display columns.
+         var baseQuery = db.BlockedProviderAccessLogs.AsQueryable();
+-        if (scopeTenantId.HasValue)
+-            baseQuery = baseQuery.Where(l => l.TenantId == scopeTenantId.Value);
++        if (scope.TenantId.HasValue)
++            baseQuery = baseQuery.Where(l => l.TenantId == scope.TenantId.Value);
+ 
+         var query = baseQuery
+             .Where(l => l.AttemptedAtUtc >= window)
+@@ -201,9 +183,13 @@ public static class AdminDashboardEndpoints
+     //   ?status=New|Accepted|InProgress|Completed|Declined|Cancelled
+     //   ?tenantId=<guid>  (PlatformAdmin only; ignored for TenantAdmin)
+     //   ?since=<ISO-datetime>
++    //
++    // BLK-GOV-02: PlatformWide scope applied; optional tenantId filter for PlatformAdmin.
++    //             TenantAdmin callerTenantId override is always ignored for safety.
+     private static async Task<IResult> GetAdminReferralsAsync(
+         CareConnectDbContext    db,
+         ICurrentRequestContext  ctx,
++        HttpContext             http,
+         [FromQuery] int      page     = 1,
+         [FromQuery] int      pageSize = 25,
+         [FromQuery] string?  status   = null,
+@@ -211,6 +197,9 @@ public static class AdminDashboardEndpoints
+         [FromQuery] string?  since    = null,
+         CancellationToken    ct       = default)
+     {
++        var scope = AdminTenantScope.PlatformWide(ctx, http);
++        if (scope.IsError) return scope.Error!;
++
+         page     = Math.Max(1, page);
+         pageSize = Math.Clamp(pageSize, 1, 100);
+ 
+@@ -222,18 +211,11 @@ public static class AdminDashboardEndpoints
+         if (!string.IsNullOrWhiteSpace(status))
+             query = query.Where(r => r.Status == status);
+ 
+-        if (ctx.IsPlatformAdmin)
+-        {
+-            // PlatformAdmin may optionally narrow to a specific tenant.
+-            if (tenantId.HasValue)
+-                query = query.Where(r => r.TenantId == tenantId.Value);
+-        }
+-        else
+-        {
+-            // TenantAdmin is always scoped to their own tenant — ignore caller-supplied tenantId.
+-            var callerTenantId = ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing.");
+-            query = query.Where(r => r.TenantId == callerTenantId);
+-        }
++        // PlatformAdmin: optional ?tenantId narrow.
++        // TenantAdmin:   always forced to own tenant (scope.TenantId); caller-supplied tenantId ignored.
++        var appliedTenantId = scope.IsPlatformWide ? tenantId : scope.TenantId;
++        if (appliedTenantId.HasValue)
++            query = query.Where(r => r.TenantId == appliedTenantId.Value);
+ 
+         if (since is not null && DateTime.TryParse(since, out var parsedSince))
+             query = query.Where(r => r.CreatedAtUtc >= parsedSince.ToUniversalTime());
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs
+index 2519aef6..ac9e2ee2 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs
+@@ -2,8 +2,7 @@
+ // Route: GET /api/admin/analytics/funnel
+ // Auth:  PlatformOrTenantAdmin
+ // Query: ?days=7|30|90  OR  ?startDate=yyyy-MM-dd&endDate=yyyy-MM-dd
+-// BLK-SEC-02-01: TenantAdmin callers are scoped to their own tenant.
+-//                PlatformAdmin sees platform-wide funnel metrics.
++// BLK-GOV-02: Uses AdminTenantScope.PlatformWide — replaces inline ternary.
+ using BuildingBlocks.Authorization;
+ using BuildingBlocks.Context;
+ using CareConnect.Application.Interfaces;
+@@ -26,15 +25,16 @@ public static class AnalyticsEndpoints
+             [FromQuery] string?               endDate,
+             IActivationFunnelAnalyticsService analytics,
+             ICurrentRequestContext            ctx,
++            HttpContext                       http,
+             CancellationToken                 ct) =>
+         {
+-            // BLK-SEC-02-01: Scope to caller's tenant for non-PlatformAdmin.
+-            Guid? scopeTenantId = ctx.IsPlatformAdmin
+-                ? null
+-                : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
++            // BLK-GOV-02: PlatformAdmin sees platform-wide funnel (null scope).
++            //             TenantAdmin is scoped to their own tenant.
++            var scope = AdminTenantScope.PlatformWide(ctx, http);
++            if (scope.IsError) return scope.Error!;
+ 
+             var (from, to) = ResolveRange(days, startDate, endDate);
+-            var metrics = await analytics.GetMetricsAsync(from, to, scopeTenantId, ct);
++            var metrics = await analytics.GetMetricsAsync(from, to, scope.TenantId, ct);
+             return Results.Ok(metrics);
+         });
+     }
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs
+index 94decd74..b6d4c7b2 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs
+@@ -6,7 +6,7 @@
+ //       since=<ISO>  — explicit UTC start (overrides days if both provided)
+ //
+ //   Auth: PlatformOrTenantAdmin only
+-//   BLK-SEC-02-01: TenantAdmin scoped to their own tenant; PlatformAdmin sees platform-wide.
++//   BLK-GOV-02: Uses AdminTenantScope.PlatformWide — replaces inline ternary.
+ //
+ // Response includes:
+ //   - summary (totalReferrals, acceptedReferrals, acceptanceRate, avgTimeToAcceptHours,
+@@ -46,6 +46,7 @@ public static class PerformanceEndpoints
+     private static async Task<IResult> GetPerformanceAsync(
+         IReferralPerformanceService perf,
+         ICurrentRequestContext      ctx,
++        HttpContext                 http,
+         [FromQuery] string?         since    = null,
+         [FromQuery] int             days     = 7,
+         CancellationToken           ct       = default)
+@@ -64,12 +65,12 @@ public static class PerformanceEndpoints
+             windowFrom = nowUtc.AddDays(-clampedDays);
+         }
+ 
+-        // BLK-SEC-02-01: Scope to caller's tenant for non-PlatformAdmin.
+-        Guid? scopeTenantId = ctx.IsPlatformAdmin
+-            ? null
+-            : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
++        // BLK-GOV-02: PlatformAdmin sees platform-wide (null scope).
++        //             TenantAdmin is scoped to their own tenant.
++        var scope = AdminTenantScope.PlatformWide(ctx, http);
++        if (scope.IsError) return scope.Error!;
+ 
+-        var result = await perf.GetPerformanceAsync(windowFrom, scopeTenantId, ct);
++        var result = await perf.GetPerformanceAsync(windowFrom, scope.TenantId, ct);
+ 
+         return Results.Ok(new
+         {
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs
+index abd15929..876cffcd 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs
+@@ -2,6 +2,9 @@
+ // LSCC-002-01: Extended with unlinked-list and bulk-link endpoints.
+ // LSCC-01-003: Extended with CareConnect receiver activation endpoint.
+ // BLK-OBS-01: Audit events added for activate-for-careconnect and link-organization.
++// BLK-GOV-02: Uses AdminTenantScope helpers — fixes PlatformAdmin missing-tenantId 500
++//             on link-organization, get-unlinked, and bulk-link-organization.
++//             ActivateForCareConnect uses CheckOwnership for TenantAdmin boundary.
+ using BuildingBlocks.Authorization;
+ using BuildingBlocks.Context;
+ using CareConnect.Application.Interfaces;
+@@ -22,8 +25,9 @@ namespace CareConnect.Api.Endpoints;
+ /// POST /api/admin/providers/{id}/activate-for-careconnect   — idempotent CC receiver activation (LSCC-01-003)
+ ///
+ /// All operations are explicit, idempotent, and require PlatformOrTenantAdmin.
++/// PlatformAdmin must supply ?tenantId=&lt;guid&gt; for single-tenant operations (SingleTenant mode).
++/// TenantAdmin is automatically scoped to their own tenant.
+ /// </summary>
+-// LSCC-002-01: Provider bulk backfill admin tooling
+ public static class ProviderAdminEndpoints
+ {
+     public static IEndpointRouteBuilder MapProviderAdminEndpoints(
+@@ -52,18 +56,21 @@ public static class ProviderAdminEndpoints
+     }
+ 
+     // LSCC-002: Single provider org-link backfill — idempotent, explicit.
++    // BLK-GOV-02: SingleTenant — PlatformAdmin must supply ?tenantId; TenantAdmin auto-scoped.
+     // BLK-OBS-01: emits careconnect.provider.org-linked audit event.
+     private static async Task<IResult> LinkOrganizationAsync(
+-        Guid                 id,
++        Guid                            id,
+         [FromBody] LinkOrganizationRequest request,
+-        IProviderService     service,
+-        ICurrentRequestContext ctx,
+-        IAuditEventClient    auditClient,
+-        HttpContext          http,
+-        CancellationToken    ct)
++        [FromQuery] Guid?               targetTenantId,
++        IProviderService                service,
++        ICurrentRequestContext          ctx,
++        IAuditEventClient               auditClient,
++        HttpContext                     http,
++        CancellationToken               ct)
+     {
+-        var tenantId = ctx.TenantId
+-            ?? throw new InvalidOperationException("tenant_id claim is missing.");
++        var scope = AdminTenantScope.SingleTenant(ctx, targetTenantId, http);
++        if (scope.IsError) return scope.Error!;
++        var tenantId = scope.TenantId!.Value;
+ 
+         var result = await service.LinkOrganizationAsync(tenantId, id, request.OrganizationId, ct);
+ 
+@@ -82,32 +89,38 @@ public static class ProviderAdminEndpoints
+     }
+ 
+     // LSCC-002-01: Returns all active providers that have no OrganizationId.
++    // BLK-GOV-02: SingleTenant — PlatformAdmin must supply ?tenantId; TenantAdmin auto-scoped.
+     // Response: 200 { providers: [...], count: N }
+     private static async Task<IResult> GetUnlinkedAsync(
+         IProviderService       service,
+         ICurrentRequestContext ctx,
++        [FromQuery] Guid?      targetTenantId,
++        HttpContext            http,
+         CancellationToken      ct)
+     {
+-        var tenantId = ctx.TenantId
+-            ?? throw new InvalidOperationException("tenant_id claim is missing.");
++        var scope = AdminTenantScope.SingleTenant(ctx, targetTenantId, http);
++        if (scope.IsError) return scope.Error!;
++        var tenantId = scope.TenantId!.Value;
+ 
+         var providers = await service.GetUnlinkedProvidersAsync(tenantId, ct);
+         return Results.Ok(new { providers, count = providers.Count });
+     }
+ 
+     // LSCC-002-01: Bulk org-link from explicit mapping.
++    // BLK-GOV-02: SingleTenant — PlatformAdmin must supply ?tenantId; TenantAdmin auto-scoped.
+     // Body: { items: [{ providerId, organizationId }, ...] }
+     // Response: 200 { total, updated, skipped, unresolved }
+-    // Skipped   = provider already has an org ID (idempotent no-op per item).
+-    // Unresolved = provider ID not found in this tenant.
+     private static async Task<IResult> BulkLinkOrganizationAsync(
+         [FromBody] BulkLinkOrganizationRequest request,
+         IProviderService       service,
+         ICurrentRequestContext ctx,
++        [FromQuery] Guid?      targetTenantId,
++        HttpContext            http,
+         CancellationToken      ct)
+     {
+-        var tenantId = ctx.TenantId
+-            ?? throw new InvalidOperationException("tenant_id claim is missing.");
++        var scope = AdminTenantScope.SingleTenant(ctx, targetTenantId, http);
++        if (scope.IsError) return scope.Error!;
++        var tenantId = scope.TenantId!.Value;
+ 
+         if (request.Items is null || request.Items.Count == 0)
+             return Results.BadRequest("items must be a non-empty array.");
+@@ -122,9 +135,7 @@ public static class ProviderAdminEndpoints
+ 
+     // LSCC-01-003: Activate provider IsActive + AcceptingReferrals = true (idempotent).
+     // POST /api/admin/providers/{id}/activate-for-careconnect
+-    // Requires PlatformOrTenantAdmin.
+-    // BLK-SEC-02-01: TenantAdmin may only activate providers within their own tenant.
+-    //   PlatformAdmin may activate any provider (platform-wide tooling intent).
++    // BLK-GOV-02: CheckOwnership — PlatformAdmin may activate any; TenantAdmin only their own.
+     // BLK-OBS-01: emits careconnect.provider.activated audit event.
+     private static async Task<IResult> ActivateForCareConnectAsync(
+         Guid                   id,
+@@ -134,7 +145,7 @@ public static class ProviderAdminEndpoints
+         HttpContext            http,
+         CancellationToken      ct)
+     {
+-        // BLK-SEC-02-01: For non-PlatformAdmin, verify provider belongs to caller's tenant.
++        // BLK-GOV-02: For non-PlatformAdmin, verify provider belongs to caller's tenant.
+         if (!ctx.IsPlatformAdmin)
+         {
+             var callerTenantId = ctx.TenantId
+@@ -142,9 +153,12 @@ public static class ProviderAdminEndpoints
+ 
+             var provider = await service.GetByIdAsync(callerTenantId, id, ct);
+             // GetByIdAsync throws NotFoundException if provider is not found in the tenant —
+-            // that propagates as 404 through the global error handler, which is correct behavior.
+-            // An explicit 403 would confirm the provider exists in another tenant; 404 is safer.
++            // propagates as 404 through global error handler (correct; 403 would leak tenant info).
+             _ = provider; // ownership confirmed by scoped lookup
++
++            // Explicit cross-tenant ownership assertion via centralized guard.
++            var deny = AdminTenantScope.CheckOwnership(ctx, provider.TenantId, http);
++            if (deny is not null) return deny;
+         }
+ 
+         var result = await service.ActivateForCareConnectAsync(id, ct);

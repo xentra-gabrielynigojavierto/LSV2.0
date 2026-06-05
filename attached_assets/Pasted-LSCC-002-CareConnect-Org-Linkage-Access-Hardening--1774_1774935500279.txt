@@ -1,0 +1,366 @@
+LSCC-002 — CareConnect Org Linkage + Access Hardening
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-002
+
+Initial implementation report:
+- /analysis/LSCC-002-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-002-XX.md
+
+Examples:
+- /analysis/LSCC-002-report.md
+- /analysis/LSCC-002-01.md
+- /analysis/LSCC-002-02.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Harden CareConnect data visibility and access control so org-based scoping is actually functional and secure in real data.
+
+This implementation must solve the following:
+
+1. Providers are not properly linked to organizations
+2. Referral detail access can bypass org participation checks
+3. Appointment visibility is still too broad
+4. Scoping logic is inconsistent across list/detail flows
+
+Do NOT redesign the system.
+Do NOT add UI features.
+Do NOT expand into analytics or workflow redesign.
+Make precise, testable, incremental backend improvements.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Provider-to-organization linkage hardening
+B. Row-level referral access control
+C. Appointment org scoping
+D. Shared participant-scoping logic
+E. Focused tests
+F. Report
+
+Do NOT:
+- redesign frontend pages
+- add dashboards
+- change scheduling behavior beyond what is required for access control
+- modify unrelated products except where shared auth/types infrastructure requires it for compilation
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing architecture unless a change is required
+2. Separate:
+   - core logic / application services
+   - repository/query logic
+   - API/controller/endpoints
+3. Prefer centralized access helpers over duplicated endpoint logic
+4. No silent failures — define fallback behavior explicitly
+5. Keep changes incremental and compile-safe
+6. Do NOT delete legacy code aggressively unless clearly dead and safe
+7. If existing data is incomplete, handle it explicitly and document it
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-001 already implemented:
+- capability-based authorization
+- canonical statuses
+- referral list org scoping
+- canonical provider availability endpoint
+
+Known remaining gaps from LSCC-001:
+- all 14 active providers reportedly have `OrganizationId = null`
+- `GET /api/referrals/{id}` does not enforce org participant access
+- appointment reads are still tenant-visible instead of org-scoped
+- referral list scoping may be logically correct but not functional until provider/org linkage is populated
+
+Treat LSCC-001 as the current baseline.
+Build on it. Do not rework unrelated LSCC-001 behavior unless needed for correctness.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. PROVIDER-TO-ORGANIZATION LINKAGE HARDENING
+--------------------------------------------------
+
+Implement a reliable path for linking providers to organizations so org-based scoping can function in production data.
+
+Requirements:
+
+1. Identify how provider-to-organization linkage is currently represented in the data model.
+2. Make provider organization linkage enforceable going forward.
+3. Provide a practical backfill path for existing providers with null organization linkage.
+
+Acceptable implementation approaches:
+- migration script
+- admin-only API endpoint/service
+- seed/backfill job
+- a combination of the above
+
+Minimum required outcome:
+- there is a clear, deterministic way to populate `Provider.OrganizationId`
+- new or updated providers cannot remain invalid if project conventions allow enforcing this now
+- existing null-linked providers are addressed through an explicit compatibility/backfill strategy
+
+Rules:
+- preserve current tenant boundaries
+- do not guess organization mappings without a deterministic rule
+- if deterministic auto-linking is impossible, implement an explicit admin mapping path and document manual steps
+
+Fallback behavior:
+- a provider with no valid organization linkage must NOT widen access
+- such providers should be excluded from org-sensitive access flows where necessary
+- log or surface the condition in a way consistent with project conventions
+
+--------------------------------------------------
+B. ROW-LEVEL REFERRAL ACCESS CONTROL
+--------------------------------------------------
+
+Harden referral detail access for:
+
+GET /api/referrals/{id}
+
+Expected behavior:
+- allow if caller is PlatformAdmin
+- allow if caller is TenantAdmin and current platform conventions allow broader tenant visibility
+- allow if caller org is the referring org participant
+- allow if caller org is the receiving org participant
+- otherwise return 404, not 403
+
+Requirements:
+1. Enforce participant access at the row/detail level
+2. Reuse shared participant-check logic where possible
+3. Do not rely only on list-level filtering
+4. Preserve tenant boundary checks
+
+Fallback behavior:
+- if org context cannot be resolved for a non-admin user, deny access
+- if referral lacks required org relationship data, treat as inaccessible to non-admin users
+
+--------------------------------------------------
+C. APPOINTMENT ORG SCOPING
+--------------------------------------------------
+
+Implement org-based visibility for appointment reads.
+
+At minimum, apply org-scoping to:
+- appointment list/query endpoints
+- appointment detail/read endpoints if they exist
+- any appointment retrieval path used by CareConnect workflows
+
+Visibility rule:
+A caller may read an appointment only if:
+- they are admin per platform conventions, OR
+- their org participates in the linked referral / organization relationship that owns the appointment context
+
+Use the most reliable existing relationship chain in the domain model, for example:
+- appointment -> referral -> referring/receiving orgs
+or
+- appointment -> organization relationship
+depending on actual code structure
+
+Requirements:
+1. Enforce appointment scoping in backend logic, not UI
+2. Centralize scoping logic where feasible
+3. Do not widen appointment access when org linkage is missing
+4. Keep behavior consistent with referral visibility rules
+
+Fallback behavior:
+- if appointment cannot be tied to a valid participant context, restrict non-admin access
+- missing org context for caller must deny access
+
+--------------------------------------------------
+D. SHARED PARTICIPANT-SCOPING LOGIC
+--------------------------------------------------
+
+Create or extend a reusable helper/service for participant-based access checks.
+
+Goal:
+One consistent definition of whether a caller's org is a participant in a CareConnect record.
+
+This shared logic should support:
+- referral list scoping
+- referral detail access
+- appointment list scoping
+- appointment detail access
+
+Preferred behaviors:
+- explicit method names
+- testable inputs/outputs
+- no hidden fallback that broadens access
+
+Example intent only (adapt to actual architecture):
+- IsReferralParticipant(referral, callerOrgId)
+- ApplyReferralOrgScope(query, callerContext)
+- IsAppointmentParticipant(appointment, callerOrgId)
+
+Do not duplicate the same org-check logic in multiple endpoints unless unavoidable.
+
+--------------------------------------------------
+E. TESTS
+--------------------------------------------------
+
+Add focused tests for LSCC-002.
+
+Required minimum coverage:
+
+1. Provider linkage/backfill behavior
+   - null-linked providers are identified
+   - deterministic linkage path works if implemented
+   - non-deterministic cases fail clearly or remain pending per design
+
+2. Referral detail row-level access
+   - referrer org can access
+   - receiver org can access
+   - unrelated org gets 404
+   - admin behavior follows platform conventions
+
+3. Appointment org scoping
+   - list results exclude unrelated org data
+   - detail access excludes unrelated org data
+   - missing org linkage does not widen visibility
+
+4. Shared scoping helper/service
+   - participant detection works for both sides
+   - missing caller org denies access for non-admin users
+
+5. Any migration/backfill compatibility logic introduced
+
+Use existing test conventions/frameworks already present in the repo.
+
+If HTTP integration tests are practical within current repo conventions, include them for the row-level access behavior.
+If not, cover the same behavior at the application/query layer and document the limitation.
+
+--------------------------------------------------
+F. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-002-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what was not implemented
+- whether code compiles/tests run successfully
+
+2. Files changed
+- concise list by area/module
+
+3. Provider organization linkage changes
+- data model assumptions
+- backfill strategy
+- validation/enforcement behavior
+- any manual steps if auto-backfill is not possible
+
+4. Referral access hardening
+- endpoints affected
+- how row-level participant access is enforced
+- 404 vs 403 behavior
+
+5. Appointment scoping changes
+- endpoints/services/repositories affected
+- relationship chain used for scoping
+- any remaining limitations
+
+6. Shared scoping logic
+- helper/service introduced or extended
+- where reused
+
+7. Tests
+- coverage summary
+- any gaps remaining
+
+8. Risks / follow-ups
+- anything that should be addressed in LSCC-003 or later
+
+9. Recommended next step
+- suggest the next logical feature after LSCC-002
+
+==================================================
+IMPLEMENTATION DETAILS
+==================================================
+
+Follow these implementation expectations:
+
+1. Inspect current code first
+   - provider entity/model and organization fields
+   - referral detail endpoint/read path
+   - appointment list/detail query paths
+   - LSCC-001 org-scoping code
+   - any existing participant or relationship helpers
+   - migrations / seed / admin tooling patterns
+
+2. For provider linkage:
+   - determine the real source of truth for organization association
+   - prefer deterministic linkage only
+   - if no deterministic auto-link is available, implement an admin-safe linkage path instead of inventing mappings
+
+3. For referral detail access:
+   - add row-level check close to the read path
+   - return not found for unauthorized non-participants
+
+4. For appointment scoping:
+   - apply participant-based filters as close to repository/query layer as practical
+   - keep tenant constraints intact
+
+5. For shared logic:
+   - favor one reusable access/scoping component over endpoint-specific conditionals
+
+==================================================
+CONSTRAINTS
+==================================================
+
+Do not:
+- redesign the UI
+- add new product workflows
+- change canonical statuses unless required to fix a bug
+- change authorization model broadly outside CareConnect
+- introduce speculative data relationships
+- auto-assign provider organizations using unreliable heuristics
+
+Do:
+- keep implementation localized and testable
+- preserve LSCC-001 behavior unless explicitly hardening it
+- document assumptions and manual follow-up steps if needed
+- ensure missing data never broadens visibility
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+LSCC-002 is complete ONLY if all of the following are true:
+
+1. There is a clear and usable provider-to-organization linkage solution
+2. `GET /api/referrals/{id}` enforces org participant access and returns 404 for unrelated non-admin users
+3. Appointment reads are org-scoped for non-admin users
+4. Shared participant access/scoping logic is implemented or consolidated
+5. Focused tests cover the critical scenarios
+6. A report exists at:
+/analysis/LSCC-002-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Inspect first. Then implement with precision.
+Do not guess organization mappings.
+Do not overbuild.
+Stay aligned with the existing architecture and LSCC-001 foundation.

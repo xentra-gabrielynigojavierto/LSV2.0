@@ -1,0 +1,258 @@
+You are implementing feature MON-INT-00-001-02 — Control Center Monitoring Realignment (Pre-Integration).
+
+OBJECTIVE
+Prepare the Control Center to transition from acting as a monitoring engine into a pure read-only consumer of the Monitoring Service (which will become the source of truth).
+
+This is a PRE-INTEGRATION ALIGNMENT step.
+You are NOT integrating the Monitoring Service yet.
+You are NOT deleting existing functionality.
+You are creating a clean abstraction layer and isolating monitoring logic.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-00-001-02-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT break existing functionality
+- Do NOT delete code
+- Do NOT introduce fake/placeholder integrations
+- Prefer minimal, reversible changes
+- Keep backend, API, and UI concerns clearly separated
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-00-001-02-report.md
+
+Initialize with:
+
+# MON-INT-00-001-02 — Control Center Monitoring Realignment
+
+## 1. Task Summary
+## 2. Existing Monitoring Implementation Inventory
+## 3. Responsibility Reclassification
+## 4. Abstraction Layer Design
+## 5. Code Changes Implemented
+## 6. Backward Compatibility Validation
+## 7. Migration Readiness
+## 8. Files Changed
+## 9. Validation Performed
+## 10. Known Gaps / Risks
+## 11. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — INVENTORY CURRENT MONITORING IMPLEMENTATION
+
+Inspect and document:
+
+- apps/control-center/src/app/monitoring/page.tsx
+- apps/control-center/src/app/monitoring/services/page.tsx
+- apps/control-center/src/app/api/monitoring/summary/route.ts
+- apps/control-center/src/lib/system-health-store.ts
+- apps/control-center/src/lib/system-health-audit.ts
+- apps/control-center/src/lib/system-health-audit-outbox.ts
+- apps/control-center/src/components/monitoring/*
+- apps/control-center/src/lib/nav.ts
+
+For each file:
+- describe current responsibility
+- identify whether it acts as:
+  - UI layer
+  - data access layer
+  - monitoring engine logic
+
+---
+
+STEP 3 — RESPONSIBILITY RECLASSIFICATION
+
+Create a table:
+
+| Component | Current Role | Classification | Future Role |
+
+Classification must be one of:
+- KEEP (UI / display)
+- REDIRECT (will call Monitoring Service later)
+- DEPRECATE (backend logic to remove later)
+- TEMPORARY (bridge only)
+
+This must align strictly with:
+Monitoring Service = source of truth
+
+---
+
+STEP 4 — CREATE MONITORING ABSTRACTION LAYER
+
+Create new file:
+
+apps/control-center/src/lib/monitoring-source.ts
+
+This is the MOST IMPORTANT STEP.
+
+This file must:
+
+1. Centralize all monitoring data access
+2. Hide current implementation details
+3. Prepare for future Monitoring Service API
+
+Define functions:
+
+- getMonitoringSummary()
+- getMonitoringStatus()
+- getMonitoringAlerts()
+
+Implementation rules:
+- Use existing logic internally (NO behavior change)
+- Do NOT call Monitoring Service yet
+- Do NOT hardcode mock data
+- Do NOT break existing types
+
+---
+
+STEP 5 — ADD SOURCE SWITCH (CRITICAL)
+
+Inside monitoring-source.ts:
+
+Add environment-based toggle:
+
+const MONITORING_SOURCE = process.env.MONITORING_SOURCE || 'local'
+
+Valid values:
+- 'local' (default)
+- 'service' (future use)
+
+Behavior:
+- if 'local' → use existing logic
+- if 'service' → throw NOT IMPLEMENTED (explicitly)
+
+DO NOT implement service calls yet.
+
+---
+
+STEP 6 — REFACTOR SUMMARY API ROUTE
+
+File:
+apps/control-center/src/app/api/monitoring/summary/route.ts
+
+Refactor so that:
+
+- ALL monitoring logic is removed from this file
+- it ONLY calls:
+
+getMonitoringSummary()
+
+from monitoring-source.ts
+
+NO direct DB calls
+NO probe logic
+NO aggregation logic
+
+---
+
+STEP 7 — ISOLATE EXISTING MONITORING ENGINE LOGIC
+
+Move or isolate existing logic:
+
+- HTTP probe logic
+- aggregation logic
+- alert generation logic
+
+These must now exist ONLY inside monitoring-source.ts (local mode).
+
+Add clear comments:
+
+// TEMPORARY — local monitoring engine (to be replaced by Monitoring Service)
+// MON-INT-01 migration target
+
+---
+
+STEP 8 — MARK DEPRECATED BACKEND LOGIC
+
+In:
+
+- system-health-store.ts
+- summary route (if any logic remains)
+- any aggregation utilities
+
+Add clear comments:
+
+// DEPRECATE — replaced by Monitoring Service (MON-INT-01)
+
+Do NOT remove code.
+
+---
+
+STEP 9 — PRESERVE UI FUNCTIONALITY
+
+Ensure:
+- /monitoring page loads successfully
+- summary still renders correctly
+- alerts still display
+- services page still works
+- no runtime errors
+
+---
+
+STEP 10 — VALIDATION
+
+Verify and document:
+
+- abstraction layer is used
+- summary API still returns correct data
+- UI unchanged
+- no regression
+- build passes
+
+---
+
+STEP 11 — MIGRATION READINESS CHECK
+
+Confirm in report:
+
+- Control Center no longer directly owns monitoring logic
+- all monitoring access goes through abstraction layer
+- system can switch to Monitoring Service via env toggle
+- no UI refactor will be needed later
+
+---
+
+STEP 12 — DOCUMENT FILES CHANGED
+
+List:
+- new files created
+- modified files
+- exact purpose of each change
+
+---
+
+STEP 13 — RECOMMEND NEXT FEATURE
+
+Always recommend:
+
+MON-INT-01-001 — Monitoring Read API Integration
+
+Justify:
+- abstraction layer complete
+- Control Center ready to consume Monitoring Service
+- backend integration can now proceed cleanly
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+
+- /analysis/MON-INT-00-001-02-report.md exists
+- report was created FIRST and updated incrementally
+- monitoring-source.ts exists and is used
+- summary route is fully refactored
+- UI is unchanged and working
+- no destructive changes were made
+- system is ready for Monitoring Service integration

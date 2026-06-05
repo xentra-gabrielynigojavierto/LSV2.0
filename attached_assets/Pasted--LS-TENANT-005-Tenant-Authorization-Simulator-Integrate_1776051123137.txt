@@ -1,0 +1,543 @@
+# LS-TENANT-005 — Tenant Authorization Simulator (Integrated + Predictive Access)
+
+## Objective
+
+Implement a **fully integrated Tenant Authorization Simulator** that allows tenant admins to:
+
+* simulate access decisions for users
+* test “what-if” scenarios (context + assignments)
+* predict outcomes before making changes
+* understand policy impacts in real time
+
+This completes the tenant authorization loop:
+
+```text
+See → Understand → Predict → Act
+```
+
+This feature must build on **LS-COR-AUT-011D (simulation engine)** and integrate it seamlessly into the tenant UI.
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-TENANT-005-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The feature is **incomplete without the report**
+* Replit must generate the report automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Reuse Simulation Engine (No Duplication)
+
+* MUST use:
+
+  ```text
+  POST /api/admin/authorization/simulate
+  ```
+* no frontend logic for authorization decisions
+
+---
+
+### Tenant-Scoped Simulation
+
+* tenantId derived from session
+* no cross-tenant simulation allowed
+
+---
+
+### Predictive UX (Core Goal)
+
+* simulate before making changes
+* enable “what happens if…” scenarios
+
+---
+
+### Explainability Parity
+
+* simulator output must match:
+
+  * LS-TENANT-004 explainability model
+  * LS-COR-AUT policy evaluation output
+
+---
+
+## In Scope
+
+---
+
+# 1. Tenant Simulator Page (Main UI)
+
+## Route
+
+```text
+/tenant/authorization/simulator
+```
+
+---
+
+## Layout
+
+Split into 2 main panels:
+
+### Left Panel — Inputs
+
+* User selection
+* Permission selection
+* Resource context
+* Request context
+* Simulation options
+
+---
+
+### Right Panel — Results
+
+* decision (allow/deny)
+* explanation
+* policy breakdown
+* access path
+
+---
+
+# 2. User Selection
+
+---
+
+## Requirements
+
+* searchable dropdown
+* display:
+
+  * name
+  * email
+* prefill from:
+
+  * LS-TENANT-002 (“Simulate Access” button)
+
+---
+
+## API
+
+```text
+GET /identity/api/admin/users
+```
+
+---
+
+# 3. Permission Selection
+
+---
+
+## Requirements
+
+* searchable dropdown or autocomplete
+* grouped by:
+
+  * product
+  * category
+
+---
+
+## API
+
+```text
+GET /identity/api/admin/permissions
+```
+
+---
+
+# 4. Resource Context Editor
+
+---
+
+## Purpose
+
+Simulate ABAC conditions.
+
+---
+
+## Modes
+
+### A. Form Mode (preferred for usability)
+
+Fields:
+
+* amount (number)
+* region (string)
+* organizationId (string)
+* other common fields
+
+---
+
+### B. JSON Mode (advanced)
+
+* raw JSON editor
+* validation required
+
+---
+
+## Example
+
+```json
+{
+  "amount": 42000,
+  "region": "CA"
+}
+```
+
+---
+
+# 5. Request Context Editor (Optional but Supported)
+
+---
+
+## Fields
+
+* HTTP method
+* path
+
+---
+
+## Example
+
+```json
+{
+  "method": "POST",
+  "path": "/applications/approve"
+}
+```
+
+---
+
+# 6. Simulation Execution
+
+---
+
+## API Call
+
+```text
+POST /api/admin/authorization/simulate
+```
+
+---
+
+## Payload
+
+```json
+{
+  "tenantId": "...",
+  "userId": "...",
+  "permissionCode": "...",
+  "resourceContext": {...},
+  "requestContext": {...}
+}
+```
+
+---
+
+## Behavior
+
+* show loading state
+* display results
+* handle errors
+
+---
+
+# 7. Simulation Result UI (CRITICAL)
+
+---
+
+## A. Decision Header
+
+Display:
+
+* ✅ ALLOW (green)
+* ❌ DENY (red)
+
+---
+
+## B. Summary
+
+* permission present (yes/no)
+* role fallback used
+* reason text
+
+---
+
+## C. Access Path
+
+```text
+User → Group → Role → Permission
+```
+
+---
+
+## D. Policy Evaluation
+
+For each policy:
+
+* policy name
+* effect (Allow/Deny)
+* priority
+* result
+
+---
+
+### Rule Breakdown
+
+Show:
+
+* field
+* operator
+* expected vs actual
+* pass/fail
+
+---
+
+## Example
+
+```text
+Policy: approval.limit
+Rule: amount < 50000
+Actual: 75000 → FAILED
+Result: DENY
+```
+
+---
+
+## E. Deny Override Indicator
+
+Show clearly:
+
+```text
+Denied due to policy override
+```
+
+---
+
+# 8. “What-If” Simulation (Key Feature)
+
+---
+
+## Purpose
+
+Allow admins to test scenarios before applying changes.
+
+---
+
+## Supported Scenarios
+
+### A. Context Changes
+
+* change amount
+* change region
+* change org
+
+---
+
+### B. Assignment Awareness (light version)
+
+Display hint:
+
+```text
+User has role via group: Finance Team
+```
+
+(Full assignment simulation is optional future)
+
+---
+
+## UX
+
+* allow quick edit + re-run
+* retain last inputs
+
+---
+
+# 9. Save / Reuse Simulation (Lightweight)
+
+---
+
+## Required
+
+* “Re-run last simulation”
+* persist in component state
+
+---
+
+## Optional (Future)
+
+* saved scenarios (not required now)
+
+---
+
+# 10. Integration with Other Pages
+
+---
+
+## From User Detail (LS-TENANT-002)
+
+* button:
+
+```text
+Simulate Access
+```
+
+* prefill:
+
+  * userId
+  * tenantId
+
+---
+
+## From Access Explorer (LS-TENANT-004)
+
+* “Simulate” action per user/permission (optional enhancement)
+
+---
+
+# 11. Validation Rules
+
+---
+
+## Required
+
+* userId required
+* permissionCode required
+* valid JSON for context
+* tenant scope enforced
+
+---
+
+## Error Handling
+
+* invalid input → inline error
+* API error → clear message
+
+---
+
+# 12. Security Rules
+
+---
+
+## Must Enforce
+
+* tenant admin only
+* tenant boundary enforced
+* no cross-tenant simulation
+* no real access mutation
+
+---
+
+# 13. Performance Considerations
+
+---
+
+## Requirements
+
+* no caching required initially
+* debounce input where needed
+* avoid excessive re-runs
+
+---
+
+# 14. Testing Requirements
+
+---
+
+## Unit Tests
+
+* form validation
+* result rendering
+* context editor behavior
+
+---
+
+## Integration Tests
+
+* simulate API call
+* result parsing
+* user prefill behavior
+
+---
+
+## Security Tests
+
+* unauthorized blocked
+* cross-tenant blocked
+
+---
+
+## Regression Tests
+
+* LS-TENANT-002 intact
+* LS-TENANT-004 intact
+
+---
+
+# Acceptance Criteria
+
+* simulator page fully functional
+* user + permission selection works
+* context editing works
+* simulation API integration works
+* results clearly displayed
+* policy breakdown visible
+* deny override visible
+* explainability consistent with system
+* system builds cleanly
+* report generated
+
+---
+
+# Implementation Notes
+
+* reuse components from LS-TENANT-004 where possible
+* prioritize clarity of results
+* avoid overloading UI
+* keep simulation fast and responsive
+
+---
+
+# Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-TENANT-005-report.md` MUST include:
+
+1. simulator UI implementation
+2. API integration details
+3. input handling
+4. result rendering
+5. explainability mapping
+6. validation rules
+7. test results
+8. build status
+9. known limitations
+10. assumptions
+
+---
+
+# Final Goal
+
+After this feature:
+
+Tenant admins can:
+
+* simulate access decisions
+* test policy behavior
+* predict outcomes before changes
+* understand why access is allowed/denied
+
+This completes:
+
+> **Full tenant authorization lifecycle (management + explainability + prediction)**

@@ -1,0 +1,318 @@
+Project: LS-FLOW-MERGE-P5
+Title: LegalSynq Merge Phase 5 — Execution Engine Maturity & Scale
+
+You are implementing Phase 5 of the Flow-to-LegalSynq merge plan.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-MERGE-P5-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around execution model changes, workflow instance design, authentication strategy, and any migration decisions.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - execution model changes
+   - API changes
+   - auth changes
+   - product integration updates
+   - migration/data changes
+   - validation results (including full end-to-end scenarios)
+   - known gaps/issues
+   - recommendation: ready for next phase or needs iteration
+
+REPORT FORMAT
+
+# LS-FLOW-MERGE-P5 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Workflow Execution Model Notes
+## Step / State Engine Notes
+## API Changes
+## Authentication Notes
+## Product Integration Notes
+## Migration / Data Notes
+## End-to-End Validation Results
+## Observability / Logging Notes
+## Documentation Changes
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Evolve Flow into a true execution engine by shifting execution state to WorkflowInstance, enabling full end-to-end workflow execution, introducing machine-to-machine authentication, and improving observability and scalability, while preserving the bounded-service architecture.
+
+This phase focuses on execution correctness, autonomy, and real operational validation.
+
+SCOPE INCLUDES
+
+- shifting execution responsibility to WorkflowInstance
+- implementing a lightweight step/state progression model
+- enabling full end-to-end workflow execution
+- introducing machine-to-machine authentication
+- updating APIs for execution behavior
+- updating product integrations to support execution
+- improving observability and logging
+- documentation updates
+
+DO NOT BUILD
+
+- full BPM engine or DSL
+- large-scale UI redesign
+- full event bus rollout
+- deep analytics/reporting system
+- shared database consolidation
+- external ecosystem integrations beyond immediate needs
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- make WorkflowInstance the execution authority
+- ensure workflows can be executed end-to-end
+- maintain tenant and authorization integrity
+- preserve Flow as a bounded service
+- avoid breaking existing integrations unless clearly documented
+- validate real execution flows across products
+
+CURRENT CONTEXT FROM PHASE 4
+
+Flow already has:
+- WorkflowInstance entity (basic)
+- Product integration across SynqLien, CareConnect, SynqFund
+- API-based integration via IFlowClient
+- centralized permission codes
+- operational hardening (retry, logging, error handling)
+- gateway routing and auth enforcement
+
+Known limitations:
+- execution logic still partially tied to TaskItem
+- WorkflowInstance is not yet the execution driver
+- no formal step/state engine
+- no machine-to-machine authentication
+- no full positive end-to-end validation completed
+
+IMPLEMENTATION REQUIREMENTS
+
+1. WORKFLOW EXECUTION MODEL SHIFT
+
+Requirements:
+- extend WorkflowInstance to include:
+  - CurrentStep
+  - Status (Active, Completed, Failed, Cancelled)
+  - StartedAt
+  - CompletedAt
+  - optional AssignedTo
+- move execution control from TaskItem to WorkflowInstance
+- ensure TaskItem becomes step-level artifact only
+- update services (WorkflowService, TaskService) to use WorkflowInstance for execution decisions
+- maintain backward compatibility or clearly document breaking changes
+
+2. STEP / STATE ENGINE (LIGHTWEIGHT)
+
+Requirements:
+- define step structure (id, name, order)
+- support:
+  - next step transition
+  - completion
+  - optional simple branching (basic conditional logic only)
+- ensure:
+  - valid transitions only
+  - invalid transitions are rejected
+- store step metadata in workflow definition or lightweight config
+- DO NOT implement full BPM engine
+
+3. API ENHANCEMENTS
+
+Requirements:
+- extend Flow APIs to support:
+  - get workflow instance details
+  - get current step
+  - progress workflow step
+  - complete workflow
+- enforce:
+  - tenant validation
+  - authorization
+  - valid state transitions
+- avoid unnecessary breaking changes
+
+4. MACHINE-TO-MACHINE AUTHENTICATION
+
+Requirements:
+- introduce service-to-service authentication model
+- support:
+  - service tokens OR
+  - on-behalf-of (OBO) pattern if feasible
+- update IFlowClient to:
+  - optionally attach service credentials
+  - preserve user context where needed
+- ensure Flow can distinguish:
+  - user-initiated calls
+  - system/service calls
+- do not break existing user-based flows
+
+5. PRODUCT INTEGRATION UPDATE
+
+Requirements:
+- update product integrations (Liens, CareConnect, Fund) to:
+  - use WorkflowInstanceId
+  - support step progression
+- ensure:
+  - products can start workflows
+  - retrieve instance status
+  - progress workflow steps
+- keep product logic thin (orchestration only)
+
+6. FULL END-TO-END VALIDATION
+
+Requirements:
+- implement and validate real execution flows for each product:
+
+SynqLien:
+- create record
+- start workflow
+- retrieve instance
+- progress step
+- complete workflow
+
+CareConnect:
+- create referral
+- start workflow
+- retrieve instance
+- progress step
+
+SynqFund:
+- create application
+- start workflow
+- retrieve instance
+- progress step
+
+- validate:
+  - state transitions
+  - audit events
+  - notifications
+  - tenant enforcement
+  - authorization
+  - mapping integrity
+
+7. OBSERVABILITY AND LOGGING
+
+Requirements:
+- enhance logging for:
+  - workflow start
+  - step transitions
+  - completion
+  - failures
+- include:
+  - workflowInstanceId
+  - tenantId
+  - productKey
+- ensure logs are structured and useful for debugging
+- optionally extend health/info endpoints if needed
+
+8. ASYNC / OUTBOX (OPTIONAL)
+
+If safe to implement:
+
+Requirements:
+- introduce optional async workflow initiation path
+- implement minimal outbox pattern:
+  - queue or table-based
+  - retry-safe
+  - idempotent
+- keep synchronous path intact
+
+If not feasible, document deferral clearly.
+
+9. DOCUMENTATION
+
+Update docs under /apps/services/flow/docs:
+
+- execution model (WorkflowInstance vs TaskItem)
+- step/state engine
+- auth modes (user vs service)
+- API usage for execution
+- end-to-end scenarios
+- operational notes
+
+Files:
+- README.md
+- architecture.md
+- merge-phase-5-notes.md
+
+10. EXPLICIT DEFERRALS
+
+Document that these remain deferred:
+
+- full BPM engine
+- advanced rule engine
+- deep analytics/reporting
+- full event bus
+- major UI redesign
+- external integrations at scale
+
+VALIDATION
+
+You MUST confirm:
+
+Execution Model:
+- WorkflowInstance drives execution
+- TaskItem no longer acts as instance surrogate
+
+End-to-End:
+- at least one complete workflow per product works
+- workflows can start, progress, and complete
+
+Auth:
+- machine-to-machine auth works
+- user + system context handled correctly
+
+APIs:
+- execution endpoints work
+- invalid transitions are rejected
+
+Product Integration:
+- products can control workflows via API
+- mapping integrity preserved
+
+Observability:
+- logs capture execution lifecycle
+- errors are traceable
+
+Platform Integrity:
+- no regression across services
+- gateway remains stable
+
+EXECUTION ORDER
+
+1. Inspect current WorkflowInstance and TaskItem relationship.
+2. Create /analysis/LS-FLOW-MERGE-P5-report.md immediately.
+3. Extend WorkflowInstance model.
+4. Implement step/state progression logic.
+5. Update services to use WorkflowInstance as execution driver.
+6. Extend APIs for execution.
+7. Implement machine-to-machine authentication.
+8. Update product integrations.
+9. Perform full end-to-end validation.
+10. Enhance logging/observability.
+11. Implement async/outbox if safe.
+12. Update documentation.
+13. Finalize report.
+
+SUCCESS CONDITION
+
+- WorkflowInstance drives execution
+- workflows run end-to-end successfully
+- products can fully interact with workflows
+- auth model supports both user and service calls
+- system is observable and stable
+- Flow is ready for scale
+
+FAILURE CONDITION
+
+- execution still tied to TaskItem
+- workflows cannot complete end-to-end
+- auth model is inconsistent
+- product integration breaks
+- lack of observability or traceability

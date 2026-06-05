@@ -1,0 +1,155 @@
+You are working inside an existing LegalSynq repository.
+
+Your job in this step is ONLY to inspect the repo, identify the operator portal stack/patterns, and produce a detailed implementation report for a new `/admin_portal`.
+
+Do not generate application code yet.
+Do not scaffold files yet.
+Do not modify existing files yet.
+
+Critical constraint:
+The new `/admin_portal` must use the exact same stack and core architectural conventions as the existing operator portal already in this repo.
+
+That means you must identify and document:
+- frontend framework
+- language
+- package manager and tooling
+- workspace/project structure
+- routing style
+- module/folder conventions
+- UI/styling approach
+- shared component patterns
+- API service approach
+- auth/session approach
+- state management approach, if any
+- forms approach
+- table/list/detail page patterns
+- modal/toast/notification patterns
+- build and environment configuration style
+
+Business context for the new `/admin_portal`:
+LegalSynq Admin does NOT operate tenant workflows.
+LegalSynq admins only administer the platform and support tenants.
+
+The future `/admin_portal` should support:
+- tenant administration
+- tenant user administration
+- roles and permissions
+- product entitlements
+- support tools
+- audit logs
+- platform settings
+- monitoring/system health
+- admin control-plane dashboard
+
+The future `/admin_portal` should NOT support:
+- funding approvals
+- lien operations
+- case operations
+- payout decisioning
+- tenant business workflow execution
+
+Tasks for this step:
+1. Inspect the full repo structure.
+2. Identify where the operator portal lives in the repo.
+3. Determine the exact stack used by the operator portal.
+4. Identify all reusable patterns, modules, shared code, services, auth logic, and UI conventions that `/admin_portal` should mirror.
+5. Determine the best place and structure for adding `/admin_portal` inside this same repo.
+6. Identify risks, dependencies, and unknowns before implementation.
+7. Propose a phased implementation plan for `/admin_portal` that stays aligned with the operator portal.
+
+Output requirement:
+Create a detailed report in markdown.
+
+The report must include these sections exactly:
+
+# LegalSynq Admin Portal Discovery Report
+
+## 1. Repo Structure Summary
+- summarize the repo layout
+- identify relevant apps/packages/modules
+- identify where the operator portal is located
+
+## 2. Operator Portal Stack
+- framework
+- language
+- package manager
+- build tooling
+- workspace structure
+- routing approach
+- module organization
+- styling approach
+- UI/component libraries
+- form handling approach
+- API service approach
+- auth/session handling
+- state management approach
+- environment/config pattern
+
+## 3. Operator Portal Conventions That Must Be Reused
+List concrete conventions `/admin_portal` must follow.
+Be specific and reference actual folders/files/patterns.
+
+## 4. Reusable Code and Shared Assets
+Identify:
+- shared services
+- shared components
+- shared models/interfaces
+- auth helpers
+- layout/shell components
+- navigation/sidebar patterns
+- utility helpers
+- styling assets
+- table/form/detail patterns
+- modal/toast patterns
+
+## 5. Recommended `/admin_portal` Placement
+Decide the best structure for `/admin_portal` inside this repo.
+Explain why this is the best option and why alternatives are worse.
+
+## 6. Recommended `/admin_portal` Architecture
+Propose how `/admin_portal` should be structured so it matches the operator portal.
+Include:
+- high-level folder structure
+- route structure
+- layout approach
+- shared module strategy
+- service/API strategy
+- auth/permission strategy
+- feature module strategy
+
+## 7. Feature Mapping for `/admin_portal`
+Map the future admin portal features into proposed modules:
+- Dashboard
+- Tenants
+- Tenant Users
+- Roles & Permissions
+- Product Entitlements
+- Support Tools
+- Audit Logs
+- Platform Settings
+- Monitoring
+
+For each, note what existing operator portal pattern it should mirror.
+
+## 8. Risks and Unknowns
+List technical and architectural risks, missing backend assumptions, and anything that needs caution.
+
+## 9. Phased Build Plan
+Provide a step-by-step implementation plan, in order, with minimal disruption to the repo.
+
+## 10. Actionable Guidance for Step 2
+Give a concrete recommendation for what the next implementation step should be.
+
+Additional requirements:
+- Be repo-specific, not generic.
+- Reference actual files and folders where possible.
+- If you find multiple possible operator portals or shared stacks, explain which one `/admin_portal` should mirror and why.
+- If the repo contains multiple frontend apps, compare them and choose the best one to mirror.
+- Do not generate placeholder code in this step.
+- End with a short “Executive Summary” section.
+
+Final output format:
+1. First show the report in the chat
+2. Then save the same report to a file named:
+
+/admin_portal_discovery_report.md

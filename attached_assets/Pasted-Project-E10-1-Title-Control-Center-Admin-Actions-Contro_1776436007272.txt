@@ -1,0 +1,338 @@
+Project: E10.1
+Title: Control Center Admin Actions — Controlled Workflow Intervention Layer
+
+You are implementing the first enterprise platform-deepening phase for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E10.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current workflow states, admin role model, audit integration behavior, Control Center drawer structure, and any limitations in safely retrying or overriding workflows.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - backend/admin endpoint changes
+   - Control Center UI changes
+   - audit logging changes
+   - authorization/visibility changes
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for async/outbox phase or needs iteration
+
+REPORT FORMAT
+
+# E10.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Admin Endpoint Notes
+## Control Center UI Notes
+## Audit / Logging Notes
+## Authorization / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Enable authorized administrative users to safely intervene in workflow execution from Control Center by adding controlled admin actions for Retry, Force Complete, and Cancel, while preserving Flow as the single execution authority, maintaining full auditability, enforcing tenant isolation, and preventing any direct DB manipulation or uncontrolled override paths.
+
+This phase converts Control Center from observe-only to controlled intervention, but only for explicitly authorized admin users and only through the Flow service.
+
+SCOPE INCLUDES
+
+- admin-only Flow endpoints for:
+  - retry workflow
+  - force complete workflow
+  - cancel workflow
+- read-only Control Center workflow detail drawer enhancement with an Admin Actions section
+- reason-required confirmation flows for each admin action
+- audit logging for all admin actions
+- authorization and visibility enforcement
+- documentation/reporting
+
+DO NOT BUILD
+
+- bulk actions
+- automatic retries
+- async/outbox processing
+- tenant-user access to admin actions
+- workflow definition editing
+- workflow template administration
+- tenant-portal admin actions
+- direct DB manipulation outside Flow
+- broad Control Center redesign
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep Flow as the single execution authority
+- expose admin actions only through Flow admin endpoints
+- require an explicit reason for every admin action
+- record every admin action in the Audit service
+- preserve tenant isolation and cross-tenant non-leakage
+- ensure admin actions are intentional, confirmable, and clearly separated from normal workflow actions
+- keep the Control Center drawer read-heavy and intervention-light
+- avoid creating any alternate execution path that bypasses the workflow engine/governed state model
+
+CURRENT CONTEXT
+
+Already completed:
+- Flow execution engine with WorkflowInstance as execution authority
+- atomic ownership enforcement
+- product passthrough execution paths
+- tenant-portal workflow execution UI
+- Control Center workflow list (E9.1)
+- Control Center workflow detail drawer (E9.2)
+- exception/stuck workflow view planning
+- audit and notification adapter seams already exist
+- validation/hardening phases complete
+
+This E10.1 phase should introduce controlled admin intervention only.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. BACKEND ADMIN ENDPOINTS
+
+Add admin-only Flow endpoints:
+
+- POST /api/v1/admin/workflow-instances/{id}/retry
+- POST /api/v1/admin/workflow-instances/{id}/force-complete
+- POST /api/v1/admin/workflow-instances/{id}/cancel
+
+Requirements:
+- endpoints must be under admin scope
+- endpoints must be protected by admin authorization policy
+- endpoints must be tenant-safe and non-leaky
+- unauthorized or out-of-scope access should not expose cross-tenant existence
+- request body must require a non-empty reason
+- actor identity must come from auth context, not user input
+- return a structured response including:
+  - workflowInstanceId
+  - action
+  - previousStatus
+  - newStatus
+  - timestamp
+  - performedBy
+
+If existing admin controller structure is appropriate, extend it. Otherwise, add a focused admin actions controller.
+
+2. ADMIN ACTION RULES
+
+Implement these actions safely:
+
+A. Retry
+Allowed when:
+- workflow status is Failed
+- or workflow is Active and has an actionable error condition if existing model supports that safely
+
+Behavior:
+- re-enter engine-managed execution path
+- do not silently rewind workflow state
+- do not bypass engine validation
+
+B. Force Complete
+Allowed when:
+- workflow status is Active or Pending
+- workflow is not already terminal
+
+Behavior:
+- mark workflow Completed
+- set completion timestamp
+- capture admin override reason
+- ensure audit trail is explicit that this was a forced admin completion
+
+C. Cancel
+Allowed when:
+- workflow status is Active or Pending
+- workflow is not already terminal
+
+Behavior:
+- mark workflow Cancelled
+- prevent further progression
+- capture admin reason
+- ensure audit trail is explicit that this was an admin cancellation
+
+Document the exact allowed-state matrix you implement.
+
+3. STATE / CONCURRENCY SAFETY
+
+Requirements:
+- admin actions must run inside Flow transaction boundaries
+- admin actions must respect the current workflow state
+- stale or conflicting transitions must fail safely
+- if current engine/state logic can surface:
+  - concurrent_state_change
+  - instance_not_active
+  - expected_step_mismatch
+  continue using structured error semantics
+- do not directly mutate workflow rows from Control Center
+- do not create a second state machine outside Flow
+
+4. AUDIT REQUIREMENTS
+
+This is mandatory.
+
+For every admin action, create an audit record using the existing Audit service integration.
+
+Minimum audit fields:
+- workflowInstanceId
+- tenantId
+- productKey
+- action (retry / force_complete / cancel)
+- performedBy
+- timestamp
+- reason
+- previousStatus
+- newStatus
+- source = ControlCenterAdminAction (or similar explicit marker)
+
+Requirements:
+- audit must be written even when the action is an override
+- do not rely only on application logs
+- if the current audit adapter has fallback behavior, document how failures are handled
+- ensure audit content is explicit that the action was administrative, not normal workflow progression
+
+5. CONTROL CENTER UI
+
+Extend the existing E9.2 workflow detail drawer.
+
+Requirements:
+- add a clearly separated “Admin Actions” section
+- visible only to authorized admin users
+- include actions:
+  - Retry
+  - Force Complete
+  - Cancel
+- each action must open a confirmation UI
+- each confirmation UI must require a reason before submission
+- action controls must be visually distinct from read-only workflow details
+- if an action is not allowed in the current workflow state, hide or disable it with a clear explanation if feasible
+- drawer remains otherwise read-only
+
+Recommended interaction:
+- button click opens small modal or inline confirmation area
+- reason textarea/input required
+- confirm / cancel buttons
+- success refreshes drawer and list state
+- error remains visible in drawer without collapsing it
+
+6. UI STATE / ERROR HANDLING
+
+Requirements:
+- mutation buttons show loading/submitting state
+- on success:
+  - drawer refreshes
+  - list can refresh or revalidate if feasible
+  - updated status is visible immediately
+- on failure:
+  - keep drawer open
+  - show compact user-friendly error
+  - do not lose current workflow context
+- map common structured backend codes to concise operator-facing messages
+- do not expose raw technical stack traces in the UI
+
+7. AUTHORIZATION / VISIBILITY MODEL
+
+Requirements:
+- initial UI visibility should be PlatformAdmin only
+- ordinary product users must never see admin actions
+- if the backend supports TenantAdmin in future, document whether UI remains PlatformAdmin-only for now
+- backend remains authoritative even if the UI hides actions
+- cross-tenant admin action attempts must not leak existence
+
+Recommended initial policy:
+- PlatformAdmin only in Control Center UI
+- backend may allow PlatformOrTenantAdmin only if tenant scoping is correctly enforced and documented, otherwise keep it PlatformAdmin-only for now
+
+8. API / BFF BOUNDARY
+
+Requirements:
+- preserve Control Center browser -> Control Center API/BFF -> Flow path if already established
+- do not introduce direct browser-to-Flow coupling without strong justification
+- if the existing Control Center server API client pattern can support admin actions, extend it consistently
+- keep mutations centralized in the admin/API layer rather than embedding raw fetch logic in UI components
+
+9. VALIDATION
+
+You MUST validate and record in the report:
+
+Backend
+- retry endpoint works for eligible workflow
+- force-complete endpoint works for eligible workflow
+- cancel endpoint works for eligible workflow
+- ineligible state transitions fail safely
+- unauthorized access is denied safely
+- tenant/cross-tenant scope is preserved
+
+Audit
+- every admin action creates an audit record
+- reason is captured
+- performedBy is correct
+- previousStatus/newStatus are correct
+
+Control Center UI
+- admin actions section renders only for authorized users
+- reason is required before submit
+- confirmation flows work
+- drawer refreshes after action
+- errors are handled without breaking the page
+
+Runtime / Build
+- backend project(s) changed still compile
+- Control Center frontend still compiles
+- existing E9.1/E9.2 surfaces remain stable
+
+10. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- which controller/endpoints were added
+- which workflow states allow which admin actions
+- how audit logging works for admin actions
+- where the Control Center drawer was extended
+- what remains for future enterprise phases (outbox, SLA, notifications, richer admin ops)
+
+11. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E10.1 unless strictly required:
+- bulk actions
+- automatic retries
+- outbox/async handling
+- SLA engine
+- notification escalation logic
+- tenant-portal admin controls
+- workflow definition editing
+- advanced admin history/timeline beyond existing detail context
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the existing E9.2 drawer and current Flow admin/read controller structure.
+2. Create /analysis/E10.1-report.md immediately and begin logging assumptions/actions.
+3. Add backend admin action endpoints with strict authorization and reason-required request contracts.
+4. Implement safe state validation and transaction handling for retry / force-complete / cancel.
+5. Wire audit service calls for all admin actions.
+6. Extend the Control Center server API client with admin action methods.
+7. Add the Admin Actions section to the workflow detail drawer with confirmation + reason input.
+8. Add refresh/error/loading handling in the drawer and preserve list state.
+9. Validate backend auth/state/audit behavior.
+10. Validate frontend build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E10.1 is successful when:
+- PlatformAdmin users can safely retry, force-complete, and cancel eligible workflows from the Control Center detail drawer
+- every action is reasoned, audited, and traceable
+- tenant isolation and non-leakage are preserved
+- no alternate execution path or direct DB mutation is introduced
+- the existing workflow platform remains stable and governed
+
+FAILURE CONDITION
+
+E10.1 fails if:
+- admin actions bypass Flow execution authority
+- actions are unaudited or allow empty reasons
+- cross-tenant visibility/isolation is weakened
+- the Control Center becomes an unsafe execution surface
+- existing workflow behavior regresses or state consistency is weakened

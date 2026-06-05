@@ -1,0 +1,374 @@
+# LS-ID-TNT-015 — Permission-Aware Product UI
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental identity/authorization UX feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation (Tenant + Product + UI Boundaries)
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, access, enforcement, and governance behavior
+- Reuse existing permission/session/JWT surfaces where possible
+- Keep backend, API, and UI concerns clearly separated
+- Include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Keep backend authorization as the source of truth
+- Use frontend permission guards as UX alignment only, never as security authority
+- Be honest in the report about exact UI coverage achieved
+
+---
+
+## FEATURE OBJECTIVE
+
+Make product applications permission-aware so the UI reflects the backend authorization model by:
+- hiding or disabling unavailable actions
+- supporting read-only states where appropriate
+- reducing avoidable 403 dead ends
+- standardizing permission-denied UX
+
+This feature should align product UX with the backend permission enforcement delivered in LS-ID-TNT-012.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Backend permission model redesign
+- Tenant Portal permission-management UI changes
+- Control Center governance UI changes
+- ABAC/policy-rule activation
+- Full product redesigns
+- Per-user permission editing
+- Replacing backend security with frontend checks
+- Unvalidated claims/session redesign if current session already exposes what is needed
+
+ONLY IMPLEMENT:
+- Shared frontend permission guard pattern(s)
+- Permission-aware UI for a validated initial product scope
+- Clear rules for hide/disable/read-only states
+- Improved permission-denied UX handling
+- Minimal supporting frontend data plumbing only if required
+- Honest documentation of what products/pages/actions are covered
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-015-report.md
+
+Initialize with:
+
+# LS-ID-TNT-015 — Permission-Aware Product UI
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Session / Permission Surface Analysis
+## 4. Existing Product UI Action Analysis
+## 5. Coverage Scope Selection
+## 6. Permission-Aware UI Design Rules
+## 7. Files Changed
+## 8. Frontend Implementation
+## 9. Backend Alignment / Error Handling
+## 10. Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Session / permission availability
+- what permission data is available in frontend session today
+- whether permissions are already exposed in JWT-backed session payloads
+- whether product apps can already access permission lists without new API calls
+- whether a lightweight frontend bootstrap call is needed
+
+### Shared frontend utilities
+- existing auth/session hooks
+- existing route/product access guard helpers
+- existing component patterns for action menus, buttons, forms, drawers, detail pages
+- whether there is already a shared “can/cannot” utility pattern
+
+### Product UI action surfaces
+Identify meaningful action points in the current products, such as:
+- Liens
+  - edit
+  - approve
+  - workflow transition
+  - notes/actions
+- Fund
+  - application create/edit/review/approve/disburse actions
+- CareConnect
+  - referral create/update/resend/revoke
+  - appointment create/update/confirm/complete/cancel/reschedule
+- Insights
+  - execute/export/report actions
+
+### Existing 403 handling
+- how each product currently handles forbidden responses
+- where backend-denied actions produce poor UX today
+- where read-only patterns already exist
+
+DO NOT assume frontend permission availability or product action surfaces until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Session / Permission Surface Analysis
+## 4. Existing Product UI Action Analysis
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 2 — SELECT AND DOCUMENT THE INITIAL UI COVERAGE
+
+Choose a validated initial scope for permission-aware UI.
+
+Requirements:
+- prioritize high-value/high-frequency action points
+- choose screens/actions where permission semantics are clear
+- avoid speculative platform-wide claims
+
+You MUST document:
+- which products are covered now
+- which pages/components/actions are covered now
+- which pages/components/actions remain unchanged
+- why this scope was selected
+
+Update report:
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 3 — IMPLEMENT A SHARED FRONTEND PERMISSION GUARD PATTERN
+
+Implement the smallest reusable frontend authorization utility pattern that fits the current architecture.
+
+Possible implementations:
+- `usePermission(permissionCode)`
+- `useProductPermission(productCode, permissionCode)`
+- `can(permissionCode)` utility
+- `<RequirePermission />` wrapper
+- shared helper for read-only vs editable state
+
+Requirements:
+- support tenant and product permissions if needed by the chosen scope
+- reuse current session/auth structures
+- avoid duplicative per-page permission logic
+- be easy to adopt in more products later
+- do not create a parallel authorization model
+
+Document:
+- what shared primitive(s) were created
+- where they live
+- how product UIs should use them going forward
+
+Update report:
+## 6. Permission-Aware UI Design Rules
+## 8. Frontend Implementation
+
+---
+
+## STEP 4 — DEFINE AND APPLY HIDE / DISABLE / READ-ONLY RULES
+
+Define the UX rules and apply them consistently in the chosen scope.
+
+At minimum decide when to:
+- hide action entirely
+- disable action with explanation
+- show read-only mode
+- redirect/block deeper entry points
+
+Recommended approach:
+- hide advanced/destructive actions if unauthorized and visibility is not helpful
+- disable when discoverability matters
+- use read-only mode when view is allowed but edit is not
+
+Requirements:
+- rules must be explicit in the report
+- the implemented pages/components must follow those rules consistently
+- do not overcomplicate with per-action custom behavior unless necessary
+
+Update report:
+## 6. Permission-Aware UI Design Rules
+## 8. Frontend Implementation
+
+---
+
+## STEP 5 — APPLY PERMISSION-AWARE UI TO VALIDATED PRODUCT ACTIONS
+
+Implement permission-aware UI for the selected scope.
+
+Possible examples (validate before use):
+- remove/disable edit button if user lacks edit permission
+- hide approve button if user lacks approve permission
+- disable workflow transition actions if not allowed
+- show details in read-only mode when edit not permitted
+- hide execute/export actions in Insights if not permitted
+
+Requirements:
+- align exact permission codes to the backend model already enforced
+- preserve existing page layouts and flows
+- do not break backend calls for authorized users
+- keep implementation incremental and localized
+
+Update report:
+## 8. Frontend Implementation
+
+---
+
+## STEP 6 — IMPROVE PERMISSION-DENIED UX HANDLING
+
+Even with permission-aware UI, backend remains authoritative and 403s may still occur.
+
+Requirements:
+- standardize how forbidden action responses are surfaced in the covered product scope
+- replace raw/generic errors with clear, user-friendly messaging
+- handle direct-link or stale-state cases cleanly
+- avoid repeated toast spam or broken-looking empty states
+
+Examples:
+- “You do not have permission to approve this record.”
+- “You can view this item, but you cannot edit it.”
+
+If there is an existing centralized API error handling utility, extend or reuse it rather than scattering custom handlers.
+
+Update report:
+## 9. Backend Alignment / Error Handling
+## 10. Testing Results
+
+---
+
+## STEP 7 — PRESERVE BACKEND AUTHORITY
+
+Validate and ensure:
+- all protected actions remain enforced backend-side
+- frontend permission-aware UI does not become the only gate
+- if a user forces an action path through direct call/manipulation, backend still rejects appropriately
+- the frontend handles that denial gracefully
+
+Document any places where frontend and backend may still be slightly out of sync due to session refresh timing.
+
+Update report:
+## 9. Backend Alignment / Error Handling
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 8 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- route-level product access enforcement
+- backend permission enforcement
+- Tenant Portal permission UI
+- Control Center governance UI
+- invite/activation/password reset
+- users/groups/roles/product assignment flows
+- existing stable product pages outside the selected scope
+
+Explicitly validate:
+- authorized users still see and can use actions
+- unauthorized users get cleaner UX, not broken workflows
+- no new client-side crashes or hydration issues are introduced
+
+Update report:
+## 10. Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — TESTING
+
+Test and document each scenario.
+
+### Shared permission guard behavior
+- user/session with permission → guard returns allowed
+- user/session without permission → guard returns denied
+- missing/partial permission data handled safely
+
+### Product UI behavior
+For each covered product/action:
+- authorized user sees and can use action
+- unauthorized user does not see action OR sees disabled/read-only state according to chosen rule
+- stale/direct action path still gets backend denial handled cleanly
+
+### Read-only behavior
+- view allowed, edit denied → read-only mode works where implemented
+- edit/submit controls unavailable
+- explanatory UI appears when intended
+
+### Regression
+- route-level product access still works
+- backend permission enforcement still works
+- tenant permission UI still works
+- control center governance UI still works
+- existing product pages remain stable
+- no TypeScript/build/runtime regressions
+
+Update report:
+## 10. Testing Results
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what shared frontend permission guard pattern was implemented
+- what products/pages/actions are now permission-aware
+- what hide/disable/read-only rules were chosen
+- how permission-denied UX was improved
+- what remains deferred
+- whether any obvious unauthorized dead-end actions still remain in the covered scope
+
+---
+
+## SUCCESS CRITERIA
+
+✔ A reusable frontend permission guard pattern exists
+✔ A validated initial set of product UI actions is permission-aware
+✔ Unauthorized actions are hidden, disabled, or read-only according to documented rules
+✔ Backend remains authoritative for all protected actions
+✔ Permission-denied UX is standardized/improved for the covered scope
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-014 behavior does not regress
+✔ Coverage boundaries and remaining gaps are documented honestly
+✔ The platform moves from backend-secure to backend-secure + UX-aligned for the implemented scope
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working shared frontend permission guard pattern
+2. Working permission-aware UI for the validated initial product scope
+3. Improved permission-denied UX for the covered scope
+4. Completed report:
+/analysis/LS-ID-TNT-015-report.md
+
+---
+
+END OF IMPLEMENTATION

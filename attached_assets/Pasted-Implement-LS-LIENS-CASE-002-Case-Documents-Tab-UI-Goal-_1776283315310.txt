@@ -1,0 +1,167 @@
+Implement LS-LIENS-CASE-002 — Case Documents Tab UI.
+
+Goal:
+Complete the Case Detail → Documents tab so it matches the reference layout and fits the current Case page design system.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Documents
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the Documents tab body content in the Case Detail page.
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- routing
+- APIs/services
+- role-access
+- provider-mode
+- Details tab
+- Liens tab
+- global header structure
+
+--------------------------------------------------
+CORE REQUIREMENTS
+--------------------------------------------------
+
+1. LEFT PANEL
+Implement the Documents tab main content with:
+- Documents upload section
+- document type selector
+- upload/dropzone area
+- choose file button
+- add document button
+- Case Documents section below
+- Lien Documents section below that
+
+2. RIGHT PANEL
+Keep communications-only:
+- Email
+- SMS
+- communication contacts / shortcuts if already established
+
+3. LAYOUT
+- keep using LayoutSplit
+- keep expand/collapse behavior intact
+- keep same Case page design language
+
+--------------------------------------------------
+UPLOAD SECTION TARGET
+--------------------------------------------------
+
+Match the reference structure as closely as current capabilities allow.
+
+Include:
+- Documents section header
+- Document Type field
+- upload dropzone
+- choose file button
+- add document button
+
+Use real behavior where already supported.
+Do NOT fake successful upload if not wired.
+
+--------------------------------------------------
+DOCUMENT TABLE TARGETS
+--------------------------------------------------
+
+Add:
+1. Case Documents section
+2. Lien Documents section
+
+Suggested columns:
+- Name
+- Document Type
+- Last Update
+- Action
+
+Use real data where available.
+Use temporary visual fallback only if needed for display completeness.
+
+--------------------------------------------------
+ICON REQUIREMENT
+--------------------------------------------------
+
+Use Remix icons consistently and subtly across this tab.
+
+--------------------------------------------------
+TEMPORARY FALLBACK RULE
+--------------------------------------------------
+
+If needed, use TEMP visual fallback data only for:
+- document type options
+- case document rows
+- lien document rows
+
+Do NOT replace real logic.
+Comment clearly:
+TEMP: visual fallback data for UI review only
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-002-report.md
+
+2. Initialize with:
+   - objective
+   - scope
+   - current Documents tab analysis
+   - planned upload/table structure
+   - right panel preservation plan
+
+3. DURING implementation:
+   - update after each step
+   - include files changed, fields mapped, fallback usage, actions supported/deferred
+
+4. FINAL:
+   - summarize final implementation
+   - validation results
+   - remaining gaps
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze current Documents tab
+T002 — Build upload section
+T003 — Add document type selector and dropzone
+T004 — Add Case Documents section
+T005 — Add Lien Documents section
+T006 — Preserve communications-only right panel
+T007 — Validate LayoutSplit behavior
+T008 — Add fallback data only if needed
+T009 — Final validation
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Documents tab complete
+- upload area present
+- Case Documents section present
+- Lien Documents section present
+- communications-only right panel preserved
+- LayoutSplit intact
+- no regressions
+- report complete
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change top nav or side nav.
+Do NOT change fonts or colors.

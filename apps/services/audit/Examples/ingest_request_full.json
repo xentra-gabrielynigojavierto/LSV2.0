@@ -1,0 +1,18 @@
+{
+  "source": "fund-service",
+  "eventType": "application.status.changed",
+  "category": "business",
+  "severity": "INFO",
+  "tenantId": "tenant-abc",
+  "actorId": "user-uuid-admin-01",
+  "actorLabel": "admin@funder.com",
+  "targetType": "FundApplication",
+  "targetId": "app-uuid-9876",
+  "description": "Fund application status changed from SUBMITTED to UNDER_REVIEW.",
+  "outcome": "SUCCESS",
+  "ipAddress": "10.0.0.5",
+  "userAgent": "Mozilla/5.0 (compatible; FundPortal/1.0)",
+  "correlationId": "req-trace-abc123",
+  "metadata": "{\"previousStatus\":\"SUBMITTED\",\"newStatus\":\"UNDER_REVIEW\",\"changedByRole\":\"SYNQFUND_FUNDER\"}",
+  "occurredAtUtc": "2026-03-30T10:00:00Z"
+}

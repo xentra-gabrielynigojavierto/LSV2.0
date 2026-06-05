@@ -1,0 +1,123 @@
+Complete Phase G of the LegalSynq platform migration.
+
+All major architectural convergence is complete:
+- OrganizationType is active
+- ProductOrganizationTypeRule is active
+- ScopedRoleAssignment is authoritative
+- OrganizationRelationship is active in workflows
+
+Your task is to safely REMOVE remaining legacy structures.
+
+Generate:
+ /analysis/step7_legacy-removal-and-finalization.md
+
+---
+
+## Goals
+
+1. fully remove UserRoles table and all references
+2. remove UserRoleAssignment (if still present and unused)
+3. remove OrgType string dependency where safe
+4. simplify AuthService and repositories
+5. finalize clean platform architecture
+
+---
+
+## Phase A — remove UserRoles table
+
+Preconditions (verify first):
+- usersWithGapCount == 0
+- ScopedRoleAssignment coverage == 100%
+- no AuthService fallback logs exist
+
+Tasks:
+- remove:
+  - UserRoles entity
+  - UserRoleConfiguration
+  - DbSet<UserRole>
+  - navigation properties:
+    - User.UserRoles
+    - Role.UserRoles
+- remove all code references:
+  - UserRepository
+  - AdminEndpoints
+- create EF migration:
+  DROP TABLE UserRoles
+
+---
+
+## Phase B — remove dual-write logic
+
+Tasks:
+- remove all writes to UserRoles:
+  - UserRepository.AddAsync
+  - AssignRole endpoint
+  - RevokeRole endpoint
+- simplify logic to only write ScopedRoleAssignment
+
+---
+
+## Phase C — remove fallback logic
+
+Tasks:
+- AuthService:
+  - remove fallback to UserRoles entirely
+  - remove warning logs
+- UserRepository:
+  - remove fallback includes
+- ensure system fully relies on ScopedRoleAssignment
+
+---
+
+## Phase D — begin OrgType string deprecation
+
+IMPORTANT: do NOT remove column yet
+
+Tasks:
+- stop writing OrgType string where OrganizationTypeId is available
+- ensure all logic uses OrganizationTypeId first
+- keep OrgType only for:
+  - JWT backward compatibility
+  - legacy clients
+- mark OrgType usage with:
+  TODO [Phase H — remove OrgType string]
+
+---
+
+## Phase E — simplify domain and mappings
+
+Tasks:
+- clean ProductRole (no legacy references)
+- remove any unused legacy enums/constants
+- simplify mapping logic where dual-path no longer needed
+
+---
+
+## Phase F — verification
+
+- build all services
+- ensure no compile errors
+- verify:
+  - login works
+  - role assignment works
+  - referral creation works
+  - appointment creation works
+- confirm no runtime dependency on UserRoles
+
+---
+
+## Required report
+
+# LegalSynq Phase G — Final Cleanup
+## 1. Starting State
+## 2. Removed Legacy Components
+## 3. Files Changed
+## 4. Schema Changes
+## 5. Authorization Simplification
+## 6. OrgType Deprecation Status
+## 7. Final Architecture State
+
+---
+
+Do the work now.
+Focus on removing legacy safely and simplifying the system.

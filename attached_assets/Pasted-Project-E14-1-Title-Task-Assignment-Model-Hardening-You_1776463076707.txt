@@ -1,0 +1,304 @@
+Project: E14.1
+Title: Task Assignment Model Hardening
+
+You are implementing the foundational assignment model for WorkflowTask to support user ownership, role queues, and org queues.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E14.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around existing task fields, backward compatibility, and how AssignmentMode integrates with current task lifecycle and APIs.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - schema changes
+   - validation rules
+   - backward compatibility handling
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for E14.2 or needs iteration
+
+REPORT FORMAT
+
+# E14.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Data Model Notes
+## Assignment Model Notes
+## Validation Rules
+## Backward Compatibility Notes
+## Persistence / Migration Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Introduce a formal, enforced assignment model for WorkflowTask that supports:
+- Direct user ownership
+- Role-based queue assignment
+- Org-based queue assignment
+- Unassigned state
+
+This must:
+- remove ambiguity in ownership
+- enable future claim/reassign logic
+- preserve all existing behavior (E11 system)
+
+SCOPE INCLUDES
+
+- AssignmentMode field introduction
+- assignment metadata fields
+- validation rules
+- backward compatibility mapping
+- persistence updates
+- documentation/reporting
+
+DO NOT BUILD
+
+- claim/reassign APIs
+- team queue API
+- UI changes
+- notifications
+- workflow logic changes
+- task lifecycle changes
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- enforce exactly ONE assignment mode per task
+- preserve backward compatibility
+- avoid breaking My Tasks API and My Work UI
+- keep workflow engine and task lifecycle untouched
+- fail fast on invalid assignment states
+
+CURRENT CONTEXT
+
+Already completed:
+- Full task system (E11.x)
+- My Tasks API
+- My Work UI
+- Task → workflow binding
+
+Current issue:
+- assignment fields exist but are not governed
+- no clear ownership semantics
+
+This phase introduces that structure.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. ASSIGNMENT MODE
+
+Add a new field to WorkflowTask:
+
+AssignmentMode (string or enum-backed string)
+
+Allowed values:
+- DirectUser
+- RoleQueue
+- OrgQueue
+- Unassigned
+
+Requirements:
+- must be persisted
+- must be validated
+- must drive ownership interpretation
+
+---
+
+2. ASSIGNMENT FIELDS
+
+Ensure existing fields are used consistently:
+
+- AssignedUserId
+- AssignedRole
+- AssignedOrgId
+
+Add metadata fields:
+
+- AssignedAt (datetime, nullable)
+- AssignedBy (string/user id, nullable)
+
+Optional:
+- AssignmentReason (string, nullable)
+
+---
+
+3. ASSIGNMENT INVARIANTS
+
+Enforce strict rules:
+
+DirectUser:
+- AssignedUserId required
+- AssignedRole null
+- AssignedOrgId null
+
+RoleQueue:
+- AssignedRole required
+- AssignedUserId null
+
+OrgQueue:
+- AssignedOrgId required
+- AssignedUserId null
+
+Unassigned:
+- all assignment fields null
+
+Rules:
+- only ONE mode valid at a time
+- invalid combinations must be rejected
+- no silent correction of bad data
+
+---
+
+4. VALIDATION
+
+Implement validation at entity or service layer:
+
+Requirements:
+- validate on create/update
+- throw explicit errors on invalid states
+- prevent persistence of invalid combinations
+
+---
+
+5. BACKWARD COMPATIBILITY
+
+Existing tasks must remain valid.
+
+Mapping rules:
+
+- if AssignedUserId exists → DirectUser
+- if AssignedRole exists → RoleQueue
+- if AssignedOrgId exists → OrgQueue
+- else → Unassigned
+
+Requirements:
+- support lazy mapping if needed
+- avoid breaking existing queries
+- avoid requiring full data migration if possible
+
+---
+
+6. TASK CREATION INTEGRATION
+
+Ensure E11.2 task creation still works.
+
+Requirements:
+- assignment mode must be set deterministically on create
+- recommended:
+  - if user assigned → DirectUser
+  - else → Unassigned
+
+DO NOT introduce routing logic here
+
+---
+
+7. PERSISTENCE / MIGRATION
+
+Requirements:
+- add AssignmentMode column
+- ensure safe default
+- add indexes if useful (non-breaking)
+- migration must not corrupt existing data
+
+---
+
+8. QUERY COMPATIBILITY
+
+Existing APIs must continue working:
+
+- GET /api/v1/tasks/me
+- My Work UI
+
+Requirements:
+- filtering by AssignedUserId still valid
+- response shape unchanged unless additive
+
+---
+
+9. EXTENSIBILITY
+
+Design must support:
+
+- claim (queue → user)
+- reassign (user → user)
+- queue visibility
+
+Requirements:
+- do not hardcode limitations
+- do not tightly couple to UI
+
+---
+
+10. NON-INTERFERENCE
+
+You MUST confirm:
+
+- workflow engine unchanged
+- task lifecycle unchanged
+- workflow binding unchanged
+- My Tasks API unchanged
+- My Work UI unaffected
+- SLA/outbox unchanged
+
+---
+
+VALIDATION REQUIREMENTS
+
+Functional:
+- tasks correctly reflect assignment mode
+- invalid states are rejected
+- new tasks have valid assignment mode
+
+Compatibility:
+- My Tasks API works
+- My Work UI works
+- task lifecycle works
+
+Data integrity:
+- no mixed assignment states
+- no invalid combinations
+
+Build:
+- backend builds successfully
+- migration applies cleanly
+
+Documentation:
+- assignment modes documented
+- invariants documented
+- mapping rules documented
+
+---
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E14.1-report.md
+2. Inspect WorkflowTask schema
+3. Add AssignmentMode + metadata fields
+4. Implement validation rules
+5. Add backward compatibility mapping
+6. Apply migration
+7. Validate APIs and runtime
+8. Finalize report
+
+---
+
+SUCCESS CONDITION
+
+- assignment model is explicit and enforced
+- tasks have a single ownership mode
+- system remains fully functional
+- ready for claim/reassign (E14.2)
+
+---
+
+FAILURE CONDITION
+
+- ambiguous assignment states exist
+- backward compatibility breaks
+- invalid states persist silently
+- platform behavior regresses

@@ -1,0 +1,287 @@
+You are implementing **LS-REPORTS-08-000 — Launch Readiness & Platform Integration** for the LegalSynq Reports Service.
+
+## Platform Context
+You have already completed:
+- Templates, Versioning, Assignment, Overrides
+- Execution Engine (real data)
+- Export Engine (CSV/XLSX/PDF)
+- Scheduling + Delivery
+- Audit Integration
+- Production integrations (Email, SFTP, S3, Liens adapter)
+- Full UI (Admin + Tenant + Builder)
+
+This story prepares the system for **real-world launch** by replacing mock platform context with real identity, tenant, and entitlement enforcement.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Create:
+
+/analysis/LS-REPORTS-08-000-report.md
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step include:
+- files modified
+- integration changes
+- config updates
+- validation results
+- issues encountered
+- decisions made
+
+## 3. Keep scope controlled
+DO NOT implement:
+- new features
+- UI redesign
+- advanced builder enhancements
+- distributed architecture redesign
+
+Focus ONLY on:
+👉 integration, correctness, and launch readiness
+
+## 4. Preserve architecture
+- UI → API → Service → Execution → Export → Delivery → Adapter
+- Backend remains enforcement layer
+- Do NOT introduce shortcuts or bypasses
+
+---
+
+# STORY ID
+**LS-REPORTS-08-000 — Launch Readiness & Platform Integration**
+
+---
+
+# OBJECTIVE
+Replace all mock identity/tenant usage with real platform context and validate the system end-to-end for real user operation.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+# A. Identity Integration
+
+## Remove:
+- MOCK_USER_ID
+- hardcoded user values in UI/backend
+
+## Implement:
+- extract user identity from:
+  - JWT token
+  - session context
+  - gateway headers
+
+## Ensure availability of:
+- userId
+- roles/claims (if available)
+- correlationId
+
+## Apply to:
+- execution
+- export
+- scheduling
+- audit
+- template management
+
+---
+
+# B. Tenant Context Resolution
+
+## Remove:
+- MOCK_TENANT_ID
+- hardcoded tenant values
+
+## Implement:
+- resolve tenant from:
+  - token claims
+  - gateway headers
+  - session context
+
+## Propagate tenantId through:
+- UI → API calls
+- controllers
+- services
+- audit events
+- execution/export/schedule flows
+
+## Enforce:
+- tenant isolation in all queries and operations
+
+---
+
+# C. Entitlement / Feature Gating
+
+Implement backend enforcement for:
+
+## Capabilities
+- report builder access
+- schedule creation
+- export formats (CSV/XLSX/PDF)
+- delivery channels (Email/SFTP)
+- override creation
+- admin-only template functions
+
+## Approach
+- use entitlement adapter/service
+- validate per request
+- return appropriate errors (403)
+
+## UI Behavior
+- hide/disable unavailable features based on capability
+
+---
+
+# D. Gateway / Security Alignment
+
+## Validate:
+- all /reports routes require authentication
+- identity and tenant context passed correctly via gateway (YARP)
+
+## Update:
+- remove any fallback defaults in API calls
+- ensure headers/claims flow correctly
+
+---
+
+# E. Liens Data Adapter Validation
+
+## Validate:
+- real database schema alignment
+- column names
+- joins
+- filters
+
+## Test:
+- sample queries
+- row counts
+- performance
+
+## Fix:
+- any incorrect assumptions
+
+---
+
+# F. End-to-End Validation
+
+## Tenant Flow
+- login
+- view reports
+- run report
+- export report
+- create schedule
+- run schedule
+- view history
+- customize report
+
+## Admin Flow
+- login
+- create/edit template
+- publish version
+- assign template
+- verify tenant visibility
+
+---
+
+# G. Error Handling
+
+Ensure:
+- unauthorized → 401/403
+- invalid tenant access blocked
+- entitlement violations clearly returned
+- no silent fallback to mock behavior
+
+---
+
+# H. Configuration Hardening
+
+## Add/Validate:
+- Identity settings
+- Tenant resolution config
+- Entitlement config
+
+## Rules:
+- if integration enabled but misconfigured → FAIL FAST
+- no automatic fallback to mock in production mode
+
+---
+
+# I. Audit Validation
+
+Ensure audit events include:
+- real userId
+- real tenantId
+- correlationId
+
+Verify:
+- execution events
+- export events
+- schedule events
+- admin actions
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. MOCK_USER_ID removed from all live flows
+2. MOCK_TENANT_ID removed from all live flows
+3. real identity context used everywhere
+4. real tenant context enforced everywhere
+5. entitlement checks enforced in backend
+6. UI reflects feature access correctly
+7. gateway passes identity/tenant context correctly
+8. Liens adapter validated with real schema
+9. full tenant flow works end-to-end
+10. full admin flow works end-to-end
+11. audit contains real context data
+12. no silent mock fallbacks in production mode
+13. build passes
+14. system runs successfully
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file
+2. Identify all mock identity usage
+3. Replace with real identity integration
+4. Replace tenant context with real resolution
+5. implement entitlement checks
+6. update UI to remove hardcoded values
+7. validate gateway context flow
+8. validate Liens adapter with real data
+9. execute full end-to-end flows
+10. validate audit output
+11. finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- Files Modified
+- Identity Integration Summary
+- Tenant Integration Summary
+- Entitlement Enforcement Summary
+- API Validation Results
+- End-to-End Test Results
+- Issues Encountered
+- Decisions Made
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- system uses real identity and tenant context
+- access control is enforced
+- no mock fallbacks remain in production path
+- end-to-end flows validated
+- system is safe for real users
+
+---
+
+Now implement **LS-REPORTS-08-000** exactly as described.

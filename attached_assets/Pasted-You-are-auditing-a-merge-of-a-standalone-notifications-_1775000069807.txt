@@ -1,0 +1,330 @@
+You are auditing a merge of a standalone `notifications` backend service into the main platform codebase.
+
+Your job is NOT to build new features.
+Your job is to verify whether the merge was done properly, identify gaps, and produce a clear audit report.
+
+==================================================
+GOAL
+==================================================
+
+Check whether the Notifications backend service has been merged correctly into the main platform.
+
+The intended target is:
+
+/apps/services/notifications
+
+The notifications service is expected to be an enterprise-grade backend module with these capabilities already built:
+- send orchestration
+- provider routing and failover
+- webhook ingestion
+- template engine
+- BYOP provider configs
+- billing / usage tracking / rate limiting
+- contact suppression enforcement
+
+You must verify the merge quality, not just whether files exist.
+
+==================================================
+WHAT TO AUDIT
+==================================================
+
+Audit the merge across these dimensions:
+
+1. File/folder placement
+2. Workspace/package registration
+3. Dependency resolution
+4. TypeScript/build health
+5. Environment/secrets integration
+6. Database/migration integration
+7. Auth/tenant integration
+8. Route mounting
+9. Worker/process integration
+10. Preservation of notifications features
+11. Portability/modularity
+12. Overall merge readiness
+
+==================================================
+CHECKLIST
+==================================================
+
+--------------------------------------
+STEP 1 — Inspect target placement
+--------------------------------------
+
+Verify that the notifications service exists in the intended location:
+
+/apps/services/notifications
+
+Check whether the expected internal structure is present, such as:
+- src/
+- routes/
+- controllers/
+- services/
+- repositories/
+- models/
+- integrations/
+- middlewares/
+- workers/
+- config/
+- shared/
+- package.json
+- tsconfig.json
+
+Flag any structural issues.
+
+--------------------------------------
+STEP 2 — Inspect workspace integration
+--------------------------------------
+
+Check whether the main platform workspace/monorepo recognizes the notifications service.
+
+Inspect:
+- root package.json
+- workspace config
+- monorepo config
+- build scripts
+- dev scripts
+- tsconfig references if any
+
+Determine:
+- is the package registered properly?
+- can the platform install/build/typecheck with notifications included?
+- are any scripts missing?
+
+--------------------------------------
+STEP 3 — Inspect dependency health
+--------------------------------------
+
+Check whether notifications dependencies resolve correctly inside the main platform.
+
+Look for:
+- missing packages
+- duplicate/conflicting package versions
+- unresolved imports
+- path alias issues
+- broken internal package references
+
+Determine whether the notifications service can compile cleanly inside the platform.
+
+--------------------------------------
+STEP 4 — Run compile/typecheck/build verification
+--------------------------------------
+
+Run the most appropriate checks available in the project, such as:
+- install
+- typecheck
+- build
+
+If project-wide checks are too broad/noisy, also run targeted checks for notifications.
+
+Record:
+- what passes
+- what fails
+- exact files/errors involved
+
+Do not stop at first failure; collect a useful audit picture.
+
+--------------------------------------
+STEP 5 — Inspect environment/secrets integration
+--------------------------------------
+
+Verify whether notifications config requirements were merged properly into the platform.
+
+Check for required env/secrets coverage such as:
+- database configuration
+- provider credentials
+- webhook verification settings
+- PROVIDER_SECRET_ENCRYPTION_KEY
+- any notifications-specific defaults
+
+Determine:
+- are required config keys represented?
+- are any secrets still missing?
+- are there hardcoded values that should not exist?
+- is config still portable and environment-driven?
+
+--------------------------------------
+STEP 6 — Inspect database integration
+--------------------------------------
+
+Verify whether the notifications database models/tables were integrated properly.
+
+Check:
+- notifications-related models exist and are registered
+- migration strategy is aligned with the platform
+- whether the merge still relies on dev-only schema sync behavior
+- whether migration files were created or still need to be created
+
+Determine:
+- is DB integration production-ready?
+- is there temporary behavior that must be replaced?
+- is the schema likely to initialize/run correctly in the platform?
+
+--------------------------------------
+STEP 7 — Inspect auth + tenant integration
+--------------------------------------
+
+Verify whether notifications is using the main platform’s tenant/auth context correctly.
+
+Check:
+- whether standalone tenant header assumptions were replaced
+- whether auth middleware is platform-aligned
+- whether tenant scoping still works
+- whether there are any temporary fallbacks still in place
+
+Determine:
+- fully integrated
+- partially integrated
+- not integrated
+
+--------------------------------------
+STEP 8 — Inspect route mounting
+--------------------------------------
+
+Verify whether the notifications routes are actually mounted in the main platform.
+
+Expected route groups include:
+- /v1/notifications
+- /v1/templates
+- /v1/providers
+- /v1/webhooks
+- /v1/billing
+- /v1/contacts
+
+Check:
+- route registration
+- service mounting/gateway integration
+- whether the routes are reachable in the platform structure
+
+Determine:
+- fully mounted
+- partially mounted
+- not mounted
+
+--------------------------------------
+STEP 9 — Inspect worker/process integration
+--------------------------------------
+
+Check whether notifications workers/background behavior are integrated properly with the main platform runtime model.
+
+Inspect:
+- worker entrypoints
+- startup assumptions
+- scheduler/background process assumptions
+- any standalone-only runtime behavior
+
+Determine:
+- are workers platform-compatible now?
+- are they still standalone-oriented?
+- what integration gaps remain?
+
+--------------------------------------
+STEP 10 — Inspect feature preservation
+--------------------------------------
+
+Verify that the merge did not accidentally break or omit the major notifications capabilities.
+
+Look for evidence that these still exist:
+- send orchestration
+- provider routing/failover
+- template engine
+- webhook ingestion
+- BYOP provider configs
+- billing/metering/rate limiting
+- suppression enforcement
+
+Do not deeply re-test every feature, but verify that the relevant files/services/routes/models still exist and are wired.
+
+Flag anything missing or partially broken.
+
+--------------------------------------
+STEP 11 — Inspect portability/modularity
+--------------------------------------
+
+Check whether the notifications service still looks like a clean service module, or whether the merge damaged modularity.
+
+Look for:
+- direct coupling to unrelated platform modules
+- hardcoded platform-specific shortcuts
+- broken boundaries
+- unnecessary rewrites of notifications internals
+
+Determine whether the merge preserved the service as a maintainable module.
+
+--------------------------------------
+STEP 12 — Optional smoke verification
+--------------------------------------
+
+If feasible in the environment, run lightweight smoke checks such as:
+- boot service
+- hit health endpoint
+- inspect route registration
+- test one notifications endpoint if possible
+
+If full end-to-end tests are not possible because credentials or infra are missing, document that clearly.
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+Create this report:
+
+/analysis/notifications-merge-audit-report.md
+
+The report must include:
+
+1. Overall verdict:
+   - MERGE SUCCESSFUL
+   - MERGE PARTIALLY COMPLETE
+   - MERGE NOT READY
+
+2. Summary of what is correct
+
+3. Summary of what is missing/broken
+
+4. Audit by category:
+   - structure
+   - workspace integration
+   - dependency health
+   - build/typecheck
+   - env/secrets
+   - database/migrations
+   - auth/tenant integration
+   - route mounting
+   - worker integration
+   - feature preservation
+   - modularity
+
+5. Exact issues found
+   - include file paths where relevant
+
+6. Severity rating for each issue:
+   - critical
+   - medium
+   - low
+
+7. Clear readiness assessment:
+   - runnable now
+   - runnable with minor fixes
+   - needs major integration work
+
+8. A prioritized remediation checklist:
+   - step-by-step fixes in the right order
+
+9. Explicit answer to:
+   - Is the notifications backend merged correctly?
+   - What must be fixed before UI work starts?
+
+==================================================
+IMPORTANT AUDIT RULES
+==================================================
+
+- Do NOT do feature development in this task
+- Do NOT silently fix things unless absolutely required to complete the audit
+- Prefer inspection + reporting over changing code
+- If you must make a tiny change to complete verification, document it clearly
+- Be strict and honest
+- A merge is not “done” just because files exist
+- Focus on operational correctness and platform integration quality
+
+Begin the audit now.

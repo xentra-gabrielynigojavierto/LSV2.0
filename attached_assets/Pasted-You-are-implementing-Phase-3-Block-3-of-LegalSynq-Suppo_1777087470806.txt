@@ -1,0 +1,261 @@
+You are implementing Phase 3 Block 3 of LegalSynq Support Service.
+
+FEATURE ID:
+SUP-TNT-03
+
+FEATURE NAME:
+Customer RBAC Layer
+
+Report file:
+ /analysis/SUP-TNT-03-report.md
+
+PRIMARY OBJECTIVE:
+Introduce customer-safe authorization behavior so external customers can only access their own CustomerVisible tickets, while existing tenant/admin/support-agent workflows remain unchanged.
+
+IMPORTANT CONTEXT:
+Completed:
+- SUP-TNT-01 — ExternalCustomer model
+- SUP-TNT-02 — Ticket ownership + visibility
+- SUP-TNT-02-01 — Migration default correction
+
+Current model includes:
+- ExternalCustomer
+- TicketRequesterType: InternalUser | ExternalCustomer
+- TicketVisibilityScope: Internal | CustomerVisible
+- SupportTicket.ExternalCustomerId
+- ListByExternalCustomerAsync internal method
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT break existing internal/agent/admin ticket workflows.
+3. DO NOT weaken tenant isolation.
+4. DO NOT inject X-Tenant-Id in production.
+5. Tenant must come from JWT claims in production.
+6. DO NOT integrate with Identity Service.
+7. DO NOT add full customer login/auth yet.
+8. DO NOT build customer portal UI yet.
+9. DO NOT add email reply/Comms/SLA/Task logic.
+10. DO NOT store file bytes in Support DB.
+11. Preserve standalone deployability.
+12. Customer access must be scoped by tenantId + externalCustomerId + CustomerVisible.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-TNT-03-report.md
+
+Update it incrementally after every major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Existing authorization/RBAC model
+3. Customer access model
+4. Endpoint/API changes
+5. Query/visibility enforcement
+6. Tenant isolation validation
+7. Backward compatibility validation
+8. Files changed
+9. Build/test results
+10. Known gaps/deferred items
+11. Final readiness assessment
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- Existing Support authorization policies
+- Existing roles/constants:
+  - PlatformAdmin
+  - TenantAdmin
+  - SupportAgent
+  - TenantUser
+  - any SupportRead/Write/Manage policies
+- Current endpoint grouping and RequireAuthorization usage
+- TenantResolutionMiddleware
+- ITenantContext behavior
+- ExternalCustomerService behavior
+- TicketService List/Get/Create/Comment behavior
+- Existing comment endpoints and attachment/product-ref endpoints
+- Existing tests and test auth patterns
+
+Do not implement until analysis is documented.
+
+STEP 3 — DEFINE CUSTOMER ACCESS MODEL:
+
+Introduce or prepare a customer role/access path.
+
+Preferred approach:
+- Add a policy such as SupportPolicies.CustomerAccess or SupportCustomerAccess.
+- Do not replace existing SupportRead/Write/Manage policies.
+- Keep internal policies unchanged.
+
+Customer access must allow only:
+- List own CustomerVisible tickets
+- Get own CustomerVisible ticket
+- Add comment to own CustomerVisible ticket
+- View own ticket timeline/comments if existing endpoint supports it
+- View own ticket attachment references if already supported safely
+
+Customer access must NOT allow:
+- Queue access
+- Assignment
+- Status management
+- Internal-only tickets
+- Other customers’ tickets
+- Cross-tenant tickets
+- Admin/agent endpoints
+- Product reference management unless explicitly safe and scoped
+
+STEP 4 — CUSTOMER ID RESOLUTION:
+
+Because full customer login is not being built yet, implement a safe internal resolver pattern for future use.
+
+Allowed options:
+1. Use an internal service method that receives tenantId + externalCustomerId explicitly.
+2. If adding endpoint support, require a validated customer context claim such as:
+   - external_customer_id
+   - customer_id
+
+Do NOT trust request body customer IDs for authorization.
+Do NOT allow customerId query string to grant access unless endpoint is internal/admin-only.
+
+If customer claim support is added:
+- It must be read from authenticated JWT claims only.
+- It must be optional and not affect existing internal users.
+- Document exact claim name.
+
+STEP 5 — SERVICE / QUERY ENFORCEMENT:
+
+Add customer-scoped service methods if missing:
+
+- ListCustomerTicketsAsync(tenantId, externalCustomerId, page, pageSize)
+  Rules:
+  - tenantId match required
+  - ExternalCustomerId match required
+  - VisibilityScope = CustomerVisible required
+
+- GetCustomerTicketAsync(tenantId, externalCustomerId, ticketId)
+  Rules:
+  - tenantId match required
+  - ticketId match required
+  - ExternalCustomerId match required
+  - VisibilityScope = CustomerVisible required
+
+- AddCustomerCommentAsync(tenantId, externalCustomerId, ticketId, comment)
+  Rules:
+  - ticket must pass GetCustomerTicketAsync rules first
+  - comment author should be external customer
+  - must not allow internal-only visibility escalation
+
+Do not change existing internal agent methods except to share safe helper logic.
+
+STEP 6 — API / ENDPOINT LAYER:
+
+Add customer-safe endpoints only if appropriate for current architecture.
+
+Preferred route pattern:
+ /support/api/customer/tickets
+ /support/api/customer/tickets/{id}
+ /support/api/customer/tickets/{id}/comments
+
+These endpoints must:
+- require customer access authorization
+- derive tenant from JWT claims
+- derive external customer id from JWT claims or safe customer context
+- never accept tenantId from body/header in production
+- never accept externalCustomerId as an authorization override
+
+If customer JWT claim is not available yet:
+- Implement the service-level RBAC/query methods only
+- Add endpoint stubs only if they fail closed with 401/403
+- Document that customer API activation requires customer token issuance in later block
+
+STEP 7 — BACKWARD COMPATIBILITY:
+
+Ensure all existing endpoints remain unchanged:
+- internal ticket list
+- internal ticket detail
+- ticket create
+- assign
+- update status
+- queues
+- product refs
+- attachments
+- comments
+
+Existing internal users must not be restricted by customer rules.
+
+STEP 8 — AUDIT / NOTIFICATION ALIGNMENT:
+
+For customer comment/action paths:
+- include requesterType/externalCustomerId in audit metadata
+- do not introduce new event taxonomy unless needed
+- do not send new email/reply workflows
+- do not add Comms
+
+STEP 9 — SECURITY VALIDATION:
+
+Validate:
+1. Customer cannot list all tenant tickets.
+2. Customer can only list tickets with:
+   - same tenantId
+   - same externalCustomerId
+   - VisibilityScope = CustomerVisible
+3. Customer cannot get another customer’s ticket.
+4. Customer cannot get Internal tickets.
+5. Customer cannot access queues.
+6. Customer cannot assign tickets.
+7. Customer cannot change status unless explicitly allowed later.
+8. Internal agents/admins still access tenant tickets as before.
+9. Tenant isolation remains enforced.
+10. No X-Tenant-Id production injection introduced.
+
+STEP 10 — BUILD / TEST:
+
+Run:
+- dotnet build apps/services/support/Support.Api/Support.Api.csproj
+- dotnet build apps/services/support/Support.Tests/Support.Tests.csproj
+- relevant tests if available
+
+If test infrastructure allows, add focused tests for:
+- customer list filters by tenant + externalCustomerId + CustomerVisible
+- customer get blocks other customer ticket
+- customer get blocks Internal ticket
+- internal list remains unchanged
+
+STEP 11 — FINAL REPORT:
+
+Complete:
+
+# SUP-TNT-03 Report
+
+## 1. Codebase Analysis
+## 2. Existing Authorization / RBAC Model
+## 3. Customer Access Model
+## 4. Customer Context Resolution
+## 5. Service / Query Enforcement
+## 6. API / Endpoint Changes
+## 7. Audit / Notification Alignment
+## 8. Tenant Isolation Validation
+## 9. Backward Compatibility Validation
+## 10. Security Test Results
+## 11. Files Created / Changed
+## 12. Build / Test Results
+## 13. Known Gaps / Deferred Items
+## 14. Final Readiness Assessment
+
+DONE CRITERIA:
+- Customer-scoped access model exists.
+- Customer access is restricted to tenantId + externalCustomerId + CustomerVisible.
+- Customer cannot access queues, assignment, admin, or internal ticket endpoints.
+- Existing internal SupportRead/Write/Manage behavior remains unchanged.
+- Tenant isolation is preserved.
+- No public unauthenticated customer access is introduced.
+- No Identity integration is introduced.
+- No customer portal UI is added.
+- No Comms/email/SLA/Task logic is added.
+- Build/tests pass.
+- /analysis/SUP-TNT-03-report.md is complete.
+
+If customer token/claim issuance is not yet available:
+- do not fake it
+- document the blocker
+- keep endpoints fail-closed or service-only
+- recommend the next safe activation step.

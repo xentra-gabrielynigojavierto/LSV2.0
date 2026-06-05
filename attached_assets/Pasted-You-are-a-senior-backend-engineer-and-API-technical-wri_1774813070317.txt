@@ -1,0 +1,255 @@
+You are a senior backend engineer and API technical writer.
+
+Your task is to generate **complete API documentation for the Documents Service** in the current codebase.
+
+## Goal
+
+Create professional, developer-friendly API documentation for the Documents Service so frontend engineers, integrators, and external systems can understand how to use it.
+
+The documentation must reflect the **actual implemented routes and behavior in the code**, not assumptions.
+
+---
+
+## What to do
+
+### 1. Inspect the codebase
+
+Find and review:
+
+* route files
+* middleware
+* validators
+* controllers / services
+* auth flow
+* request/response DTOs
+* error handling
+* upload handling
+* token redemption flow
+
+Focus especially on files like:
+
+* `src/api/routes/documents.ts`
+* `src/api/routes/access.ts`
+* `src/api/middleware/auth.ts`
+* `src/api/middleware/file-validator.ts`
+* `src/api/middleware/error-handler.ts`
+* `src/application/document-service.ts`
+* `src/application/access-token-service.ts`
+
+If filenames differ, find the actual equivalents.
+
+---
+
+## 2. Generate API documentation artifacts
+
+Create these files:
+
+### A. Human-readable API documentation
+
+Create:
+`/analysis/documents_api_documentation.md`
+
+This file must include:
+
+#### Overview
+
+* what the Documents Service does
+* authentication model
+* tenant isolation model
+* access mediation model
+* file upload/scanning/security notes
+
+#### Base URLs
+
+Document expected base path(s), such as:
+
+* `/api/v1`
+* `/access/:token`
+
+#### Authentication
+
+Explain:
+
+* Bearer JWT requirements
+* required claims if visible from code
+* which endpoints are public vs authenticated
+
+#### Endpoint documentation
+
+For each endpoint, document:
+
+* method
+* path
+* purpose
+* auth required or not
+* request headers
+* path params
+* query params
+* request body
+* response body
+* error responses
+* notes / business rules
+
+Expected endpoints likely include:
+
+* `POST /api/v1/documents`
+* `GET /api/v1/documents`
+* `GET /api/v1/documents/:id`
+* `PATCH /api/v1/documents/:id`
+* `DELETE /api/v1/documents/:id`
+* `POST /api/v1/documents/:id/versions`
+* `POST /api/v1/documents/:id/view-url`
+* `POST /api/v1/documents/:id/download-url`
+* `GET /api/v1/documents/:id/content`
+* `GET /access/:token`
+
+But confirm from actual code.
+
+#### Request/response examples
+
+Add realistic examples for:
+
+* upload
+* list
+* get by id
+* view-url request
+* token redemption
+* error response
+* rate limit response
+* scan-blocked response
+
+#### Security / behavior notes
+
+Document:
+
+* rate limiting
+* malware scanning
+* signed access behavior
+* one-time-use token behavior if implemented
+* legal hold / retention behavior if implemented
+* tenant isolation behavior
+
+#### Error model
+
+Document the common error response structure and key error codes.
+
+---
+
+### B. OpenAPI spec
+
+Create:
+`/analysis/openapi-documents.yaml`
+
+Requirements:
+
+* OpenAPI 3.1 preferred, 3.0 acceptable if easier
+* include all implemented endpoints
+* include schemas for request/response bodies
+* include bearer auth scheme
+* include multipart upload schema for document upload
+* include common error schema
+* include response codes:
+
+  * 200
+  * 201
+  * 204
+  * 400
+  * 401
+  * 403
+  * 404
+  * 413
+  * 422
+  * 429
+  * 500
+  * 503 where applicable
+
+Document token redemption flow correctly.
+
+---
+
+### C. Swagger setup guidance
+
+Create:
+`/analysis/documents_swagger_setup.md`
+
+This file must explain:
+
+* how to expose the OpenAPI spec
+* how to serve Swagger UI in the service
+* recommended route such as:
+
+  * `/docs`
+  * `/openapi.json` or `/openapi.yaml`
+* npm packages to use
+* sample implementation steps for Express
+
+Do not fully wire Swagger unless trivial; focus on accurate setup guidance.
+
+---
+
+## 3. Accuracy requirements
+
+* Do NOT invent endpoints
+* Do NOT invent fields unless clearly inferred from code
+* If behavior is unclear, mark it clearly as inferred
+* Base docs on actual implementation
+* Use the current Documents Service state, including:
+
+  * access token mediation
+  * rate limiting
+  * malware scanning
+  * tenant isolation
+  * auth requirements
+
+---
+
+## 4. Documentation quality expectations
+
+The docs should be suitable for:
+
+* frontend developers
+* CareConnect integration work
+* future external integrators
+* QA and API testers
+
+Use:
+
+* clean structure
+* concise but complete descriptions
+* curl examples where useful
+* JSON examples where useful
+
+---
+
+## 5. Final summary file
+
+Create:
+`/analysis/documents_api_docs_summary.md`
+
+Include:
+
+* files created
+* endpoints documented
+* assumptions made
+* gaps or ambiguities found in code
+* recommended next step to publish the docs in the running service
+
+---
+
+## Deliverables
+
+Required output files:
+
+* `/analysis/documents_api_documentation.md`
+* `/analysis/openapi-documents.yaml`
+* `/analysis/documents_swagger_setup.md`
+* `/analysis/documents_api_docs_summary.md`
+
+---
+
+## Important
+
+This is a documentation task.
+Do not do broad refactors unless necessary to understand the routes.
+Prefer accuracy over polish.
+Start by inspecting the actual route files and generate the documentation from the implemented code.

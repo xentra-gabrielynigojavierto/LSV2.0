@@ -1,0 +1,200 @@
+Implement LS-LIENS-CASE-005-02 — Task Filtering + Search + Sort.
+
+Goal:
+Add a scalable filtering and search system to Case Detail → Task Manager so both Kanban and List views use the same query-driven dataset.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Task Manager
+
+This is an enhancement to the existing Task Manager UI.
+Do NOT redesign the shell or other tabs.
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the Task Manager tab behavior/UI for:
+- search
+- assignment filter
+- status filter
+- priority filter
+- sort
+- filter chips
+- shared filtered dataset
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- routing
+- APIs unless already available and needed
+- other tabs
+
+--------------------------------------------------
+ARCHITECTURE REQUIREMENT
+--------------------------------------------------
+
+Implement a unified task query/filter model.
+
+Do NOT duplicate filtering logic separately in Kanban and List.
+Both views must consume the same filtered/sorted dataset.
+
+--------------------------------------------------
+FILTERS TO IMPLEMENT
+--------------------------------------------------
+
+1. Search
+- search across task title, description, assignee name, task id if present
+
+2. Assignment filter
+Options:
+- All Tasks
+- Assigned to Me
+- Assigned to Others
+- Unassigned
+
+3. Status filter
+- Upcoming
+- In Progress
+- In Review
+- Completed
+
+4. Priority filter
+- High
+- Medium
+- Low
+
+5. Sort
+Options:
+- Recently Updated
+- Due Date
+- Priority
+- Task Name
+
+--------------------------------------------------
+FILTER UI
+--------------------------------------------------
+
+Add to the Task Manager header area:
+- search input
+- assignment filter
+- status filter
+- priority filter
+- sort dropdown
+- existing view switcher
+- existing Add Task action
+
+Also add:
+- active filter chips row
+- clear individual chip
+- clear all filters
+
+Keep UI compact and enterprise-style.
+
+--------------------------------------------------
+CURRENT USER LOGIC
+--------------------------------------------------
+
+Use real current user context for:
+- Assigned to Me
+- Assigned to Others
+
+Do NOT hardcode a user.
+If current user resolution is limited, document clearly in the report.
+
+--------------------------------------------------
+KANBAN / LIST REQUIREMENT
+--------------------------------------------------
+
+Kanban:
+- columns remain visible even when filtered
+- tasks appear only in matching columns
+- empty columns show empty state
+
+List:
+- same filtered tasks rendered in table
+- empty list shows proper empty state
+
+Switching between views must preserve filters and search.
+
+--------------------------------------------------
+TEMP DATA RULE
+--------------------------------------------------
+
+If current tasks are TEMP fallback data, filtering/search/sort must still work on them.
+
+Do NOT fake persistence.
+Do NOT fake backend search.
+Keep TEMP data clearly documented.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-005-02-report.md
+
+2. Initialize with:
+   - objective
+   - scope
+   - current Task Manager filter/search analysis
+   - planned query model
+   - current user resolution approach
+
+3. DURING implementation:
+   - update after each step
+   - include:
+     - files changed
+     - query/filter state implemented
+     - filters completed
+     - search/sort logic completed
+     - chip behavior completed
+     - issues found and fixes applied
+
+4. FINAL:
+   - summarize final implementation
+   - validation results
+   - remaining gaps
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze current Task Manager state and task data shape
+T002 — Implement shared query/filter model
+T003 — Add search input
+T004 — Add assignment filter
+T005 — Add status filter
+T006 — Add priority filter
+T007 — Add sort dropdown
+T008 — Add active filter chips + clear-all
+T009 — Apply filtered dataset to Kanban and List
+T010 — Final validation
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Search works
+- Assignment filter works
+- Status filter works
+- Priority filter works
+- Sort works
+- Filter chips work
+- Kanban and List share same filtered dataset
+- No regressions
+- Report complete
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change fonts/colors/navigation.

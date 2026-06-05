@@ -1,0 +1,393 @@
+# LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity/access-enforcement feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, onboarding, recovery, access-management, and enforcement behavior
+- Reuse existing JWT/session/access-version/product-code patterns where possible
+- Keep backend, gateway, middleware, and UI concerns clearly separated
+- Include explicit fallback/default behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Prefer authoritative backend enforcement with frontend route alignment
+- Preserve tenant isolation in every enforcement path
+- Be honest in the report about the exact enforcement boundary achieved
+
+---
+
+## FEATURE OBJECTIVE
+
+Close the final enforcement gaps by ensuring access control is enforced:
+- at route/navigation level in the frontend
+- immediately after access changes (token/session consistency)
+- consistently across the services covered by the current platform architecture
+
+This feature upgrades the platform from “backend-enforced access” to “zero-bypass access control for the implemented scope.”
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Fine-grained permission engine / policy matrix
+- Role creation/editing UI
+- Audit dashboard UI
+- SSO / federation
+- Broad auth architecture rewrite
+- Product permission matrix
+- Page redesign
+- Unvalidated claims redesign
+- Unvalidated cross-service event bus or platform-wide messaging framework
+
+ONLY IMPLEMENT:
+- Route-level product enforcement in the frontend/middleware if supported by current architecture
+- Access-version/token consistency improvements so access changes apply immediately or near-immediately within the validated architecture
+- Cross-service enforcement standardization for the real services/routes the codebase supports today
+- Minimal UX handling for access-denied outcomes
+- Clear and consistent 403/access-denied behavior
+- Honest documentation of what is fully enforced now vs still deferred
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-010-report.md
+
+Initialize with:
+
+# LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing JWT / Access-Version Analysis
+## 4. Existing Frontend Route / Middleware Analysis
+## 5. Existing Cross-Service Enforcement Analysis
+## 6. Enforcement Completion Design
+## 7. Token / Session Consistency Strategy
+## 8. Enforcement Boundary / Coverage
+## 9. Files Changed
+## 10. Backend / Gateway Implementation
+## 11. Frontend / Middleware Implementation
+## 12. API / Error Contract Changes
+## 13. Access-Denied UX Behavior
+## 14. Testing Results
+## 15. Known Issues / Gaps
+## 16. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### JWT / session / access version
+- current JWT claim set (especially `product_codes`, `access_version`, roles, tenant claims)
+- where `access_version` is produced
+- where `access_version` is validated today
+- whether stale-token rejection already exists in gateway, middleware, or services
+- how session refresh happens in the frontend today
+- whether `/auth/me` or another endpoint can be used to refresh effective access safely
+
+### Frontend routing / middleware
+- current Next.js middleware behavior
+- what route groups exist for products (e.g. `/careconnect`, `/fund`, `/flow`, etc.)
+- whether product route identification is deterministic
+- how session data is accessed during middleware/runtime
+- whether route-level blocking is feasible with current architecture
+
+### Cross-service enforcement
+- which services currently use `RequireProductAccessFilter` or equivalent
+- which services do not
+- whether a shared BuildingBlocks helper/filter package is already used
+- whether YARP route metadata can participate in enforcement
+- what services/routes can realistically be covered in this feature
+
+### Frontend access-denied behavior
+- how 403s are currently surfaced
+- whether there is an existing access-denied page or pattern
+- how product switcher/nav currently reacts to unauthorized products
+
+DO NOT assume coverage or architecture until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing JWT / Access-Version Analysis
+## 4. Existing Frontend Route / Middleware Analysis
+## 5. Existing Cross-Service Enforcement Analysis
+
+---
+
+## STEP 2 — DESIGN THE ENFORCEMENT COMPLETION STRATEGY
+
+Based on actual findings, design the smallest coherent strategy to complete enforcement.
+
+You must determine and document:
+
+### Route-level enforcement
+- whether Next.js middleware can enforce product routes directly
+- whether route matching should use path prefixes, metadata, or another validated approach
+- whether the middleware can safely access `userProducts` or equivalent user-level access data
+- what the fallback should be if middleware cannot fully determine access
+
+### Token/session consistency
+- how access changes (product assignment, role change, group change) should invalidate or refresh stale access
+- whether to:
+  - bump `access_version`
+  - force session refresh
+  - reject stale tokens at gateway/service
+  - some combination of the above
+- how quickly changes should take effect in practice
+
+### Cross-service standard
+- what shared mechanism already exists
+- whether a shared filter/helper can be applied to uncovered services now
+- exact services/routes that can be brought into compliance in this feature
+
+Preferred design principles:
+- backend remains authoritative
+- frontend route guard improves UX, not authority
+- no stale access after meaningful access changes within the implemented scope
+- document exact coverage honestly
+
+Update report:
+## 6. Enforcement Completion Design
+## 7. Token / Session Consistency Strategy
+## 8. Enforcement Boundary / Coverage
+
+---
+
+## STEP 3 — IMPLEMENT TOKEN / ACCESS-VERSION CONSISTENCY
+
+Implement the validated strategy so access changes take effect immediately or near-immediately in the current architecture.
+
+Potential triggers:
+- product assignment changes
+- group membership changes
+- role assignment/revocation that affects access
+- invite acceptance if it changes effective access
+- activate/deactivate if relevant to access
+
+Requirements:
+- stale effective-access tokens should be rejected or refreshed based on the chosen design
+- do not rely on logout/login as the only synchronization mechanism
+- preserve tenant safety
+- avoid broad auth rewrite
+- keep the behavior explicit and testable
+
+If `access_version` is the right mechanism:
+- ensure it is incremented on the right mutations
+- ensure mismatch is actually enforced somewhere authoritative
+- ensure frontend can recover gracefully from mismatch
+
+Update report:
+## 10. Backend / Gateway Implementation
+## 12. API / Error Contract Changes
+## 14. Testing Results
+
+---
+
+## STEP 4 — IMPLEMENT FRONTEND ROUTE-LEVEL PRODUCT ENFORCEMENT
+
+Implement route-level protection for product routes if supported by the validated architecture.
+
+Requirements:
+- unauthorized product routes should be blocked before or at navigation time where feasible
+- use current middleware/session/access data patterns
+- redirect to a safe destination or access-denied page/state
+- do not create redirect loops
+- do not break public/auth routes
+- preserve tenant-admin/platform-admin behavior if they have broader access
+
+If full middleware enforcement is not possible:
+- implement the strongest reliable route guard available
+- document the limitation honestly
+
+Update report:
+## 11. Frontend / Middleware Implementation
+## 13. Access-Denied UX Behavior
+## 14. Testing Results
+
+---
+
+## STEP 5 — STANDARDIZE ACCESS-DENIED UX
+
+Create a consistent access-denied experience for unauthorized product access.
+
+Requirements:
+- clear user-facing message such as:
+  - “You do not have access to this product.”
+- optional guidance:
+  - “Contact your tenant administrator if you believe this is a mistake.”
+- avoid raw error codes or repeated API-error spam
+- preserve current product shell/layout where appropriate, or redirect to a safe page if that is cleaner in the current architecture
+
+Do NOT redesign the application shell.
+
+Update report:
+## 13. Access-Denied UX Behavior
+
+---
+
+## STEP 6 — COMPLETE CROSS-SERVICE ENFORCEMENT FOR THE VALIDATED SCOPE
+
+Apply or standardize product enforcement for the actual services/routes supported by the current codebase.
+
+Requirements:
+- ensure all covered product services use the same authoritative access-check approach
+- align error behavior to 403 with clear message
+- do not over-claim platform-wide coverage if only certain services/routes can be completed now
+- identify any remaining uncovered routes/services explicitly
+
+Potential implementations:
+- ensure `RequireProductAccessFilter` is applied uniformly where missing
+- add shared metadata or wrapper helpers if already compatible with current route patterns
+- extend gateway or BuildingBlocks only if validated and minimal
+
+Update report:
+## 10. Backend / Gateway Implementation
+## 8. Enforcement Boundary / Coverage
+## 14. Testing Results
+
+---
+
+## STEP 7 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- users list/search/filter
+- invite user flow
+- accept-invite flow
+- password reset flow
+- edit/activate/deactivate flows
+- product/group assignment from LS-ID-TNT-008
+- last-admin protection
+- user-level product switcher behavior from LS-ID-TNT-009
+
+If any compromise or behavior change is required, document it explicitly.
+
+Update report:
+## 14. Testing Results
+## 15. Known Issues / Gaps
+
+---
+
+## STEP 8 — TENANT SAFETY AND NO-BYPASS VALIDATION
+
+Validate and ensure:
+- no cross-tenant access leakage
+- no stale product access through unchanged tokens for the implemented scope
+- no route-level bypass for covered product routes
+- no normal UI/API path bypass for covered services
+- backend remains source of truth even when frontend route guards exist
+
+Document any limitations honestly, including:
+- uncovered services
+- uncovered routes
+- unavoidable session edge cases
+- anything still eventual rather than immediate
+
+Update report:
+## 8. Enforcement Boundary / Coverage
+## 14. Testing Results
+## 15. Known Issues / Gaps
+
+---
+
+## STEP 9 — TESTING
+
+Test and document each scenario.
+
+### Route-level enforcement
+- navigate to an allowed product route → success
+- navigate to an unauthorized product route → blocked before/at route load
+- direct URL entry to unauthorized product → blocked or redirected appropriately
+- tenant admin/platform admin broader-access behavior remains valid
+
+### Token/session consistency
+- revoke product access from a user with an active session → access is lost according to the implemented strategy
+- change role affecting access → change is reflected according to the implemented strategy
+- change group membership affecting inherited product access → reflected according to the implemented strategy
+- stale token/version mismatch is detected and handled correctly
+
+### Cross-service enforcement
+- call covered product API without access → 403
+- call covered product API with access → success
+- verify consistent behavior across each covered service
+- verify uncovered services/routes are explicitly documented
+
+### UX / regression
+- access-denied UX is clear
+- no redirect loops
+- invite flow still works
+- activation still works
+- password reset still works
+- users list still works
+- product/group assignment still works
+- null-safe rendering remains intact
+
+Update report:
+## 14. Testing Results
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 15. Known Issues / Gaps
+## 16. Final Status = Complete
+
+Your final report must clearly state:
+- What token/session consistency mechanism was implemented
+- Whether `access_version` is now fully enforced and where
+- What route-level guard was implemented and for which routes
+- Which services/routes now enforce product access consistently
+- What access-denied UX was implemented
+- What remains deferred for true platform-wide zero-bypass enforcement
+- Whether any normal bypass paths remain for the implemented scope
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Unauthorized product routes are blocked at the validated route/navigation boundary implemented in this feature
+✔ Users cannot continue using stale access for the implemented scope after access-changing mutations
+✔ Token/version mismatch triggers rejection, refresh, or equivalent safe handling
+✔ Covered services enforce product access consistently
+✔ Backend returns consistent 403 responses for denied product access
+✔ Frontend handles access denial cleanly without generic crashes
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-009 flows do not regress
+✔ Tenant isolation remains intact
+✔ Enforcement coverage and remaining gaps are documented honestly
+✔ The implemented scope now behaves as a zero-bypass access-control layer
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working route-level/access-denied enforcement for the validated frontend scope
+2. Working token/session consistency mechanism for access changes
+3. Standardized product enforcement across the validated backend/service scope
+4. Completed report:
+/analysis/LS-ID-TNT-010-report.md
+
+---
+
+END OF IMPLEMENTATION

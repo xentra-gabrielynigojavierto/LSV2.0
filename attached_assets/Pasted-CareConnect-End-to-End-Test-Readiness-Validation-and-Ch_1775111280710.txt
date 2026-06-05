@@ -1,0 +1,415 @@
+CareConnect — End-to-End Test Readiness, Validation, and Checklist Pass
+
+Goal:
+Prepare the current CareConnect system for end-to-end testing, verify that core workflows are working properly, fix any obvious breakages that block realistic testing, execute a practical end-to-end validation pass, and generate a structured report plus a checklist of tested items and results.
+
+This is NOT a new feature build.
+This is a stabilization + test-readiness + end-to-end validation pass.
+
+==================================================
+PRIMARY OBJECTIVES
+==================================================
+
+1. Prepare the system so it can be tested end-to-end reliably
+2. Verify the application builds, runs, and the main workflows are wired correctly
+3. Fix low-risk breakages that prevent realistic testing
+4. Execute an end-to-end validation pass across the implemented CareConnect flows
+5. Produce a detailed testing checklist with pass/fail status, observations, and blockers
+
+==================================================
+IMPORTANT SCOPE RULES
+==================================================
+
+You are NOT being asked to redesign the product.
+You are NOT being asked to add major new features.
+You are NOT being asked to expand scope.
+
+You ARE being asked to:
+- stabilize
+- verify
+- smoke test
+- integration test
+- validate end-to-end flows
+- identify blockers
+- fix obvious low-risk issues that break testing
+- document what is working vs not working
+
+Only make code changes that are necessary to:
+- get the system running
+- correct broken wiring/config issues
+- fix small defects preventing realistic testing
+- improve testability
+- improve deterministic behavior for validation
+
+Do NOT introduce speculative enhancements.
+
+==================================================
+TESTING PRIORITY
+==================================================
+
+Focus on validating the currently built CareConnect system end to end, especially:
+
+A. Authentication / access control
+B. Provider provisioning readiness
+C. Referral creation flow
+D. Provider email access flow
+E. Authenticated referral acceptance flow
+F. Notifications triggered by acceptance
+G. Admin provisioning workflow
+H. Admin visibility / dashboard / queues
+I. Performance metrics page
+J. Regression check across the core product loop
+
+==================================================
+CORE FLOWS TO TEST
+==================================================
+
+You must test these flows end to end as far as the current repo/environment allows.
+
+--------------------------------------------------
+FLOW 1 — SYSTEM STARTUP / BOOTSTRAP
+--------------------------------------------------
+
+Validate:
+- app builds successfully
+- backend services start
+- frontend starts
+- key routes load
+- migrations / schema state do not block startup
+- obvious environment/config issues are resolved or clearly documented
+
+Check:
+- no fatal startup exceptions
+- APIs reachable
+- frontend can talk to backend
+- auth/session behavior works in local/dev environment
+
+--------------------------------------------------
+FLOW 2 — ADMIN LOGIN / ACCESS
+--------------------------------------------------
+
+Validate:
+- admin can log in
+- admin can access CareConnect admin routes
+- non-admin access is blocked where expected
+
+Key routes:
+- /careconnect/admin/dashboard
+- /careconnect/admin/providers/provisioning
+- /careconnect/admin/providers/blocked
+- /careconnect/admin/referrals
+- /careconnect/admin/performance
+
+--------------------------------------------------
+FLOW 3 — LAW FIRM REFERRAL CREATION
+--------------------------------------------------
+
+Validate:
+- law firm user can search/select provider
+- law firm can create a referral
+- referral is saved with canonical initial state
+- referral appears in law firm view
+- no appointment dependency is required
+
+Check specifically:
+- status starts as New
+- selected provider is attached correctly
+- referral list/detail reflects created referral
+
+--------------------------------------------------
+FLOW 4 — PROVIDER EMAIL / LINK ENTRY
+--------------------------------------------------
+
+Validate:
+- provider notification flow is wired correctly
+- referral email link format is generated correctly
+- token-based referral entry route works
+- invalid token handling works
+- login redirect occurs correctly
+
+Check:
+- /referrals/view?token=...
+- returnTo behavior
+- invalid / expired / revoked token flow
+- no public referral detail exposure
+
+If actual email sending cannot be fully exercised in local/dev, validate via:
+- generated notification records
+- rendered URLs
+- email service invocation paths
+- logs / test doubles / local mail capture if available
+
+--------------------------------------------------
+FLOW 5 — AUTHENTICATED PROVIDER REFERRAL ACCESS
+--------------------------------------------------
+
+Validate:
+- properly provisioned provider can log in
+- provider can access referral detail
+- provider sees Accept action only when valid
+- blocked provider sees admin-contact blocking page
+- referral details are hidden from blocked providers
+
+Test both:
+1. correctly provisioned provider
+2. authenticated but unprovisioned/misconfigured provider
+
+--------------------------------------------------
+FLOW 6 — PROVIDER ACCEPTANCE
+--------------------------------------------------
+
+Validate:
+- provider can accept referral only through authenticated path
+- status changes from New → Accepted
+- duplicate acceptance is blocked
+- wrong provider cannot accept
+- law firm sees updated Accepted status after refresh
+
+Check:
+- referral detail action visibility
+- backend enforcement
+- audit/history entry
+- repeat click behavior
+
+--------------------------------------------------
+FLOW 7 — ACCEPTANCE NOTIFICATIONS
+--------------------------------------------------
+
+Validate:
+- law firm acceptance notification is triggered
+- client acceptance notification is triggered when client email exists
+- missing client email does not block acceptance
+- notification duplication does not happen on repeated accepts
+
+If real SMTP is unavailable, verify by:
+- notification records
+- logs
+- mocked delivery
+- retry queue / send pipeline behavior
+
+--------------------------------------------------
+FLOW 8 — BLOCKED PROVIDER FLOW
+--------------------------------------------------
+
+Validate:
+- blocked provider attempt is logged
+- provider sees “contact your administrator” style blocking page
+- no referral data leaks
+- blocked provider appears in admin blocked queue
+- remediation link points to provisioning page
+
+--------------------------------------------------
+FLOW 9 — ADMIN PROVISIONING WORKFLOW
+--------------------------------------------------
+
+Validate:
+- admin can inspect provider readiness
+- admin can provision CareConnect receiver access
+- provisioning is idempotent
+- readiness recheck updates correctly
+- provider can retry login/access after provisioning
+
+Check:
+- missing role case
+- already-ready case
+- invalid target handling where feasible
+
+--------------------------------------------------
+FLOW 10 — ADMIN OPERATIONAL VISIBILITY
+--------------------------------------------------
+
+Validate:
+- dashboard metrics load
+- blocked provider queue loads
+- referral queue loads
+- filters / sorting work at basic level
+- remediation navigation works
+
+Check:
+- empty states
+- recent data visibility
+- queue pages do not crash on partial data
+
+--------------------------------------------------
+FLOW 11 — PERFORMANCE METRICS
+--------------------------------------------------
+
+Validate:
+- performance page loads
+- summary metrics render
+- aging distribution renders
+- provider responsiveness table renders
+- empty state works
+- no divide-by-zero / NaN issues
+
+--------------------------------------------------
+FLOW 12 — REGRESSION PASS
+--------------------------------------------------
+
+Re-check that recent hardening remains true:
+- no unauthenticated referral acceptance
+- no cross-account leakage
+- blocked providers cannot see referral details
+- accepted state remains canonical
+- admin-only routes remain protected
+
+==================================================
+WORK TO PERFORM
+==================================================
+
+Follow this exact sequence.
+
+1. Inspect the repo and identify all services/apps needed for local end-to-end testing
+2. Verify build and startup steps
+3. Fix only low-risk issues preventing the system from running or being tested
+4. Seed or prepare realistic test data if needed
+5. Execute the end-to-end validation flows above
+6. Record pass/fail status for each tested item
+7. Record screenshots, request/response observations, route results, or logs where useful
+8. Identify blockers still preventing complete validation
+9. Generate final report and checklist
+
+==================================================
+ALLOWED FIXES
+==================================================
+
+You MAY fix:
+- startup/config issues
+- route wiring issues
+- small auth redirect issues
+- incorrect link formatting
+- minor API mismatches
+- broken imports / type errors
+- obvious null handling defects
+- small deterministic data/test setup issues
+
+You MUST NOT:
+- redesign workflows
+- add unrelated features
+- change product scope
+- implement speculative improvements
+
+==================================================
+TESTING APPROACH
+==================================================
+
+Use the most realistic approach available in the repo.
+
+Preferred:
+- run the application(s)
+- exercise real routes
+- exercise real service methods
+- use local test data or seed data
+- validate full request/response path where possible
+
+Where true end-to-end execution is not possible, do the next best thing and state that clearly:
+- integration-style verification
+- service-layer verification
+- route-level verification
+- UI render verification
+
+Do NOT pretend something was tested if it was only inferred.
+
+==================================================
+OUTPUT REPORT REQUIREMENTS
+==================================================
+
+Generate a report at:
+
+/analysis/LSCC-01-E2E-validation-report.md
+
+The report must include these sections:
+
+1. Summary
+- what was prepared
+- what was fixed
+- what was tested
+- overall readiness assessment
+
+2. Environment / Startup Readiness
+- apps/services started
+- commands used
+- config assumptions
+- known startup issues if any
+
+3. Code / Config Fixes Made
+- file-by-file summary
+- why each fix was required
+
+4. End-to-End Test Results
+For each major flow:
+- flow name
+- result: PASS / PARTIAL / FAIL
+- what was validated
+- what could not be validated
+- evidence/notes
+
+5. Detailed Checklist
+Create a checkbox-style checklist of tested items, for example:
+- [PASS] Admin login works
+- [PASS] Law firm can create referral
+- [PASS] Provider blocked page renders for unprovisioned user
+- [PASS] Provisioned provider can access referral
+- [PASS] Provider can accept referral
+- [PASS] Law firm sees Accepted status
+- [PASS/PARTIAL/FAIL] Client email notification path
+etc.
+
+6. Open Defects / Blockers
+- severity
+- impact
+- recommended next action
+
+7. Regression Check
+- what existing behavior was revalidated
+- what remains uncertain
+
+8. Test Data / Accounts Used
+- what user roles/data were used
+- how to reproduce the scenarios
+
+9. Final Readiness Verdict
+Choose one:
+- READY FOR MANUAL TESTING
+- READY WITH MINOR KNOWN ISSUES
+- NOT READY
+
+10. Recommended Next Step
+- smallest, most practical next action after this validation pass
+
+==================================================
+CHECKLIST FORMAT REQUIREMENT
+==================================================
+
+In the report, include a dedicated section named:
+
+## Test Checklist
+
+It must list all tested items with:
+- PASS / PARTIAL / FAIL
+- short note
+- blocker reference if failed
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+This task is successful only if:
+
+1. The system is prepared for realistic end-to-end testing
+2. Core CareConnect workflows are actually exercised as far as possible
+3. Low-risk blockers are fixed where appropriate
+4. A clear pass/fail checklist is produced
+5. Remaining blockers are explicit and honest
+6. The final report exists at:
+   /analysis/LSCC-01-E2E-validation-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Be rigorous and honest.
+
+Do not claim end-to-end validation for any path you did not truly test.
+Do not overbuild.
+Do the minimum necessary stabilization work to make the system testable, validate the core flows, and produce a high-quality testing report and checklist.

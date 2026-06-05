@@ -1,0 +1,294 @@
+LS-LIENS-CASE-006 — Replit Implementation Prompt
+
+Copy-paste this entire prompt into Replit:
+
+You are implementing LS-LIENS-CASE-006 — Case Notes UX Hardening & Identity Normalization for the LegalSynq Synq Liens v2 platform.
+IMPORTANT: Follow these instructions exactly.
+==================================================
+IMPLEMENTATION MODE
+==================================================
+You must:
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+Create this file first before making any code changes:
+/analysis/LS-LIENS-CASE-006-report.md
+You must update it continuously as you progress.
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Identity / Ownership Normalization
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+Do not leave placeholder sections. Populate with actual implementation details only.
+==================================================
+OBJECTIVE
+==================================================
+Harden the Case Notes experience implemented in LS-LIENS-CASE-005 by improving:
+1. Author identity consistency
+2. Owner detection for edit/delete controls
+3. Action-state reliability
+4. Note metadata presentation consistency
+5. Cleanup of adjacent note-related frontend typing/service mismatches
+This is a hardening/stabilization feature, not a major new domain feature.
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+Use existing v2 shared services and existing Liens patterns.
+Do NOT:
+- create a new major notes domain
+- introduce real-time updates
+- add mentions or notifications
+- build attachments
+- redesign the notes UI from scratch
+- redesign permissions unless strictly necessary
+Prefer:
+- normalization helpers
+- UI/state hardening
+- service/type cleanup
+- consistent ownership logic
+- minimal API/backend changes only if truly needed
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE
+==================================================
+Before implementing:
+Inspect and document:
+- CASE-005 Case Notes backend/API/service implementation
+- CASE-005 NotesTab frontend implementation
+- current session/user identity shape in frontend
+- how `createdByUserId` is populated by backend
+- how current UI detects owner for edit/delete
+- FLOW-004 task notes service/types and any pre-existing TS mismatches
+- any shared utilities already used for identity/display-name formatting
+- audit events currently emitted for case notes
+Document findings in the report before coding.
+==================================================
+STEP 2 — IDENTITY / OWNERSHIP NORMALIZATION
+==================================================
+Implement a consistent ownership and author-display strategy.
+--------------------------------------------------
+2.1 Author Display Rules
+--------------------------------------------------
+Standardize author display for Case Notes using this priority:
+1. `createdByName` from backend response
+2. fallback helper derived from known identity/session fields only if missing
+3. no inline one-off formatting logic scattered across components
+If needed, create a small shared helper utility for note author display.
+--------------------------------------------------
+2.2 Ownership Detection Rules
+--------------------------------------------------
+Standardize current-user ownership detection for note actions.
+Requirements:
+- centralize how current user ID is resolved in frontend
+- compare against `createdByUserId` using one consistent normalized shape
+- use the same ownership logic in all note action rendering
+- fail safe if user ID cannot be resolved, but document the fallback
+--------------------------------------------------
+2.3 Optional Backend Adjustment
+--------------------------------------------------
+If code inspection shows the backend is returning an inconsistent or incomplete user identity field for case notes, make the minimum necessary backend/API adjustment and document it clearly.
+Do NOT redesign auth/session.
+==================================================
+STEP 3 — CASE NOTES UX HARDENING
+==================================================
+Improve reliability of create/edit/delete/pin/unpin interactions.
+--------------------------------------------------
+3.1 Action States
+--------------------------------------------------
+For create/edit/delete/pin/unpin:
+- show loading/disabled state
+- prevent double submit
+- prevent repeated rapid action calls
+- surface error message clearly
+- keep UI state synchronized after completion
+--------------------------------------------------
+3.2 Edited Metadata
+--------------------------------------------------
+Ensure edited-state rendering is consistent:
+- show edited indicator when `isEdited === true`
+- if `updatedAt` is available and useful, display it in a minimal consistent way
+- do not build full revision history
+--------------------------------------------------
+3.3 Timestamp Consistency
+--------------------------------------------------
+Ensure timestamps are rendered consistently across case notes.
+Use existing platform conventions if available:
+- relative time + tooltip
+or
+- stable formatted timestamp
+Do not mix multiple timestamp formats arbitrarily within the same note UI.
+==================================================
+STEP 4 — NOTE SERVICE / TYPE CLEANUP
+==================================================
+Clean up adjacent note-related frontend technical debt so future note work has a stable base.
+--------------------------------------------------
+4.1 Case Notes Service Consistency
+--------------------------------------------------
+Review:
+- `lien-case-notes.types.ts`
+- `lien-case-notes.api.ts`
+- `lien-case-notes.service.ts`
+Ensure:
+- return types are clean and consistent
+- no unnecessary `ApiResponse<T>` mismatch
+- unwrapping behavior matches platform conventions
+--------------------------------------------------
+4.2 Task Notes Alignment
+--------------------------------------------------
+Review note-adjacent files such as:
+- `lien-task-notes.service.ts`
+- related task note type/api/service files
+If there are pre-existing note-related TS/service mismatches, fix them as part of this hardening pass where feasible.
+Do NOT redesign the task notes feature. Just align service/type correctness and ownership/display consistency where applicable.
+==================================================
+STEP 5 — UI IMPLEMENTATION
+==================================================
+Harden the existing Case Notes UI without redesigning it.
+Keep:
+- timeline layout
+- composer
+- category filtering
+- search
+- sort toggle
+- pin badge
+- inline edit/delete behavior
+Improve:
+- owner control visibility reliability
+- loading/disabled states
+- error visibility
+- author/timestamp consistency
+- edited indicator consistency
+If there is shared logic applicable to Task Notes UI, reuse where practical.
+==================================================
+STEP 6 — PERMISSIONS / SECURITY
+==================================================
+Do not redesign permissions unless necessary.
+Continue to respect:
+- read access rules already in place
+- `CaseNoteManage` behavior
+- owner-only edit/delete rules
+- existing pin behavior
+If a genuine permissions inconsistency is discovered during implementation, fix only what is necessary and document it.
+==================================================
+STEP 7 — AUDIT INTEGRATION
+==================================================
+Preserve existing audit behavior from CASE-005.
+No major audit redesign is required.
+If any note action handling changes require small audit payload consistency fixes, make them minimally and document them.
+==================================================
+STEP 8 — BACKEND / API CHANGES
+==================================================
+Prefer no major backend changes.
+Only add or modify backend/API behavior if needed to support:
+- consistent user identity fields
+- clearer edited metadata
+- small response-shape normalization
+Do not introduce a new domain or a new major API surface.
+==================================================
+STEP 9 — VALIDATION CHECKLIST
+==================================================
+Validate and document:
+### Identity / Ownership
+- note owner sees edit/delete controls
+- non-owner does not
+- ownership logic still matches backend enforcement
+- author name renders consistently after reload
+### UX / Reliability
+- create action disables correctly during submit
+- edit action disables correctly during save
+- delete action disables correctly during delete
+- pin/unpin disables correctly during action
+- no duplicate submission from rapid click
+- clear error state shown on API failure
+### Metadata
+- edited indicator renders correctly
+- timestamps render consistently
+- author label is stable and not derived inconsistently in different places
+### Technical Cleanup
+- case note service/types are consistent
+- task note service/type mismatches are fixed where applicable
+- no new TS errors introduced
+### Regression
+- CASE-005 behavior still works
+- filtering/search/sort still work
+- audit behavior still works
+- pin/unpin still works
+### Build
+- backend builds
+- frontend TypeScript/build passes
+- app starts cleanly
+If something cannot be fully resolved, explain exactly why in the report.
+==================================================
+STEP 10 — REQUIRED REPORT STRUCTURE
+==================================================
+Populate the final `/analysis/LS-LIENS-CASE-006-report.md` with:
+1. Executive Summary
+   - what was improved
+   - what was partially improved
+   - what was deferred
+2. Codebase Assessment
+   - current identity/session findings
+   - current ownership logic findings
+   - note service/type findings
+3. Files Changed
+   - backend/frontend/config grouped clearly
+4. Database / Schema Changes
+   - only if any; otherwise explicitly say no schema changes
+5. API Changes
+   - only if any; otherwise explicitly say no API changes
+6. UI Changes
+   - exact notes UI hardening changes
+   - task-note alignment changes if any
+7. Identity / Ownership Normalization
+   - how current user identity is resolved
+   - how author display is normalized
+   - fallback behavior
+8. Permissions / Security
+   - confirm existing rules preserved
+   - document any minimal fixes
+9. Audit Integration
+   - confirm preserved behavior
+   - document any small payload consistency changes
+10. Validation Results
+   - build/test/typecheck/manual validation
+11. Known Gaps / Risks
+   - unresolved identity issues
+   - remaining technical debt
+   - recommended next step
+12. Run Instructions
+   - build/typecheck/startup instructions
+==================================================
+DEFINITION OF DONE
+==================================================
+This feature is complete only if:
+1. case-note owner controls render reliably
+2. author display logic is consistent
+3. note action states are hardened
+4. note-related service/type mismatches are cleaned up where applicable
+5. no regression to CASE-005 behavior
+6. build/typecheck pass (or clearly documented unavoidable pre-existing failures)
+7. implementation is documented in `/analysis/LS-LIENS-CASE-006-report.md`
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+- Keep this as a quality/hardening feature
+- Prefer small, targeted fixes over broad rewrites
+- Preserve tenant isolation
+- Preserve CASE-005 behavior
+- Reuse patterns from FLOW-004 and CASE-005
+- Minimize backend changes unless necessary
+- Make the note ecosystem more consistent, not more complex
+Begin by creating `/analysis/LS-LIENS-CASE-006-report.md` immediately, then inspect the codebase, document findings, and proceed with implementation.

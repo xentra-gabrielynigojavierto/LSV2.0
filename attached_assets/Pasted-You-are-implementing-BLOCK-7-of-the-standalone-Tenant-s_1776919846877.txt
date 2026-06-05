@@ -1,0 +1,512 @@
+You are implementing BLOCK 7 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B07-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1–6 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- This block is the IDENTITY DECOUPLING + FINAL RUNTIME SOURCE TRANSITION block. It must be feature-flagged, rollback-safe, and production-minded.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B07 — Identity Decoupling + Final Runtime Source Transition
+================================================================
+
+OBJECTIVE
+Complete the runtime transition so Tenant service becomes the primary read source for tenant metadata, while preserving a controlled rollback path and minimizing operational risk.
+
+This block must add:
+1. final runtime read-source transition for tenant branding/bootstrap and tenant resolution,
+2. real dual-write hook points from Identity to Tenant behind explicit feature flags,
+3. finalization of remaining public branding/logo read-path consistency,
+4. safe decoupling of Identity from direct tenant-master read responsibilities where feasible,
+5. validation and safeguards proving Tenant is ready to act as primary runtime source,
+6. explicit rollback controls so Identity can still be restored quickly if needed.
+
+This block must NOT perform destructive cleanup of Identity tenant storage yet unless it is clearly safe and explicitly documented.
+This block is about making Tenant the primary runtime read source and enabling Identity to act as a writer/sync participant instead of the master runtime reader.
+
+================================================================
+CONTEXT FROM BLOCKS 1–6 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 established:
+- standalone Tenant service
+- tenant_db
+- core tenant entity
+- migration-aware mapping from Identity -> Tenant
+
+Block 2 established:
+- expanded tenant profile
+- TenantBranding entity
+- branding APIs
+- public branding endpoints
+
+Block 3 established:
+- TenantDomain entity
+- public/internal resolution endpoints
+- compatibility fallback with legacy Tenant.Subdomain
+
+Block 4 established:
+- TenantProductEntitlement
+- TenantCapability
+- TenantSetting
+- migration dry-run utility
+
+Block 5 established:
+- explicit migration execute endpoint
+- migration run history
+- idempotent migration execution
+- dual-write scaffolding (`ITenantSyncAdapter`, `NoOpTenantSyncAdapter`)
+- Identity remains runtime source
+
+Block 6 established:
+- configurable read-source abstraction
+- gateway anonymous Tenant public routes
+- web `/api/tenant-branding` BFF route
+- HybridFallback mode and logging
+- rollback-safe config switches
+- Identity code still untouched
+- final Identity removal deferred
+
+This block now completes the runtime transition and introduces real Identity -> Tenant synchronization hook points under strict controls.
+
+================================================================
+BLOCK 7 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- FINAL RUNTIME SOURCE TRANSITION TO TENANT
+- IDENTITY → TENANT DUAL-WRITE ACTIVATION HOOKS (feature-flagged)
+- PUBLIC BRANDING / LOGO READ-PATH CONSISTENCY
+- IDENTITY READ RESPONSIBILITY REDUCTION
+- ROLLBACK / FALLBACK RETENTION
+- CUTOVER VALIDATION SUPPORT
+
+This block is effectively the final migration/cutover layer before any later cleanup/hardening phase.
+
+================================================================
+SCOPE
+================================================================
+
+A) Make Tenant the primary runtime read source under configuration
+
+Update the read-source behavior so the system can safely run in:
+- Identity
+- HybridFallback
+- Tenant
+
+But in this block, Tenant should become the intended primary mode for validated environments.
+
+Requirements:
+- keep the read-source abstraction from Block 6
+- support configuration-driven operation
+- ensure both branding and tenant resolution can run Tenant-first
+- preserve rollback path back to Identity
+
+Recommended behavior:
+- `Identity` = fully legacy path
+- `HybridFallback` = Tenant first, Identity fallback
+- `Tenant` = Tenant-only with safe platform-default behavior if tenant not found
+- if you introduce separate branding/resolution source flags, keep them coherent and document them clearly
+
+The goal is that after Block 7, operators can switch production to:
+- `HybridFallback` first for validation
+- then `Tenant` when ready
+without code changes
+
+B) Finalize gateway/backend resolution transition
+
+Update the gateway/backend resolution consumption path so runtime tenant resolution can actually use Tenant service as the primary source.
+
+Requirements:
+- centralize runtime resolution source selection
+- if current gateway still relies on Identity-specific resolution logic, refactor to go through the configured source
+- in Tenant or HybridFallback modes:
+  - call Tenant public/internal resolution endpoints
+  - use Identity only as fallback in HybridFallback
+- in Identity mode:
+  - preserve current behavior
+
+Rules:
+- no duplicated business logic if Tenant service already exposes the needed contract
+- maintain backwards-compatible routing behavior
+- add explicit logging for:
+  - source used
+  - fallback triggered
+  - unresolved host/code outcomes
+
+Expected resolution paths to support:
+- by host
+- by subdomain
+- by code
+
+C) Finalize web/public branding transition
+
+Complete the branding/bootstrap read transition in the web app.
+
+Requirements:
+- keep `/api/tenant-branding` as the central BFF route
+- make it production-ready for Tenant-first use
+- if necessary, add explicit timeout handling for Tenant service reads
+- preserve fallback to Identity in HybridFallback
+- keep client-side components source-agnostic
+
+In this block also address remaining branding consistency gaps:
+- logo public route behavior (`/api/branding/logo/public` or equivalent current route)
+- favicon/public asset lookup if currently still bound to Identity assumptions
+- ensure branding metadata and logo lookup paths are aligned to the same source strategy where practical
+
+Rules:
+- do not redesign frontend UX
+- do not scatter migration logic into components
+- keep source selection centralized in server routes/providers
+
+D) Implement real dual-write hook points in Identity (feature-flagged, disabled by default)
+
+This is the biggest new behavior in Block 7.
+
+Use the scaffolding from Block 5 and implement the actual hook points from Identity tenant write operations into Tenant service.
+
+Requirements:
+- identify the authoritative tenant create/update code paths in Identity
+- call a real `ITenantSyncAdapter` implementation from those paths when enabled
+- dual-write must be:
+  - explicitly feature-flagged
+  - contained in try/catch
+  - non-breaking to Identity runtime if Tenant sync fails (unless a strict mode is explicitly enabled)
+- default behavior must remain OFF
+
+Recommended config flags:
+- Features:TenantDualWriteEnabled = false (default)
+- optional:
+  - Features:TenantDualWriteStrictMode = false
+  - if false: log and continue on sync failure
+  - if true: fail the originating operation (only for controlled environments)
+
+Sync scope for this block:
+- tenant core/profile updates
+- branding basics that Identity still owns/changes
+- subdomain compatibility fields
+- do not overreach into unsupported areas unless clearly safe
+
+Recommended implementation options:
+- real `TenantSyncAdapter` in Identity or shared integration layer calling Tenant service internal/admin endpoints
+- or internal secure sync endpoint in Tenant service if cleaner
+
+Choose the safest approach that best fits the current codebase.
+
+Rules:
+- no hidden always-on coupling
+- retries optional; simple reliable logging acceptable for this block
+- if you add an internal sync endpoint, protect it and keep it non-public
+
+E) Reduce Identity direct read responsibilities where feasible
+
+Without deleting Identity tenant storage yet, reduce Identity’s role as runtime reader.
+
+Examples of acceptable changes in this block:
+- identity/public branding route internally delegates to Tenant read source when configured
+- Identity tenant lookup logic uses read-source abstraction instead of assuming local DB as the only source
+- branding/tenant bootstrap reads no longer require Identity to be the first-class runtime source
+
+Rules:
+- do not break authentication/session flows
+- do not delete Identity DB fields in this block
+- keep Identity as compatible fallback and sync source where needed
+
+F) Public logo / asset path consistency
+
+In earlier blocks, branding metadata transition and logo route transition may have been split.
+In this block, align them.
+
+Requirements:
+- if public logo route currently proxies Identity assumptions, make it source-aware or Tenant-aware
+- keep Documents service as the actual asset store
+- if Tenant service stores only document refs, resolve assets using the existing Document service path
+- ensure public branding + public logo behavior are consistent when running in Tenant mode
+
+At minimum:
+- a tenant resolved via Tenant branding metadata should not require a contradictory Identity-only logo path
+- fallback behavior should be explicit when logo refs are absent
+
+G) Timeout / fallback hardening
+
+Before finalizing runtime transition, harden failure behavior.
+
+Requirements:
+- add explicit reasonable timeout handling for Tenant service reads from web/gateway/BFF routes where missing today
+- log timeout vs 404 vs invalid payload separately
+- in HybridFallback mode:
+  - fallback on timeout/transport failure/invalid payload
+- in Tenant-only mode:
+  - do not silently call Identity unless explicitly configured
+  - instead return unresolved/default result as appropriate for that path
+
+H) Cutover validation support
+
+Add operator-facing ways to validate readiness.
+
+Recommended additions:
+- an admin/internal diagnostics endpoint or report that summarizes:
+  - current read-source config
+  - recent fallback counts if available
+  - whether Tenant migration appears complete enough for cutover
+- optionally expose last migration summary / counts from `tenant_MigrationRuns`
+- optionally add a lightweight “read-source smoke” endpoint for admin use only
+
+If this is too much, at minimum:
+- ensure logs and report instructions cover cutover validation clearly
+
+I) Rollback-safe controls
+
+Maintain strong rollback support.
+
+Requirements:
+- reverting to Identity or HybridFallback must be config-driven
+- no schema/data changes in this block should make rollback impossible
+- any dual-write activation must be reversible by feature flag
+- any new internal sync endpoints must be disable-safe
+
+J) No destructive cleanup yet
+
+Do NOT:
+- drop tenant fields from Identity DB
+- remove Identity tenant entities entirely
+- delete old branding resolution code if it is still needed for fallback
+- remove existing routes that are still part of rollback behavior
+
+That cleanup can happen only after runtime cutover is proven stable.
+
+================================================================
+IMPLEMENTATION GUIDANCE
+================================================================
+
+1) Dual-write implementation choice
+
+Choose the safest real implementation path.
+
+Preferred pattern:
+- Identity tenant create/update service calls `ITenantSyncAdapter`
+- `ITenantSyncAdapter` implementation calls Tenant service internal/admin endpoint or application service
+- if feature disabled → no-op
+- if feature enabled and sync fails:
+  - strict=false → log error, continue
+  - strict=true → fail operation
+
+2) Internal sync contract
+
+If needed, add protected internal sync endpoint(s) in Tenant service, such as:
+- POST /api/internal/tenant-sync/upsert
+- POST /api/internal/tenant-sync/branding-upsert
+
+Only add if this is the cleanest way to implement the adapter.
+Protect these endpoints appropriately.
+Do not expose them publicly.
+
+3) Branding / logo alignment
+
+Centralize source selection at:
+- web BFF route(s)
+- public logo route(s)
+- gateway if needed
+
+Avoid duplicating mode logic across many files.
+
+4) Runtime safety
+
+Treat Tenant service network failures as expected scenarios during transition.
+Contain them cleanly.
+Favor fallback + observability over brittle hard-fail behavior, except where strict mode is explicitly configured.
+
+================================================================
+NON-GOALS / MUST NOT DO
+================================================================
+
+Do NOT implement in this block:
+- destructive Identity schema cleanup
+- hard deletion of tenant records from Identity
+- notification service integration
+- DNS verification
+- broad frontend redesign
+- irreversible removal of Identity fallback behavior
+- speculative refactors unrelated to tenant transition
+- forced strict dual-write in all environments
+
+================================================================
+TECH STACK / IMPLEMENTATION RULES
+================================================================
+
+Frontend:
+- Next.js (React)
+- TypeScript
+- Tailwind CSS
+- existing provider/route architecture
+- pnpm monorepo
+
+Backend:
+- C# / .NET only
+- ASP.NET Core only
+- EF Core only where persistence is needed
+- MySQL only where persistence is needed
+
+Architecture:
+- monorepo
+- microservices
+- API Gateway
+- Replit-compatible
+- shell-script orchestration intact
+
+================================================================
+CONFIG / CONTRACT GUIDANCE
+================================================================
+
+Recommended config examples:
+- Features__TenantReadSource=HybridFallback
+- Features__TenantBrandingReadSource=HybridFallback
+- Features__TenantResolutionReadSource=HybridFallback
+- Features__TenantDualWriteEnabled=false
+- Features__TenantDualWriteStrictMode=false
+- TENANT_BRANDING_READ_SOURCE=HybridFallback
+
+If the current config conventions differ, follow the repo’s existing style.
+
+If you add internal sync endpoints/contracts, document them clearly in the report.
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. Tenant can act as the primary runtime read source for branding/bootstrap under configuration.
+2. Gateway/backend tenant resolution can run Tenant-first under configuration.
+3. Web/public branding/bootstrap can run Tenant-first under configuration.
+4. Public logo/asset path behavior is aligned with the chosen read source.
+5. HybridFallback remains functional and safe.
+6. A real dual-write hook path exists in Identity, disabled by default and feature-flagged.
+7. Dual-write failures are contained when strict mode is off.
+8. Existing Blocks 1–6 functionality still works.
+9. Rollback to Identity-only mode remains config-driven and straightforward.
+10. Identity tenant storage/ownership is not destructively removed yet.
+11. The platform is operationally ready for a real final cutover decision.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- Tenant service startup success
+- Identity service startup success
+- gateway startup success
+- web app startup success (if touched)
+- read-source config behavior:
+  - Identity mode
+  - HybridFallback mode
+  - Tenant mode
+- runtime tenant resolution through gateway/backend:
+  - host
+  - subdomain
+  - code
+- branding/bootstrap through web BFF in all three modes
+- public logo route behavior in all relevant modes
+- fallback behavior on Tenant timeout / 404 / invalid payload
+- dual-write feature disabled behavior
+- dual-write enabled behavior in a controlled test
+- strict mode off behavior on Tenant sync failure
+- backward compatibility checks for Blocks 1–6
+- confirm rollback to Identity mode works with config only
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B07-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B07 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what Blocks 1–6 established
+- what runtime consumers still depended on Identity before this block
+- which consumers were fully transitioned now
+- why destructive Identity cleanup is still deferred
+
+## 3. Runtime Transition Design
+- read-source behaviors
+- final source-selection logic
+- fallback rules
+- timeout policy
+- logo/branding consistency strategy
+
+## 4. Dual Write Design
+- adapter/endpoint approach chosen
+- Identity hook points added
+- feature flags added
+- strict vs non-strict behavior
+- what remains deferred
+
+## 5. Consumer Transition
+- gateway/backend resolution changes
+- web branding/bootstrap changes
+- logo/public asset path changes
+- files/services/routes updated
+
+## 6. Observability / Safety
+- logging added
+- diagnostics added
+- fallback reasons
+- rollback controls
+
+## 7. Implementation Summary
+- files added
+- files modified
+- configs added/changed
+- feature flags added
+
+## 8. Validation Results
+- build
+- startup
+- Identity mode
+- HybridFallback mode
+- Tenant mode
+- timeout/failure fallback tests
+- dual-write enabled/disabled tests
+- rollback test
+- backward compatibility checks
+
+## 9. Known Gaps / Deferred Items
+- destructive Identity cleanup deferred
+- hard schema cleanup deferred
+- notification integration deferred
+- DNS verification deferred
+- long-term metrics/counters deferred if still pending
+
+## 10. Next Recommended Block
+State that the next logical block is:
+BLOCK 8 — Cleanup, Hardening, and Final Identity Field Retirement Planning
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse current code patterns
+- Prefer minimal, correct, production-oriented code
+- Keep scope tight to Block 7
+- Preserve portability
+- Do not introduce breaking architectural drift
+
+Now execute this block end-to-end and write the report as you go.

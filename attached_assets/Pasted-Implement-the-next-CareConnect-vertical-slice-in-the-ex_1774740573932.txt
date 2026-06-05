@@ -1,0 +1,111 @@
+Implement the next CareConnect vertical slice in the existing Next.js tenant-aware frontend:
+
+view provider availability -> book appointment for referral -> view appointment detail
+
+Current state already working:
+- CareConnect provider search/detail/referral list/detail/create slice is implemented
+- SessionProvider, guards, app shell, tenant branding, API client, and CareConnect data layer already exist
+- Backend enforces capabilities and org-participant checks
+- Gateway is the only API entry point
+
+Target vertical slice:
+open provider -> view availability -> book appointment for a referral -> open appointment detail
+
+Business rules:
+- Law firm users with CARECONNECT_REFERRER can search providers and create referrals
+- Provider users with CARECONNECT_RECEIVER manage received referrals and appointments
+- Appointment booking may be initiated from a referral context
+- Appointments are actor-aware:
+  - ReferringOrganizationId
+  - ReceivingOrganizationId
+  - SubjectPartyId
+- Frontend should shape UX by productRoles, but backend remains the security boundary
+
+Generate the output in these exact sections:
+
+1. Appointment Slice Scope
+- define what is included in this slice
+- define what stays stubbed for later
+
+2. API Contract Assumptions
+List the frontend-facing API contracts assumed for:
+- GET /careconnect/api/providers/{id}/availability
+- POST /careconnect/api/appointments
+- GET /careconnect/api/appointments/{id}
+- GET /careconnect/api/appointments
+- optional: POST /careconnect/api/referrals/{id}/book
+For each include:
+- request params/body
+- response shape needed by frontend
+
+3. TypeScript Models
+Generate the TS models for:
+- AvailabilitySlot
+- ProviderAvailabilityResponse
+- CreateAppointmentRequest
+- AppointmentSummary
+- AppointmentDetail
+- AppointmentStatusHistoryItem
+- AppointmentSearchParams
+
+4. Frontend Data Layer
+Generate:
+- appointment-api.ts (or extend careconnect-api.ts)
+- availability fetch
+- appointment create/get/list methods
+- typed wrappers around apiClient
+
+5. Page Implementations
+Generate minimal but real implementations for:
+- /careconnect/providers/[id]/availability
+- /careconnect/appointments
+- /careconnect/appointments/[id]
+
+Requirements:
+- availability page supports selecting a slot
+- page can optionally receive referralId in query string
+- appointment list page adapts label by role where helpful
+- appointment detail page renders:
+  - status
+  - provider
+  - subject party
+  - referring/receiving orgs
+  - scheduled date/time
+  - notes placeholder
+  - status history
+
+6. Book Appointment UI
+Design and generate:
+- BookingPanel or BookingModal component
+- supports:
+  - referralId
+  - providerId
+  - selected slot
+  - optional notes
+- handles success/error
+- on success navigates to appointment detail page
+
+7. Referral-to-Booking Flow
+Explain and implement:
+- how referral detail links into availability/booking
+- recommended route pattern:
+  - /careconnect/providers/[id]/availability?referralId=...
+- how to preserve context back to referral detail
+
+8. UX Role Shaping
+Explain and implement:
+- when referrers can see booking controls
+- when providers should instead see appointment management/detail views
+- how to handle unavailable slots and backend 403/409 gracefully
+
+9. Minimal Component List
+Generate starter components for:
+- AvailabilityCalendar or AvailabilityList
+- SlotPicker
+- BookingPanel
+- AppointmentListTable
+- AppointmentDetailPanel
+- AppointmentTimeline
+
+10. Implementation Sequence
+Give the exact order to build these files in the existing repo so this slice becomes runnable quickly.

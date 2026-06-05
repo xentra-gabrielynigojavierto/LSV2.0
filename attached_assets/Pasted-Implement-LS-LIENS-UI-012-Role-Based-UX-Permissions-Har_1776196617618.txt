@@ -1,0 +1,189 @@
+Implement LS-LIENS-UI-012 — Role-Based UX & Permissions Hardening.
+
+Goal:
+Harden SynqLiens into a role-aware enterprise product by aligning visible navigation, actions, and workflow affordances with real user role context, while preserving provider mode behavior.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-012-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Initial role/permission source analysis plan
+   - Known modules to harden
+   - Expected role + mode interaction areas
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g. T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Build on existing provider mode architecture
+- Centralize role/permission UX logic
+- No scattered raw role checks across components
+- No mock role logic
+- Preserve UI structure and layouts
+- Backend remains final authority
+- Use real role/permission context already available to the app
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Role/Permission Source Analysis
+- Identify where user role/permission truth currently comes from
+- Document roles available in the product
+- Identify current scattered role checks if any
+- Identify modules/actions needing hardening
+- Log findings in report
+
+T002 — Create Centralized Role Access Types
+Create:
+- role-access.types.ts
+
+Include:
+- normalized role types
+- action/module identifiers if useful
+- role access model types
+
+Update report after completion
+
+T003 — Create Centralized Role Access Service
+Create:
+- role-access.service.ts
+
+Expose helpers such as:
+- canViewModule(...)
+- canPerformAction(...)
+- canEditEntity(...)
+- canViewFinancials(...)
+- canManageContacts(...)
+- or equivalent helpers grounded in actual product behavior
+
+Centralize role + mode combination logic here.
+
+Update report after completion
+
+T004 — Integrate Role Access into App Context
+- Make role access helpers easily available to pages/components
+- Create a hook if useful, such as useRoleAccess()
+- Avoid repeated ad hoc role parsing in components
+
+Update report after completion
+
+T005 — Harden Navigation
+- Make sidebar/nav reflect both role and provider mode
+- Remove irrelevant modules for limited roles
+- Ensure no dead or misleading nav items remain
+
+Update report after completion
+
+T006 — Harden Dashboard
+- Adjust quick actions, widgets, and summaries by role
+- Remove mutation actions for read-only/limited roles
+- Keep dashboard coherent per persona
+
+Update report after completion
+
+T007 — Harden Cases and Liens Actions
+- Gate create/edit/status/offer/sell-related actions by role
+- Ensure sell mode alone is not enough; role must also allow the action
+- Keep provider mode behavior intact
+
+Update report after completion
+
+T008 — Harden Servicing / Task Manager Actions
+- Gate assign/escalate/complete/hold/create actions by role
+- Keep operational roles functional and viewer roles clean
+
+Update report after completion
+
+T009 — Harden Bill of Sale / Financial Surfaces
+- Gate financial pages and actions by role
+- Ensure only appropriate roles can view/act on BOS workflows
+- Preserve provider mode gating
+
+Update report after completion
+
+T010 — Harden Documents and Contacts Actions
+- Gate document upload/edit/archive actions by role where supported
+- Gate contact create/edit/deactivate/reactivate actions by role where supported
+
+Update report after completion
+
+T011 — Unified Activity / Notifications Safe Navigation
+- Ensure activity and notification links/actions fail safely for restricted users
+- Avoid routing users into invalid workflows where role access is lacking
+
+Update report after completion
+
+T012 — Read-Only / Limited Role Experience
+- Ensure low-privilege users get a clean browse/view experience
+- Remove misleading mutation affordances
+- Avoid cluttered disabled UI where possible
+
+Update report after completion
+
+T013 — Permission Matrix Documentation
+- Document final role-to-module and role-to-action behavior in the report
+- Include notes for provider mode interaction
+
+Update report after completion
+
+T014 — Validation and Regression
+- Verify role-aware nav and actions across major modules
+- Verify provider mode + role combinations
+- Verify no broken pages or hidden-but-required actions
+- Verify clean handling of backend auth failures
+
+Update report after completion
+
+T015 — Finalize Report
+Finalize /analysis/LS-LIENS-UI-012-report.md with:
+- executive summary
+- role/permission source analysis
+- centralized role access design
+- role-to-module visibility summary
+- role-to-action visibility summary
+- provider mode interaction notes
+- files changed
+- risks/issues/blockers
+- validation results
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Report created FIRST and updated incrementally
+- Role-aware UX logic is centralized
+- Navigation reflects role + provider mode
+- Major actions are gated appropriately
+- Read-only/limited users have a clean experience
+- Role + mode combinations behave coherently
+- Existing workflows remain intact
+- Final report is complete and traceable
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT delay report creation.

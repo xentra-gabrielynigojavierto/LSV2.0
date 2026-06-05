@@ -1,0 +1,140 @@
+You are working inside the LegalSynq monorepo. Your task is to implement the next CareConnect rebuild step by correcting the backend workflow foundation without breaking unrelated products.
+
+GOAL
+Stabilize CareConnect by fixing:
+1. authorization
+2. status alignment
+3. org-participant scoping
+4. provider availability API contract
+
+DO NOT redesign the entire application.
+DO NOT remove existing domain entities unless absolutely necessary.
+DO preserve current monorepo conventions and existing code style.
+
+CONTEXT
+CareConnect already has code for:
+- providers
+- referrals
+- appointments
+- availability templates
+- availability exceptions
+- slots
+- notes / attachments / notifications
+- tenant/product integration
+
+However, the current implementation has these issues:
+- most write endpoints are gated by PlatformOrTenantAdmin instead of product roles
+- referral statuses are inconsistent between frontend and backend
+- referral and appointment queries are mostly tenant-scoped but not sufficiently org-scoped
+- frontend expects provider availability data through a route contract that is not properly implemented
+
+OBJECTIVES
+
+A. AUTHORIZATION REFACTOR
+Implement capability-based authorization for CareConnect.
+Create a shared permission definition for:
+- careconnect.providers.read
+- careconnect.providers.manage
+- careconnect.referrals.read.own_org
+- careconnect.referrals.create
+- careconnect.referrals.accept
+- careconnect.referrals.decline
+- careconnect.referrals.update_status
+- careconnect.appointments.read.own_org
+- careconnect.appointments.create
+- careconnect.appointments.manage
+- careconnect.schedule.manage
+- careconnect.dashboard.read
+
+Map permissions to existing CareConnect roles where possible:
+- CARECONNECT_REFERRER
+- CARECONNECT_RECEIVER
+- TENANT_ADMIN
+
+Replace admin-only mutation guards on CareConnect endpoints with the correct permission checks.
+Do not change authorization behavior for unrelated modules/products.
+
+B. STATUS NORMALIZATION
+Create canonical CareConnect status enums and use them consistently.
+
+Referral statuses:
+- New
+- Accepted
+- Scheduled
+- Completed
+- Declined
+- Cancelled
+
+Appointment statuses:
+- Pending
+- Confirmed
+- Completed
+- Cancelled
+- Rescheduled
+- NoShow
+
+Refactor backend DTOs, validators, and services to use these canonical values.
+Where existing legacy values are present, add a compatibility mapping layer if needed, but make canonical enums the source of truth.
+
+C. ORG-PARTICIPANT SCOPING
+Refactor referral and appointment reads so that they are not just tenant-scoped.
+Implement scoping rules:
+- law firm users only see referrals and appointments created by or belonging to their organization context
+- provider users only see referrals and appointments assigned to or received by their organization context
+- tenant admins may retain broader tenant visibility if current platform conventions allow it
+
+Add reusable helper methods for org-context filtering so the logic is not duplicated across services.
+
+D. CANONICAL PROVIDER AVAILABILITY API
+Implement a stable endpoint like:
+
+GET /api/careconnect/providers/:providerId/availability?from=YYYY-MM-DD&to=YYYY-MM-DD&serviceId=...&locationId=...
+
+This endpoint should return:
+- provider summary
+- timezone if available
+- selected location/service context if provided
+- final bookable slots in the requested date range
+- availability exceptions already applied
+- a response shape safe for direct frontend consumption
+
+Do not expose raw internal scheduling complexity unless needed.
+Create a response DTO specifically for frontend use.
+
+E. TESTS
+Add focused tests for:
+- referrer can create referral without tenant admin role
+- provider can accept/decline referral without tenant admin role
+- unauthorized users cannot mutate records
+- org scoping prevents cross-org visibility
+- provider availability endpoint returns expected slot structure
+
+IMPLEMENTATION CONSTRAINTS
+- Prefer adding application services over putting business logic directly in controllers
+- Preserve existing entities/repositories where possible
+- Keep changes localized to CareConnect modules and shared auth/types packages if needed
+- Avoid broad refactors outside CareConnect unless required for compilation
+- Add TODO comments only when truly necessary
+- If you discover dead endpoints or duplicate contracts, note them in the report but do not delete aggressively unless safe
+
+DELIVERABLES
+1. Code changes implementing the above
+2. A short migration/compatibility note if legacy statuses required mapping
+3. A report saved to:
+   /analysis/step1_careconnect_foundation_rebuild.md
+
+REPORT FORMAT
+The report must include:
+- summary of files changed
+- authorization changes made
+- status model changes made
+- org scoping changes made
+- new availability endpoint contract
+- tests added
+- risks or follow-up items
+
+WORK STYLE
+- inspect existing code first
+- reuse current patterns where sensible
+- keep the implementation compile-friendly
+- prefer precise, minimal changes over speculative rewrites

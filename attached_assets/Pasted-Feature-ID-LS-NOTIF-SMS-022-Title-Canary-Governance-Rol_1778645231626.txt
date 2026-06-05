@@ -1,0 +1,615 @@
+Feature ID: LS-NOTIF-SMS-022
+
+Title:
+Canary Governance Rollout, Tenant Segmentation, and Staged Governance Deployment
+
+Objective:
+Extend the governance release-management platform with canary rollout orchestration, tenant segmentation, staged governance deployment, progressive activation strategies, rollback thresholds, deployment cohorts, pause/resume controls, and progressive governance promotion visibility.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- governance rollout plans
+- rollout stage orchestration
+- tenant cohort targeting
+- canary activation
+- staged rollout progression
+- rollback threshold evaluation
+- rollout auditability
+- rollout analytics APIs
+
+Control Center must only consume Notification Service APIs and render/administer rollout visibility. Do not duplicate rollout progression, cohort selection, threshold evaluation, or rollback orchestration logic in Control Center.
+
+Requirements:
+- Implement governance rollout orchestration inside Notification Service.
+- Preserve LS-NOTIF-SMS-017 governance policies.
+- Preserve LS-NOTIF-SMS-018 template governance.
+- Preserve LS-NOTIF-SMS-019 dynamic rules.
+- Preserve LS-NOTIF-SMS-020 versioning, rollback, import/export, and analytics.
+- Preserve LS-NOTIF-SMS-021 release management.
+- Preserve LS-NOTIF-SMS-021-HARDENING concurrency, approval, locking, audit, retry/backoff, and integrity behavior.
+- Rollouts must extend release management, not replace it.
+- Rollout failures must not corrupt active governance state.
+- Rollout orchestration must not block delivery pipeline execution.
+- Do not store raw phone numbers in rollout/cohort/analytics tables.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-021-HARDENING behavior.
+
+Implementation Requirements:
+1. Add governance rollout plan persistence.
+2. Add rollout stage persistence.
+3. Add tenant cohort persistence.
+4. Add rollout audit event persistence if existing release audit events are not sufficient.
+5. Add rollout orchestration service.
+6. Add rollout threshold evaluator.
+7. Add rollout worker for scheduled/progressive stage advancement.
+8. Add rollout analytics APIs.
+9. Add start, pause, resume, rollback, and complete rollout flows.
+10. Integrate rollouts with LS-NOTIF-SMS-021 release package activation.
+11. Ensure canary/staged activation respects release activation locks.
+12. Ensure rollback uses existing LS-NOTIF-SMS-020/021 rollback semantics where practical.
+13. Add Control Center rollout management UI if feasible.
+14. Ensure all failures degrade safely.
+
+Critical Constraints:
+- Reuse existing SmsGovernanceReleasePackage, SmsGovernanceReleaseItem, SmsGovernanceReleaseAuditEvent, SmsGovernanceReleaseService, SmsGovernanceReleaseIntegrityService, SmsGovernanceReleaseActivationWorker, SmsGovernanceVersioningService, SmsGovernanceRuleEngine, SmsGovernanceDecision, SmsTemplateGovernanceDecision, SmsGovernanceRuleMatchMetric, admin endpoint, EF/migration, audit/logging, worker, and Control Center governance UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite the dynamic rule engine.
+- Do NOT replace LS-017 governance.
+- Do NOT replace LS-018 template governance.
+- Do NOT replace LS-019 dynamic rule engine.
+- Do NOT replace LS-020 versioning/rollback behavior.
+- Do NOT replace LS-021 release-management behavior.
+- Do NOT bypass LS-021-HARDENING activation locking or approval hardening.
+- Do NOT implement AI/ML rollout optimization.
+- Do NOT call external deployment, workflow, compliance, moderation, telecom, or fraud APIs.
+- Do NOT persist raw phone numbers in rollout tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-022-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-021 release-management findings
+3. Existing LS-021-HARDENING locking/retry/audit findings
+4. Existing LS-020 versioning/rollback findings
+5. Existing governance analytics findings
+6. Existing Control Center release-management UI findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. UI/route changes, if implemented
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Release and Governance Activation Architecture
+- Identify:
+  - SmsGovernanceReleasePackage entity/table
+  - SmsGovernanceReleaseItem entity/table
+  - release activation service behavior
+  - activation locking behavior from LS-NOTIF-SMS-021-HARDENING
+  - activation retry/backoff behavior
+  - release audit event patterns
+  - rollback/versioning semantics from LS-NOTIF-SMS-020
+  - governance analytics data sources
+  - SmsGovernanceDecision and SmsTemplateGovernanceDecision structures
+  - Control Center release-management UI patterns
+  - existing worker/scheduler conventions
+  - existing admin authorization conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Governance Rollout Plan Entity
+Add rollout plan persistence.
+
+Suggested entity:
+SmsGovernanceRolloutPlan
+
+Suggested fields:
+- Id Guid
+- ReleasePackageId Guid
+- TenantId Guid? nullable
+- RolloutState string
+- RolloutStrategy string
+- CurrentStageNumber int? nullable
+- RollbackThresholdJson string? nullable
+- StartedAt DateTime? nullable
+- PausedAt DateTime? nullable
+- ResumedAt DateTime? nullable
+- CompletedAt DateTime? nullable
+- RolledBackAt DateTime? nullable
+- FailedAt DateTime? nullable
+- FailureReason string? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested RolloutState values:
+- draft
+- pending_rollout
+- canary_active
+- staged_rollout
+- rollout_paused
+- rollout_failed
+- rollout_completed
+- rollout_rolled_back
+- archived
+
+Suggested RolloutStrategy values:
+- canary
+- staged_percentage
+- staged_cohort
+- full_activation
+- manual_progression
+
+Requirements:
+- One active rollout per release package unless explicitly allowed.
+- RolloutState transitions must be explicit and validated.
+- Rollout plan must not store secrets or raw message content.
+- Use EF/migration conventions.
+- Add indexes:
+  - ReleasePackageId
+  - TenantId, RolloutState, CreatedAt
+  - RolloutState, CreatedAt
+  - RolloutStrategy, CreatedAt
+
+STEP 3 — Define Governance Rollout Stage Entity
+Add rollout stage persistence.
+
+Suggested entity:
+SmsGovernanceRolloutStage
+
+Suggested fields:
+- Id Guid
+- RolloutPlanId Guid
+- StageNumber int
+- StageName string? nullable
+- StageState string
+- TenantPercentage decimal? nullable
+- DurationMinutes int? nullable
+- StartedAt DateTime? nullable
+- CompletedAt DateTime? nullable
+- FailedAt DateTime? nullable
+- FailureReason string? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+
+Suggested StageState values:
+- pending
+- active
+- completed
+- paused
+- failed
+- rolled_back
+
+Requirements:
+- StageNumber ordered and unique per rollout plan.
+- Only one stage active at a time.
+- Stage transitions must be explicit.
+- DurationMinutes defines observation window before next stage progression.
+- Add indexes:
+  - RolloutPlanId, StageNumber
+  - RolloutPlanId, StageState
+
+STEP 4 — Define Tenant Cohort Entity
+Add tenant cohort targeting.
+
+Suggested entity:
+SmsGovernanceTenantCohort
+
+Suggested fields:
+- Id Guid
+- RolloutPlanId Guid
+- StageId Guid? nullable
+- TenantId Guid
+- CohortName string
+- Enabled bool
+- ActivatedAt DateTime? nullable
+- RolledBackAt DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+
+Requirements:
+- TenantId must be stored as opaque tenant identifier only.
+- No raw phones or tenant secrets.
+- Cohorts can be attached to rollout plan or specific stage.
+- Prevent duplicate TenantId per rollout/stage where practical.
+- Add indexes:
+  - RolloutPlanId, TenantId
+  - StageId, TenantId
+  - CohortName
+
+STEP 5 — Define Optional Rollout Audit Event Entity
+If existing release audit events are insufficient, add rollout audit.
+
+Suggested entity:
+SmsGovernanceRolloutAuditEvent
+
+Suggested fields:
+- Id Guid
+- RolloutPlanId Guid
+- StageId Guid? nullable
+- TenantId Guid? nullable
+- EventType string
+- PreviousState string? nullable
+- NewState string? nullable
+- Actor string? nullable
+- Reason string? nullable
+- MetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested EventType values:
+- rollout_created
+- stage_added
+- cohort_added
+- rollout_started
+- stage_started
+- stage_completed
+- rollout_paused
+- rollout_resumed
+- rollout_failed
+- rollout_rolled_back
+- rollout_completed
+- threshold_exceeded
+
+Requirements:
+- Audit events append-only.
+- Metadata must be safe.
+- No raw phones, credentials, message bodies, or provider payloads.
+- Add indexes:
+  - RolloutPlanId, CreatedAt
+  - EventType, CreatedAt
+  - StageId, CreatedAt
+
+STEP 6 — Define Rollout Configuration
+Add rollout options.
+
+Suggested config:
+SmsGovernanceRollouts:
+- Enabled bool default true
+- RolloutWorkerEnabled bool default false
+- RolloutPollMinutes int default 5
+- MaxRolloutsPerCycle int default 10
+- DefaultCanaryPercentage decimal default 5
+- DefaultStageDurationMinutes int default 60
+- AutoPauseOnThresholdBreach bool default true
+- AutoRollbackOnCriticalThresholdBreach bool default false
+- FailOpenOnRolloutEvaluationError bool default true
+
+Requirements:
+- Worker disabled by default unless existing convention prefers enabled.
+- No secrets in config.
+- Safe defaults.
+- Document automatic pause vs rollback behavior.
+
+STEP 7 — Add Rollout Service
+Add central rollout orchestration service.
+
+Suggested interface:
+ISmsGovernanceRolloutService
+
+Suggested methods:
+- CreateRolloutAsync(CreateRolloutRequest request, CancellationToken ct)
+- AddStageAsync(Guid rolloutId, AddRolloutStageRequest request, CancellationToken ct)
+- AddCohortTenantAsync(Guid rolloutId, AddTenantCohortRequest request, CancellationToken ct)
+- StartRolloutAsync(Guid rolloutId, string requestedBy, CancellationToken ct)
+- PauseRolloutAsync(Guid rolloutId, string requestedBy, string? reason, CancellationToken ct)
+- ResumeRolloutAsync(Guid rolloutId, string requestedBy, CancellationToken ct)
+- RollbackRolloutAsync(Guid rolloutId, string requestedBy, string? reason, CancellationToken ct)
+- AdvanceStageAsync(Guid rolloutId, string requestedBy, CancellationToken ct)
+- CompleteRolloutAsync(Guid rolloutId, string requestedBy, CancellationToken ct)
+- GetRolloutAsync(Guid rolloutId, CancellationToken ct)
+- ListRolloutsAsync(RolloutQuery query, CancellationToken ct)
+
+Requirements:
+- Validate state transitions.
+- StartRollout requires approved or active-compatible release package.
+- Starting canary activates only selected cohort/stage.
+- Pause prevents further stage advancement.
+- Resume returns rollout to prior active state.
+- Rollback uses existing release rollback/versioning semantics where practical.
+- AdvanceStage validates observation window and threshold state.
+- Failed rollout must not corrupt active governance.
+- All operations auditable.
+- Use transactions where appropriate.
+
+STEP 8 — Add Threshold Evaluator
+Add rollout threshold evaluation.
+
+Suggested interface:
+ISmsGovernanceRolloutEvaluator
+
+Suggested methods:
+- EvaluateRolloutHealthAsync(Guid rolloutId, CancellationToken ct)
+- EvaluateStageHealthAsync(Guid rolloutId, Guid stageId, CancellationToken ct)
+
+Suggested threshold JSON:
+{
+  "maxBlockRate": 0.15,
+  "maxWarnRate": 0.30,
+  "maxReviewRequiredRate": 0.10,
+  "maxActivationFailureRate": 0.05,
+  "minimumSampleSize": 50,
+  "action": "pause"
+}
+
+Suggested metrics:
+- governance block rate
+- governance warn rate
+- review_required rate
+- activation failure count/rate
+- tenant cohort affected count
+- rule match spike
+
+Requirements:
+- Use local governance decision/analytics data only.
+- No external APIs.
+- Use bounded windows.
+- If sample size insufficient, return healthy/insufficient_data based on config.
+- Threshold breach should pause or rollback according to configuration/policy.
+- Evaluation failures must not block delivery pipeline.
+
+STEP 9 — Add Rollout Worker
+Add optional worker for progressive rollout.
+
+Suggested worker:
+SmsGovernanceRolloutWorker
+
+Behavior:
+- Poll active rollouts.
+- Evaluate current stage health.
+- If threshold breach:
+  - pause or rollback based on config/threshold action.
+- If stage duration elapsed and health acceptable:
+  - advance to next stage.
+- If final stage completed:
+  - complete rollout.
+- Bounded batch size.
+- Uses IServiceScopeFactory.
+- Respects CancellationToken.
+- Logs safely.
+- Disabled by default.
+
+Requirements:
+- Worker failures must not crash app.
+- No delivery pipeline blocking.
+- No external API calls.
+- No raw phones/secrets in logs.
+- Worker/manual actions must coordinate with release locks where needed.
+
+STEP 10 — Integrate Rollouts With Release Activation
+Integrate rollout orchestration with LS-NOTIF-SMS-021 release activation.
+
+Initial semantics:
+- Full activation strategy can call existing release ActivateAsync.
+- Canary/staged strategies should mark rollout/cohort/stage active and enable release items for targeted cohort where current architecture supports tenant scoping.
+- If targeted activation cannot be cleanly implemented because existing rule packs are not tenant-scoped enough, document limitation and implement rollout orchestration/visibility first.
+
+Requirements:
+- Do not bypass release approval.
+- Do not bypass activation locks.
+- Do not mutate unrelated governance entities.
+- Use existing versioning/snapshot behavior where mutations occur.
+- Activation failure must not corrupt current governance.
+- Rollout state must reflect partial/progressive activation accurately.
+
+STEP 11 — Add Rollout Analytics Service
+Add rollout analytics.
+
+Suggested interface:
+ISmsGovernanceRolloutAnalyticsService
+
+Suggested methods:
+- GetRolloutAnalyticsAsync(Guid rolloutId, CancellationToken ct)
+- GetRolloutStageAnalyticsAsync(Guid rolloutId, Guid stageId, CancellationToken ct)
+- GetRolloutCohortAnalyticsAsync(Guid rolloutId, CancellationToken ct)
+
+Suggested analytics:
+- stage status
+- cohort tenant count
+- active tenant count
+- block/warn/review rates
+- threshold evaluation result
+- activation failures
+- rollout duration
+- affected rule packs/rules
+- rollback/pause events
+
+Requirements:
+- Use safe aggregate data only.
+- No raw phones.
+- No message content.
+- No provider payloads.
+- Bounded queries.
+
+STEP 12 — Add Rollout APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/rollouts
+- GET /v1/admin/sms/governance/rollouts/{id}
+- POST /v1/admin/sms/governance/rollouts
+- POST /v1/admin/sms/governance/rollouts/{id}/stages
+- POST /v1/admin/sms/governance/rollouts/{id}/cohorts
+- POST /v1/admin/sms/governance/rollouts/{id}/start
+- POST /v1/admin/sms/governance/rollouts/{id}/pause
+- POST /v1/admin/sms/governance/rollouts/{id}/resume
+- POST /v1/admin/sms/governance/rollouts/{id}/rollback
+- POST /v1/admin/sms/governance/rollouts/{id}/advance
+- GET /v1/admin/sms/governance/rollouts/{id}/analytics
+- GET /v1/admin/sms/governance/rollouts/{id}/audit
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Use pagination where appropriate.
+- Validate rollout states.
+- Validate stage duration/percentage bounds.
+- Validate tenant cohort duplicates.
+- Return safe DTOs.
+- Do not expose secrets, raw phones, message bodies, or provider payloads.
+
+STEP 13 — Extend Control Center UI If Feasible
+Add rollout UI.
+
+Suggested route:
+- /notifications/sms-governance/rollouts
+or extend /notifications/sms-governance/releases
+
+Suggested sections:
+- rollout dashboard
+- rollout detail page/drawer
+- stage timeline
+- tenant cohort manager
+- threshold configuration panel
+- rollout analytics
+- pause/resume/rollback controls
+- rollout audit timeline
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate rollout logic.
+- No raw phones, message bodies, credentials, webhook URLs, or provider payloads.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 14 — Documentation
+Update documentation/report notes for:
+- rollout states
+- rollout strategies
+- stage behavior
+- tenant cohort behavior
+- threshold behavior
+- pause/resume/rollback semantics
+- worker behavior
+- release activation relationship
+- limitations around tenant-scoped activation if any
+- Control Center UI if implemented
+
+Documentation must explain:
+- progressive rollout extends release management.
+- rollouts do not bypass approvals.
+- rollouts do not bypass activation locks.
+- threshold evaluation uses local governance telemetry only.
+- worker is optional and disabled by default.
+
+STEP 15 — Validation
+Perform validation/testing for:
+
+Rollout plans:
+- create rollout.
+- add stages.
+- add tenant cohorts.
+- duplicate tenant cohort rejected.
+- invalid rollout state transition rejected.
+- rollout list/detail works.
+
+Canary:
+- start canary rollout.
+- only canary stage/cohort active.
+- threshold breach pauses or rolls back according to config.
+- canary completion advances or completes appropriately.
+
+Staged rollout:
+- stage ordering enforced.
+- observation window respected.
+- advance works only when healthy/eligible.
+- final stage completes rollout.
+
+Pause/resume:
+- active rollout can pause.
+- paused rollout cannot advance.
+- resume returns to active/staged state.
+
+Rollback:
+- rollback marks rollout rolled_back.
+- rollback uses existing release rollback/versioning where practical.
+- rollback leaves active governance consistent.
+- rollback audited.
+
+Worker:
+- worker polls active rollouts when enabled.
+- worker respects batch size.
+- worker evaluates thresholds.
+- worker pauses/rolls back on breach.
+- worker advances eligible stages.
+- worker survives exceptions.
+
+Analytics:
+- rollout analytics return safe aggregate metrics.
+- stage analytics work.
+- cohort analytics work.
+- threshold status reported.
+
+APIs:
+- PlatformAdmin authorization enforced.
+- validation errors returned safely.
+- pagination works.
+- no raw phones/message bodies/credentials exposed.
+
+Control Center UI if implemented:
+- rollout dashboard renders.
+- stage timeline renders.
+- cohort manager works.
+- pause/resume/rollback controls work.
+- no sensitive data displayed.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-021-HARDENING behavior preserved.
+- release activation locking preserved.
+- approval workflow preserved.
+- governance versioning preserved.
+- dynamic rules preserved.
+- template governance preserved.
+- delivery pipeline unchanged.
+
+Security:
+- no raw phones stored.
+- no raw message bodies stored.
+- no credentials exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsGovernanceRolloutPlan entity/table
+- SmsGovernanceRolloutStage entity/table
+- SmsGovernanceTenantCohort entity/table
+- Optional SmsGovernanceRolloutAuditEvent entity/table
+- Rollout configuration
+- Rollout orchestration service
+- Rollout threshold evaluator
+- Optional rollout worker
+- Rollout analytics service
+- Rollout admin APIs
+- Optional Control Center rollout UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist raw message content
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external deployment/workflow systems
+- Call external compliance/moderation APIs
+- Implement AI/ML rollout optimization
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Replace LS-019 dynamic rule engine
+- Replace LS-020 versioning/rollback behavior
+- Replace LS-021 release-management behavior
+- Bypass LS-021-HARDENING activation locking
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-021-HARDENING behavior

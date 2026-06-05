@@ -1,0 +1,348 @@
+Project: E9.3
+Title: Control Center Exception / Stuck Workflow View — Operational Diagnostics and Triage
+
+You are implementing the next Control Center workflow UI phase after E9.1 and E9.2.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E9.3-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around the definition of “stuck”, available workflow timestamps/error fields, current Control Center routing/layout patterns, backend/API boundaries, and any limitations in deriving exceptions from current data.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - Control Center UI changes
+   - API/BFF changes
+   - exception/stuck detection rules
+   - filter/search/status behavior
+   - permission/visibility behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for follow-up admin actions or needs iteration
+
+REPORT FORMAT
+
+# E9.3 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Exception / Stuck View Notes
+## API / BFF Notes
+## Detection Rules / Exception Logic
+## Filter / Search / Status Notes
+## Permission / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Extend the Control Center workflow operations surface with an exception/stuck-workflow view so platform/admin users can quickly identify workflows that need attention, understand why they are problematic, and inspect them through the existing detail drawer without turning Control Center into an execution surface.
+
+This phase is operational diagnostics and triage only. It is not workflow execution, workflow authoring, or tenant-portal UI.
+
+SCOPE INCLUDES
+
+- exception/stuck workflow list or view in Control Center
+- classification of problematic workflows using existing workflow state data
+- read-only diagnostics-oriented filtering and visibility
+- integration with the existing workflow detail drawer from E9.2
+- documentation/reporting
+
+DO NOT BUILD
+
+- workflow execution actions in Control Center
+- retry/replay/cancel/complete actions in Control Center
+- workflow template administration
+- broad Control Center redesign
+- tenant-portal changes
+- analytics dashboards beyond the diagnostics view
+- direct browser calls to Flow if a Control Center BFF/API pattern exists
+- new workflow-engine behavior unless strictly required for diagnostics viability
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve Control Center as a read-only admin/ops surface
+- build on top of the existing E9.1 list and E9.2 detail drawer patterns where possible
+- use a clearly documented and deterministic definition for “exception” and/or “stuck”
+- prefer Control Center UI -> Control Center API/BFF -> Flow/backend instead of direct browser coupling to Flow
+- make it easy for operators to filter down to workflows that need attention
+- preserve tenant/platform visibility rules
+- avoid adding execution controls in this phase
+
+CURRENT CONTEXT
+
+E9.1 already delivered:
+- /workflows read-only operations list
+- cross-product visibility
+- filters for product/status/tenant/search
+
+E9.2 already delivered:
+- read-only workflow detail drawer
+- current step / status / source context / lifecycle / diagnostics
+- deep links to source product record where route shape is known
+
+Current backend state already includes:
+- WorkflowInstance as execution authority
+- status, current step, timestamps, last error
+- cross-product mapping/correlation
+- hardened admin list/detail endpoints
+
+This phase should add an operational diagnostics view focused on workflows that are failed, cancelled, stale, or otherwise likely to require attention.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. EXCEPTION / STUCK VIEW UX
+
+Add a dedicated exception/stuck workflow view in Control Center.
+
+Requirements:
+- choose one of these patterns, following the least disruptive path consistent with current Control Center conventions:
+  - a dedicated route such as /workflows/exceptions, OR
+  - a tab/toggle/filter preset on /workflows
+- whichever pattern is chosen, it must clearly present workflows requiring attention
+- the underlying list should remain read-only
+- the existing E9.2 drawer should be reusable from this view if practical
+
+Preferred row fields:
+- workflow name/title
+- status
+- current step
+- product
+- tenant
+- source entity type / id
+- started at
+- updated at
+- age / time since last update if useful
+- last error summary if present
+- exception reason / classification
+
+At minimum, an operator should be able to answer:
+- why is this workflow showing up here?
+- how long has it been in trouble?
+- which product/tenant/source record does it belong to?
+
+2. EXCEPTION / STUCK DETECTION RULES
+
+Define deterministic classification rules and document them clearly.
+
+At minimum support:
+- Failed workflows
+- Cancelled workflows (optional include/exclude filter)
+- Stale Active/Pending workflows (stuck)
+- Workflows with last error message present
+- Optional conflict-prone workflows if current data supports it
+
+Recommended initial classification rules:
+- Failed:
+  - status == Failed
+- Cancelled:
+  - status == Cancelled
+- Stuck:
+  - status in (Active, Pending)
+  - and UpdatedAt (or CreatedAt if UpdatedAt missing) older than a configurable threshold
+- ErrorPresent:
+  - lastErrorMessage not null/empty
+
+Requirements:
+- keep rules deterministic and explainable
+- expose the classification in the response/UI, not just implicit filtering
+- if a rule depends on a threshold, document and surface the threshold used
+- do not invent complicated heuristics that are hard to reason about
+
+Suggested threshold:
+- default 24 hours stale threshold, configurable if easy/safe
+- if existing repo conventions support config-driven thresholds, use them; otherwise document a sane default
+
+3. API / BACKEND SUPPORT
+
+Use the appropriate admin API/BFF pattern.
+
+Requirements:
+- prefer extending the existing Flow admin workflow list endpoint or adding a closely related read-only diagnostics endpoint
+- do not directly couple the browser to Flow unless there is no viable admin API/BFF layer and you document the reason clearly
+- preserve E9.1/E9.2 auth and tenant-visibility rules
+- keep any new endpoint read-only
+
+Possible backend approaches:
+- extend list endpoint with:
+  - exceptionOnly=true
+  - classification filter
+  - staleThresholdHours
+- OR add a dedicated endpoint such as:
+  - GET /api/v1/admin/workflow-instances/exceptions
+
+Either is acceptable if documented clearly and kept minimal.
+
+If extending the list endpoint:
+- preserve existing behavior for normal list consumers
+- avoid breaking E9.1
+
+4. FILTERING / SEARCH / TRIAGE
+
+Add diagnostics-oriented filtering.
+
+Minimum required filters:
+- exception type/classification
+- product
+- tenant
+- status
+- search
+
+Optional:
+- stale threshold preset (e.g. 24h, 48h, 72h)
+- assigned user
+- only with error message
+
+Requirements:
+- align with existing Control Center filter patterns
+- operators must be able to isolate:
+  - only stuck workflows
+  - only failed workflows
+  - only a specific product’s exceptions
+  - only a specific tenant’s exceptions
+
+5. EXCEPTION REASON VISUALIZATION
+
+Requirements:
+- each row must show a clear reason/category for why it is flagged
+- use readable labels such as:
+  - Failed
+  - Stuck >24h
+  - Error Present
+  - Cancelled
+- do not expose raw engine/internal codes as the primary label
+- if lastErrorMessage exists, show a truncated summary in-row or in the drawer
+- the detail drawer should continue to show the full available diagnostics context
+
+6. INTEGRATION WITH E9.2 DRAWER
+
+Requirements:
+- if possible, re-use the existing workflow detail drawer from E9.2
+- opening an exception row should inspect the same workflow detail drawer
+- list/filter state must remain preserved
+- no duplicate detail surface should be created unless absolutely necessary
+
+This phase should build on E9.2, not bypass it.
+
+7. PERMISSION / VISIBILITY MODEL
+
+Requirements:
+- preserve the same visibility model as E9.1/E9.2
+- recommended:
+  - PlatformAdmin may inspect cross-tenant exception workflows
+  - TenantAdmin may inspect only workflows in their tenant if the backend supports that surface
+- ordinary product users must not gain access through Control Center
+- the backend/API remains authoritative for visibility
+
+If the current Control Center page remains PlatformAdmin-only:
+- keep that consistent in E9.3
+- document any future tenant-admin expansion as deferred
+
+8. UI / UX BEHAVIOR
+
+Requirements:
+- support loading state
+- support empty state (“No workflows currently require attention”)
+- support API unavailable/error state
+- keep the UI operational and compact
+- do not block the rest of Control Center if the exception view errors
+- avoid alarming/noisy styling; this is an ops surface, not a red-alert dashboard
+
+9. FRONTEND ARCHITECTURE
+
+Requirements:
+- follow existing Control Center page/list/filter/drawer patterns
+- keep the exception view modular so future admin actions or export can build on it
+- separate:
+  - exception view/page
+  - data service / API client
+  - classification/formatting helpers
+  - reused drawer component
+- do not introduce a large new frontend state-management library
+
+10. VALIDATION
+
+You MUST validate and record in the report:
+
+Screen / UI
+- exception/stuck workflow view renders
+- rows clearly show classification/reason
+- loading / empty / error states work
+- detail drawer opens from exception rows if reused
+
+API / BFF
+- browser uses intended Control Center API/BFF path
+- auth/session handling remains consistent
+- exception detection/filtering behaves as documented
+
+Filters / Search
+- exception classification filter works
+- product filter works
+- tenant filter works if supported
+- status filter works
+- search works for supported fields
+
+Permissions
+- visibility is restricted appropriately
+- ordinary users do not gain cross-tenant exception visibility
+- page guard and API guard remain aligned
+
+Runtime / Build
+- Control Center frontend compiles successfully
+- any backend/API project changed still compiles
+- E9.1/E9.2 behavior remains stable
+
+11. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- where the exception/stuck view lives
+- what API/BFF endpoint(s) it uses
+- what classification rules are used
+- what stale threshold is used
+- what remains for future admin action/ops phases
+
+12. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E9.3 unless strictly required:
+- execution/retry/replay controls in Control Center
+- workflow template administration
+- SLA engine changes
+- analytics dashboards
+- tenant-portal changes
+- broad UI redesign
+- bulk admin actions
+- export/reporting unless trivial
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current E9.1 list and E9.2 drawer implementation and determine the least disruptive way to add an exception/stuck view.
+2. Create /analysis/E9.3-report.md immediately and begin logging assumptions/actions.
+3. Identify or add the minimal read-only API support needed for exception/stuck classification.
+4. Build the exception/stuck list view using existing Control Center table/filter patterns.
+5. Add classification/reason rendering and diagnostics-oriented filters.
+6. Reuse the E9.2 drawer for row inspection if practical.
+7. Validate permission/visibility behavior.
+8. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E9.3 is successful when:
+- Control Center has a read-only exception/stuck workflow view
+- admins can quickly identify workflows that need attention
+- classifications are deterministic and documented
+- the existing detail drawer can be used to inspect flagged workflows
+- browser/API boundaries remain correct
+- the implementation is ready for future admin-ops enhancements without becoming an execution surface
+
+FAILURE CONDITION
+
+E9.3 fails if:
+- the exception view becomes an execution surface
+- the browser is coupled directly to Flow without justification
+- classification logic is opaque or inconsistent
+- visibility rules are weakened
+- the Control Center becomes unstable or heavily redesigned

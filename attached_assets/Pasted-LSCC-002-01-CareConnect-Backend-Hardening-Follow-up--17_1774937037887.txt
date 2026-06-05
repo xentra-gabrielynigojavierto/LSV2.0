@@ -1,0 +1,286 @@
+LSCC-002-01 — CareConnect Backend Hardening Follow-up
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-002-01
+
+Report path:
+- /analysis/LSCC-002-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Harden the LSCC-002 implementation by improving operational readiness, data completeness, and real-world validation.
+
+This iteration focuses on:
+
+1. Bulk-safe provider organization linkage support
+2. Legacy appointment org-ID backfill
+3. HTTP-level validation of access control
+4. EF Core version alignment
+
+Do NOT introduce new product features.
+Do NOT modify UI.
+Do NOT expand business workflows.
+
+This is a precision hardening pass.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Provider org linkage backfill tooling
+B. Legacy appointment org-ID backfill
+C. HTTP/integration-level access validation
+D. EF Core version alignment
+E. Report
+
+Do NOT:
+- redesign existing APIs unless required for backfill
+- introduce speculative mappings
+- modify scheduling logic
+- change authorization model
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse LSCC-001 and LSCC-002 architecture
+2. Keep logic separated:
+   - application services
+   - repositories
+   - endpoints
+3. All backfill operations must be:
+   - idempotent
+   - safe to rerun
+4. No silent failures — always report results
+5. Do NOT widen access under any condition
+6. Prefer explicit admin-only tooling
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-002 already implemented:
+- provider org linkage endpoint (single record)
+- referral row-level access
+- appointment org scoping
+- participant helper
+- appointment org ID denormalization on create
+
+Remaining issues:
+- providers still unlinked in bulk
+- legacy appointments missing org IDs
+- no HTTP-level verification of access behavior
+- EF Core version mismatch warning
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. PROVIDER ORG BACKFILL TOOLING
+--------------------------------------------------
+
+Provide a safe and deterministic way to identify and backfill providers missing OrganizationId.
+
+Minimum requirements:
+
+1. Ability to identify providers with:
+   Provider.OrganizationId == null
+
+2. Provide an admin-only mechanism to link providers:
+   Acceptable:
+   - bulk endpoint
+   - batch command/service
+   - admin tool endpoint
+
+3. Must NOT:
+   - auto-guess organization mappings
+   - assign orgs without explicit input or deterministic rule
+
+4. Must be idempotent:
+   - re-running must not corrupt data
+
+5. Must report:
+   - total processed
+   - updated count
+   - skipped count
+   - unresolved count
+
+Fallback behavior:
+- unresolved providers remain unlinked
+- must NOT expand visibility
+
+--------------------------------------------------
+B. LEGACY APPOINTMENT ORG-ID BACKFILL
+--------------------------------------------------
+
+Populate missing org IDs for existing appointments.
+
+Target fields:
+- ReferringOrganizationId
+- ReceivingOrganizationId
+
+Requirements:
+
+1. Identify appointments where org IDs are null
+
+2. Derive values ONLY if:
+   - appointment has valid referral
+   - referral has valid org relationship
+
+3. Update appointment only when both org IDs can be safely determined
+
+4. Leave unresolved records unchanged
+
+5. Must be idempotent
+
+6. Must report:
+   - updated count
+   - skipped count
+   - unresolved count
+
+Fallback behavior:
+- unresolved records remain admin-visible only
+- do NOT infer or guess
+
+--------------------------------------------------
+C. HTTP / INTEGRATION ACCESS VALIDATION
+--------------------------------------------------
+
+Add endpoint-level validation for access control.
+
+Cover at minimum:
+
+1. GET /api/referrals/{id}
+2. GET /api/appointments/{id}
+3. GET /api/referrals
+4. GET /api/appointments
+
+Validation requirements:
+
+- participant → 200
+- non-participant → 404 (detail)
+- list endpoints → only return scoped results
+- admin → full access
+
+If full HTTP integration test harness is not feasible:
+- implement closest possible layer (endpoint-level or handler-level)
+- document limitation in report
+
+--------------------------------------------------
+D. EF CORE VERSION ALIGNMENT
+--------------------------------------------------
+
+Fix EF version mismatch.
+
+Requirements:
+
+1. Align all EF Core packages to a single version
+2. Maintain compatibility with existing code
+3. Avoid unrelated dependency upgrades
+4. Ensure:
+   - project builds cleanly
+   - tests pass
+
+--------------------------------------------------
+E. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-002-01.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what was not implemented
+
+2. Files changed
+
+3. Provider backfill tooling
+- how providers are identified
+- how linkage is performed
+- how results are reported
+
+4. Appointment backfill
+- how org IDs are derived
+- update rules
+- unresolved handling
+
+5. Access validation
+- what endpoints are tested
+- validation behavior confirmed
+- any limitations
+
+6. EF alignment
+- versions before/after
+- any warnings resolved
+
+7. Test coverage
+- what scenarios covered
+- what remains uncovered
+
+8. Risks / follow-ups
+
+9. Recommended next step
+
+==================================================
+IMPLEMENTATION SEQUENCE
+==================================================
+
+1. Inspect current provider and appointment data model
+2. Identify null OrganizationId providers
+3. Implement provider backfill tooling (safe + admin-only)
+4. Implement appointment org-ID backfill logic
+5. Add endpoint-level access validation tests
+6. Align EF versions across projects
+7. Verify build and test stability
+8. Generate report
+
+==================================================
+CONSTRAINTS
+==================================================
+
+Do not:
+- auto-assign organization IDs without deterministic logic
+- change authorization behavior beyond validation
+- modify UI
+- introduce new workflows
+
+Do:
+- ensure safety and repeatability
+- preserve LSCC-002 behavior
+- keep implementation minimal and precise
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+LSCC-002-01 is complete ONLY if:
+
+1. Providers with null OrganizationId can be identified and safely backfilled
+2. Legacy appointments with resolvable org context are updated
+3. Access behavior is validated at endpoint level
+4. EF version mismatch is resolved
+5. All changes are idempotent and safe
+6. Report exists at:
+/analysis/LSCC-002-01.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Inspect first. Then implement carefully.
+Do not guess mappings.
+Do not overbuild.
+Focus on safety, correctness, and operational readiness.

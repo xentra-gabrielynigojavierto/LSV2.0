@@ -1,0 +1,293 @@
+You are working inside the LegalSynq source tree. Your task is to create **Step 23: Production Enablement and Rollout Plan** for the Platform Audit/Event Service, based on the completed work from Steps 11–22.
+
+## Objective
+
+Produce a concrete implementation plan that translates the current recommendations into:
+
+1. **Epics**
+2. **Detailed user stories / engineering stories**
+3. **Acceptance criteria**
+4. **Dependencies**
+5. **Technical rollout order**
+6. **Risk flags**
+7. **Recommended milestone grouping**
+8. **A final prioritized execution roadmap**
+
+This is a **planning/documentation step only** unless you discover small supporting code/config changes that are required to validate feasibility. Do not do large refactors. The main output is a high-quality report.
+
+Save the final report to:
+
+`/analysis/step23_implementation_plan.md`
+
+If you create any supporting notes, save them under:
+
+`/analysis/step23_*`
+
+---
+
+## Context
+
+The Platform Audit/Event Service already has the following delivered in prior steps:
+
+* Step 11: ingestion API layer
+* Step 12: service-to-service ingest authentication
+* Step 13: query services and retrieval APIs
+* Step 14: query authorization foundations
+* Step 15: integrity checkpoint support
+* Step 16: export capability
+* Step 17: retention and archival foundations
+* Step 18: event forwarding abstraction
+* Step 19: producer integration assets
+* Step 20: UI integration documentation
+* Step 21: production hardening
+* Step 22: testing foundation
+
+The current overall assessment is:
+
+* The service is structurally strong and ready for controlled production adoption.
+* The main remaining work is operationalization and production completion, not redesign.
+* Highest-priority next areas are:
+
+  * real production query auth / JWT bearer wiring
+  * async/background execution for exports
+  * scheduled integrity checkpoint generation and verification
+  * retention scheduler + first real archival provider
+  * legal-hold model before destructive retention
+  * eventual real broker integration / outbox path
+  * broader concurrency/performance/failure-path testing
+
+---
+
+## Your mission
+
+Analyze the existing service code, docs, configuration, test project, and any prior analysis files that are relevant. Then create a **Step 23 implementation plan** that is directly actionable by an engineering team.
+
+You should think like a principal engineer / staff architect writing a delivery plan for a team.
+
+Do **not** produce generic agile filler. Make it specific to the codebase and current architecture.
+
+---
+
+## What to inspect
+
+Review the relevant code and docs for the service, including at minimum:
+
+* Platform Audit/Event Service app
+* Controllers
+* Services
+* Middleware
+* Authorization
+* Forwarding
+* Export services
+* Integrity checkpoint services
+* Retention services/jobs
+* Config classes and appsettings files
+* Docs folder
+* Test project and current test coverage
+* Previous step analysis files if present
+
+Infer actual implementation seams from the current code.
+
+---
+
+## Required output structure
+
+Your report at `/analysis/step23_implementation_plan.md` must contain these sections in this order:
+
+### 1. Executive Summary
+
+Give a concise assessment of current readiness and the purpose of Step 23.
+
+### 2. Current-State Snapshot
+
+Summarize what is already production-ready vs partially complete vs placeholder-only.
+
+Use a 3-column table:
+
+* Area
+* Current State
+* Step 23 Action Needed
+
+Areas to include at minimum:
+
+* ingest auth
+* query auth
+* query APIs
+* exports
+* integrity checkpoints
+* retention/archival
+* forwarding
+* producer adoption
+* UI consumption
+* testing/QA
+* operations/observability
+
+### 3. Epic Breakdown
+
+Define a set of concrete epics. At minimum include these epics unless code analysis shows a better naming split:
+
+* Epic A: Production Query Authentication Enablement
+* Epic B: Asynchronous Export Processing
+* Epic C: Integrity Verification and Scheduled Checkpoints
+* Epic D: Retention Execution and Archival Provider
+* Epic E: Legal Hold and Compliance Safeguards
+* Epic F: Event Forwarding Productionization
+* Epic G: Test Expansion and Failure-Mode Validation
+* Epic H: Deployment / Rollout / Operational Readiness
+
+For each epic, provide:
+
+* goal
+* why it matters
+* in-scope components/files
+* out-of-scope items
+* exit criteria
+
+### 4. Story Backlog by Epic
+
+For each epic, create detailed stories.
+
+For every story include:
+
+* Story ID in format `S23-A1`, `S23-A2`, etc.
+* Title
+* Description
+* Technical tasks
+* Acceptance criteria
+* Dependencies
+* Risk notes
+* Suggested owner type (backend / platform / devops / QA)
+
+Stories must be specific to the current codebase, not abstract.
+
+### 5. Rollout Order
+
+Create a recommended sequence for implementation.
+
+Use phases such as:
+
+* Phase 1: Security and auth completion
+* Phase 2: Integrity and compliance controls
+* Phase 3: Async operations and archival execution
+* Phase 4: Forwarding and scale hardening
+* Phase 5: rollout validation and production cutover
+
+For each phase:
+
+* include which stories belong in it
+* explain why this order is safest
+* identify blockers and prerequisites
+
+### 6. Critical Path
+
+Identify the shortest path to “safe controlled production rollout.”
+
+Be explicit about which items are gating and which can happen later.
+
+### 7. Risk Register
+
+Create a table with:
+
+* Risk
+* Severity
+* Likelihood
+* Mitigation
+* Blocking? (Yes/No)
+
+Include risks such as:
+
+* auth misconfiguration
+* data overexposure across tenants
+* retention deletion before legal hold
+* export load spikes
+* forwarding delivery gaps
+* checkpoint coverage gaps
+* insufficient failure-path test coverage
+
+### 8. Recommended Milestones
+
+Group the stories into realistic milestone buckets.
+
+Suggested format:
+
+* Milestone 23.1 — secure production enablement
+* Milestone 23.2 — compliance controls
+* Milestone 23.3 — async operations
+* Milestone 23.4 — production integration hardening
+
+For each milestone include:
+
+* stories included
+* expected outcome
+* validation needed before close
+
+### 9. Final Recommended Execution Plan
+
+Provide a final prioritized numbered list:
+
+1. first do X
+2. then Y
+3. then Z
+
+This must be crisp and decision-oriented.
+
+### 10. Suggested Next Step 24
+
+Recommend what Step 24 should be after Step 23 is complete.
+
+---
+
+## Quality bar
+
+Your plan must be:
+
+* grounded in the actual codebase
+* technically credible
+* specific enough that a team could start implementing from it
+* sequenced intelligently
+* realistic about dependencies and risks
+
+Avoid vague recommendations like “improve security” or “add more tests” unless broken into code-level work.
+
+---
+
+## Feasibility validation
+
+Where useful, verify feasibility by checking:
+
+* current DI registrations
+* existing interfaces that are ready for extension
+* whether jobs are placeholders or actually wired
+* whether async patterns already exist
+* whether current tests can be extended easily
+* whether appsettings structure already supports the next step
+
+Document these findings in the report.
+
+---
+
+## Deliverable requirements
+
+1. Write the final report to `/analysis/step23_implementation_plan.md`
+2. Make sure the report is polished and internally consistent
+3. At the end of the report, include:
+
+   * a short “recommended first sprint” section
+   * a short “do not do yet” section to prevent premature work
+
+---
+
+## Output format rules
+
+* Do not ask me questions.
+* Do not stop at a partial outline.
+* Do the analysis and produce the full report.
+* Prefer specificity over breadth.
+* If you find missing context, infer the most likely answer from the code and clearly label it as an inference.
+* Keep the tone professional and implementation-focused.
+
+When done, return a short completion note telling me:
+
+* which files you reviewed
+* where you saved the report
+* the top 3 priorities you identified

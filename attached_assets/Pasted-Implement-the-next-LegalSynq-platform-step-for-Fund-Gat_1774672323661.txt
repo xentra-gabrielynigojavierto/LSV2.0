@@ -1,0 +1,230 @@
+Implement the next LegalSynq platform step for Fund, Gateway, and shared building blocks:
+
+Goal:
+Add:
+1. role-based authorization
+2. tenant middleware / tenant context standardization
+3. audit fields standardization
+
+Context:
+- Gateway is already working
+- Identity is already working with JWT issuance
+- Fund service v1 already exists with tenant-scoped Applications CRUD behind Gateway
+- JWT contains at least:
+  - sub
+  - email
+  - tenant_id
+  - tenant_code
+  - roles
+- Gateway already validates JWT
+- Fund already uses JWT claims for TenantId and UserId
+- Monorepo already has:
+  - shared/contracts
+  - shared/building-blocks
+  - gateway
+  - identity
+  - fund
+
+Important:
+Keep this implementation minimal, clean, production-minded, and reusable for future services.
+
+==================================================
+PART 1 — ROLE-BASED AUTHORIZATION
+==================================================
+
+1. Add shared role constants
+Create a shared role constants class in shared/building-blocks with:
+- PlatformAdmin
+- TenantAdmin
+- StandardUser
+
+Use names matching existing seeded roles exactly:
+- PlatformAdmin
+- TenantAdmin
+- StandardUser
+
+2. Add authorization policy constants
+Create a shared policy constants class with policies:
+- AuthenticatedUser
+- AdminOnly
+- PlatformOrTenantAdmin
+
+3. Configure Fund authorization
+In Fund.Api:
+- keep JWT bearer auth
+- add authorization policies:
+  - AuthenticatedUser => any authenticated user
+  - AdminOnly => PlatformAdmin only
+  - PlatformOrTenantAdmin => PlatformAdmin or TenantAdmin
+
+4. Protect Fund endpoints with policies
+Use these rules:
+- GET /health => allow anonymous
+- GET /info => allow anonymous
+- GET /api/applications => AuthenticatedUser
+- GET /api/applications/{id} => AuthenticatedUser
+- POST /api/applications => PlatformOrTenantAdmin
+
+This means:
+- StandardUser can read applications
+- PlatformAdmin and TenantAdmin can create applications
+- StandardUser cannot create applications
+
+5. Do not add advanced permission matrix yet
+Do not create permissions tables or permission claims yet.
+Only use role-based policies with the roles already in JWT.
+
+==================================================
+PART 2 — TENANT MIDDLEWARE / TENANT CONTEXT STANDARDIZATION
+==================================================
+
+6. Create a shared tenant/user context abstraction
+In shared/building-blocks create:
+- ICurrentRequestContext
+- CurrentRequestContext
+
+This should expose:
+- Guid? UserId
+- Guid? TenantId
+- string? TenantCode
+- string? Email
+- IReadOnlyCollection<string> Roles
+- bool IsAuthenticated
+
+7. Add a shared implementation that reads claims from HttpContext
+Use IHttpContextAccessor internally.
+Read claims from the authenticated user principal.
+
+Map these claim names from the existing JWT:
+- sub => UserId
+- tenant_id => TenantId
+- tenant_code => TenantCode
+- email => Email
+- roles => Roles
+If the implementation uses ClaimTypes.Role or "role" or "roles", support the actual token format already being issued.
+
+8. Register the shared request context service
+Register IHttpContextAccessor and ICurrentRequestContext in:
+- Fund.Api
+- Gateway.Api if useful
+- Identity.Api only if useful for consistency
+
+9. Refactor Fund to stop manually parsing claims in controllers/endpoints
+Replace ad hoc JWT claim parsing with ICurrentRequestContext.
+All tenant/user access in Fund should use:
+- currentRequestContext.TenantId
+- currentRequestContext.UserId
+- currentRequestContext.Roles
+
+10. Keep strict tenant isolation
+All application reads and writes must continue to be filtered by TenantId from ICurrentRequestContext.
+
+==================================================
+PART 3 — AUDIT FIELDS STANDARDIZATION
+==================================================
+
+11. Create a shared auditable base abstraction
+In shared/building-blocks create a reusable base class or interface for audited entities.
+
+Recommended base class:
+- AuditableEntity
+
+Fields:
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+Keep it simple and reusable.
+
+12. Update Fund Application entity
+Refactor Application to inherit from or implement the shared auditable abstraction.
+
+Fund Application should now include:
+- Id
+- TenantId
+- ApplicationNumber
+- ApplicantFirstName
+- ApplicantLastName
+- Email
+- Phone
+- Status
+- CreatedAtUtc
+- UpdatedAtUtc
+- CreatedByUserId
+- UpdatedByUserId
+
+If UpdatedByUserId does not exist yet, add it.
+
+13. Standardize audit field behavior
+When creating an Application:
+- set CreatedAtUtc = current UTC
+- set UpdatedAtUtc = current UTC
+- set CreatedByUserId from current request context
+- set UpdatedByUserId from current request context
+
+When updating entities later, UpdatedAtUtc and UpdatedByUserId should be updated.
+For now, just ensure the pattern is established even if no update endpoint exists yet.
+
+14. Add automatic audit stamping support in FundDbContext
+Implement a simple SaveChanges / SaveChangesAsync pattern in FundDbContext:
+- for newly added auditable entities:
+  - set CreatedAtUtc if empty
+  - set UpdatedAtUtc
+- for modified auditable entities:
+  - set UpdatedAtUtc
+This should not overwrite explicitly assigned CreatedAtUtc values if already set.
+If current user ID is available through a service, use it for CreatedByUserId / UpdatedByUserId.
+
+Keep this implementation simple and safe.
+
+15. Do not modify Identity schema right now unless absolutely necessary
+This step is mainly about establishing the shared audit standard and applying it to Fund.
+Do not break current Identity behavior.
+
+==================================================
+PART 4 — RESPONSE / ERROR CLEANUP
+==================================================
+
+16. Improve authorization responses
+Ensure unauthorized requests behave correctly:
+- no token => 401
+- authenticated but wrong role => 403
+
+17. Keep endpoint structure minimal
+Do not convert to controllers if minimal APIs are already being used cleanly.
+Keep style consistent with the existing codebase.
+
+==================================================
+PART 5 — TESTING EXPECTATIONS
+==================================================
+
+18. Output required
+After implementation, output:
+- files created/updated
+- package or reference changes
+- policies added
+- how tenant context is resolved
+- how audit stamping works
+- sample curl commands to test:
+  - create application as PlatformAdmin => should succeed
+  - create application as StandardUser => should return 403
+  - list applications as StandardUser => should succeed
+  - call without token => should return 401
+
+19. Keep implementation constraints
+Do NOT add:
+- permissions matrix
+- database-level tenant middleware
+- MediatR unless already present
+- refresh tokens
+- advanced logging middleware
+- update application endpoint yet
+- documents or notifications integration yet
+
+20. Code quality expectations
+- clean namespaces
+- reusable building blocks
+- minimal duplication
+- production-minded structure
+- no breaking changes to current working login and gateway flow

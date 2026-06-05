@@ -1,0 +1,281 @@
+You are implementing BLOCK 5 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B05-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1, Block 2, Block 3, and Block 4 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- This block is the first write-capable migration block, so safety, idempotency, and rollback discipline are mandatory.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B05 — Migration Execution + Dual Write Preparation
+================================================================
+
+OBJECTIVE
+Advance the Tenant service initiative from dry-run analysis into controlled migration execution readiness by adding:
+1. write-capable Identity -> Tenant migration execution,
+2. pre-migration validation guards,
+3. idempotent migration behavior,
+4. structured reconciliation and post-run verification,
+5. dual-write preparation design and implementation scaffolding,
+6. explicit rollback-safe operational controls.
+
+This block must NOT perform the final read switch or Identity decoupling yet.
+It must make migration executable and safe, while keeping runtime ownership with Identity for now.
+
+================================================================
+CONTEXT FROM BLOCKS 1–4 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 established:
+- standalone Tenant service
+- tenant_db
+- core Tenant entity
+- base APIs
+- migration-aware mapping from Identity -> Tenant
+
+Block 2 established:
+- expanded tenant profile
+- TenantBranding entity
+- branding APIs
+- public branding endpoints
+
+Block 3 established:
+- TenantDomain entity
+- domain management APIs
+- public resolution endpoints
+- compatibility fallback with legacy Tenant.Subdomain
+
+Block 4 established:
+- TenantProductEntitlement
+- TenantCapability
+- TenantSetting
+- migration dry-run endpoint
+- dry-run reconciliation output
+- IdentityDb read-only comparison foundation
+
+Build on top of that work.
+Do not recreate the service from scratch.
+Do not replace the current foundation.
+
+================================================================
+BLOCK 5 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- TENANT-E00-S03 — Initial Migration Utility (WRITE MODE)
+- TENANT-E00-S04 — TenantId Preservation Enforcement
+- TENANT-E00-S05 (FOUNDATION / PREP) — Dual Write Preparation
+- TENANT-E00-S07 — Reconciliation / Post-Run Verification
+- TENANT-E00-S08 (FOUNDATION / PREP) — Rollback Strategy Support
+
+IMPORTANT:
+In this block:
+- migration execution may write to Tenant service data,
+- Identity remains the runtime source of truth,
+- no read switch is allowed,
+- no Identity ownership removal is allowed,
+- dual write should be prepared and optionally scaffolded behind explicit configuration/feature flag, but not forced on by default unless extremely safe and clearly documented.
+
+================================================================
+SCOPE
+================================================================
+
+A) Upgrade migration utility from dry-run to explicit write mode
+
+The migration utility currently supports dry-run reconciliation.
+In this block, extend it to support explicit write-capable migration execution.
+
+Requirements:
+- Migration execution must be EXPLICIT, never automatic on startup
+- Dry-run must remain the default and safest mode
+- Write mode must require an explicit parameter or endpoint/action
+- Write mode must be idempotent and re-runnable
+
+Recommended interface options:
+- GET /api/admin/migration/dry-run
+- POST /api/admin/migration/execute
+or
+- POST /api/admin/migration/run?dryRun=false
+
+Choose the cleanest API shape consistent with the existing Tenant admin endpoint style.
+
+Write mode must:
+1. Read Identity tenant data via IdentityDb read-only connection
+2. Upsert tenants into Tenant service persistence
+3. Preserve TenantId exactly
+4. Upsert/update core profile fields
+5. Upsert/update branding basics where mapped
+6. Upsert/update domain/subdomain compatibility data as appropriate
+7. Avoid deleting Tenant-side data in this block unless deletion is explicitly safe and documented
+8. Produce a structured execution report/result
+
+B) Migration scope for this block
+
+Implement migration for the fields/entities that already exist in Tenant service.
+
+Minimum migration scope:
+1. Tenant core/profile
+- Id
+- Code
+- DisplayName/Name
+- Status
+- LegalName if derivable, otherwise leave as-is/null
+- Subdomain
+- Website/contact/profile fields only if available from Identity source
+- timestamps where appropriate
+
+2. Branding basics
+- LogoDocumentId
+- LogoWhiteDocumentId
+- create/update TenantBranding row as needed
+- primary color only if available from source; otherwise leave existing Tenant values intact
+
+3. Domain compatibility
+- For Identity tenants with Subdomain, ensure the Tenant service has a canonical TenantDomain record when appropriate:
+  - Host derived from subdomain + current base domain strategy if determinable from existing configuration
+  - OR create a migration-compatible domain record only when the host derivation is explicit and safe
+- If host derivation cannot be safely determined in the current environment, document the limitation and at minimum preserve Tenant.Subdomain
+
+Do NOT invent unverifiable domain hosts.
+Do NOT migrate speculative custom domains.
+
+4. Product entitlements / settings / capabilities
+- Do NOT force-migrate these unless Identity already contains a direct equivalent that is clearly mapped and safe
+- In most cases for this block, these remain untouched
+- If there are safe defaults needed, keep them explicit, minimal, and documented
+
+C) Idempotency rules
+
+Migration execution must be safely repeatable.
+
+Rules:
+- If Tenant with same Id already exists, update it rather than duplicate it
+- If Tenant with same Code exists but different Id, detect and report conflict explicitly
+- Branding row should be upserted, not duplicated
+- Domain rows created by migration should not duplicate on repeat runs
+- Re-running migration should converge toward the same result, not diverge
+
+D) Pre-migration validation guards
+
+Before write mode runs, validate:
+- IdentityDb connection available
+- TenantDb connection available
+- no duplicate Identity tenant codes in source
+- no code conflicts in Tenant target that would break exact-id migration
+- any invalid or missing required Identity tenant fields are surfaced in the result
+- host/subdomain collisions are surfaced before writes where applicable
+- migration can be scoped to a single tenant or all tenants
+
+Recommended support:
+- full migration run
+- single-tenant migration by tenantId or code
+- dry-run before execute strongly encouraged
+
+If full implementation of both scopes is too large, prioritize:
+1. all tenants
+2. single tenant by id
+and document the rest.
+
+E) Execution reporting / reconciliation
+
+Every migration execution must produce a structured result containing, at minimum:
+- generatedAtUtc
+- mode (dry-run / execute)
+- identityAccessible
+- tenantAccessible
+- totalIdentityTenantsScanned
+- tenantsCreated
+- tenantsUpdated
+- tenantsSkipped
+- conflictsDetected
+- errorsDetected
+- per-tenant results list
+
+Per-tenant result should include:
+- identityTenantId
+- code
+- actionTaken (Created / Updated / Skipped / Conflict / Failed)
+- fieldChanges summary
+- brandingChanges summary
+- domainChanges summary
+- warnings
+- errors
+
+Add a post-run reconciliation step after execute mode that compares:
+- counts
+- missing tenants
+- code mismatches
+- name mismatches
+- status mismatches
+- subdomain/domain gaps
+- logo gaps
+
+This can reuse and extend the Block 4 dry-run reconciliation logic.
+
+F) Rollback-safe support
+
+Do NOT implement a full automated destructive rollback unless it is clearly safe.
+Instead, implement rollback-safe support:
+
+1. Every execution report must record enough detail to understand what changed
+2. Add a migration batch identifier / execution id if helpful
+3. If feasible, add a lightweight migration log table in tenant_db, for example:
+   - tenant_MigrationRuns
+   - tenant_MigrationRunItems
+4. If adding these tables is too much, capture the same information in structured execution results and report files
+
+Preferred approach:
+- add migration run persistence if it fits naturally and cleanly
+- otherwise produce durable, structured report output
+
+G) Dual write preparation
+
+Prepare the platform for future dual-write from Identity -> Tenant, but do not force cutover yet.
+
+This block should add one of the following, whichever best matches current architecture:
+
+Option A — Service abstraction/preparation:
+- define an interface/contract for Identity tenant change propagation into Tenant
+- implement a disabled-by-default adapter/service stub that can be called by Identity later
+
+Option B — Explicit webhook/endpoint preparation:
+- add an internal endpoint in Tenant service that can receive future tenant sync commands from Identity
+- secure it and keep it disabled/not wired by default
+
+Option C — Shared application contract prep:
+- add shared DTO/contract structures for future dual write
+
+Choose the most practical, low-risk preparation path for the current codebase.
+
+Rules:
+- dual write must not be automatically enabled in this block
+- no current Identity runtime behavior should be changed in a risky way
+- if you touch Identity code at all, keep it minimal, opt-in, and non-breaking
+
+H) API contract
+
+Recommended admin migration endpoints:
+- GET /api/admin/migration/dry-run
+- POST /api/admin/migration/execute
+- optionally:
+  - POST /api/admin/migration/execute/{tenantId}
+  - GET /api/admin/migration/history
+  - GET /api/admin/migration/history/{runId}
+
+All migration endpoints must be AdminOnly.
+
+Recommended request shape for execute:
+```json
+{
+  "scope": "all",
+  "tenantId": null,
+  "tenantCode": null,
+  "allowUpdates": true,
+  "allowCreates": true
+}

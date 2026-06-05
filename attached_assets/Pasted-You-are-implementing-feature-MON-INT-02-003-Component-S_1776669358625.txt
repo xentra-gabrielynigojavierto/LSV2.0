@@ -1,0 +1,282 @@
+You are implementing feature MON-INT-02-003 — Component Status List.
+
+OBJECTIVE
+Replace the current split “Infrastructure / Products” monitoring tables with a unified, actionable Component Status List that shows all monitored entities in one place, with filtering and clear status visibility.
+
+This builds directly on MON-INT-02-002 (Status Summary Banner) and must remain fully driven by Monitoring Service data.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- All component data must come from MonitoringSummary.integrations
+- Do NOT reintroduce monitoring logic into Control Center
+- Do NOT modify Monitoring Service
+
+MANDATORY EXECUTION RULES
+- Create the report FIRST at: /analysis/MON-INT-02-003-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT introduce fake or derived monitoring logic
+- Do NOT break existing monitoring page functionality
+- Prefer incremental UI evolution (no full redesign)
+- Must work in both local and service modes
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-02-003-report.md
+
+Initialize with:
+
+# MON-INT-02-003 — Component Status List
+
+## 1. Task Summary
+## 2. Existing Component Tables Analysis
+## 3. Unified List Design
+## 4. Implementation
+## 5. Filtering Logic
+## 6. Data Flow Validation
+## 7. UI Validation
+## 8. Files Changed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING TABLES
+
+Inspect:
+
+- apps/control-center/src/components/monitoring/integration-status-table.tsx
+- apps/control-center/src/app/monitoring/page.tsx
+
+Identify:
+- how infrastructure vs product tables are currently separated
+- how IntegrationStatus is rendered (status dot, name, latency, timestamp)
+- duplication between tables
+
+Document:
+- what will be reused
+- what will be removed/replaced
+
+---
+
+STEP 3 — DEFINE UNIFIED COMPONENT LIST DESIGN
+
+Replace two tables with ONE unified list.
+
+### Data Source
+- MonitoringSummary.integrations
+
+### Columns
+
+| Column | Description |
+|------|------------|
+| Status | Colored dot + badge |
+| Name | Integration name |
+| Category | infra / product (if available) |
+| Latency | ms (if present) |
+| Last Checked | formatted timestamp |
+
+---
+
+### Layout Rules
+
+- Single card container (similar style to existing tables)
+- Must fit under Status Summary Banner
+- Must not break page spacing/layout
+- Must support many rows cleanly
+
+---
+
+STEP 4 — CREATE NEW COMPONENT
+
+Create:
+
+apps/control-center/src/components/monitoring/component-status-list.tsx
+
+Props:
+
+- integrations: IntegrationStatus[]
+
+Responsibilities:
+- render full list
+- apply filtering (next step)
+- reuse existing styles where possible
+
+DO NOT duplicate existing table logic unnecessarily.
+
+---
+
+STEP 5 — IMPLEMENT FILTERING (CRITICAL UX)
+
+Add simple filtering at top of component:
+
+### Filters:
+
+- All (default)
+- Healthy
+- Degraded
+- Down
+
+### Behavior:
+
+- clicking filter updates visible rows
+- filtering happens client-side (no API calls)
+- no re-fetching
+
+---
+
+### Optional (if trivial)
+
+Add category filter (infra / product) ONLY if already present in data.
+
+---
+
+STEP 6 — STATUS VISUALS
+
+Reuse existing:
+
+- status dot styles
+- badge styles
+
+Ensure consistency with:
+- Status Summary Banner
+- SystemHealthCard
+
+---
+
+STEP 7 — SORTING (MINIMAL)
+
+Default sort:
+
+1. Down
+2. Degraded
+3. Healthy
+
+Then alphabetical by name.
+
+DO NOT add complex sorting UI yet.
+
+---
+
+STEP 8 — INTEGRATE INTO PAGE
+
+Modify:
+
+apps/control-center/src/app/monitoring/page.tsx
+
+Replace:
+
+- IntegrationStatusTable (infra)
+- IntegrationStatusTable (products)
+
+WITH:
+
+<ComponentStatusList integrations={data.integrations} />
+
+Placement:
+
+- Below StatusSummaryBanner
+- Below SystemHealthCard
+
+---
+
+STEP 9 — REMOVE DUPLICATE TABLE USAGE
+
+- Do NOT delete old component file yet
+- Remove usage from page only
+
+---
+
+STEP 10 — DATA FLOW VALIDATION
+
+Validate:
+
+- integrations array passed correctly
+- filtering works correctly
+- sorting applied correctly
+- no recomputation of status
+- no mismatch with MonitoringSummary
+
+---
+
+STEP 11 — UI VALIDATION
+
+Verify:
+
+- list renders correctly
+- filter buttons work
+- status colors correct
+- latency displays correctly
+- timestamps display correctly
+- no layout break
+- works with:
+  - all healthy
+  - mixed states
+  - multiple down services
+
+---
+
+STEP 12 — ERROR & EMPTY STATES
+
+Handle:
+
+A. No integrations:
+- show "No monitored components"
+
+B. Filter returns empty:
+- show "No components match filter"
+
+---
+
+STEP 13 — FILES CHANGED
+
+List:
+
+- new component file
+- modified page.tsx
+- any styling updates
+
+---
+
+STEP 14 — KNOWN GAPS / RISKS
+
+Document:
+
+- no pagination
+- no advanced sorting
+- no drill-down
+- no click-to-filter from banner (future)
+
+---
+
+STEP 15 — RECOMMEND NEXT FEATURE
+
+Recommend one:
+
+Option A:
+MON-INT-02-004 — Clickable Banner Filtering
+
+Option B:
+MON-INT-03-001 — Incident / Alert Detail View
+
+Choose based on UX readiness.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+
+- /analysis/MON-INT-02-003-report.md exists
+- unified component list replaces old tables
+- filtering works (All / Healthy / Degraded / Down)
+- sorting applied (Down → Degraded → Healthy)
+- UI stable
+- no monitoring logic added
+- works in both local and service modes

@@ -1,0 +1,491 @@
+Feature ID: LS-NOTIF-SMS-016
+
+Title:
+Recipient Intelligence, Suppression Intelligence, and Delivery Reputation Management
+
+Objective:
+Enhance the SMS platform with recipient-level operational intelligence including delivery reputation scoring, invalid-number detection, retry suppression heuristics, destination risk scoring, carrier failure analytics, and suppression intelligence to reduce wasted spend and improve delivery quality.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- recipient intelligence
+- delivery reputation scoring
+- suppression heuristics
+- retry suppression decisions
+- carrier failure analytics
+- destination risk analytics
+- recipient intelligence APIs
+
+Control Center must only consume Notification Service APIs and render/administer operational visibility. Do not duplicate scoring, suppression, or intelligence logic in Control Center.
+
+Requirements:
+- Implement recipient intelligence inside Notification Service.
+- Implement suppression heuristics inside Notification Service.
+- Preserve all existing compliance/preference enforcement from LS-NOTIF-SMS-002.
+- Preserve all routing/provider orchestration from LS-NOTIF-SMS-014 and LS-NOTIF-SMS-015.
+- Do not store raw phone numbers in intelligence persistence.
+- Use deterministic hashing/tokenization for recipient identity where persistence is required.
+- Preserve all existing outbound send behavior unless suppression heuristics explicitly intervene.
+- Suppression behavior must degrade safely when telemetry is insufficient.
+- Keep Control Center as read-only operational/admin UX.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-015 behavior.
+
+Implementation Requirements:
+1. Add recipient reputation/intelligence persistence.
+2. Add deterministic recipient hashing/tokenization.
+3. Add recipient quality scoring.
+4. Add invalid-number intelligence heuristics.
+5. Add retry suppression heuristics.
+6. Add destination risk scoring.
+7. Add carrier/provider failure analytics.
+8. Add suppression decision persistence.
+9. Add admin analytics APIs for recipient intelligence.
+10. Add Control Center recipient intelligence visibility UI if feasible.
+11. Integrate suppression intelligence into retry/send evaluation safely.
+12. Preserve all existing retry/dead-letter behavior unless suppression explicitly overrides retry execution.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, SmsRoutingDecision, SmsProviderQualitySnapshot, reconciliation telemetry, retry/dead-letter logic, provider failure classification, SmsOperationalAlert, SmsCostAnalytics, and Control Center routing/dashboard patterns where appropriate.
+- Do NOT rewrite the Notification Service delivery pipeline.
+- Do NOT bypass existing contact enforcement, preference checks, audit, retry/dead-letter persistence, or routing decisions.
+- Do NOT implement AI/ML scoring.
+- Do NOT call external phone-validation or enrichment APIs.
+- Do NOT persist raw phone numbers in new intelligence tables.
+- Do NOT expose credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-016-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing retry/dead-letter findings
+3. Existing provider failure/reconciliation findings
+4. Existing adaptive routing findings
+5. Existing quality snapshot findings
+6. Existing dashboard/analytics findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. UI/route changes, if implemented
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Delivery, Retry, and Intelligence Architecture
+- Identify:
+  - NotificationAttempt retry/dead-letter fields
+  - existing provider failure categories
+  - reconciliation failure classifications
+  - SmsRoutingDecision adaptive metadata
+  - SmsProviderQualitySnapshot structure
+  - retry worker logic
+  - dead-letter processing
+  - provider/carrier failure telemetry
+  - Control Center routing/optimization UI
+  - cost analytics structures
+  - audit/logging conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Recipient Identity Hashing Strategy
+Add deterministic recipient hashing/tokenization.
+
+Suggested interface:
+ISmsRecipientIdentityHasher
+
+Suggested methods:
+- string HashRecipient(string normalizedPhone)
+
+Requirements:
+- Normalize phone before hashing where possible.
+- Use deterministic hashing.
+- Use application-configured secret/salt if existing crypto/config patterns exist.
+- Do not store raw phone in intelligence persistence.
+- Do not log raw phone values.
+- Existing NotificationAttempt raw recipient handling must remain unchanged unless already protected elsewhere.
+- New intelligence persistence must only store hash/tokenized identity.
+
+Suggested config:
+SmsRecipientIntelligence:
+- Enabled bool default true
+- RecipientHashSalt string
+- ReputationWindowDays int default 90
+- MinimumAttemptCount int default 5
+- HardSuppressionThreshold decimal default 20
+- SoftSuppressionThreshold decimal default 40
+- RetrySuppressionThreshold decimal default 30
+
+STEP 3 — Define Recipient Reputation Snapshot Model
+Add Notification Service-local persistence model.
+
+Suggested entity:
+SmsRecipientReputationSnapshot
+
+Suggested fields:
+- Id Guid
+- RecipientHash string
+- CountryCode string? nullable
+- Region string? nullable
+- ProviderType string? nullable
+- TenantId Guid? nullable
+- TotalAttempts int
+- DeliveredAttempts int
+- FailedAttempts int
+- RetryAttempts int
+- DeadLetterAttempts int
+- CarrierRejectedAttempts int
+- InvalidDestinationAttempts int
+- AverageLatencyMs decimal? nullable
+- DeliverySuccessRate decimal
+- FailureRate decimal
+- RetryRate decimal
+- DeadLetterRate decimal
+- CarrierFailureRate decimal
+- InvalidNumberRisk decimal
+- RetrySuppressionRisk decimal
+- QualityScore decimal
+- DestinationRiskLevel string
+- LastAttemptAt DateTime? nullable
+- CalculatedAt DateTime
+
+Suggested DestinationRiskLevel values:
+- low
+- medium
+- high
+- suppressed
+
+Requirements:
+- Store safe operational metadata only.
+- Never store raw phone numbers.
+- Support tenant/provider/regional segmentation where practical.
+- Add indexes:
+  - RecipientHash
+  - TenantId, RecipientHash
+  - ProviderType, RecipientHash
+  - CountryCode, CalculatedAt
+
+STEP 4 — Define Suppression Decision Model
+Persist suppression outcomes for auditability.
+
+Suggested entity:
+SmsSuppressionDecision
+
+Suggested fields:
+- Id Guid
+- RecipientHash string
+- TenantId Guid? nullable
+- NotificationId Guid? nullable
+- AttemptId Guid? nullable
+- DecisionType string
+- ReasonCode string
+- RiskScore decimal? nullable
+- QualityScore decimal? nullable
+- RetryCount int
+- ProviderType string? nullable
+- CountryCode string? nullable
+- Region string? nullable
+- DecisionMetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested DecisionType values:
+- allow
+- warn
+- soft_suppress
+- hard_suppress
+- review_required
+
+Suggested ReasonCode values:
+- invalid_destination
+- excessive_failures
+- excessive_retries
+- carrier_rejections
+- dead_letter_history
+- insufficient_quality
+- manual_override
+- telemetry_unavailable
+
+Requirements:
+- No raw phone persistence.
+- Store safe operational metadata only.
+- Existing sends/retries remain auditable.
+- Decision metadata must not contain provider credentials or raw payloads.
+
+STEP 5 — Add Recipient Intelligence Calculation Service
+Add intelligence aggregation/scoring service.
+
+Suggested interface:
+ISmsRecipientIntelligenceService
+
+Suggested methods:
+- CalculateSnapshotsAsync(windowStart, windowEnd, ct)
+- GetRecipientSnapshotAsync(recipientHash, tenantId, ct)
+- EvaluateSuppressionAsync(request, ct)
+- QueryRecipientAnalyticsAsync(query, ct)
+
+Suggested calculation inputs:
+- NotificationAttempt.Channel == sms
+- Status
+- FailureCategory
+- AttemptNumber
+- IsFailover
+- reconciliation outcomes
+- provider/carrier failure codes
+- retry/dead-letter outcomes
+- latency
+- routing decisions
+- adaptive quality metadata if available
+
+Suggested calculations:
+- DeliverySuccessRate = delivered/total
+- FailureRate = failed/dead_letter/total
+- RetryRate = retry attempts/total
+- CarrierFailureRate = carrier/provider rejection failures/total
+- InvalidNumberRisk = weighted invalid/carrier rejection history
+- RetrySuppressionRisk = retry + dead-letter + repeated failures
+- QualityScore = bounded 0–100
+- DestinationRiskLevel based on configured thresholds
+
+Requirements:
+- Use local telemetry only.
+- No external phone intelligence APIs.
+- Handle zero attempts safely.
+- Respect MinimumAttemptCount.
+- Use UTC consistently.
+- Persist snapshots safely.
+- Avoid unbounded queries.
+
+STEP 6 — Add Retry Suppression Evaluation
+Integrate suppression intelligence into retry/send evaluation.
+
+Suggested interface:
+ISmsRetrySuppressionService
+
+Suggested methods:
+- EvaluateAsync(request, ct)
+
+Suggested request:
+- recipient hash
+- tenantId
+- provider
+- retry count
+- failure category
+- prior suppression history
+
+Expected outputs:
+- allow
+- warn
+- soft_suppress
+- hard_suppress
+- review_required
+
+Behavior:
+allow:
+- existing retry/send behavior unchanged
+
+warn:
+- allow retry/send but persist warning decision
+
+soft_suppress:
+- suppress retry temporarily but preserve audit/dead-letter handling
+
+hard_suppress:
+- block retry/send and persist suppression decision
+
+review_required:
+- suppress automated retry and require operational review
+
+Requirements:
+- Existing retry/dead-letter architecture remains intact.
+- Suppression should intervene before retry execution.
+- Suppression must not crash delivery pipeline.
+- If telemetry insufficient, default to allow or warn.
+- Suppression actions must be auditable.
+
+STEP 7 — Add Recipient Intelligence Worker
+Add optional background worker.
+
+Suggested worker:
+SmsRecipientIntelligenceWorker
+
+Behavior:
+- calculates recipient reputation snapshots periodically
+- uses existing BackgroundService patterns
+- reads config
+- logs safely
+- respects CancellationToken
+- uses bounded windows
+
+Requirements:
+- No external provider calls.
+- No SMS sends.
+- No raw phone persistence.
+- Worker failures must not impact delivery pipeline.
+
+STEP 8 — Add Carrier Failure Classification Enhancements
+Enhance failure analytics classification where feasible.
+
+Requirements:
+- Normalize provider-specific invalid destination/carrier rejection failures into common categories.
+- Reuse existing failure classification patterns.
+- Twilio and Vonage failures should map consistently where possible.
+- Unsupported provider failure mapping should degrade safely.
+- Do not fabricate provider semantics.
+
+Suggested normalized categories:
+- invalid_destination
+- carrier_rejected
+- unreachable_destination
+- blocked_destination
+- delivery_timeout
+- provider_rejected
+- unknown_failure
+
+STEP 9 — Add Recipient Intelligence APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/recipients/quality
+- GET /v1/admin/sms/recipients/failures
+- GET /v1/admin/sms/recipients/suppressions
+- GET /v1/admin/sms/recipients/risk
+- GET /v1/admin/sms/recipients/trends
+
+Suggested filters:
+- tenantId
+- provider
+- providerConfigId
+- countryCode
+- region
+- riskLevel
+- decisionType
+- from
+- to
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- APIs are read-only.
+- Do not expose raw phone numbers.
+- Do not expose credentials or raw provider payloads.
+- Return safe aggregate/snapshot data only.
+- Use bounded defaults.
+
+STEP 10 — Extend Control Center UI If Feasible
+Extend existing SMS operational/routing optimization UI.
+
+Suggested additions:
+- Recipient quality dashboard
+- Suppression analytics table
+- Destination risk distribution chart
+- Carrier failure analytics
+- Suppression decision audit table
+- Retry suppression insight cards
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- No raw phone numbers displayed.
+- No credentials displayed.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 11 — Documentation
+Update documentation/report notes for:
+- recipient hashing strategy
+- suppression logic
+- retry suppression behavior
+- risk score calculations
+- carrier failure normalization
+- suppression decision semantics
+- APIs
+- worker behavior
+- Control Center additions if implemented
+
+Documentation must explain:
+- recipient intelligence uses local telemetry only
+- no external enrichment/validation APIs are used
+- suppression decisions are operational heuristics
+- insufficient telemetry degrades safely
+- recipient identity is tokenized/hashed
+
+STEP 12 — Validation
+Perform validation/testing for:
+
+Recipient hashing:
+- same normalized phone hashes consistently
+- different phones hash differently
+- raw phones not persisted
+- logs do not expose raw phones
+
+Recipient snapshots:
+- snapshots generated safely
+- zero attempts handled safely
+- MinimumAttemptCount respected
+- quality/risk calculations bounded
+- risk level assigned correctly
+
+Suppression evaluation:
+- allow behavior preserves existing retry/send flow
+- warn persists decision but allows retry
+- soft_suppress prevents retry safely
+- hard_suppress blocks retry/send safely
+- review_required suppresses automated retry
+- insufficient telemetry falls back safely
+
+Carrier failure classification:
+- Twilio invalid destination maps correctly
+- Vonage invalid destination maps correctly where feasible
+- unknown failures degrade safely
+
+APIs:
+- endpoints require PlatformAdmin/admin authorization
+- filters work
+- no raw phone numbers exposed
+- no credentials exposed
+- no provider payloads exposed
+
+Control Center UI if implemented:
+- recipient intelligence views render
+- suppression analytics render
+- no raw phones displayed
+- no credentials displayed
+
+Regression validation:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-015 behavior preserved
+- adaptive routing unchanged
+- provider orchestration unchanged
+- reconciliation unchanged
+- alerting/escalation unchanged
+- cost analytics unchanged
+- incident management unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Recipient identity hashing service
+- Recipient reputation snapshot entity/table
+- Suppression decision entity/table
+- Recipient intelligence service
+- Retry suppression service
+- Optional intelligence worker
+- Carrier failure normalization enhancements
+- Recipient intelligence APIs
+- Optional Control Center recipient intelligence UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external enrichment APIs
+- Implement AI/ML scoring
+- Rewrite retry/delivery pipeline
+- Break adaptive routing
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-015 behavior

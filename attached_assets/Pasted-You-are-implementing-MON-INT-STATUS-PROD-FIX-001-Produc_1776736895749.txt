@@ -1,0 +1,254 @@
+You are implementing MON-INT-STATUS-PROD-FIX-001 — Production Public Status Page Availability Bars Fix.
+
+OBJECTIVE
+Diagnose and fix why the public production `/status` page is not showing availability bars, even though the feature works in development and the page otherwise renders correctly.
+
+This is a production/runtime diagnosis and repair task. You must prove the real root cause in the deployed environment, then apply the smallest correct fix.
+
+CRITICAL CONTEXT
+Observed production behavior:
+- public `/status` loads
+- summary/system status renders
+- incidents render
+- component list renders
+- window selector works
+- availability bars do NOT show in production
+
+Known prior finding from dev/local:
+- bars depend on `/api/monitoring/uptime`
+- that route returns empty `components` when `MONITORING_SOURCE` falls back to `local`
+- local/dev was fixed by setting `MONITORING_SOURCE=service`
+- production likely still does not have the equivalent runtime env/config applied
+
+PRIMARY HYPOTHESIS TO TEST FIRST
+Production Control Center runtime does not have:
+```env
+MONITORING_SOURCE=service
+
+EXPECTED ROOT CAUSES TO CHECK
+You must verify these in order:
+
+Production Control Center env is missing MONITORING_SOURCE=service
+Production uptime BFF /api/monitoring/uptime is returning empty components
+Production BFF is failing and degrading silently
+Production gateway cannot reach Monitoring uptime endpoints
+Production Monitoring Service uptime rollups/history do not exist
+Production deployment is serving a stale build/config
+
+MANDATORY EXECUTION RULES
+
+Create the report file FIRST at: /analysis/MON-INT-STATUS-PROD-FIX-001-report.md
+Update the report incrementally after each step
+Do NOT wait until the end to write the report
+Do NOT guess
+Prove the root cause with production/runtime evidence
+Apply only the smallest correct fix
+Do NOT fabricate bars or fake history
+Remove temporary diagnostics before finalizing unless clearly safe and useful
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+
+/analysis/MON-INT-STATUS-PROD-FIX-001-report.md
+
+Initialize with:
+
+MON-INT-STATUS-PROD-FIX-001 — Production Public Status Page Availability Bars Fix
+1. Task Summary
+2. Production Runtime Diagnosis
+3. Production BFF Findings
+4. Production Monitoring Service Findings
+5. Root Cause
+6. Fix Implemented
+7. Validation
+8. Files Changed / Config Changed
+9. Remaining Risks / Notes
+
+Explicitly state that the report was created FIRST.
+
+STEP 2 — VERIFY PRODUCTION BFF RESPONSE
+
+From the production environment, inspect the actual output of:
+
+/api/monitoring/uptime?window=24h
+/api/monitoring/uptime?window=7d
+/api/monitoring/uptime?window=30d
+
+Document for each:
+
+HTTP status
+response JSON
+whether the route is public or redirecting
+whether components is empty
+whether components[].buckets is empty
+whether totalBars is present
+whether the payload matches what the page expects
+
+Capture exact sample payloads in the report.
+
+IMPORTANT:
+Use the actual deployed production URL/runtime, not only localhost.
+
+STEP 3 — VERIFY PRODUCTION ENV / RUNTIME CONFIG
+
+Inspect the production Control Center runtime configuration.
+
+At minimum determine:
+
+whether MONITORING_SOURCE is set in the deployed environment
+what value it has if present
+whether the deployed app/build/runtime actually picked it up
+whether a restart/redeploy is needed after changing it
+
+Document exact findings.
+
+If MONITORING_SOURCE is missing or not service, classify that as the primary root cause candidate.
+
+STEP 4 — VERIFY PRODUCTION BFF FLOW
+
+Inspect and test the production BFF implementation path:
+
+apps/control-center/src/app/api/monitoring/uptime/route.ts
+any related shared aggregation utilities
+middleware/public-path behavior if relevant
+
+Trace the actual production flow:
+
+source-mode branch
+rollups request
+history fan-out request(s)
+aggregation/transformation
+final sanitized response
+
+Verify with evidence:
+
+does the route early-return empty when MONITORING_SOURCE !== service
+do rollups work in production
+does history work in production
+are there swallowed exceptions returning empty data silently
+
+If necessary, add temporary logging, but keep it minimal and remove it before finalizing unless clearly safe.
+
+STEP 5 — VERIFY PRODUCTION MONITORING DATA EXISTS
+
+Check the production Monitoring Service side.
+
+Validate:
+
+uptime rollups endpoint returns real data in production
+uptime history endpoint returns real buckets in production
+aggregation engine is running in production
+rollup/history tables contain rows in production
+real 24h data exists for some components
+
+Test at minimum:
+
+/monitoring/uptime/rollups?window=24h
+/monitoring/uptime/history?entityId=<real-entity-id>&window=24h
+
+If needed, inspect:
+
+production logs
+production DB contents for uptime rollups
+aggregation hosted service configuration in production
+
+Document whether the failure point is:
+
+no raw check data
+no rollups
+no history
+env/config issue
+gateway issue
+stale deployment issue
+
+STEP 6 — IDENTIFY THE ROOT CAUSE
+
+Based on actual evidence, classify the root cause as one of:
+
+A. Missing production env/config (MONITORING_SOURCE not set to service)
+B. Production BFF misconfiguration
+C. Production gateway path/routing failure
+D. Production Monitoring Service rollup/history empty
+E. Stale production build/runtime
+F. Mixed issue (specify)
+
+Do NOT implement a fix until the report explicitly states the proven root cause.
+
+STEP 7 — IMPLEMENT THE SMALLEST CORRECT FIX
+
+Apply only the minimum production fix needed.
+
+Examples:
+
+set production env var MONITORING_SOURCE=service
+restart/redeploy Control Center so runtime picks it up
+fix production BFF config/path
+fix gateway config only if it is actually broken
+fix production Monitoring Service aggregation config only if data is truly missing
+
+DO NOT:
+
+apply CSS-only fixes
+add fake fallback bars
+change UI logic unless data/render path is proven correct and a UI bug exists
+introduce placeholder history
+
+If the issue is purely operational/config:
+
+make the config change
+restart/redeploy as needed
+document exactly what changed and where
+
+STEP 8 — VALIDATE THE FIX IN PRODUCTION
+
+After the fix, validate all of the following against the production site:
+
+A. /status?window=24h shows bars
+B. /status?window=7d shows bars or honest limited-history bars
+C. /status?window=30d shows bars or honest limited-history bars
+D. /api/monitoring/uptime?window=24h returns non-empty component bucket data
+E. no UUIDs are exposed publicly
+F. no admin controls are exposed
+G. /status still loads without authentication
+H. summary/incidents still render correctly
+I. no regressions to the rest of the status page
+
+Document:
+
+exact before vs after outputs
+sample payloads
+screenshots or rendered HTML evidence if possible
+
+STEP 9 — REMOVE TEMPORARY DIAGNOSTICS
+
+If you added temporary logs/debug code:
+
+remove them unless they are clearly safe and useful long-term
+
+Keep the final implementation clean.
+
+STEP 10 — FILES / CONFIG / DEPLOY CHANGES
+
+List every file, config, env var, deployment setting, or runtime change made and why.
+
+This may include:
+
+production env vars
+deployment secrets/settings
+restart/redeploy action
+route config
+startup config
+
+Be explicit.
+
+DONE CONDITION
+
+This task is complete when:
+
+the real production root cause has been proven with evidence
+the smallest correct production fix has been applied
+the public production /status page shows real availability bars
+the fix is validated in the running production environment
+no fake data was introduced
+the report fully documents diagnosis, fix, and outcome

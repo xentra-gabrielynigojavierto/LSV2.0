@@ -1,0 +1,144 @@
+PUM-B01 — User Directory + Core Model
+
+Objective:
+Implement the Platform User Management core user directory foundation in the LegalSynq Identity service.
+
+This feature establishes the unified user model required to support:
+- Platform internal admin company users
+- Tenant users
+- External/customer users for future Commerce and Support access
+
+IMPORTANT:
+Create the report file FIRST before making code changes:
+
+/analysis/PUM-B01-report.md
+
+Update this report incrementally after each major step.
+
+Required report sections:
+1. Codebase Analysis
+2. Existing Identity/User Model Findings
+3. Database / Migration Changes
+4. API Changes
+5. Files Changed
+6. Validation Results
+7. Known Gaps / Deferred Items
+8. Final Assessment
+
+Scope:
+Implement only the core user directory and user type model.
+
+In Scope:
+- Add or confirm a unified user entity/model in Identity
+- Support user types:
+  - PlatformInternal
+  - TenantUser
+  - ExternalCustomer
+- Ensure user records include:
+  - Id
+  - Email
+  - DisplayName or equivalent name fields
+  - UserType
+  - IsActive
+  - CreatedAt
+  - UpdatedAt
+  - LastLoginAt, nullable if not currently tracked
+- Add safe additive database migration if needed
+- Add platform user directory API
+- Add user detail API
+- Add filtering by:
+  - UserType
+  - IsActive
+- Add search by:
+  - Email
+  - Display name / name fields
+- Ensure pagination is supported
+- Preserve existing authentication behavior
+
+Out of Scope:
+- Tenant membership assignment
+- Product access assignment
+- Role/permission engine
+- Invitations
+- Notifications integration
+- Audit integration
+- Portal UI
+- Commerce integration
+- Support integration
+
+Requirements:
+PUM-B01-R01:
+Identity service must have a unified user model supporting PlatformInternal, TenantUser, and ExternalCustomer.
+
+PUM-B01-R02:
+User records must include email, display name/name fields, status, user type, created date, updated date, and last login date where supported.
+
+PUM-B01-R03:
+Add an admin/platform-facing paginated user directory endpoint.
+
+PUM-B01-R04:
+Directory endpoint must support filtering by user type and active status.
+
+PUM-B01-R05:
+Directory endpoint must support search by email or display name/name fields.
+
+PUM-B01-R06:
+Add endpoint to retrieve a single user profile by ID.
+
+PUM-B01-R07:
+Do not introduce duplicate service-specific user tables.
+
+PUM-B01-R08:
+Do not break existing login/authentication behavior.
+
+PUM-B01-R09:
+Database changes must be additive and safe.
+
+PUM-B01-R10:
+Backend build must complete with zero errors.
+
+Implementation Guidance:
+1. Inspect the existing Identity service structure first.
+2. Reuse existing Identity user/entity structures wherever possible.
+3. If ASP.NET Identity is already used, extend the existing user entity safely instead of creating a parallel table.
+4. If user fields already exist under different names, map them into DTOs rather than duplicating columns.
+5. Add enums/constants for UserType if not already present.
+6. Add request/response DTOs for:
+   - User directory query
+   - User directory item
+   - User profile detail
+7. Add service-layer logic for:
+   - pagination
+   - search
+   - filtering
+8. Add controller endpoints under the existing Identity/Admin/API convention used by the codebase.
+9. Ensure endpoints are protected consistently with existing admin/platform authorization patterns.
+10. If authorization patterns are not fully available yet, use the existing secured pattern and document any deferred permission hardening in the report.
+
+Suggested API shape, adjust to match existing project conventions:
+- GET /identity/api/admin/users
+- GET /identity/api/admin/users/{userId}
+
+Query parameters:
+- page
+- pageSize
+- search
+- userType
+- isActive
+
+Validation:
+Run the appropriate validation commands for this repository, including:
+- dotnet build
+- relevant Identity service tests if available
+- migration validation if applicable
+
+Do not stop at partial implementation unless blocked by existing codebase constraints.
+If blocked, implement the safest compatible version and document the blocker clearly in /analysis/PUM-B01-report.md.
+
+Final output:
+After implementation, provide only:
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B01-report.md was created and updated

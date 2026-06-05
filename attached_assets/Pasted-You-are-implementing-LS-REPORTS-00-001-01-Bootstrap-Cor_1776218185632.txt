@@ -1,0 +1,310 @@
+You are implementing **LS-REPORTS-00-001-01 — Bootstrap Corrections** for the LegalSynq Reports Service.
+
+## Platform Stack
+This is a **.NET 8 microservice** structured for **MySQL** as the future persistence layer.
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This is an **iteration** of the bootstrap story. The goal is to tighten the foundation, not expand into new business functionality.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file first:
+
+- `/analysis/LS-REPORTS-00-001-01-results.md`
+
+If `/analysis` does not exist, create it first.
+
+This report file must be the **first action**.
+Do not begin code changes until the report file exists.
+
+## 2. Update the report continuously
+Do not wait until the end.
+Update the report after each major step with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- issues encountered
+- decisions made
+- validation/build status
+
+## 3. Keep scope tight
+Do not add report templates, scheduling, UI, real DB integration, or other future epic features.
+
+## 4. Use the correct folders
+- All service code changes must be under `/reports`
+- All generated reports must be under `/analysis`
+
+## 5. Preserve portability
+Do not introduce LegalSynq-specific logic or coupling.
+
+---
+
+# ITERATION ID
+**LS-REPORTS-00-001-01 — Bootstrap Corrections**
+
+---
+
+# OBJECTIVE
+Refine the initial Reports Service bootstrap so the foundation is cleaner, more version-ready, and better aligned with the intended service boundaries before moving into deeper adapter and persistence work.
+
+This is a correction pass only.
+
+---
+
+# SCOPE
+
+## In Scope
+- API base route structure
+- version-ready endpoint grouping
+- health/readiness route normalization
+- placeholder marking for early domain/persistence artifacts
+- lightweight queue/job metadata improvements
+- optional internal usage alignment for `ReportWriter`
+- cleanup/refactor only where needed to support the above
+
+## Out of Scope
+- real database integration
+- MySQL connection
+- report templates
+- report execution
+- scheduled reporting
+- authentication/authorization
+- control center UI
+- tenant UI
+- new business reporting features
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. API Route Structure
+Reorganize the API into a version-ready route structure.
+
+### Required canonical routes
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+You may:
+- remove the flat routes, or
+- keep them temporarily as aliases if low-risk and easy
+
+But the canonical structure must be `/api/v1/...`.
+
+---
+
+## B. Endpoint Grouping
+Refactor route registration so endpoints are organized in a clean grouped structure.
+
+Requirements:
+- grouped route registration pattern
+- separation of health/readiness endpoints from future report endpoints
+- route organization that can grow without later bootstrap-level refactor
+
+Keep it simple and clean.
+
+---
+
+## C. Placeholder Boundary Clarification
+The bootstrap included:
+- `ReportDefinition`
+- `ReportExecution`
+- `IReportRepository`
+- `MockReportRepository`
+
+These are acceptable only as scaffolding for future work.
+
+### Required action
+Explicitly mark them as bootstrap placeholders using one or more of:
+- code comments
+- XML comments
+- README notes inside the relevant project
+- report notes
+
+The code should make clear:
+- they are not finalized domain models
+- they are not finalized persistence contracts
+- they should not be expanded further in Epic 00
+
+Do not redesign them; just clarify the boundary.
+
+---
+
+## D. Queue / Job Metadata Readiness
+Improve the existing job model with lightweight metadata to reduce future refactoring.
+
+### Add neutral metadata such as:
+- job id
+- correlation id
+- created at
+- job type
+
+Optional if clean and still lightweight:
+- tenant id
+- product code
+
+Rules:
+- remain generic
+- remain platform-safe
+- do not add business logic
+- do not implement scheduling
+
+---
+
+## E. ReportWriter Usage Clarification
+The `ReportWriter` utility exists but should have a clearer intended usage pattern.
+
+### Acceptable outcomes
+One of the following is sufficient:
+- minimal example usage in a test or sample
+- developer-facing documentation/comments
+- very light non-invasive integration pattern
+
+Do not overbuild this.
+Do not create a large internal reporting subsystem.
+
+---
+
+## F. Bootstrap Cleanup
+Perform only minimal cleanup needed to support the above:
+- route registration organization
+- naming consistency
+- small DI cleanup
+- light project organization cleanup
+
+Do not redesign the solution.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This iteration is complete only if:
+
+1. health/readiness endpoints are accessible under `/api/v1`
+2. route registration is grouped and future-ready
+3. placeholder domain/persistence artifacts are explicitly identified as bootstrap scaffolding
+4. queue/job contracts include lightweight metadata suitable for future worker evolution
+5. ReportWriter intended usage is clarified through code or documentation
+6. the service still builds successfully
+7. the service still starts successfully
+8. health/readiness behavior remains correct
+9. no real DB integration is introduced
+10. no new business reporting features are added
+
+---
+
+# IMPLEMENTATION STEPS
+Follow these steps in order, updating the report after each one.
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-00-001-01-results.md`
+
+Seed it with:
+- Title
+- Iteration ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Endpoints Added or Changed
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Immediately record that the report was created first.
+
+## Step 2 — Refactor routing structure
+Refactor API route registration into a grouped/version-ready pattern.
+Update the report.
+
+## Step 3 — Normalize health/readiness endpoints
+Ensure canonical endpoints exist at:
+- `/api/v1/health`
+- `/api/v1/ready`
+
+If keeping aliases, document that in the report.
+Update the report.
+
+## Step 4 — Clarify placeholder scaffolding
+Mark `ReportDefinition`, `ReportExecution`, `IReportRepository`, and `MockReportRepository` as bootstrap scaffolding only.
+Use comments/docs/notes as appropriate.
+Update the report.
+
+## Step 5 — Improve job metadata
+Add lightweight metadata fields to the job model.
+Keep them generic and non-business.
+Update the report.
+
+## Step 6 — Clarify ReportWriter usage
+Add a minimal usage example or documentation/comments that make intended use clear.
+Update the report.
+
+## Step 7 — Perform minimal cleanup
+Do only the minimum cleanup needed to support the above.
+Update the report.
+
+## Step 8 — Validate
+Run restore/build/test/basic startup validation as appropriate.
+Verify:
+- `/api/v1/health`
+- `/api/v1/ready`
+
+Capture outputs and issues in the report.
+
+## Step 9 — Finalize report
+Complete `/analysis/LS-REPORTS-00-001-01-results.md` with:
+- summary of corrections made
+- endpoints changed
+- files changed
+- design clarifications
+- build/test/startup status
+- known remaining gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+The report must include at minimum:
+
+- Title
+- Iteration ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Endpoints Added or Changed
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the work without guessing.
+
+---
+
+# DEFINITION OF DONE
+Done means:
+- the iteration report exists under `/analysis`
+- the report was created first
+- the report was updated throughout execution
+- canonical health/readiness endpoints are under `/api/v1`
+- route registration is cleaner and future-ready
+- placeholder domain/persistence artifacts are clearly marked as scaffolding
+- lightweight job metadata exists
+- ReportWriter usage is clarified
+- the service still builds and starts successfully
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-00-001-01** exactly as described.

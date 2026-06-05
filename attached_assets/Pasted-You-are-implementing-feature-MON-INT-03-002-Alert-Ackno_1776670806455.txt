@@ -1,0 +1,326 @@
+You are implementing feature MON-INT-03-002 — Alert Acknowledge / Resolve Workflow.
+
+OBJECTIVE
+Add the first operational action workflow to the Monitoring system so operators can acknowledge and resolve alerts from the Control Center using a canonical Monitoring-owned write path, with full auditability and no direct database writes.
+
+This feature extends the existing read-only Incident / Alert Detail View into a controlled action workflow.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer for state display, but may initiate approved admin actions through canonical Monitoring APIs
+- Alert acknowledge / resolve actions must be executed through Monitoring Service
+- Do NOT use direct SQL updates
+- Do NOT invent fake alert states outside the Monitoring Service
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-03-002-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT bypass Monitoring Service domain/application logic
+- Do NOT weaken auth/security on admin endpoints
+- Do NOT redesign the monitoring page
+- Prefer minimal, reversible changes
+- Keep backend, gateway, BFF, and UI concerns clearly separated
+
+CURRENT CONTEXT
+- Monitoring integration is complete
+- Read model is complete
+- Entity bootstrap is complete
+- Auth alignment is complete
+- Incident / Alert Detail View is complete
+- Current gap: alerts are visible but not actionable
+- The next step is to support operational acknowledgement / resolution through a canonical admin path
+
+GOAL OF THIS FEATURE
+By the end of this feature:
+- an operator can acknowledge and/or resolve an alert from the incident detail view
+- the action is executed through Monitoring Service
+- the resulting alert state is reflected back into the Monitoring read model
+- auditability is preserved or explicitly documented
+- no direct DB writes are used
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-03-002-report.md
+
+Initialize with:
+
+# MON-INT-03-002 — Alert Acknowledge / Resolve Workflow
+
+## 1. Task Summary
+## 2. Existing Alert Model Analysis
+## 3. Target Action Model
+## 4. Monitoring Service API Design
+## 5. Backend Implementation
+## 6. Control Center Integration
+## 7. Validation
+## 8. Files Changed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE THE EXISTING ALERT MODEL
+
+Inspect the Monitoring Service alert domain and persistence model.
+
+At minimum inspect:
+- MonitoringAlert domain entity
+- MonitoringAlert persistence configuration
+- current alert rule engine / resolution behavior
+- read endpoints for alerts and summary
+- any alert status fields already present
+- current incident detail data shown in Control Center
+
+Determine and document:
+- what alert fields already exist
+- whether "resolved" is already represented canonically
+- whether "acknowledged" exists today or must be introduced
+- how current automatic resolution works
+- how a manual operator action should fit the existing model
+
+Be explicit:
+- if the current model only supports resolve, say so
+- if acknowledge is absent, decide whether this feature should add it or scope to resolve only
+- do not guess — inspect actual code first
+
+---
+
+STEP 3 — CHOOSE THE TARGET ACTION MODEL
+
+Based on the existing domain model, choose the minimal coherent workflow.
+
+Preferred order:
+1. If manual resolve cleanly fits the current model, implement resolve first
+2. If acknowledge can be added safely without distorting the model, include acknowledge
+3. Do NOT bolt on a confusing dual-state model if the existing alert lifecycle is too simple
+
+Your chosen model must answer:
+- what actions the operator can take
+- what state transition each action performs
+- what the read model should show afterward
+- how repeated clicks / duplicate actions are handled
+- what authorization is required
+
+Document clearly:
+- chosen action set
+- why it fits the current model
+- why rejected alternatives were rejected
+
+---
+
+STEP 4 — DESIGN THE CANONICAL MONITORING API
+
+Implement the action through Monitoring Service admin APIs.
+
+Possible endpoints:
+- PATCH /monitoring/admin/alerts/{id}/acknowledge
+- PATCH /monitoring/admin/alerts/{id}/resolve
+
+Or a smaller variant if only resolve is implemented.
+
+Requirements:
+- must be protected by the existing Monitoring admin policy
+- must go through Monitoring Service domain/application logic
+- must validate alert existence
+- must be idempotent or clearly safe on repeated requests
+- must return a useful response shape
+
+Do NOT use direct SQL updates.
+Do NOT expose write actions anonymously.
+
+Document:
+- endpoint(s)
+- request/response contract(s)
+- auth policy used
+- idempotency behavior
+
+---
+
+STEP 5 — IMPLEMENT BACKEND LOGIC
+
+In Monitoring Service, implement the minimal backend required for the chosen action model.
+
+This may include:
+- application service / command handler
+- domain method(s) on MonitoringAlert if appropriate
+- infrastructure persistence updates
+- API endpoint wiring
+- read model adjustments if needed
+
+Requirements:
+- preserve existing automatic resolution behavior unless a real conflict is found
+- manual action must not break scheduler-generated transitions
+- repeated action on an already-resolved or already-acknowledged alert must be handled cleanly
+- build must pass
+
+If you add new persistence fields:
+- keep schema changes minimal
+- add migrations properly
+- document exactly why they were required
+
+If you do NOT need schema changes:
+- state that clearly in the report
+
+---
+
+STEP 6 — AUDIT / TRACEABILITY
+
+Determine the correct audit behavior for alert actions.
+
+Preferred order:
+1. Use existing platform audit patterns if the Monitoring Service already supports them
+2. If not yet wired, at minimum document the gap precisely and structure the action so audit can be added cleanly later
+3. Do NOT fake audit completion if it is not actually implemented
+
+Document:
+- whether acknowledge/resolve actions are audited
+- if yes, how
+- if no, why not and what follow-up is needed
+
+---
+
+STEP 7 — CONTROL CENTER INTEGRATION
+
+Extend the existing incident detail view to expose the chosen action(s).
+
+Likely files include:
+- apps/control-center/src/components/monitoring/incident-detail-panel.tsx
+- possibly a small BFF action route if needed
+- possibly monitoring-source.ts only if it is the established place for admin calls
+
+Requirements:
+- keep the current detail view stable
+- add only the necessary action button(s)
+- show clear action state (idle / submitting / success / failure)
+- do not redesign the page
+- do not add actions to the list rows directly unless clearly better
+- after success, the UI must reflect the new alert state by refreshing or re-fetching through the normal monitoring summary path
+
+Preferred integration pattern:
+- Control Center calls a protected server-side path or server action
+- that path calls Monitoring Service admin endpoint through the canonical auth model
+- then refreshes the displayed monitoring data
+
+Do NOT call protected Monitoring admin endpoints directly from insecure browser code with hardcoded secrets.
+
+---
+
+STEP 8 — READ MODEL / UI REFRESH BEHAVIOR
+
+After a successful action:
+- refresh monitoring summary data
+- reflect the new alert state in the alert list and incident detail view
+- preserve page stability
+
+Be explicit about the refresh mechanism:
+- server action + revalidate
+- route handler + router.refresh
+- another platform-consistent method
+
+Requirements:
+- no fake optimistic state that diverges from server truth
+- Monitoring Service remains the source of truth
+- if the action fails, the UI must not pretend success
+
+---
+
+STEP 9 — EMPTY / ERROR / EDGE CASE HANDLING
+
+Handle and document:
+- alert not found
+- alert already resolved / already acknowledged
+- auth failure
+- network failure to Monitoring Service
+- refresh failure after action
+- stale selected alert after refresh
+
+The operator should always see a clear outcome.
+No crashes.
+No silent failures.
+
+---
+
+STEP 10 — VALIDATION
+
+Validate as far as environment permits.
+
+At minimum validate:
+A. Monitoring Service builds
+B. New alert action endpoint(s) build and are reachable
+C. Protected admin path still rejects unauthenticated access
+D. Canonical authenticated/admin path can perform the action
+E. Alert state changes are visible in read endpoints afterward
+F. Control Center action flow works end-to-end
+G. Existing incident detail view still works if no action is taken
+H. Existing monitoring summary/banner/component list are not broken
+
+Capture:
+- exact endpoints tested
+- response codes
+- before/after alert payloads
+- what was runtime-tested vs code-verified only
+
+If runtime validation is partially blocked, document exactly what succeeded and what remains blocked.
+
+---
+
+STEP 11 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- removed (if any)
+- purpose of each change
+
+Be explicit.
+
+---
+
+STEP 12 — KNOWN GAPS / RISKS
+
+Document clearly:
+- whether acknowledge was included or deferred
+- whether audit is fully implemented or still pending
+- any scheduler/manual-resolution interaction risks
+- any limitations in the current alert payload
+- any remaining UX rough edges
+
+---
+
+STEP 13 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+
+Option A:
+- MON-INT-03-003 — Incident Timeline / History View
+Use this if actions are complete and the next value is incident traceability.
+
+Option B:
+- MON-INT-02-004 — Clickable Banner Filtering
+Use this if UX polish is the highest-value next step before deeper incident features.
+
+Option C:
+- MON-INT-03-002-01 — Alert Action Hardening
+Use this only if the workflow works but needs a tightly scoped follow-up.
+
+Choose based on actual implementation outcome.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+- /analysis/MON-INT-03-002-report.md exists and was created FIRST
+- canonical Monitoring-owned alert action endpoint(s) exist
+- admin/write path is secured
+- Control Center can trigger the action through a safe platform-consistent path
+- resulting alert state is reflected back into the read model
+- no direct DB writes were used
+- no fake workflow was introduced
+- validation has been performed and documented

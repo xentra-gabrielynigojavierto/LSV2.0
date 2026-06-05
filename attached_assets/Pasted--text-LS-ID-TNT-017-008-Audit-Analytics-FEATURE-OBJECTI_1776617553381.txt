@@ -1,0 +1,465 @@
+```text
+# LS-ID-TNT-017-008 — Audit Analytics
+
+## FEATURE OBJECTIVE
+
+Implement an **Audit Analytics** layer that turns the existing audit and correlation system into an operational monitoring and insight capability.
+
+This feature should enable the platform to aggregate and summarize audit data into useful analytical views such as:
+- event volume trends
+- access denial trends
+- permission-change trends
+- governance activity trends
+- actor activity summaries
+- tenant-scoped audit activity summaries
+- basic anomaly-oriented operational signals (counts, spikes, top actors/resources)
+
+This is an **analytics and aggregation feature**, not a full anomaly-detection engine and not a replacement for the raw audit viewer.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- audit capture is complete
+- permission-change audit is complete
+- denied access audit is complete
+- selective successful access audit is complete
+- governance mutation audit is complete
+- audit viewer is complete
+- audit correlation engine is complete
+
+What is missing:
+- operators can investigate individual events and related chains
+- but they still cannot easily answer:
+  - Are denials increasing?
+  - Which tenants/users are generating the most audit activity?
+  - Which event categories are trending up?
+  - Are there unusual spikes in audit exports, legal holds, or access denials?
+  - Which products or event families are the most active?
+
+This feature converts the audit system from:
+- **forensic / investigative**
+into:
+- **operational / analytical**
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- machine-learning anomaly detection
+- SIEM integrations
+- external BI exports
+- full custom dashboard builder
+- broad data warehouse redesign
+- graph analytics
+- predictive analytics
+- speculative metrics not grounded in existing audit fields
+- per-event viewer redesign
+- alerting/notification engine (that is a future feature)
+
+ONLY IMPLEMENT:
+- analytics query and aggregation support over the existing audit event store
+- a practical analytics UI in Control Center
+- trend, count, grouping, and summary views based on real event fields
+- viewer-ready charts/tables/cards for audit analytics
+- report-first implementation and honest documentation of supported analytics
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental audit intelligence feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-002 — User Access Audit
+- LS-ID-TNT-017-002-01 — Selective Successful Access Audit
+- LS-ID-TNT-017-003 — Governance Mutation Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-017-006 — Audit Correlation Engine
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing audit ingestion, viewer, and correlation behavior
+- validate the actual audit query/storage model before choosing analytics shapes
+- reuse existing audit query service and authorization architecture where possible
+- keep tenant isolation intact
+- preserve performance and avoid full-table scan regressions where possible
+- NOT introduce placeholder logic
+- document exact analytics supported
+- prefer a practical, useful first analytics slice over an overbuilt analytics platform
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-008-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-008 — Audit Analytics
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Audit Query / Storage Analysis
+## 4. Analytics Use Case Inventory
+## 5. Analytics Model Design
+## 6. Query / API Strategy
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Frontend / UI Implementation
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL AUDIT QUERY AND STORAGE MODEL
+
+Inspect the real audit service codebase and determine what is feasible for analytics.
+
+You must identify and document:
+- how audit events are stored
+- which fields are indexed or cheaply queryable
+- whether current query services already support aggregation
+- whether there are repository/query methods that can be extended
+- whether the audit viewer/API already exposes summary endpoints
+- what event fields are reliable for grouping:
+  - eventType
+  - category
+  - severity
+  - tenantId
+  - actorId
+  - targetType
+  - sourceSystem
+  - occurredAtUtc
+  - tags
+- what time filtering is already available
+- whether the current data model supports trending by day/hour without schema changes
+
+Do NOT assume aggregation support exists until validated.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Audit Query / Storage Analysis
+
+---
+
+## STEP 2 — DEFINE THE REAL ANALYTICS USE CASES
+
+Identify the most useful operational analytics questions the system should answer now.
+
+At minimum, validate whether the current audit model can support:
+- event count by day over a selected date range
+- event count by category
+- event count by event type
+- denied-access trends
+- top actors by event volume
+- top tenants by audit activity (platform admin only)
+- top event types
+- governance activity summaries
+- audit export/query volume summaries
+- suspiciously high denial counts (as a count/signal, not an alert engine)
+
+For each use case:
+- define the operator question
+- define the grouping/filtering needed
+- define whether current data supports it
+- prioritize which ones belong in v1
+
+Update report:
+## 4. Analytics Use Case Inventory
+
+---
+
+## STEP 3 — CHOOSE THE V1 ANALYTICS SCOPE
+
+Define a practical v1 analytics slice.
+
+Recommended v1 categories (validate before implementing):
+1. **Volume Trend**
+   - total events over time
+2. **Category Breakdown**
+   - Security / Compliance / Access / etc.
+3. **Top Event Types**
+4. **Denied Access Analytics**
+   - permission/product denials over time
+5. **Top Actors**
+6. **Top Tenants** (platform-admin only)
+7. **Governance Activity**
+   - legal holds, integrity checkpoints, exports
+
+Requirements:
+- choose a coherent slice that is genuinely useful
+- prefer breadth of useful summaries over niche metrics
+- do not overclaim support beyond the actual query layer
+
+Update report:
+## 5. Analytics Model Design
+
+---
+
+## STEP 4 — CHOOSE THE QUERY / AGGREGATION STRATEGY
+
+Determine the best-fit aggregation approach based on the current architecture.
+
+Possible approaches:
+- repository-level grouped queries
+- service-level aggregation over filtered query results
+- dedicated analytics endpoints with SQL grouping
+- reuse of existing query filters plus aggregate projection
+
+Preferred:
+- backend aggregation queries over indexed/filterable fields
+- avoid loading huge raw datasets into app memory if the database can group efficiently
+
+Requirements:
+- keep authorization and tenant scoping intact
+- avoid expensive full-history scans by default
+- require explicit date ranges or provide sensible defaults
+- document performance assumptions
+
+Update report:
+## 5. Analytics Model Design
+## 6. Query / API Strategy
+
+---
+
+## STEP 5 — IMPLEMENT BACKEND ANALYTICS ENDPOINTS / QUERY SUPPORT
+
+Add the minimal backend support needed to serve analytics.
+
+Possible endpoints (choose based on current architecture):
+- `GET /audit/analytics/summary`
+- `GET /audit/analytics/trends`
+- `GET /audit/analytics/top-event-types`
+- `GET /audit/analytics/top-actors`
+- `GET /audit/analytics/denials`
+- or a smaller combined endpoint model if that fits better
+
+Requirements:
+- only expose endpoints that the UI truly uses
+- reuse existing authorization/query-authorizer model
+- support date range filtering
+- support tenant scoping where appropriate
+- platform admins may see cross-tenant analytics; tenant-scoped callers must not
+- return analytics-friendly DTOs, not raw events
+
+Update report:
+## 6. Query / API Strategy
+## 8. Backend Implementation
+
+---
+
+## STEP 6 — DEFINE THE ANALYTICS FILTER MODEL
+
+Analytics must support a small, useful filter set.
+
+At minimum, validate and support where feasible:
+- date range
+- tenant (platform-admin only, or tenant context scoped)
+- category
+- event type family / exact event type
+- actor (if useful for top-actor or focused analysis)
+
+Requirements:
+- only expose filters that truly work
+- default to a sensible date range (e.g. last 7 or 30 days)
+- avoid over-complicated filter UX
+- keep filters aligned with backend capabilities
+
+Update report:
+## 6. Query / API Strategy
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 7 — BUILD THE ANALYTICS UI IN CONTROL CENTER
+
+Add a practical analytics page or subpage in SYNQAUDIT.
+
+Possible placement:
+- `SYNQAUDIT > Analytics`
+- or extend Overview with analytics cards and a dedicated analytics page
+
+The UI should include, based on supported backend analytics:
+- KPI summary cards
+- a trend chart
+- category/event-type breakdown
+- top actors / top tenants tables
+- denied-access summary
+- governance activity summary
+
+Requirements:
+- loading / empty / error states
+- platform-admin appropriate access
+- tenant context aware
+- readable, decision-friendly UI
+- no visual clutter
+- use the existing design system
+
+Update report:
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 8 — ENSURE VIEWER / INVESTIGATION INTEGRATION
+
+Analytics should complement, not replace, the raw viewer and correlation tools.
+
+Requirements:
+- operators should be able to move from an analytics insight to investigation when practical
+- if useful, provide links from analytics slices to filtered audit views
+- keep integration lightweight
+- do not redesign the audit viewer
+
+Examples:
+- click denied-access summary → open investigation/audit list filtered to denial events
+- click top event type → open audit viewer for that event type
+
+Update report:
+## 9. Frontend / UI Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — PRESERVE TENANT ISOLATION AND AUTHORIZATION
+
+Requirements:
+- analytics must respect the same tenant/platform visibility rules as audit queries
+- platform admins can view cross-tenant analytics
+- tenant-scoped callers only see their tenant's data
+- no aggregate endpoint may leak cross-tenant counts to unauthorized callers
+
+Document how the existing query authorizer or equivalent is reused or extended.
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 10 — PRESERVE PERFORMANCE AND BACKWARD COMPATIBILITY
+
+Requirements:
+- existing audit query endpoints must continue to work
+- audit ingestion must remain unchanged
+- correlation engine must remain unchanged
+- analytics queries should use bounded date ranges or sensible defaults
+- avoid regressions in service startup/build/runtime
+- avoid obviously expensive aggregation paths without guardrails
+
+Document:
+- default date window
+- result limits
+- any indexes relied upon
+- any remaining performance caveats
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Backend
+- analytics endpoints return expected aggregate shapes
+- date range filtering works
+- tenant scoping works
+- platform-admin cross-tenant view works
+
+### Frontend
+- analytics page loads correctly
+- charts/cards/tables render correctly
+- empty states behave correctly
+- filter changes refresh analytics correctly
+
+### Integration
+- analytics can lead into audit investigation flows where implemented
+- existing audit viewer still works
+- existing correlation features still work
+
+### Regression
+- no new build/runtime errors
+- no audit ingestion regressions
+- no auth/authorization regressions
+- performance remains acceptable
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what analytics are now supported
+- what aggregation/query strategy was used
+- what filters are supported
+- what UI was added
+- how tenant isolation is preserved
+- what remains deferred (e.g. anomaly detection, alerts)
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Real analytics use cases were analyzed from code and audit data
+✔ A practical v1 analytics model was implemented
+✔ Backend aggregation/query support now exists for the validated scope
+✔ A usable analytics UI exists in Control Center
+✔ Analytics respect tenant/platform authorization boundaries
+✔ Existing audit viewer/correlation behavior does not regress
+✔ Performance and coverage limitations are documented honestly
+✔ The audit system now supports operational insight, not just raw investigation
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working audit analytics backend/query capability for the validated scope
+2. Working Control Center analytics UI for audit insights
+3. Reuse of the existing audit query/authorization architecture
+4. Completed report:
+/analysis/LS-ID-TNT-017-008-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

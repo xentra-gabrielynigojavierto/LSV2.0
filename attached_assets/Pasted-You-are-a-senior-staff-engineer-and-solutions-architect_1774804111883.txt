@@ -1,0 +1,422 @@
+You are a senior staff engineer and solutions architect. Your job is to upgrade the existing LegalSynq DMM TypeScript service into an enterprise-grade, **independent, portable, cloud-agnostic, highly secure, and compliance-ready Docs Service**.
+
+---
+
+## Primary Goal
+
+Transform the current DMM service into a **standalone Docs Service** that:
+
+* runs independently of other LegalSynq services
+* can be deployed in isolation (containerized)
+* is reusable across different systems
+* is cloud-provider agnostic (AWS, GCP, others)
+* enforces **enterprise-grade security and compliance standards**
+* is suitable for **legal + medical document handling (HIPAA-aligned readiness)**
+
+---
+
+## Critical Design Constraints
+
+---
+
+### 1. Service Independence
+
+The Docs Service must:
+
+* NOT depend directly on:
+
+  * TPP or any LegalSynq service
+  * shared databases
+* function with only:
+
+  * its own database
+  * its own storage provider
+  * its own auth validation
+* use adapters for ALL external integrations
+
+---
+
+### 2. Cloud Provider Agnosticism (MANDATORY)
+
+The service must NOT be tightly coupled to AWS.
+
+Support:
+
+* AWS (S3)
+* GCP (Cloud Storage)
+* future providers
+
+#### Required abstractions:
+
+* `StorageProvider`
+* `AuthProvider`
+* `SecretsProvider`
+* `FileScannerProvider` (future)
+* `AuditProvider` (optional)
+
+#### Implement:
+
+* `S3StorageProvider`
+* `LocalStorageProvider`
+* scaffold `GCSStorageProvider`
+
+#### Rules:
+
+* NO AWS/GCP SDK usage outside infrastructure layer
+* provider selected via config:
+
+  * STORAGE_PROVIDER
+  * AUTH_PROVIDER
+  * SECRETS_PROVIDER
+
+---
+
+### 3. Enterprise Security & Compliance (MANDATORY)
+
+This service handles **sensitive legal and medical data**.
+
+You MUST design for:
+
+#### Data Protection
+
+* encryption at rest (provider-level support assumed, but enforced via config)
+* encryption in transit (HTTPS only assumptions)
+* NO public file access
+* all files must be private
+* access via short-lived signed URLs only
+
+#### Authentication & Authorization
+
+* replace Basic Auth + MD5 with secure JWT validation
+* support:
+
+  * tenantId
+  * productId
+  * userId
+  * roles
+* enforce:
+
+  * RBAC (role-based)
+  * ABAC (tenant + document scope)
+* default DENY access model
+
+#### Input & File Security
+
+* validate:
+
+  * MIME types
+  * file size limits
+  * extension vs MIME mismatch
+* reject dangerous file types if needed
+* prepare hook for malware scanning (`FileScannerProvider`)
+
+#### Audit & Traceability (CRITICAL)
+
+* ALL actions must be auditable:
+
+  * document upload
+  * version upload
+  * metadata update
+  * status changes
+  * deletions
+  * access attempts (success + denied)
+  * signed URL generation
+
+#### Compliance Features (HIPAA-aligned readiness)
+
+* audit trail (immutable-friendly design)
+* document access logging
+* tenant isolation
+* soft delete + retention fields
+* support:
+
+  * legal hold (future)
+  * retention policies (future)
+* no sensitive data in logs
+
+#### Secrets Management
+
+* NO hardcoded secrets
+* support:
+
+  * env-based config
+  * pluggable secrets provider
+
+---
+
+## Source System Context
+
+Start from existing DMM TypeScript service.
+
+Known issues:
+
+* AWS coupling
+* weak auth (MD5/basic)
+* raw SQL spread
+* TPP dependency
+* no audit or compliance design
+
+Use legacy .NET DMM ONLY as feature reference.
+
+---
+
+## What I want you to do
+
+Work in phases. For each phase:
+
+1. analyze current code
+2. refactor and implement improvements
+3. remove coupling (services + cloud)
+4. enforce security and compliance requirements
+5. ensure independent deployability
+6. generate report under `/analysis`
+
+---
+
+## Phase Plan
+
+---
+
+### Phase 1 — Assessment + Decoupling + Security Baseline
+
+Identify:
+
+* AWS-specific code
+* TPP dependencies
+* weak auth flows
+* missing security controls
+* transaction issues
+
+Then implement:
+
+* isolate S3 into `StorageProvider`
+* create `S3StorageProvider` + `LocalStorageProvider`
+* remove direct AWS SDK usage outside provider
+* remove TPP dependency
+* fix transactions
+* enforce auth on ALL endpoints
+* remove public-read storage behavior
+* add centralized error handling
+* add request validation
+* add request correlation ID middleware
+* enforce file validation (size + MIME baseline)
+
+Goal:
+➡️ service runs locally, securely, without external dependencies
+
+Create:
+`/analysis/step1_assessment_decoupling_security.md`
+
+---
+
+### Phase 2 — Modular + Provider Architecture
+
+Refactor into:
+
+* api
+* application
+* domain
+* infrastructure
+* shared
+
+Add interfaces:
+
+* StorageProvider
+* AuthProvider
+* SecretsProvider
+* FileScannerProvider
+
+Ensure:
+
+* no cloud SDK leakage
+* dependency injection
+* config-driven provider selection
+
+Create:
+`/analysis/step2_architecture.md`
+
+---
+
+### Phase 3 — Secure Domain Model
+
+Entities:
+
+* Document
+* DocumentVersion
+* DocumentType
+* DocumentAudit
+
+Include:
+
+* tenantId
+* productId
+* referenceId
+* status
+* versioning
+* audit tracking
+* soft delete
+* retention fields
+
+Rules:
+
+* NO provider-specific logic
+* NO external schema coupling
+
+Create:
+`/analysis/step3_domain.md`
+
+---
+
+### Phase 4 — Secure API
+
+Endpoints:
+
+* POST /documents
+* GET /documents
+* GET /documents/:id
+* PATCH /documents/:id
+* DELETE /documents/:id
+* POST /documents/:id/versions
+* POST /documents/:id/view-url
+* POST /documents/:id/download-url
+
+Requirements:
+
+* strict validation
+* tenant isolation enforcement
+* role-based access checks
+* secure signed URL generation
+* no direct storage exposure
+
+Create:
+`/analysis/step4_api.md`
+
+---
+
+### Phase 5 — Security Hardening
+
+Implement:
+
+* JWT AuthProvider
+* RBAC + ABAC enforcement
+* secure signed URL expiration
+* audit logging service
+* secure config handling
+* prepare malware scanning hook
+
+Ensure:
+
+* default deny
+* no sensitive logs
+* all access verified
+
+Create:
+`/analysis/step5_security.md`
+
+---
+
+### Phase 6 — Observability + Compliance Logging
+
+Add:
+
+* structured logs
+* request IDs
+* audit logs
+* metrics hooks
+* health endpoints
+
+Ensure:
+
+* no sensitive data leakage
+* logs are compliance-safe
+
+Create:
+`/analysis/step6_observability.md`
+
+---
+
+### Phase 7 — Testing + Security Validation
+
+Add:
+
+* unit tests
+* integration tests
+* auth tests
+* access control tests
+* failure scenarios
+
+Validate:
+
+* unauthorized access blocked
+* tenant isolation enforced
+* secure upload/download
+* provider switching works
+
+Create:
+`/analysis/step7_testing.md`
+
+---
+
+### Phase 8 — Legacy Mapping
+
+Map .NET DMM → new Docs Service
+
+Avoid reintroducing coupling
+
+Create:
+`/analysis/step8_legacy.md`
+
+---
+
+## Mandatory Validation Checklist
+
+### Independence
+
+* runs with local DB + config only
+* no external service dependency
+
+### Cloud Agnostic
+
+* provider swap requires no core code change
+* no AWS/GCP leakage in domain/app layers
+
+### Security
+
+* no public file access
+* all endpoints authenticated
+* RBAC/ABAC enforced
+* input validated
+* signed URLs secure
+
+### Compliance
+
+* audit logs exist for all critical actions
+* no sensitive data in logs
+* tenant isolation enforced
+* retention-ready design
+
+---
+
+## Final Deliverable
+
+`/analysis/final_summary.md` must include:
+
+* architecture overview
+* provider abstraction design
+* security model
+* compliance features
+* how to switch AWS → GCP
+* deployment instructions
+* remaining risks
+* next backlog
+
+---
+
+## Start now
+
+1. analyze current DMM TypeScript code
+2. identify coupling + security gaps
+3. implement Phase 1 (decoupling + security baseline)
+4. generate `/analysis/step1_assessment_decoupling_security.md`
+
+Then proceed through all phases.

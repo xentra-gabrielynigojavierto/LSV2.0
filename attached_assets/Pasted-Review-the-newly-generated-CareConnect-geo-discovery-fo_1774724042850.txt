@@ -1,0 +1,159 @@
+Review the newly generated CareConnect geo-discovery foundation before applying any migration.
+
+Goal:
+Validate correctness, safety, and scope of:
+- Provider geolocation fields
+- provider geo-aware search
+- geo validation
+before database changes are applied.
+
+Context:
+- CareConnect v1 baseline is already working
+- New code includes:
+  - Provider geolocation fields
+  - provider DTO updates
+  - geo-aware provider search enhancements
+  - optional geo helper/service
+- Migration has been created but should NOT be applied yet
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. ENTITY / MODEL REVIEW
+==================================================
+
+Confirm ONLY these new provider geolocation additions exist:
+- Latitude
+- Longitude
+- GeoPointSource
+- GeoUpdatedAtUtc
+
+Ensure NO accidental additions:
+- map SDK integration
+- route/travel calculations
+- geofencing
+- clustering engine
+- third-party geocoding integration
+- background geo jobs
+
+==================================================
+2. PROVIDER MAPPING REVIEW
+==================================================
+
+Check:
+- Provider entity was updated cleanly
+- EF mapping for geolocation fields is correct
+- MySQL numeric type/precision is reasonable for Latitude and Longitude
+- existing Provider behavior is not broken
+
+Confirm migration updates ONLY:
+- Providers table
+
+Indexes should be appropriate and not excessive.
+If geo indexes were added, confirm they are clean and reasonable.
+
+==================================================
+3. DTO REVIEW
+==================================================
+
+Confirm ProviderResponse now includes:
+- Latitude
+- Longitude
+- GeoPointSource
+- GeoUpdatedAtUtc
+
+Confirm CreateProviderRequest / UpdateProviderRequest optionally allow:
+- Latitude
+- Longitude
+- GeoPointSource
+
+Ensure no breaking changes to existing provider create/update behavior.
+
+==================================================
+4. GEO VALIDATION REVIEW
+==================================================
+
+Confirm validation rules are implemented correctly:
+- Latitude between -90 and 90
+- Longitude between -180 and 180
+- if Latitude is supplied, Longitude must also be supplied
+- if Longitude is supplied, Latitude must also be supplied
+- radiusMiles > 0
+- radiusMiles has sensible max, such as 100
+- invalid geo inputs return clean 400 using centralized exception handling
+
+==================================================
+5. SEARCH LOGIC REVIEW
+==================================================
+
+Verify GET /api/providers now supports optional:
+- latitude
+- longitude
+- radiusMiles
+
+Confirm:
+- search remains tenant-scoped
+- providers without coordinates are excluded from geo search when geo params are used
+- geo filtering combines cleanly with existing filters:
+  - name
+  - categoryCode
+  - city
+  - state
+  - acceptingReferrals
+  - isActive
+  - page
+  - pageSize
+
+Verify implementation is intentionally simple:
+- bounding-box or approximate distance filtering is fine
+- no external GIS dependencies unless absolutely necessary
+
+==================================================
+6. HELPER / SERVICE REVIEW
+==================================================
+
+If a geo helper/service exists, confirm it is:
+- small
+- internal
+- readable
+- not over-engineered
+
+It should only help with:
+- coordinate validation
+- simple geo filtering math
+
+==================================================
+7. AUTHORIZATION / TENANT ISOLATION REVIEW
+==================================================
+
+Confirm:
+- provider reads remain AuthenticatedUser
+- provider writes remain PlatformOrTenantAdmin
+- all geo search remains tenant-scoped
+- cross-tenant provider access remains safe
+
+==================================================
+8. MIGRATION REVIEW
+==================================================
+
+Confirm migration name is:
+- AddProviderGeoLocation
+or equivalent clean name
+
+Confirm migration changes ONLY:
+- Providers table
+
+If unrelated tables/columns are included, identify and fix before applying.
+
+==================================================
+9. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- confirmation that provider geolocation model is correct
+- confirmation that geo search remains simple and safe
+- confirmation that migration is SAFE to apply
+- final list of changed files

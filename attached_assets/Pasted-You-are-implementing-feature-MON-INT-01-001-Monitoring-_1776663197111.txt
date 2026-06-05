@@ -1,0 +1,282 @@
+You are implementing feature MON-INT-01-001 — Monitoring Read API Integration.
+
+OBJECTIVE
+Integrate the Monitoring Service into the LegalSynq platform as the authoritative backend for monitoring data and wire the Control Center to consume it via the abstraction layer.
+
+This is the FIRST real integration step after architectural alignment.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- All monitoring data must originate from Monitoring Service once integration is enabled
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-01-001-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT fabricate Monitoring Service if not found
+- Do NOT introduce placeholder endpoints
+- Do NOT modify UI components
+- Do NOT reintroduce monitoring logic into Control Center
+- Prefer minimal, reversible changes
+- Keep backend, API, and UI strictly separated
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-01-001-report.md
+
+Initialize with:
+
+# MON-INT-01-001 — Monitoring Read API Integration
+
+## 1. Task Summary
+## 2. Monitoring Service Source Discovery
+## 3. Monitoring Service Intake
+## 4. Solution Integration
+## 5. Configuration & Environment Setup
+## 6. Database Integration (monitoring_db)
+## 7. Gateway (YARP) Integration
+## 8. Runtime Integration
+## 9. Control Center Integration (Abstraction Layer)
+## 10. End-to-End Validation
+## 11. Files Changed
+## 12. Known Gaps / Blockers
+## 13. Recommended Next Feature
+
+Explicitly state the report was created FIRST.
+
+---
+
+STEP 2 — DISCOVER MONITORING SERVICE SOURCE
+
+Search the workspace and all available directories for the Monitoring Service source:
+
+Look for:
+- MonitoringService-source.zip
+- folders containing Monitoring.Api / Monitoring.Application / Monitoring.Domain / Monitoring.Infrastructure
+- any archive or folder with "monitoring" in the name
+
+If found:
+- document exact location
+- proceed to intake
+
+If NOT found:
+- STOP implementation of integration
+- document clearly:
+  "Monitoring Service source not available — integration blocked"
+- continue to fill report with findings
+- DO NOT fabricate a service
+
+---
+
+STEP 3 — INTAKE MONITORING SERVICE (IF FOUND)
+
+If source is available:
+
+- unpack into:
+  apps/services/monitoring/
+
+- identify:
+  - solution (.sln or project references)
+  - API project (Monitoring.Api)
+  - architecture layers
+  - appsettings files
+  - EF Core migrations (if present)
+
+Document:
+- folder structure
+- key entry points
+- project files
+
+---
+
+STEP 4 — SOLUTION INTEGRATION
+
+Add Monitoring projects to:
+
+LegalSynq.sln
+
+Ensure:
+- all Monitoring projects are included
+- solution builds
+
+Do NOT break existing services.
+
+---
+
+STEP 5 — CONFIGURATION SETUP
+
+Update Monitoring Service configuration:
+
+- ensure appsettings.json includes:
+  ConnectionStrings:MonitoringDb
+  Jwt settings aligned with platform
+  AuditClient configuration aligned with other services
+  correct port (default: 5013 unless conflict detected)
+
+Ensure:
+- no secrets hardcoded
+- environment variables used
+
+---
+
+STEP 6 — DATABASE INTEGRATION (monitoring_db)
+
+Validate:
+- connection string usage
+- EF Core provider (MySQL / Pomelo)
+- migration strategy
+
+If migrations exist:
+- document how they would be applied (do not run destructive operations blindly)
+
+If DB connection fails:
+- capture exact error
+- classify blocker
+
+Do NOT modify schema blindly.
+
+---
+
+STEP 7 — GATEWAY (YARP) INTEGRATION
+
+Update:
+
+apps/gateway/Gateway.Api/appsettings.json
+
+Add:
+
+ROUTES:
+- /monitoring/health
+- /monitoring/info
+- /monitoring/{**catch-all}
+
+CLUSTER:
+- monitoring-cluster → http://localhost:<port>
+
+Follow exact pattern used by other services.
+
+Ensure:
+- no route conflicts
+- JSON structure valid
+
+---
+
+STEP 8 — RUNTIME INTEGRATION
+
+Update dev runtime (e.g., run-dev.sh or equivalent):
+
+- include Monitoring Service startup
+
+Validate:
+- service starts
+- no crash at boot
+
+---
+
+STEP 9 — CONTROL CENTER INTEGRATION (CRITICAL)
+
+Modify ONLY:
+
+apps/control-center/src/lib/monitoring-source.ts
+
+Implement:
+
+IF MONITORING_SOURCE === 'service':
+
+- call Monitoring Service via gateway:
+  GET /monitoring/api/monitoring/summary
+
+- use fetch with proper error handling
+- return data as MonitoringSummary
+
+Rules:
+- DO NOT modify UI files
+- DO NOT modify API routes
+- DO NOT duplicate logic
+- DO NOT remove local fallback
+
+Behavior:
+
+IF 'local':
+- existing behavior (unchanged)
+
+IF 'service':
+- call Monitoring Service
+
+IF service call fails:
+- throw clear error OR fallback to local (document choice)
+
+---
+
+STEP 10 — END-TO-END VALIDATION
+
+Validate:
+
+- Monitoring Service builds
+- Monitoring Service starts
+- Gateway routes work
+- Control Center can call Monitoring Service via abstraction
+- MONITORING_SOURCE=service works
+- UI loads without changes
+- No regression
+
+Document:
+- exact request path
+- sample response
+- any failures
+
+---
+
+STEP 11 — FILES CHANGED
+
+List:
+- new files
+- modified files
+- purpose of each
+
+---
+
+STEP 12 — KNOWN GAPS / BLOCKERS
+
+Clearly document:
+
+- missing Monitoring source (if applicable)
+- missing DB secrets
+- connection issues
+- schema unknowns
+
+No vague statements.
+
+---
+
+STEP 13 — RECOMMEND NEXT FEATURE
+
+If integration succeeds:
+
+Recommend:
+MON-INT-01-002 — Platform Routing & Service Wiring Enhancements
+
+If blocked:
+
+Recommend:
+MON-INT-01-001-01 — Monitoring Source Intake Resolution
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+
+- report exists and was created FIRST
+- Monitoring Service is either:
+  - successfully integrated OR
+  - explicitly blocked with evidence
+- gateway routes are configured
+- abstraction layer calls service (if available)
+- Control Center UI unchanged
+- end-to-end flow validated (if possible)
+- no fake implementations introduced

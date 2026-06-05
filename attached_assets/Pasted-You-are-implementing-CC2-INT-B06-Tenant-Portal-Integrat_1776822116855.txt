@@ -1,0 +1,408 @@
+You are implementing CC2-INT-B06 — Tenant Portal Integration (WITH Role-Based Network Management) for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B06-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This work MUST build on:
+   - CC2-INT-B01 (service alignment)
+   - CC2-INT-B02 (gateway/audit/monitoring)
+   - CC2-INT-B03 (documents/notifications)
+   - CC2-INT-B04 (identity integration)
+   - CC2-INT-B05 (common portal)
+
+5. Do NOT merge Tenant Portal and Common Portal.
+
+6. Do NOT create a new frontend app.
+   You MUST extend the existing `apps/web` Tenant Portal.
+
+7. You MUST reuse existing backend APIs:
+   - Referral APIs
+   - Network APIs
+   - Provider search / assignment APIs
+
+8. You MUST reuse existing map implementation (from CC2-B03-01).
+
+9. 🚨 CRITICAL CHANGE:
+   Network management is **ROLE-BASED**, NOT org-type-based.
+   Do NOT restrict to LIEN_COMPANY.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Enable CareConnect inside the Tenant Portal with:
+
+- referral monitoring
+- **role-based network management**
+- **preferred provider assignment**
+- **map-based provider visualization**
+
+At the end of this block:
+
+- Any user with the correct CareConnect role can manage networks
+- Lien companies can operate as before
+- Law firms (if granted role) can ALSO manage networks
+- All actions are Identity + role enforced
+
+--------------------------------------------------
+
+ARCHITECTURE RULES (MANDATORY)
+
+1. Identity is the source of truth
+2. Authorization = claims + roles + product access
+3. OrgType is NOT the authority for capability
+4. Backend enforces all security
+5. No frontend-only restrictions
+
+--------------------------------------------------
+
+ROLE MODEL (MANDATORY)
+
+You MUST implement role/capability-based access:
+
+### Required Role / Permission
+
+DEFINE (or reuse if exists):
+
+- `CARECONNECT_NETWORK_MANAGER`
+
+Capabilities:
+
+- create network
+- update network
+- delete network
+- add/remove providers
+- view network map
+
+Optional (if exists):
+- `CARECONNECT_REFERRAL_VIEWER`
+
+--------------------------------------------------
+
+AUTHORIZATION RULES
+
+### Network Management Routes
+
+Require:
+
+- authenticated Identity user
+- CareConnect product access
+- organization context (orgId)
+- **CARECONNECT_NETWORK_MANAGER role**
+
+DO NOT check:
+- `orgType == LIEN_COMPANY`
+
+--------------------------------------------------
+
+### Referral Monitoring Routes
+
+Require:
+
+- authenticated Identity user
+- CareConnect product access
+
+(tenant scoping handled by backend)
+
+--------------------------------------------------
+
+PART A — ROUTING & NAVIGATION
+
+--------------------------------------------------
+
+A.1 Add CareConnect Module
+
+Navigation:
+
+- CareConnect
+  - Dashboard
+  - Referrals
+  - Networks
+
+--------------------------------------------------
+
+A.2 Conditional Navigation
+
+- Show **Networks** ONLY if user has:
+  `CARECONNECT_NETWORK_MANAGER`
+
+- Referrals visible to all CareConnect users
+
+--------------------------------------------------
+
+A.3 Route Structure
+
+apps/web/src/app/(tenant)/careconnect/
+
+careconnect/
+  page.tsx
+  referrals/
+    page.tsx
+    [id]/page.tsx
+  networks/
+    page.tsx
+    [id]/page.tsx
+
+--------------------------------------------------
+
+PART B — AUTH & ACCESS
+
+--------------------------------------------------
+
+B.1 Guards
+
+Use:
+
+- requireTenant() (if tenant-scoped)
+- RequireProductAccess("SynqCareConnect")
+- NEW: requireRole("CARECONNECT_NETWORK_MANAGER")
+
+--------------------------------------------------
+
+B.2 Access Behavior
+
+| User Type | Role | Access |
+|----------|------|--------|
+| Lien Company | Network Manager | Full access |
+| Law Firm | Network Manager | Full access |
+| Provider | No role | No network access |
+| Any | No role | No network access |
+
+--------------------------------------------------
+
+PART C — REFERRAL MANAGEMENT
+
+--------------------------------------------------
+
+(UNCHANGED)
+
+- list referrals
+- view details
+- documents via signed URLs
+
+--------------------------------------------------
+
+PART D — NETWORK MANAGEMENT
+
+--------------------------------------------------
+
+D.1 Network List
+
+Route:
+`/careconnect/networks`
+
+Display:
+
+- name
+- description
+- provider count
+- last updated
+
+Actions:
+
+- create
+- edit
+- delete
+
+--------------------------------------------------
+
+D.2 Create / Edit Network
+
+Form:
+
+- name
+- description
+
+--------------------------------------------------
+
+D.3 Network Detail
+
+Route:
+`/careconnect/networks/[id]`
+
+Display:
+
+- metadata
+- provider list
+- map view
+
+--------------------------------------------------
+
+PART E — PROVIDER MANAGEMENT
+
+--------------------------------------------------
+
+E.1 Search Providers
+
+- search API
+- filter by location/specialty
+
+--------------------------------------------------
+
+E.2 Add Provider
+
+- assign provider to network
+
+--------------------------------------------------
+
+E.3 Remove Provider
+
+- remove from network
+
+--------------------------------------------------
+
+E.4 Provider List
+
+- name
+- location
+- metadata
+
+--------------------------------------------------
+
+PART F — MAP INTEGRATION
+
+--------------------------------------------------
+
+F.1 Map View
+
+- show providers in network
+- markers with popup
+
+--------------------------------------------------
+
+F.2 Behavior
+
+- fit bounds
+- pan/zoom
+- reuse existing map component
+
+--------------------------------------------------
+
+PART G — DASHBOARD
+
+--------------------------------------------------
+
+`/careconnect`
+
+Display:
+
+- total referrals
+- status counts
+- recent referrals
+
+--------------------------------------------------
+
+PART H — DOCUMENTS
+
+--------------------------------------------------
+
+- signed URL access
+- upload optional (if supported)
+
+--------------------------------------------------
+
+PART I — ERROR HANDLING
+
+--------------------------------------------------
+
+Handle:
+
+- unauthorized role → hide UI + block route
+- missing role → redirect or deny
+- API errors → show message
+
+--------------------------------------------------
+
+PART J — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+AUTH
+
+1. Network Manager can access network routes
+2. Non-manager cannot access network routes
+3. Law Firm with role CAN access networks
+4. Lien Company without role CANNOT access networks
+
+NETWORKS
+
+5. Create network works
+6. Update network works
+7. Delete network works
+
+PROVIDERS
+
+8. Search providers works
+9. Add/remove providers works
+
+MAP
+
+10. Map renders providers
+11. Marker data correct
+
+REFERRALS
+
+12. Referral list works
+13. Referral detail works
+
+SECURITY
+
+14. No cross-org leakage
+15. Backend enforces role
+
+SYSTEM
+
+16. Next.js build succeeds
+17. Common Portal unaffected
+18. Gateway calls succeed
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+/analysis/CC2-INT-B06-report.md
+
+# CC2-INT-B06 Report
+
+## 1. Summary
+## 2. Routing & Navigation
+## 3. Authentication & Access
+## 4. Referral Management
+## 5. Network Management
+## 6. Provider Management
+## 7. Map Integration
+## 8. Dashboard
+## 9. Test Results
+## 10. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- hardcode orgType restrictions
+- duplicate backend logic
+- bypass Identity
+- expose unauthorized capabilities
+- merge portals
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- role-based access works correctly
+- law firm can manage networks if role assigned
+- tenant portal fully operational
+- report saved at:
+  /analysis/CC2-INT-B06-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

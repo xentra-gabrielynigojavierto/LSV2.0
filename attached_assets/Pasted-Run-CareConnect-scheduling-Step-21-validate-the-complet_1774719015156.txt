@@ -1,0 +1,108 @@
+Run CareConnect scheduling Step 21: validate the complete scheduling model and prepare a stable checkpoint.
+
+Goal:
+Validate that the full CareConnect scheduling workflow is correct, safe, and ready for the next product phase.
+
+Current scope already implemented:
+- Facilities
+- ServiceOfferings
+- ProviderAvailabilityTemplates
+- AppointmentSlots
+- slot generation
+- Appointments
+- appointment lifecycle
+- ProviderAvailabilityExceptions
+- blackout / blocked slot behavior
+
+This step is only for validation and readiness review.
+Do not add new schema or new features in this step.
+
+Tasks
+
+1. Review the current scheduling implementation and confirm the implemented scope is exactly:
+- scheduling foundation
+- slot generation
+- appointment booking
+- appointment lifecycle
+- scheduling exceptions / blackout windows
+
+2. Confirm these endpoint groups are present and working through Gateway:
+
+Scheduling foundation:
+- GET /careconnect/api/facilities
+- POST /careconnect/api/facilities
+- PUT /careconnect/api/facilities/{id}
+- GET /careconnect/api/service-offerings
+- POST /careconnect/api/service-offerings
+- PUT /careconnect/api/service-offerings/{id}
+- GET /careconnect/api/providers/{id}/availability-templates
+- POST /careconnect/api/providers/{id}/availability-templates
+- PUT /careconnect/api/availability-templates/{id}
+
+Slots and booking:
+- POST /careconnect/api/providers/{id}/slots/generate
+- GET /careconnect/api/slots
+- POST /careconnect/api/appointments
+- GET /careconnect/api/appointments
+- GET /careconnect/api/appointments/{id}
+
+Appointment lifecycle:
+- PUT /careconnect/api/appointments/{id}
+- POST /careconnect/api/appointments/{id}/cancel
+- POST /careconnect/api/appointments/{id}/reschedule
+- GET /careconnect/api/appointments/{id}/history
+
+Exceptions:
+- GET /careconnect/api/providers/{id}/availability-exceptions
+- POST /careconnect/api/providers/{id}/availability-exceptions
+- PUT /careconnect/api/availability-exceptions/{id}
+- POST /careconnect/api/providers/{id}/slots/apply-exceptions
+
+3. Confirm booking and scheduling rules are working correctly:
+- slot generation creates expected slots
+- rerunning generation for same provider/date range does not create duplicates
+- only Open slots can be booked
+- ReservedCount increments on booking
+- Capacity is enforced
+- blocked slots cannot be booked
+- appointment times come from slot
+- provider/facility/service references are copied correctly
+- cancellation frees slot capacity correctly
+- reschedule moves capacity correctly
+- blackout windows prevent generation and can block existing slots safely
+
+4. Confirm tenant isolation:
+- all slot queries are tenant-scoped
+- all appointment queries are tenant-scoped
+- all exception queries are tenant-scoped
+- bookings and scheduling writes are tenant-scoped
+- cross-tenant access would return 404 or filtered results appropriately
+
+5. Confirm authorization:
+- read endpoints require authenticated user
+- admin-only endpoints require PlatformOrTenantAdmin
+- no token => 401
+- wrong role => 403 on protected write routes
+
+6. Confirm validation/error handling:
+- invalid date ranges are rejected
+- invalid booking requests are rejected
+- full slot booking fails cleanly
+- duplicate slot generation is handled cleanly
+- invalid appointment transitions are blocked cleanly
+- invalid exception windows are rejected cleanly
+- no raw stack traces or DB exceptions leak
+
+7. Provide a concise readiness summary:
+- working entities/tables
+- working endpoints
+- validated business rules
+- known limitations
+- recommended next step
+
+8. Provide exact git commands to commit this as a checkpoint.
+
+Important:
+Do not modify working code unless something is clearly broken.
+Do not add reminders, provider portal logic, documents, payments, or maps yet.
+This step is only to validate the scheduling baseline and confirm readiness for the next phase.

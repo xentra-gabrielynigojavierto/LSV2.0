@@ -1,0 +1,665 @@
+You are building the next backend phase for the standalone service called "notifications".
+
+This phase adds Global Product Templates + Tenant Branding backend support on top of the approved notifications platform foundation.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-008 — Global Product Templates + Tenant Branding Backend
+==================================================
+
+GOAL:
+Extend the notifications backend so it supports:
+
+- global templates grouped by product type
+- WYSIWYG-compatible email template storage
+- tenant-aware branding applied at render time
+- branded preview using product type + tenant context
+- future readiness for Control Center WYSIWYG template administration
+
+This is a backend-only phase.
+
+Do NOT build UI in this task.
+Do NOT build tenant portal flows in this task.
+Do NOT overbuild localization, drag-and-drop builders, or approval workflows.
+
+==================================================
+MANDATORY STACK
+==================================================
+
+Backend:
+- Node.js
+- TypeScript
+- Express
+- Sequelize
+- MySQL
+
+Use the existing standalone /notifications project structure.
+Do NOT introduce:
+- Postgres
+- Drizzle
+- monorepo-only dependencies
+- frontend code
+- unsafe HTML/script execution
+
+==================================================
+FOUNDATION ASSUMPTION
+==================================================
+
+Assume the approved notifications backend already exists, including:
+- notification send pipeline
+- provider adapters
+- failover logic
+- webhook ingestion
+- template engine + versioning
+- BYOP provider config support
+- billing / usage tracking / rate limiting
+- contact suppression enforcement
+- audit abstraction
+- portable service structure for /apps/services/notifications
+
+Extend this foundation.
+Do not rebuild prior phases.
+
+==================================================
+IN-SCOPE FUNCTIONAL REQUIREMENTS
+==================================================
+
+--------------------------------------
+1. PRODUCT-TYPE-AWARE GLOBAL TEMPLATES
+--------------------------------------
+
+Extend the template system so global templates are grouped by product type.
+
+Required initial product types:
+- careconnect
+
+Design for future expansion such as:
+- synqlien
+- synqfund
+- synqrx
+- synqpayout
+
+A global template must now be identifiable by:
+- productType
+- channel
+- templateKey
+- templateScope
+
+Required uniqueness rule:
+- productType + channel + templateKey + templateScope must be unique
+
+For this phase, templateScope must support at minimum:
+- global
+
+Design must not block future:
+- tenant scope
+- tenant-specific overrides of global templates
+
+==================================================
+2. TEMPLATE METADATA EXTENSIONS
+==================================================
+
+Extend the Template model with at minimum:
+- productType
+- templateScope
+- editorType
+- category nullable
+- isBrandable boolean
+
+Definitions:
+- templateScope: global for now, tenant later
+- editorType: wysiwyg, html, text
+- isBrandable: whether tenant branding applies at render time
+
+These fields must integrate with existing template APIs and persistence safely.
+
+==================================================
+3. WYSIWYG-COMPATIBLE TEMPLATE VERSION STORAGE
+==================================================
+
+Extend TemplateVersion so email templates can store both:
+- structured editor source
+- compiled renderable output
+
+Add/update fields at minimum:
+- editorJson nullable
+- htmlTemplate
+- textTemplate
+- designTokensJson nullable
+- layoutType nullable
+
+Required behavior:
+- for WYSIWYG email templates:
+  - editorJson is the editing source of truth
+  - htmlTemplate is the compiled renderable HTML
+  - textTemplate is the plain-text fallback
+
+Important:
+- do NOT store only HTML for WYSIWYG templates
+- preserve structured editor representation for future editing
+
+==================================================
+4. TENANT BRANDING MODEL
+==================================================
+
+Create a new model:
+
+TenantBranding
+
+Fields must include at minimum:
+- id
+- tenantId
+- productType
+- brandName
+- logoUrl nullable
+- primaryColor nullable
+- secondaryColor nullable
+- accentColor nullable
+- textColor nullable
+- backgroundColor nullable
+- buttonRadius nullable
+- fontFamily nullable
+- emailHeaderHtml nullable
+- emailFooterHtml nullable
+- supportEmail nullable
+- supportPhone nullable
+- websiteUrl nullable
+- createdAt
+- updatedAt
+
+Required behavior:
+- branding is tenant-scoped and product-type-scoped
+- one tenant may have different branding for different products
+
+==================================================
+5. PRODUCT DEFAULT BRANDING FALLBACK
+==================================================
+
+Rendering must not fail if tenant branding is missing.
+
+Required behavior:
+- if no TenantBranding exists for tenantId + productType
+- use a platform default branding fallback for that productType
+
+Acceptable implementation for this phase:
+- DB-backed default branding
+OR
+- centralized config/code-backed default branding resolver
+
+Behavior must be explicit, centralized, and replaceable later.
+
+==================================================
+6. RESERVED BRANDING TOKENS
+==================================================
+
+Introduce reserved branding tokens injected automatically at render time.
+
+Required examples:
+- {{brand.name}}
+- {{brand.logoUrl}}
+- {{brand.primaryColor}}
+- {{brand.secondaryColor}}
+- {{brand.accentColor}}
+- {{brand.textColor}}
+- {{brand.backgroundColor}}
+- {{brand.buttonRadius}}
+- {{brand.fontFamily}}
+- {{brand.supportEmail}}
+- {{brand.supportPhone}}
+- {{brand.websiteUrl}}
+
+Important rule:
+- these tokens come from branding resolution
+- they must NOT be overridden unsafely by caller template data
+
+==================================================
+7. RENDER PIPELINE UPDATE
+==================================================
+
+Extend the template render pipeline to support:
+- templateKey
+- productType
+- tenantId
+- channel
+- templateData
+
+Required render order:
+1. resolve template by:
+   - productType
+   - channel
+   - templateKey
+   - templateScope = global
+   - published version
+2. resolve branding by:
+   - tenantId
+   - productType
+3. merge:
+   - system branding tokens
+   - caller template data
+4. render:
+   - subject
+   - html
+   - text
+
+Important rule:
+- branding must be applied at render time
+- do NOT hardcode branding into stored template content at create time
+
+==================================================
+8. BRANDED PREVIEW ENDPOINT
+==================================================
+
+Implement:
+
+POST /v1/templates/global/:id/versions/:versionId/preview
+
+Request must support at minimum:
+- tenantId
+- productType
+- templateData
+
+Response must include:
+- rendered subject
+- rendered html
+- rendered text
+- branding metadata used optional but helpful
+
+Required behavior:
+- preview must simulate real rendering using:
+  - selected tenant branding
+  - selected product type
+  - selected version
+  - supplied template variables
+
+==================================================
+9. GLOBAL TEMPLATE ADMIN APIS
+==================================================
+
+Add or extend endpoints for Control Center/admin usage:
+
+- GET /v1/templates/global
+- POST /v1/templates/global
+- GET /v1/templates/global/:id
+- PATCH /v1/templates/global/:id
+- POST /v1/templates/global/:id/versions
+- GET /v1/templates/global/:id/versions
+- GET /v1/templates/global/:id/versions/:versionId
+- PATCH /v1/templates/global/:id/versions/:versionId only if draft editing is allowed by current lifecycle
+- POST /v1/templates/global/:id/versions/:versionId/publish
+- POST /v1/templates/global/:id/versions/:versionId/preview
+
+GET /v1/templates/global should support filtering by:
+- productType
+- channel
+- templateKey
+- status
+
+Do NOT invent draft-edit routes if the backend lifecycle still treats versions as immutable. If version editing is unsupported, document it clearly.
+
+==================================================
+10. TENANT BRANDING APIS
+==================================================
+
+Implement:
+- GET /v1/branding
+- POST /v1/branding
+- GET /v1/branding/:id
+- PATCH /v1/branding/:id
+
+GET /v1/branding should support filtering by:
+- tenantId
+- productType
+
+Branding values must be stored and returned cleanly.
+No secret handling is needed in this phase.
+
+==================================================
+11. EMAIL CHANNEL PRIORITY
+==================================================
+
+For this phase, WYSIWYG support applies to:
+- email
+
+Required behavior:
+- email templates can use editorJson + htmlTemplate + textTemplate
+- SMS/text templates may remain plain text and do not require WYSIWYG storage
+
+Do NOT over-generalize the editor model to all channels yet.
+
+==================================================
+12. TEMPLATE VERSION LIFECYCLE
+==================================================
+
+Preserve the existing template version lifecycle unless intentionally changed.
+
+Required lifecycle:
+- draft
+- published
+- retired or equivalent existing status
+
+Rules:
+- only one published version per template
+- published version is the live render target
+- if the backend currently treats versions as immutable after create, preserve that unless intentionally updated
+
+For this phase:
+- draft editing support is optional and must follow current backend reality
+- do NOT make published versions editable
+
+==================================================
+13. CONTROL CENTER READINESS
+==================================================
+
+The backend must support upcoming Control Center UI for:
+- listing global templates grouped by product type
+- creating global templates
+- creating draft versions
+- previewing branded render output
+- publishing versions
+- managing tenant branding
+
+This phase does not build the UI, but APIs and models must support it cleanly.
+
+==================================================
+14. VALIDATION RULES
+==================================================
+
+Validate global template create/update:
+- valid productType
+- valid channel
+- valid templateScope
+- valid editorType
+- uniqueness for productType + channel + templateKey + templateScope
+
+Validate template version create/update:
+- html/body required for email
+- editorJson required when editorType = wysiwyg
+- editorJson must be valid JSON/object structure
+- textTemplate optional but recommended
+- designTokensJson must be valid JSON if present
+
+Validate branding create/update:
+- valid productType
+- uniqueness per tenantId + productType
+- safe optional fields
+- reject clearly invalid inputs
+
+Validate preview/render:
+- tenantId required
+- productType required
+- version must belong to template
+- fail cleanly if required template variables are missing
+
+==================================================
+15. BACKWARD COMPATIBILITY
+==================================================
+
+Existing template functionality must not be broken unnecessarily.
+
+Required behavior:
+- current template flows continue working
+OR
+- a clear compatibility/migration path is implemented
+
+If model changes require defaults/backfill, use explicit defaults such as:
+- templateScope = global
+- editorType = html or appropriate current equivalent
+- productType default only if intentionally chosen and documented
+
+Be careful not to silently break existing template usage.
+
+==================================================
+16. AUDIT EVENTS
+==================================================
+
+Emit audit/domain events for:
+- global template created
+- global template updated
+- global template version created
+- global template version published
+- branded preview rendered
+- tenant branding created
+- tenant branding updated
+
+Use the existing audit abstraction.
+
+==================================================
+17. DATA MODEL CHANGES
+==================================================
+
+Expected model changes include:
+
+Template:
+- productType
+- templateScope
+- editorType
+- category
+- isBrandable
+
+TemplateVersion:
+- editorJson
+- htmlTemplate
+- textTemplate
+- designTokensJson
+- layoutType
+
+New model:
+- TenantBranding
+
+Keep schema portable and aligned with existing conventions.
+
+==================================================
+OUT OF SCOPE FOR NOTIF-008
+==================================================
+
+Do NOT implement:
+- Control Center WYSIWYG UI
+- tenant portal branding UI
+- drag-and-drop email builder
+- advanced block marketplace
+- localization / multilingual rendering
+- tenant-specific template override UI
+- approval workflows
+- AI-assisted content generation
+- asset management library
+- PDF/document export rendering
+
+This phase is backend foundation only.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. templates support productType
+2. templates support templateScope
+3. templates support editorType
+4. template versions support editorJson
+5. template versions support htmlTemplate
+6. template versions support textTemplate
+7. TenantBranding model exists
+8. branding can be created/read/updated by API
+9. render pipeline supports tenantId + productType
+10. reserved branding tokens are injected at render time
+11. branded preview endpoint works
+12. global template admin APIs work
+13. rendering succeeds with product default branding fallback
+14. existing template functionality is not broken without a documented compatibility path
+15. audit events are emitted correctly
+16. TypeScript compiles cleanly
+17. service remains portable to /apps/services/notifications
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-008-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+- What was built
+- Scope completed vs requested scope
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+List all files:
+- New files with purpose
+- Modified files with description of changes
+
+--------------------------------------
+3. MODEL / SCHEMA CHANGES
+--------------------------------------
+Describe:
+- Template changes
+- TemplateVersion changes
+- TenantBranding model
+- compatibility/defaulting strategy
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+List all endpoints added or changed, grouped by:
+- global templates
+- template versions
+- branding
+- preview/rendering
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed)
+
+--------------------------------------
+5. RENDER PIPELINE / ARCHITECTURE
+--------------------------------------
+Explain:
+- template resolution flow
+- branding resolution flow
+- token injection flow
+- preview flow
+- fallback behavior
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+Describe:
+- fallback branding behavior
+- missing variable handling
+- invalid template/version handling
+- invalid branding handling
+
+--------------------------------------
+8. BACKWARD COMPATIBILITY
+--------------------------------------
+Explain:
+- how existing templates continue to work
+- defaults/backfill behavior
+- any compatibility risks remaining
+
+--------------------------------------
+9. AUDIT EVENTS
+--------------------------------------
+List audit events emitted and where they are triggered
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+List all gaps:
+- missing UI
+- backend constraints
+- assumptions made
+- technical debt
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+List problems during implementation:
+- schema changes
+- route mismatches
+- lifecycle constraints
+- rendering/token issues
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+Provide exact steps:
+- how to start the service
+- required environment variables
+- how to test branded preview
+- any seed/setup requirements
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+Answer clearly:
+- Is NOTIF-008 complete? (Yes / Mostly / Partial)
+- Is the backend ready for the WYSIWYG Control Center UI phase? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+List:
+- next backend/UI features to build
+- remaining dependencies
+- what should happen in the WYSIWYG Control Center UI phase
+
+==================================================
+CRITICAL: REPORT GENERATION IS REQUIRED
+==================================================
+
+You MUST generate the report file after completing the implementation.
+
+This is NOT optional.
+
+If the report is not generated, the task is considered incomplete.
+
+File path must be:
+
+/analysis/NOTIF-008-report.md
+
+Do NOT skip sections.
+Do NOT claim features that are not implemented.
+Do NOT hide limitations.
+
+==================================================
+EXECUTION
+==================================================
+
+Build the full NOTIF-008 scope now.
+Do not overbuild.
+Keep the backend portable, deterministic, branding-aware, and aligned to the existing notifications architecture.
+Generate the required report at the end.

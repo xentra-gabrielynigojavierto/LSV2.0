@@ -1,0 +1,394 @@
+You are implementing LS-LIENS-UI-005 for the LegalSynq Liens v2 migration.
+
+Feature ID: LS-LIENS-UI-005
+Feature Title: Documents Integration (v2 Shared Service)
+
+Objective:
+Integrate the SynqLiens UI with the v2 shared Documents service so that documents become real, reusable, cross-entity assets linked to Cases, Liens, and Servicing. Replace all mock/static document data and enforce the same frontend service-layer architecture used in LS-LIENS-UI-002, UI-003, and UI-004.
+
+This is a shared-service integration and must NOT use any v1 document logic.
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES (NON-NEGOTIABLE)
+--------------------------------------------------
+
+1. Use ONLY the v2 shared Documents service.
+2. Do NOT use any v1 document APIs or local substitutes.
+3. Preserve the v2 shell (top nav + side nav).
+4. Preserve the current UI layout and workflow feel unless minimal changes are required.
+5. Enforce strict layering:
+   - API client layer
+   - service layer
+   - mapper / adapter layer
+   - UI state layer
+   - presentation layer
+6. No direct HTTP calls in pages/components.
+7. No DTO-to-UI transformation logic inside components.
+8. No production mock/static document data.
+9. Follow the same architecture pattern as Cases, Liens, and Servicing.
+10. All document relationships must come from backend/shared-service truth.
+11. If store (Zustand) is used, it must be UI state only.
+
+--------------------------------------------------
+REQUIRED FRONTEND ARCHITECTURE
+--------------------------------------------------
+
+Create a Documents module with:
+
+- documents.types.ts
+- documents.api.ts
+- documents.mapper.ts
+- documents.service.ts
+
+Layer responsibilities:
+
+API Layer:
+- raw HTTP calls only
+- typed DTOs
+- endpoints + params
+- no UI logic
+
+Service Layer:
+- business-facing methods only
+- only approved UI data path
+- calls API layer
+- applies mappers
+
+Mapper Layer:
+- DTO → UI model
+- metadata normalization
+- preview/download mapping
+- entity linking mapping
+
+Types Layer:
+- backend DTOs
+- query models
+- UI models
+- minimal cross-entity reference models
+
+UI Layer:
+- presentation only
+- no HTTP
+- no mapping logic
+
+--------------------------------------------------
+IMPLEMENTATION SCOPE
+--------------------------------------------------
+
+1. Analyze existing Document Handling UI:
+   - /lien/document-handling
+   - /lien/document-handling/[id] (if exists)
+   - identify all mock data, placeholders, and static content
+
+2. Analyze v2 Documents shared service APIs:
+   Identify available endpoints for:
+   - list documents
+   - get document by id
+   - get documents by entity (case/lien/servicing)
+   - upload document (if available)
+   - update metadata (if available)
+   - preview/download URL
+   - link/unlink entity (if available)
+
+3. Implement Documents API client.
+
+4. Implement Documents service layer.
+
+5. Implement Documents mapper layer.
+
+6. Implement Documents types.
+
+7. Wire Document Handling UI to real APIs.
+
+8. Integrate documents into:
+   - Case Detail
+   - Lien Detail
+   - Servicing Detail
+
+9. Handle unsupported actions properly.
+
+10. Implement loading/error/empty states.
+
+--------------------------------------------------
+A. DOCUMENTS API CLIENT
+--------------------------------------------------
+
+Create documents.api.ts
+
+Responsibilities:
+- raw HTTP only
+- typed DTOs
+- endpoint definitions
+- no UI shaping
+
+Example methods (only if supported):
+- list(query)
+- getById(id)
+- getByEntity(entityType, entityId)
+- upload(formData)
+- updateMetadata(id, request)
+- delete(id)
+- getPreviewUrl(id)
+- getDownloadUrl(id)
+- linkToEntity(...)
+- unlinkFromEntity(...)
+
+--------------------------------------------------
+B. DOCUMENTS SERVICE LAYER
+--------------------------------------------------
+
+Create documents.service.ts
+
+Responsibilities:
+- business-facing methods
+- call API client
+- apply mapper logic
+- isolate backend quirks
+
+Example methods:
+- getDocuments(query)
+- getDocument(id)
+- getDocumentsForCase(caseId)
+- getDocumentsForLien(lienId)
+- getDocumentsForServicing(servicingId)
+- uploadDocument(...)
+- updateDocumentMetadata(...)
+- openPreview(...)
+- getDownloadLink(...)
+- linkDocument(...)
+- unlinkDocument(...)
+
+--------------------------------------------------
+C. DOCUMENTS MAPPER
+--------------------------------------------------
+
+Create documents.mapper.ts
+
+Must map:
+- document list row
+- document detail model
+- metadata display model
+- entity link model
+- preview/download capability
+- null-safe defaults
+
+Rules:
+- no inline mapping in UI
+- no duplication across pages
+
+--------------------------------------------------
+D. DOCUMENTS TYPES
+--------------------------------------------------
+
+Create documents.types.ts
+
+Include:
+- backend DTOs
+- request models
+- query models
+- pagination
+- UI models
+- cross-entity reference model
+
+--------------------------------------------------
+E. DOCUMENT HANDLING PAGE
+--------------------------------------------------
+
+Replace all mock/static document data with:
+
+documentsService.getDocuments()
+
+Must support:
+- load
+- refresh
+- search
+- filter
+- sort
+- pagination
+- preview/open
+
+Add:
+- loading state
+- error state
+- empty state
+
+Preserve layout.
+
+--------------------------------------------------
+F. DOCUMENT DETAIL / PREVIEW
+--------------------------------------------------
+
+If detail page exists:
+
+Use:
+documentsService.getDocument()
+
+Must support:
+- preview
+- metadata display
+- download/open
+- loading/error/not-found states
+
+--------------------------------------------------
+G. UPLOAD INTEGRATION
+--------------------------------------------------
+
+IF API EXISTS:
+
+- implement upload using form-data
+- show loading state
+- handle errors
+- refresh document list after success
+
+IF API DOES NOT EXIST:
+- disable upload UI
+- clearly label as unavailable
+- document in report
+
+--------------------------------------------------
+H. CROSS-ENTITY INTEGRATION
+--------------------------------------------------
+
+Integrate documents into:
+
+1. Case Detail
+   - use getDocumentsForCase(caseId)
+   - display real linked documents
+   - enable navigation to document
+
+2. Lien Detail
+   - use getDocumentsForLien(lienId)
+   - display real linked documents
+
+3. Servicing Detail
+   - use getDocumentsForServicing(servicingId)
+   - display real linked documents
+
+Rules:
+- all links must be real
+- no mock counts
+- no fake attachments
+
+--------------------------------------------------
+I. METADATA & FILTERING
+--------------------------------------------------
+
+Use real fields for:
+- category
+- type
+- status
+- created date
+- uploaded by
+
+Filters must align with backend.
+
+--------------------------------------------------
+J. UNSUPPORTED ACTIONS
+--------------------------------------------------
+
+If API does not support:
+- upload
+- delete
+- edit metadata
+- linking
+
+Then:
+- disable OR hide OR label clearly
+
+No fake interactions allowed.
+
+--------------------------------------------------
+K. STATE MANAGEMENT
+--------------------------------------------------
+
+Allowed:
+- filters
+- page
+- sort
+- selected doc
+- modal state
+- loading/error
+- role/toast
+
+Not allowed:
+- mock document data
+- fake upload results
+- local document store as truth
+
+--------------------------------------------------
+L. ERROR / LOADING STATES
+--------------------------------------------------
+
+Must support:
+- loading
+- retry
+- empty
+- error
+- unauthorized
+- not found
+- upload failure
+
+--------------------------------------------------
+M. FILES TO CREATE / MODIFY
+--------------------------------------------------
+
+Create:
+- documents.types.ts
+- documents.api.ts
+- documents.mapper.ts
+- documents.service.ts
+
+Modify:
+- document-handling page
+- case detail (documents section)
+- lien detail (documents section)
+- servicing detail (documents section)
+
+--------------------------------------------------
+N. REPORT OUTPUT
+--------------------------------------------------
+
+Create:
+
+/analysis/LS-LIENS-UI-005-report.md
+
+Include:
+
+- Executive summary
+- Before vs after data flow
+- Shared Documents API endpoints used
+- Service layer structure
+- Mapper details
+- Upload support status
+- Case/Lien/Servicing document integration
+- Unsupported actions
+- Schema mismatches
+- Files changed
+- Risks/blockers
+- Pattern consistency confirmation
+- Recommended next module
+
+--------------------------------------------------
+EXECUTION INSTRUCTIONS
+--------------------------------------------------
+
+- Implement real code, not just analysis
+- Use existing repo patterns
+- If APIs are missing → partially implement and document
+- Do not stop at planning
+- Save report in /analysis
+- Validate build
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Document list uses real shared service
+- Document detail/preview works
+- Upload works OR is properly disabled
+- No mock document data remains
+- Documents linked to Cases, Liens, Servicing
+- Service layer enforced
+- Mapper layer enforced
+- UI layout unchanged
+- Report complete

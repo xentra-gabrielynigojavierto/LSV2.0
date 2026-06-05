@@ -1,0 +1,162 @@
+Continue the LegalSynq migration from the current post-Step-4 state.
+
+The platform now has:
+- live org graph integration
+- measurable eligibility fallback coverage
+- measurable role dual-write coverage
+- control-center pages for organization graph and rules
+- /api/admin/legacy-coverage for migration gating
+
+Your goal now is to execute Phase F preparation and legacy retirement readiness with minimal risk.
+
+## Primary goal
+
+1. eliminate remaining ProductRole.EligibleOrgType-only coverage gaps
+2. move admin/user role assignment flows toward ScopedRoleAssignment as the primary write path
+3. keep compatibility while proving legacy paths are no longer required
+4. prepare but do not prematurely force destructive schema cleanup
+5. generate a report
+
+## Required report output
+
+Create and save:
+ /analysis/step5_phase-f-prep-and-retirement.md
+
+Use this exact structure:
+
+# LegalSynq Phase F Prep and Retirement
+## 1. Starting State
+## 2. Eligibility Rule Retirement Progress
+## 3. Role Assignment Retirement Progress
+## 4. Control-Center Mutation Changes
+## 5. Migration Readiness
+## 6. Files Changed
+## 7. Build / Verification Results
+## 8. Remaining Blockers
+
+## Phase 1 — drive eligibility rule coverage to 100%
+
+Current state:
+- /api/admin/legacy-coverage reports:
+  - withDbRuleOnly
+  - withBothPaths
+  - legacyStringOnly
+- Phase F requires legacyStringOnly = 0
+
+Tasks:
+- inspect all active ProductRole rows and current seeding/configuration
+- identify every role still using EligibleOrgType without ProductOrganizationTypeRule coverage
+- add safe seed/backfill logic or migration logic so every active restricted ProductRole has at least one active ProductOrganizationTypeRule
+- preserve existing behavior exactly
+- do not drop EligibleOrgType yet unless coverage is confirmed complete and low-risk
+- update startup diagnostics and/or legacy-coverage endpoint expectations if needed
+
+Important:
+- unrestricted roles should remain unrestricted
+- do not accidentally over-restrict roles that were intentionally open
+- report the exact before/after coverage counts
+
+## Phase 2 — shift role assignment writes toward ScopedRoleAssignment
+
+Current state:
+- legacy UserRole writes still happen
+- dual-write coverage is measurable
+- Step 4 added dual-write scaffolding
+
+Tasks:
+- inspect all role assignment entry points:
+  - admin APIs
+  - user creation/registration
+  - control-center role assignment flows
+- identify which flows still write only or primarily through legacy role paths
+- where low-risk, make ScopedRoleAssignment the primary write
+- keep compatibility by optionally mirroring to legacy tables only where still required
+- document the exact write order after your changes
+
+Important:
+- do not remove legacy write paths yet unless confirmed safe
+- prefer additive cutover flags/comments over risky hard switches
+
+## Phase 3 — control-center direct role assignment modernization
+
+Current state:
+- control-center should no longer depend forever on legacy role write behavior
+
+Tasks:
+- inspect admin/user role assignment UI and API usage
+- where practical, update control-center role assignment mutations so they target the modern role assignment path
+- if backend endpoints do not yet expose the right mutation shape, add or adapt them cleanly
+- keep existing UX stable
+- document whether control-center now writes:
+  - ScopedRoleAssignment directly
+  - dual-write path
+  - legacy path
+
+## Phase 4 — strengthen migration readiness diagnostics
+
+Tasks:
+- improve /api/admin/legacy-coverage if useful by adding:
+  - exact uncovered role codes
+  - exact users missing scoped-role coverage
+  - counts by role / org type where helpful
+- keep response compact and operator-friendly
+- avoid breaking existing frontend parsing unless you update it together
+- update the Legacy Coverage page to surface the most actionable blockers
+
+## Phase 5 — prepare destructive cleanup, but gate it properly
+
+Tasks:
+- prepare code and migration readiness for:
+  - dropping ProductRole.EligibleOrgType
+  - removing legacy UserRole write dependence
+  - eventually retiring UserRoleAssignment
+- only perform destructive schema cleanup if the codebase and measured coverage prove it is safe
+- if not yet safe, stop short and document exact blockers
+- if safe, generate the migrations and update code accordingly
+
+Important:
+- do not guess safety
+- rely on measurable coverage and real code-path inspection
+
+## Phase 6 — verification
+
+At the end:
+- build Identity.Api
+- build CareConnect.Api
+- run TypeScript checks for control-center
+- if any migration files were added, list them clearly in the report
+- include before/after legacy-coverage numbers in the report
+
+## Files to inspect first
+
+### Identity
+- apps/services/identity/Identity.Application/Services/AuthService.cs
+- apps/services/identity/Identity.Infrastructure/Repositories/UserRepository.cs
+- apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+- apps/services/identity/Identity.Api/Program.cs
+- apps/services/identity/Identity.Domain/ProductRole.cs
+- apps/services/identity/Identity.Domain/ScopedRoleAssignment.cs
+- apps/services/identity/Identity.Domain/UserRoleAssignment.cs
+- seed/migration/configuration files related to ProductRoles and ProductOrganizationTypeRule
+
+### control-center
+- apps/control-center/src/app/legacy-coverage/page.tsx
+- apps/control-center/src/components/platform/legacy-coverage-card.tsx
+- apps/control-center/src/lib/control-center-api.ts
+- apps/control-center/src/lib/api-mappers.ts
+- apps/control-center/src/lib/nav.ts
+- role assignment pages/components/mutations if present
+
+## Implementation guidance
+
+- focus on retirement readiness, not new platform capabilities
+- preserve backward compatibility until metrics prove cutover safety
+- use measurable gates, not assumptions
+- prefer small safe code-path upgrades over broad redesign
+- update operator-facing diagnostics/UI when it helps unblock cleanup
+
+## Final instruction
+
+Do the work now.
+Drive the platform to Phase F readiness using measurable coverage, modernize role assignment writes, and only remove legacy paths when the evidence shows it is safe.
+Then generate /analysis/step5_phase-f-prep-and-retirement.md.

@@ -1,0 +1,433 @@
+Feature ID: LS-NOTIF-SMS-021-HARDENING
+
+Title:
+Governance Release Hardening, Approval Role Enforcement, and Test Suite Alignment
+
+Objective:
+Harden the governance release-management platform with granular approval-role enforcement, release activation locking, scheduler retry/backoff resiliency, audit-integrity guarantees, release-state integrity validation, release-package validation hardening, and governance-related automated test-suite reconciliation before additional SMS governance feature expansion.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- approval-role enforcement
+- release activation locking
+- release concurrency protection
+- release-state integrity validation
+- scheduler retry/backoff behavior
+- governance audit integrity
+- release-package validation
+- governance release test coverage
+- release hardening APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance release visibility. Do not duplicate approval enforcement, locking, concurrency protection, validation, scheduler, or audit-integrity logic in Control Center.
+
+Requirements:
+- Harden LS-NOTIF-SMS-021 governance release management.
+- Preserve LS-NOTIF-SMS-017 governance policies.
+- Preserve LS-NOTIF-SMS-018 template governance.
+- Preserve LS-NOTIF-SMS-019 dynamic rules.
+- Preserve LS-NOTIF-SMS-020 versioning, rollback, import/export, and analytics.
+- Preserve LS-NOTIF-SMS-021 release-management semantics.
+- Add granular approval-role enforcement.
+- Add release activation concurrency protection.
+- Add release-state transition hardening.
+- Add scheduled activation retry/backoff behavior.
+- Add release-package validation hardening.
+- Add audit-integrity validation.
+- Reconcile governance-related test stubs/interfaces.
+- Ensure all hardening remains backward compatible.
+- Ensure all failures degrade safely.
+- Ensure delivery pipeline performance remains unaffected.
+- Do not store raw phone numbers in hardening/audit tables.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-021 behavior.
+
+Implementation Requirements:
+1. Add granular approval-role enforcement.
+2. Add release activation concurrency locking.
+3. Add release state-transition concurrency validation.
+4. Add scheduler retry/backoff handling.
+5. Add activation retry safety.
+6. Add release-package validation hardening.
+7. Add audit-integrity validation.
+8. Add release-state integrity checks.
+9. Add release-item validation hardening.
+10. Reconcile existing governance-related failing test stubs/interfaces.
+11. Add governance release integration/service tests where practical.
+12. Add Control Center hardening visibility enhancements if low-risk.
+13. Ensure delivery-time governance evaluation and release activation remain isolated.
+
+Critical Constraints:
+- Reuse existing SmsGovernanceReleasePackage, SmsGovernanceReleaseItem, SmsGovernanceApprovalRequest, SmsGovernanceApprovalDecision, SmsGovernanceReleaseAuditEvent, SmsGovernanceReleaseService, SmsGovernanceApprovalWorkflowService, SmsGovernanceReleaseActivationWorker, SmsGovernanceVersioningService, admin endpoint, EF/migration, audit/logging, worker, and Control Center release-management UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite the dynamic rule engine.
+- Do NOT replace LS-017 governance.
+- Do NOT replace LS-018 template governance.
+- Do NOT replace LS-019 dynamic rule engine.
+- Do NOT replace LS-020 versioning/rollback behavior.
+- Do NOT replace LS-021 release-management behavior.
+- Do NOT implement AI/ML approval recommendations.
+- Do NOT call external ticketing, workflow, approval, analytics, compliance, moderation, telecom, or fraud APIs.
+- Do NOT persist raw phone numbers in hardening/audit tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-021-HARDENING-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-021 approval/release findings
+3. Existing worker/scheduler findings
+4. Existing release-state transition findings
+5. Existing audit-trail findings
+6. Existing failing test findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. UI/route changes, if implemented
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Release-Management Hardening Gaps
+- Identify:
+  - current approval role enforcement behavior
+  - release state-transition validation flow
+  - activation concurrency handling
+  - worker retry behavior
+  - audit event generation
+  - current release locking behavior
+  - existing scheduler patterns
+  - current failing Notifications.Tests and CareConnect.Tests findings
+  - existing integration-test patterns
+  - existing optimistic concurrency patterns in Notifications service
+- Document findings in the report before implementation.
+
+STEP 2 — Add Granular Approval Role Enforcement
+Extend approval enforcement beyond generic PlatformAdmin.
+
+Suggested enhancements:
+- Add RequiredApproverRole validation during approval.
+- Enforce stage-specific role matching where identity/claims context supports it.
+- Add optional AllowedApproverRolesJson to approval requests if needed.
+- Add safe fallback to PlatformAdmin if granular role unavailable and configuration allows fallback.
+- Add explicit audit events for role-mismatch approval attempts.
+
+Suggested config:
+SmsGovernanceReleaseManagement:
+- EnforceApprovalRoles bool default true
+- AllowPlatformAdminApprovalFallback bool default true
+
+Requirements:
+- Approval must fail safely if role mismatch occurs and fallback is disabled.
+- Existing approvals remain backward compatible.
+- Do not hardcode tenant-specific roles.
+- Do not require new identity service changes unless existing claims already expose roles.
+- Document fallback behavior.
+
+STEP 3 — Add Release Activation Concurrency Locking
+Prevent duplicate activation races.
+
+Suggested approaches:
+- Add optimistic concurrency token to SmsGovernanceReleasePackage
+OR
+- Add activation lock fields on release package:
+  - ActivationLockId Guid? nullable
+  - ActivationLockAcquiredAt DateTime? nullable
+  - ActivationLockExpiresAt DateTime? nullable
+  - ActivationLockedBy string? nullable
+OR
+- Add transactional activation guard using existing DB transaction patterns
+
+Requirements:
+- Two concurrent activation attempts must not both succeed.
+- Scheduled worker activation and manual activation must coordinate safely.
+- Activation lock release must occur safely after success/failure.
+- Activation failure must not deadlock future activations.
+- Stale locks must expire or be safely recoverable.
+- Use existing EF/concurrency patterns if available.
+- Add safe audit event when activation lock acquisition fails.
+
+STEP 4 — Harden Release State Transitions
+Add stricter release-state integrity enforcement.
+
+Suggested validations:
+- Only draft can accept new items.
+- Only draft can remove items.
+- Only draft can submit review.
+- Only pending_review can approve/reject.
+- Only approved can activate/schedule.
+- Scheduled can activate when due or be archived.
+- Archived/superseded immutable.
+- Rejected cannot activate.
+- Active release cannot return to draft.
+- Approval stages cannot skip order.
+- Scheduled activation date must be future.
+
+Requirements:
+- Return safe validation errors.
+- Add audit events for invalid transition attempts where useful.
+- Preserve backward compatibility where possible.
+- Keep state validation centralized in release service.
+
+STEP 5 — Add Scheduler Retry/Backoff Protection
+Harden SmsGovernanceReleaseActivationWorker.
+
+Suggested behavior:
+- Exponential or bounded linear backoff for repeated activation failures.
+- Max retries before terminal activation_failed state.
+- Retry metadata persisted safely if needed.
+
+Suggested fields on SmsGovernanceReleasePackage if needed:
+- ActivationAttemptCount int
+- LastActivationAttemptAt DateTime? nullable
+- NextActivationRetryAt DateTime? nullable
+- LastActivationFailureReason string? nullable
+
+Suggested config additions:
+SmsGovernanceReleaseManagement:
+- ActivationRetryLimit int default 3
+- ActivationRetryBackoffMinutes int default 10
+- ScheduledActivationBatchSize int default 10
+
+Requirements:
+- Worker failures must not crash the application.
+- Retry behavior must be deterministic.
+- Failed activation attempts must be auditable.
+- No external queues required.
+- No delivery pipeline impact.
+
+STEP 6 — Add Audit Integrity Validation
+Strengthen governance audit defensibility.
+
+Suggested service:
+ISmsGovernanceReleaseIntegrityService
+
+Suggested methods:
+- ValidateReleaseIntegrityAsync(Guid releaseId, CancellationToken ct)
+- ValidateAuditTrailAsync(Guid releaseId, CancellationToken ct)
+
+Suggested checks:
+- Every release state transition has an audit event.
+- Every approval/rejection has an audit event.
+- Every activation attempt has an audit event.
+- Every activation failure has an audit event.
+- Audit timeline ordering is consistent.
+- Release final state aligns with audit history.
+
+Requirements:
+- No mutable audit history.
+- No destructive audit cleanup.
+- No secrets/raw payloads in audit metadata.
+- Integrity validation is read-only.
+- Validation failures are reported, not auto-mutated.
+
+STEP 7 — Harden Release-Item Validation
+Add stronger release-package validation.
+
+Suggested validations:
+- Duplicate release items prevented.
+- Invalid entity references rejected.
+- Cross-tenant entity references rejected.
+- Invalid entity-version references rejected.
+- MaxReleaseItems enforced consistently.
+- Unsupported EntityType/ActionType combinations rejected.
+- Release item EntitySnapshotJson must be safe and bounded.
+
+Requirements:
+- Validation occurs before persistence.
+- Bulk invalid operations rejected safely.
+- Existing APIs remain backward compatible.
+- No raw content or secrets in validation responses.
+
+STEP 8 — Add Hardening APIs
+Add read-only/admin hardening endpoints where useful.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/releases/{id}/validation
+- GET /v1/admin/sms/governance/releases/{id}/integrity
+- GET /v1/admin/sms/governance/releases/{id}/locks
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Return safe DTOs only.
+- No raw phones, message bodies, credentials, webhook URLs, or provider payloads.
+- Endpoints are read-only.
+
+STEP 9 — Reconcile Existing Test Failures
+Address pre-existing governance-related test failures.
+
+Known issues from LS-NOTIF-SMS-021 report:
+- Notifications.Tests StubNotificationAttemptRepository missing:
+  - GetStaleSmsAttemptsAsync
+  - UpdateReconciliationTrackingAsync
+  - UpdateCostAsync
+- CareConnect.Tests constructor stub mismatches from prior feature evolution
+
+Requirements:
+- Reconcile stubs/interfaces safely.
+- Do not rewrite unrelated tests.
+- Restore governance-related build stability where practical.
+- Document remaining unrelated failures if encountered.
+- Prefer minimal changes that align test doubles with current interfaces.
+
+STEP 10 — Add Governance Release Tests Where Practical
+Add low-risk tests.
+
+Suggested coverage:
+- release state transitions
+- approval workflow ordering
+- approval role enforcement
+- activation concurrency protection
+- invalid activation rejection
+- release-item validation
+- audit-event generation
+- scheduled activation retry/backoff
+- activation failure isolation
+
+Requirements:
+- Avoid brittle timing-dependent tests.
+- Prefer deterministic service-level tests.
+- Avoid heavy infrastructure dependencies if current test framework is not ready.
+- If full integration tests are too risky, add targeted unit/service tests and document gaps.
+
+STEP 11 — Optional Control Center Hardening Enhancements
+If low-risk, enhance release UI to show:
+- approval-role requirements
+- activation retry status
+- activation-failure reason
+- lock/concurrency status
+- integrity/validation status
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- No secrets/raw payloads.
+- No duplicate business logic.
+- If too large, document as next task.
+
+STEP 12 — Documentation
+Update documentation/report notes for:
+- approval role enforcement
+- fallback role behavior
+- activation concurrency guarantees
+- lock expiry behavior
+- activation retry/backoff semantics
+- release-state integrity rules
+- audit integrity checks
+- test-suite reconciliation
+- worker retry semantics
+- Control Center hardening additions if implemented
+
+Documentation must explain:
+- approval-role fallback behavior.
+- activation concurrency guarantees.
+- retry behavior and limits.
+- audit events remain append-only.
+- no external orchestration systems are used.
+- hardening does not alter delivery pipeline behavior.
+
+STEP 13 — Validation
+Perform validation/testing for:
+
+Approval roles:
+- matching role can approve.
+- non-matching role rejected when fallback disabled.
+- PlatformAdmin fallback works when enabled.
+- approval audit events generated.
+- role-mismatch attempts audited.
+
+Concurrency:
+- concurrent activation attempts safe.
+- worker/manual activation collision safe.
+- lock released after success.
+- lock released or expires after failure.
+- no duplicate activation occurs.
+
+Release-state integrity:
+- invalid transitions rejected.
+- valid transitions succeed.
+- immutable states enforced.
+- scheduled validation works.
+- item add/remove restricted to draft.
+
+Scheduler:
+- retry occurs after failure.
+- retry limit enforced.
+- activation_failed terminal state works.
+- worker survives activation exceptions.
+- batch size respected.
+
+Audit:
+- all valid transitions audited.
+- invalid transition attempts audited where implemented.
+- all approvals audited.
+- all activations audited.
+- ordering preserved.
+- integrity endpoint reports correctly.
+
+Release-item validation:
+- duplicates rejected.
+- invalid entity refs rejected.
+- cross-tenant refs rejected.
+- max item limit enforced.
+- unsupported entity/action combinations rejected.
+
+Tests:
+- Notifications.Tests governance stubs compile.
+- CareConnect.Tests constructor stub issues resolved where practical.
+- governance-related tests pass where practical.
+- unrelated legacy failures documented only if still present.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-021 behavior preserved.
+- dynamic rule evaluation unchanged.
+- template governance unchanged.
+- release-management behavior unchanged except hardening.
+- delivery pipeline unchanged.
+
+Security:
+- no raw phones stored.
+- no message bodies stored.
+- no credentials exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Hardened approval-role enforcement
+- Activation concurrency protection
+- Scheduler retry/backoff logic
+- Hardened release-state validation
+- Hardened release-item validation
+- Audit-integrity validation service/API
+- Lock/validation/integrity read APIs where useful
+- Governance-related test reconciliation
+- Optional Control Center hardening indicators
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist raw message content
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external ticketing/workflow systems
+- Call external compliance/moderation APIs
+- Implement AI/ML approval recommendations
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Replace LS-019 dynamic rule engine
+- Replace LS-020 versioning/rollback behavior
+- Replace LS-021 release-management behavior
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-021 behavior

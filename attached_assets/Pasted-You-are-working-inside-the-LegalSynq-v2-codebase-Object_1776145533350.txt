@@ -1,0 +1,348 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the first real Liens HTTP APIs for Lien so the `liens` service can expose database-backed lien operations through the existing v2 gateway, authorization model, and application-service architecture.
+
+This feature should replace stub behavior with real lien endpoints backed by the current repository/application architecture.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Keep authorization in the API/filter layer
+- Keep business logic in the application layer
+- Keep persistence logic in repositories
+- Do NOT introduce cross-service DB joins
+- Do NOT trust client-supplied tenant/org identifiers when request context already provides them
+- Do NOT allow direct mutation of ownership / sale-finalization fields that belong to offer/BOS workflows
+
+--------------------------------------------------
+STEP 1 — INSPECT CURRENT LIENS API + APPLICATION PATTERNS
+--------------------------------------------------
+
+Inspect the current Liens API and the Case API implementation from LS-LIENS-06-001.
+
+Look at:
+- endpoint structure and grouping
+- DTO placement
+- application service interface/implementation style
+- request context usage
+- auth filter usage
+- response shapes
+- pagination pattern
+- error handling pattern
+
+Follow the established Liens pattern from Case APIs as closely as possible.
+Do NOT invent a different API style for Lien.
+
+--------------------------------------------------
+STEP 2 — IMPLEMENT LIEN DTOs
+--------------------------------------------------
+
+Create request/response DTOs for Lien operations.
+
+At minimum support:
+
+### Response DTO
+Fields should cover practical lien UI needs such as:
+- `id`
+- `lienNumber`
+- `externalReference`
+- `lienType`
+- `status`
+- `caseId`
+- `facilityId`
+- `originalAmount`
+- `currentBalance`
+- `offerPrice`
+- `purchasePrice`
+- `payoffAmount`
+- `jurisdiction`
+- `isConfidential`
+- `subjectFirstName`
+- `subjectLastName`
+- `subjectDisplayName` (if useful)
+- `orgId`
+- `sellingOrgId`
+- `buyingOrgId`
+- `holdingOrgId`
+- `incidentDate`
+- `description`
+- `openedAtUtc`
+- `closedAtUtc`
+- `createdAtUtc`
+- `updatedAtUtc`
+
+### List/Search response
+Use the existing paginated result pattern already established in Case APIs.
+
+### Create request DTO
+Include only client-supplied creation fields, such as:
+- `lienNumber`
+- `externalReference`
+- `lienType`
+- `caseId`
+- `facilityId`
+- `originalAmount`
+- `offerPrice`
+- `jurisdiction`
+- `isConfidential`
+- `subjectFirstName`
+- `subjectLastName`
+- `incidentDate`
+- `description`
+
+Do NOT allow caller-supplied:
+- `TenantId`
+- `OrgId`
+- `SellingOrgId`
+- `BuyingOrgId`
+- `HoldingOrgId`
+- audit fields
+- workflow-owned status if domain should initialize it
+
+### Update request DTO
+Include only mutable fields that are safe outside sale workflows.
+
+Likely allowed:
+- `externalReference`
+- `lienType` (only if still appropriate)
+- `caseId`
+- `facilityId`
+- `originalAmount`
+- `offerPrice`
+- `jurisdiction`
+- `isConfidential`
+- `subjectFirstName`
+- `subjectLastName`
+- `incidentDate`
+- `description`
+
+Do NOT allow direct mutation of:
+- `purchasePrice`
+- `payoffAmount`
+- `buyingOrgId`
+- `holdingOrgId`
+- sold/settled workflow fields that belong to offer/BOS/finalization flows
+
+--------------------------------------------------
+STEP 3 — ADD APPLICATION SERVICE OR HANDLER FOR LIEN OPERATIONS
+--------------------------------------------------
+
+Implement the application-layer orchestration needed for:
+
+- list/search liens
+- get lien by id
+- get lien by lien number
+- create lien
+- update lien
+
+Use the existing repository layer:
+- `ILienRepository`
+- related repositories only if actually needed, such as:
+  - `ICaseRepository` for validating supplied `caseId`
+  - `IFacilityRepository` for validating supplied `facilityId`
+
+Keep endpoint handlers thin.
+Do NOT put repository orchestration directly in endpoint methods if the Case API pattern uses application services.
+
+Expected behaviors:
+- tenant-scoped access
+- org-aware creation ownership using request context
+- duplicate check by lien number
+- validation of linked case/facility if supplied
+- domain-safe create/update logic
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT REAL LIEN ENDPOINTS
+--------------------------------------------------
+
+Add/replace the Liens Lien endpoints so they expose real database-backed behavior.
+
+Expected external routes:
+- `GET /api/liens/liens`
+- `GET /api/liens/liens/{id}`
+- `GET /api/liens/liens/by-number/{lienNumber}`
+- `POST /api/liens/liens`
+- `PUT /api/liens/liens/{id}`
+
+For list/search, support query parameters such as:
+- `search`
+- `status`
+- `lienType`
+- `caseId`
+- `facilityId`
+- `page`
+- `pageSize`
+
+If the current Liens endpoint style supports additional view-oriented routes cleanly, you may also expose:
+- `GET /api/liens/liens/my`
+- `GET /api/liens/liens/portfolio`
+- `GET /api/liens/liens/marketplace`
+
+BUT only if this aligns with the current pattern cleanly.
+Otherwise, keep one flexible list endpoint and document how it supports those views.
+
+--------------------------------------------------
+STEP 5 — APPLY AUTHORIZATION USING EXISTING FILTERS
+--------------------------------------------------
+
+Protect the endpoints using the existing auth model:
+- `RequireProductAccess`
+- `RequirePermission`
+
+Do NOT invent a new auth mechanism.
+
+Use the closest correct current Liens permissions.
+If the permission catalog does not yet include perfect lien-specific granularity for every action, use the closest aligned current permissions and document the gap in the report.
+
+Do NOT replace permission enforcement with capability checks.
+Capabilities may inform future application behavior, but permissions remain the API enforcement layer.
+
+--------------------------------------------------
+STEP 6 — USE REQUEST CONTEXT CORRECTLY
+--------------------------------------------------
+
+Use `ICurrentRequestContext` (or the current platform equivalent) to get:
+- tenant id
+- acting user id
+- org id
+
+Do NOT trust client-supplied:
+- tenant id
+- acting user id
+- org id / seller org ownership
+
+For create:
+- derive tenant and org ownership from request context
+- set audit/user ownership context from authenticated user
+
+For update:
+- enforce tenant-scoped loading
+- do not permit cross-tenant mutation
+
+--------------------------------------------------
+STEP 7 — SUPPORT CORE LIEN VIEWS WITHOUT CROSS-SERVICE ENRICHMENT
+--------------------------------------------------
+
+The implementation should support the future UI needs for:
+- general lien list
+- my liens
+- portfolio
+- marketplace
+
+But do NOT join to Identity or Documents to enrich names or related external metadata.
+
+Return Liens-owned fields and scalar references only:
+- `sellingOrgId`
+- `buyingOrgId`
+- `holdingOrgId`
+- `caseId`
+- `facilityId`
+
+Cross-service enrichment belongs in later API composition or frontend layers.
+
+--------------------------------------------------
+STEP 8 — KEEP API / APP / PERSISTENCE BOUNDARIES CLEAN
+--------------------------------------------------
+
+Do NOT:
+- return EF entities directly
+- put domain/repository orchestration inline in endpoint handlers if the Case pattern favors services
+- join to Identity/Documents/Audit tables
+- add unrelated Offer or BOS endpoints in this feature
+- expose sale finalization through the update endpoint
+
+This feature is only for Lien APIs.
+
+--------------------------------------------------
+STEP 9 — VALIDATE REAL EXECUTION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. endpoints compile and resolve
+4. list/search returns expected DTO shape
+5. get-by-id works
+6. get-by-lien-number works
+7. create persists correctly
+8. update persists correctly
+9. auth filters remain applied
+10. no regression to gateway behavior
+11. list/search supports intended filters
+
+If you add a lightweight validation path or temporary smoke-test support, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 10 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add LienOffer APIs
+- add BillOfSale APIs
+- add sale finalization endpoint exposure
+- add ServicingTask APIs
+- add CaseNote APIs
+- add cross-service enrichment for org/user/document names
+- add audit/notifications/documents integration
+- add frontend work
+- add ETL scripts
+
+This feature is only:
+- Lien DTOs
+- Lien application logic
+- Lien endpoints
+- validation
+
+--------------------------------------------------
+STEP 11 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-06-002-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing Liens/v2 API pattern identified and followed
+3. Exact files created/changed
+4. DTOs added
+5. Application services/handlers added
+6. Endpoint list and routes
+7. Repository interactions
+8. Authorization approach used
+9. Request-context usage
+10. Donor API compatibility notes
+11. How marketplace / portfolio / my-liens query needs are supported
+12. Validation performed
+13. Confirmation:
+    - no EF entities returned directly
+    - no cross-service joins introduced
+    - no unrelated APIs added
+14. Build results:
+    - Liens
+    - relevant solution/workspace
+15. Any permission-model gaps or deferred items
+16. Risks / assumptions
+17. Final readiness statement:
+    - Are real Lien APIs established?
+    - Is the system ready for LienOffer APIs next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Expose the core production-ready Liens API surface by implementing authorized, database-backed Lien APIs that fit the current v2 architecture cleanly and preserve donor behavior as much as practical.
+
+Proceed.

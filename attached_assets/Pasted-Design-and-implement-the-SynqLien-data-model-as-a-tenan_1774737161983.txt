@@ -1,0 +1,113 @@
+Design and implement the SynqLien data model as a tenant-aware, multi-organization workflow.
+
+Use the existing platform foundation:
+
+- Tenant = subdomain/account boundary
+- Organization = business actor
+- Users are separate from Parties
+- JWT provides:
+  - tenant_id
+  - org_id
+  - org_type
+  - product_roles
+
+Use the standardized product role vocabulary:
+- PROVIDER -> SYNQLIEN_SELLER
+- LIEN_OWNER -> SYNQLIEN_BUYER
+- LIEN_OWNER -> SYNQLIEN_HOLDER
+
+Core business rules:
+
+- Provider creates and offers liens for sale
+- Lien owner browses, reviews, and purchases liens
+- Purchased liens may later be held/serviced by the lien owner
+- Workflow may cross tenants
+- Access must be organization-based, not tenant-based
+- If a lien is tied to a person/case, the design may reference SubjectPartyId
+
+Generate the output in these exact sections:
+
+1. Lien Core Schema
+Design the main Liens table with:
+- SellingOrganizationId
+- BuyingOrganizationId (nullable until purchased)
+- HoldingOrganizationId (nullable until purchased/assigned)
+- SubjectPartyId (nullable if the lien relates to a person/case)
+- TenantId (partitioning only)
+- lien financial fields
+- status fields
+
+Explain why TenantId is NOT the access boundary.
+
+2. Lien Status Model
+Define lifecycle such as:
+- Draft
+- Offered
+- UnderReview
+- Purchased
+- Active
+- Settled
+- Cancelled
+Explain transitions and who can perform them.
+
+3. Supporting Tables
+Design:
+- LienStatusHistories
+- LienDocuments
+- LienOffers or LienPurchaseEvents
+- LienSettlementEvents (if appropriate)
+
+Explain the purpose of each.
+
+4. Party Integration
+- explain when SubjectPartyId is needed
+- explain how liens relate to party/case context
+- define whether party is only informational or part of access rules
+
+5. EF Core Design
+- entity classes
+- relationships
+- navigation properties
+
+6. Migration Plan
+- refactor from a tenant-owned lien model to a multi-org actor model
+- add new org columns
+- keep backward compatibility
+
+7. Authorization Rules
+Define:
+
+- provider seller:
+  - create lien
+  - offer lien
+  - view own liens
+- lien owner buyer:
+  - browse offered liens
+  - purchase lien
+  - view purchased liens
+- lien holder:
+  - service/manage held liens
+  - settle liens
+
+Include endpoint-level logic examples using:
+- org_id
+- org_type
+- product_roles
+
+8. Cross-Tenant Access Model
+- explain how provider (Tenant A) and lien owner (Tenant B) interact
+- define query patterns
+- explicitly avoid TenantId-based access filtering
+
+9. Purchase and Settlement Lifecycle
+- define purchase event creation
+- define holder assignment
+- define settlement lifecycle and constraints
+
+10. Risks and Edge Cases
+Cover:
+- duplicate lien offers
+- same lien offered to multiple buyers
+- reassignment of holder
+- settlement after purchase
+- subject party mismatch

@@ -1,0 +1,294 @@
+Project: E12.1
+Title: Notification Templates and Notification Contract Standardization
+
+You are implementing a parallel-safe platform enhancement for Flow and related LegalSynq surfaces.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E12.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current notification adapter behavior, available notification channels, payload conventions, template ownership, and any existing notification schemas already in use.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - notification contract changes
+   - template model changes
+   - channel support assumptions
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for task/SLA notifications or needs iteration
+
+REPORT FORMAT
+
+# E12.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Notification Contract Notes
+## Template Model Notes
+## Channel / Delivery Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Standardize the notification contract and introduce a reusable notification template model so future workflow, task, SLA, and admin notifications can be emitted consistently across the platform without each feature inventing its own payload shape.
+
+This phase is foundational. It should define structure and compatibility, not deliver the full notification experience.
+
+SCOPE INCLUDES
+
+- canonical notification contract
+- template model / template registry approach
+- event-to-template mapping guidance
+- channel-neutral payload structure
+- safe integration with existing notification adapter patterns
+- documentation/reporting
+
+DO NOT BUILD
+
+- full notification UI
+- user notification preferences
+- full recipient resolution engine
+- notification inbox
+- broad notifications-service redesign
+- workflow/task business logic changes
+- tenant portal changes
+- email HTML design system unless already trivial and safe
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep this phase compatible with the existing notification adapter path
+- create a standardized, extensible notification payload contract
+- define templates in a way future workflow/task/SLA/admin events can reuse
+- avoid coupling templates to one product only
+- keep the implementation parallel-safe and low-conflict with core workflow work
+- avoid changing workflow execution behavior
+
+CURRENT CONTEXT
+
+Already completed:
+- workflow engine
+- admin actions
+- outbox + async processing
+- SLA / timer engine
+- task entity and lifecycle work in progress
+- timeline / audit observability work
+
+This E12.1 phase should prepare the notification layer so future phases can plug in:
+- task assignment notifications
+- task completion notifications
+- SLA due-soon / overdue alerts
+- admin intervention notifications
+- workflow completion notifications
+
+IMPLEMENTATION REQUIREMENTS
+
+1. CANONICAL NOTIFICATION CONTRACT
+
+Define a standard notification payload contract.
+
+The contract should support at minimum:
+
+- notificationType or templateKey
+- tenantId
+- productKey (nullable if cross-platform)
+- entityType
+- entityId
+- recipient model
+- title / subject
+- body or body variables
+- severity / category if useful
+- correlationId / outboxId if available
+- metadata bag
+- channel hints
+
+Requirements:
+- contract must be stable and extensible
+- must support current and future channels
+- must not force every caller to build ad hoc payloads
+- preserve compatibility with the current notification adapter path where feasible
+
+2. TEMPLATE MODEL
+
+Introduce a template model or registry approach.
+
+At minimum support:
+- template key
+- human-readable name
+- channel applicability (email / in-app / sms placeholder if needed)
+- subject template
+- body template or body token structure
+- token/variable definitions
+- optional severity/category
+- active/enabled flag if useful and low-risk
+
+Requirements:
+- templates must be reusable across products
+- template keys should be deterministic and stable
+- do not hardcode product-specific phrasing unless the template is intentionally product-specific
+- prefer tokenized content over many one-off strings
+
+Example future template keys:
+- workflow.completed
+- workflow.admin.retry
+- workflow.sla.dueSoon
+- workflow.sla.overdue
+- task.assigned
+- task.completed
+
+3. TEMPLATE RENDERING STRATEGY
+
+Define how templates are rendered.
+
+Requirements:
+- support token replacement safely
+- document the variable model
+- if a rendering engine already exists, reuse it
+- if not, implement only the minimum safe templating approach needed
+- avoid introducing a large dependency unless already standard and clearly justified
+
+Rules:
+- rendering must be deterministic
+- missing required tokens should be handled explicitly and safely
+- avoid silent malformed notifications
+
+4. RECIPIENT MODEL
+
+Define a canonical recipient structure.
+
+At minimum support:
+- userId
+- email (nullable if userId exists)
+- role (future use)
+- orgId (future use)
+
+Requirements:
+- this phase does not need full recipient resolution logic
+- but the contract must support future:
+  - direct user notifications
+  - role-based notifications
+  - escalation targets
+- document which recipient modes are supported now vs later
+
+5. CHANNEL MODEL
+
+Define supported or future channels.
+
+At minimum:
+- email
+- in-app placeholder
+
+Optional placeholder:
+- sms / webhook / push
+
+Requirements:
+- do not fully implement every channel
+- but ensure the contract and template model do not assume only email
+- document channel assumptions clearly
+
+6. EVENT-TO-TEMPLATE MAPPING
+
+Create a documented mapping approach between workflow/task/SLA/admin events and template keys.
+
+Requirements:
+- define how an event chooses a template
+- support at minimum these future producers:
+  - workflow lifecycle events
+  - admin actions
+  - SLA transitions
+  - task events
+- document naming rules and mapping examples
+- avoid hardcoding event-specific formatting logic all over the codebase
+
+7. ADAPTER COMPATIBILITY
+
+Requirements:
+- preserve compatibility with the existing notification adapter seam
+- if adapter DTOs need extension, do so carefully and document it
+- avoid breaking existing notification sends
+- if you introduce a new internal DTO separate from adapter DTO, document the translation layer clearly
+
+8. VALIDATION / SAFETY
+
+Requirements:
+- validate required template fields
+- validate required tokens when rendering
+- avoid sending malformed notifications
+- ensure unknown template keys fail safely and clearly
+- ensure this phase does not break current notification-related flows
+
+9. NON-INTERFERENCE
+
+You MUST confirm:
+- workflow engine unchanged
+- outbox unchanged except optional contract-friendly shape improvements
+- SLA engine unchanged
+- task model/lifecycle unchanged
+- audit/timeline unchanged
+- admin action behavior unchanged
+
+10. DOCUMENTATION
+
+Document:
+- canonical notification contract
+- template model
+- rendering/token rules
+- recipient structure
+- channel assumptions
+- event-to-template mapping
+- what E12.2 and later phases should build next
+
+VALIDATION REQUIREMENTS
+
+Contract:
+- contract shape defined and implemented where needed
+- future event producers can target it consistently
+
+Templates:
+- template keys and structures exist
+- rendering strategy is documented or implemented minimally
+- validation for missing tokens/unknown templates is safe
+
+Compatibility:
+- existing notification adapter integration still builds
+- no existing notification flow regresses
+
+Build / Runtime:
+- backend builds cleanly
+- any touched notification paths run without startup/runtime errors
+
+Documentation:
+- template and contract rules clearly documented
+- future task/SLA/admin notification phases can build on this without redesign
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E12.1-report.md
+2. Inspect current notification adapter/contracts and identify the minimal safe extension point
+3. Define the canonical notification contract
+4. Define the template model / registry approach
+5. Add any minimal rendering/token support needed
+6. Add adapter translation compatibility if required
+7. Validate build/runtime compatibility
+8. Finalize report
+
+SUCCESS CONDITION
+
+- the platform has a standardized notification contract
+- reusable template definitions exist or are clearly modeled
+- current and future workflow/task/SLA/admin events can map to templates consistently
+- existing notification adapter behavior is preserved
+- no core workflow behavior is impacted
+
+FAILURE CONDITION
+
+- the design is product-specific and not reusable
+- template/contract rules are vague or inconsistent
+- existing notification paths are broken
+- implementation couples notifications tightly to one workflow feature
+- core platform behavior regresses

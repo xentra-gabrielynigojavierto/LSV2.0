@@ -1,0 +1,406 @@
+# LS-COR-AUT-011C — Distributed Resilience + Performance Optimization
+
+## Objective
+
+Enhance the distributed policy engine (LS-COR-AUT-011B) with **resilience, consistency under failure, and high-load performance optimizations**.
+
+This feature addresses:
+
+* version fallback divergence (critical fix)
+* cache stampede protection
+* distributed metrics export
+* cache memory control
+* optional tenant-scoped versioning evolution
+
+At completion, the system must be:
+
+* resilient under infrastructure failure
+* stable under high concurrency
+* consistent across nodes even in degraded modes
+* observable at platform level (not just instance level)
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-COR-AUT-011C-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* Feature is **incomplete without the report**
+* Must be generated automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Consistency Over Availability (for versioning)
+
+* prevent divergence between nodes
+* avoid independent version mutation during failures
+
+### Graceful Degradation
+
+* system must continue operating safely during:
+
+  * Redis outage
+  * cache failure
+  * version provider failure
+
+### Performance Under Load
+
+* prevent thundering herd (cache stampede)
+* reduce duplicate evaluations
+
+---
+
+## In Scope
+
+---
+
+## 1. Version Fallback Strategy (CRITICAL FIX)
+
+### Problem
+
+Current fallback:
+
+```text
+Redis failure → local Interlocked counter
+```
+
+This causes:
+
+* cross-node divergence
+* inconsistent authorization decisions
+
+---
+
+### Required Fix
+
+Replace fallback behavior:
+
+#### Option A (RECOMMENDED — Freeze Mode)
+
+* On Redis failure:
+
+  * **DO NOT increment locally**
+  * continue using last known version
+  * disable cache writes
+  * allow reads (best effort)
+
+#### Option B (Strict Mode)
+
+* disable caching entirely when version provider unavailable
+
+---
+
+### Required Behavior
+
+* version must never diverge across nodes
+* degraded mode must be explicitly logged
+
+---
+
+### Logging
+
+```text
+PolicyVersionFallbackMode: Freeze | DisabledCache
+```
+
+---
+
+## 2. Cache Stampede Protection
+
+### Problem
+
+On version change:
+
+* all nodes miss cache
+* multiple identical evaluations executed
+
+---
+
+### Required Implementation
+
+Introduce **per-key request coalescing**
+
+### Pattern
+
+```text
+cache key → lock → single evaluation → shared result
+```
+
+---
+
+### Implementation Options
+
+* `ConcurrentDictionary<string, SemaphoreSlim>`
+* async locking per cache key
+
+---
+
+### Requirements
+
+* only one evaluation per key at a time
+* other requests await result
+* no deadlocks
+* lock cleanup after use
+
+---
+
+## 3. Tenant-Scoped Versioning (Optional but Designed)
+
+### Problem
+
+Global version invalidates all tenants.
+
+---
+
+### Enhancement
+
+Support:
+
+```text
+policy:{tenantId}:version
+```
+
+---
+
+### Required
+
+* abstraction must support both:
+
+  * global version
+  * tenant-scoped version
+
+---
+
+### Config
+
+```json
+{
+  "PolicyVersioning": {
+    "Scope": "Global | Tenant"
+  }
+}
+```
+
+---
+
+### Default
+
+* Global (preserve current behavior)
+
+---
+
+## 4. Distributed Metrics Export
+
+### Problem
+
+Metrics are per-instance only.
+
+---
+
+### Required Implementation
+
+Expose metrics via:
+
+#### Option A (Preferred)
+
+* OpenTelemetry metrics
+
+#### Option B
+
+* Prometheus endpoint
+
+---
+
+### Required Metrics
+
+* evaluation latency
+* cache hit rate
+* version read latency
+* cache errors
+* throughput
+
+---
+
+### Output
+
+* metrics endpoint OR exporter
+* documented in report
+
+---
+
+## 5. Cache Memory Controls
+
+### Problem
+
+Versioned keys accumulate until TTL expiry.
+
+---
+
+### Required Controls
+
+* configurable key prefix:
+
+```text
+policy:{env}:{...}
+```
+
+* TTL enforcement (already exists)
+
+* optional:
+
+  * max memory policy (Redis config)
+  * key eviction strategy (documented)
+
+---
+
+### Requirement
+
+* no unbounded memory growth risk
+* behavior documented
+
+---
+
+## 6. Improved Resource Hashing (Stability Hardening)
+
+### Add:
+
+* explicit serialization contract
+* test for edge cases:
+
+  * nested objects
+  * arrays
+  * null vs empty
+
+---
+
+### Optional
+
+* hash versioning:
+
+```text
+hash:v1:{computed}
+```
+
+---
+
+## 7. Failure Mode Enhancements
+
+### Must explicitly handle:
+
+| Failure                 | Behavior                        |
+| ----------------------- | ------------------------------- |
+| Redis down              | freeze version OR disable cache |
+| cache read error        | compute                         |
+| cache write error       | ignore                          |
+| version read error      | fallback to last known          |
+| version increment error | retry or log                    |
+
+---
+
+### Requirement
+
+* all failure paths must be:
+
+  * logged
+  * deterministic
+  * safe
+
+---
+
+## 8. Concurrency & Load Testing
+
+### Required Scenarios
+
+* 1000 concurrent requests same key
+* policy change under load
+* Redis unavailable during traffic
+* cache warm vs cold
+
+---
+
+### Validate
+
+* no duplicate evaluations explosion
+* consistent decisions
+* no deadlocks
+
+---
+
+## Testing Requirements
+
+### Unit Tests
+
+* fallback mode behavior
+* lock mechanism correctness
+* tenant/global version switching
+
+### Integration Tests
+
+* stampede prevention
+* multi-node consistency (simulated)
+* failure scenarios
+
+### Performance Tests
+
+* high concurrency
+* latency improvements with coalescing
+
+### Security Tests
+
+* no access granted due to failure
+* no stale privilege escalation
+
+---
+
+## Acceptance Criteria
+
+* version fallback no longer diverges
+* cache stampede prevented
+* tenant/global versioning supported
+* metrics exported
+* memory behavior controlled
+* failure modes deterministic
+* system builds cleanly
+* tests pass
+
+---
+
+## Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-COR-AUT-011C-report.md` MUST include:
+
+1. version fallback strategy implemented
+2. cache stampede protection design
+3. tenant vs global versioning approach
+4. distributed metrics implementation
+5. memory control strategy
+6. failure mode behavior
+7. concurrency test results
+8. performance benchmarks
+9. test results
+10. build status
+11. known limitations
+12. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+* resilient under Redis failure
+* stable under high concurrency
+* no cross-node inconsistency
+* observable at distributed level
+* optimized for enterprise-scale load

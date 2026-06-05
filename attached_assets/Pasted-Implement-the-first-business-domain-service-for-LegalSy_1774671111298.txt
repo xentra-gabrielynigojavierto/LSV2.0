@@ -1,0 +1,92 @@
+Implement the first business domain service for LegalSynq: Fund.
+
+Context:
+- Gateway is working
+- Identity is working
+- JWT issuance and Gateway JWT validation are working
+- MySQL on AWS RDS is already being used
+- Monorepo structure already exists
+
+Goal:
+Create Fund as the first protected business service behind Gateway, with a clean .NET 8 + EF Core + MySQL foundation.
+
+Requirements
+
+1. Create the standard Fund service structure:
+- apps/services/fund/Fund.Api
+- apps/services/fund/Fund.Application
+- apps/services/fund/Fund.Domain
+- apps/services/fund/Fund.Infrastructure
+
+2. Add required project references following the same clean architecture pattern used in Identity
+
+3. Add EF Core + Pomelo MySQL packages where needed
+
+4. Implement FundDbContext
+
+5. Create the first Fund entity: Application
+
+Application fields:
+- Id : Guid
+- TenantId : Guid
+- ApplicationNumber : string
+- ApplicantFirstName : string
+- ApplicantLastName : string
+- Email : string
+- Phone : string
+- Status : string
+- CreatedByUserId : Guid
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+6. Map Application with Fluent API
+Table name:
+- Applications
+
+Indexes:
+- unique on (TenantId, ApplicationNumber)
+- index on (TenantId, Status)
+- index on (TenantId, CreatedAtUtc)
+
+7. Add appsettings and MySQL connection string configuration:
+- ConnectionStrings:FundDb
+
+8. Add initial migration:
+- InitialFundSchema
+
+9. Add minimal endpoints:
+- GET /health
+- GET /info
+- GET /api/applications
+- GET /api/applications/{id}
+- POST /api/applications
+
+10. For now, extract TenantId and UserId from JWT claims in the API layer and use them when creating/querying applications
+
+11. POST /api/applications should:
+- require authenticated user
+- create tenant-scoped application
+- auto-generate a simple ApplicationNumber
+- default Status to "New"
+
+12. GET endpoints should only return applications for the tenant in the JWT
+
+13. Add DTOs:
+- CreateApplicationRequest
+- ApplicationResponse
+
+14. Do not add yet:
+- complex workflow
+- underwriting
+- contracts
+- payments
+- documents
+- notifications
+
+15. Keep implementation minimal, clean, and production-minded
+
+16. Output:
+- files created/updated
+- package commands used
+- migration commands
+- sample curl requests

@@ -1,0 +1,441 @@
+Project: E19
+Title: Analytics & Reporting Layer — SLA, Queue, Workflow, Assignment, and Operations Analytics
+
+You are implementing the analytics and reporting layer for the LegalSynq workflow/task orchestration platform.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E19-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around metric source-of-truth, time-window semantics, tenant/platform visibility boundaries, recommendation analytics limits, and any gaps caused by historical data completeness.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - analytics read model changes
+   - API changes
+   - dashboard/UI changes
+   - metric definitions
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for identity integration / productization / optimization phase or needs iteration
+
+REPORT FORMAT
+
+# E19 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Analytics Read Model Notes
+## SLA Analytics Notes
+## Queue / Workload Analytics Notes
+## Workflow Throughput Analytics Notes
+## Assignment / Intelligence Analytics Notes
+## Operations / Outbox Analytics Notes
+## API Notes
+## Tenant Admin Dashboard Notes
+## Platform Admin Dashboard Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Turn the platform’s existing operational signals into a decision-support analytics layer so tenant and platform operators can measure workflow health, SLA performance, queue backlog, assignment behavior, and async reliability, and move from “the system runs work” to “the system helps improve work.”
+
+This phase must be read-only, derived, explainable, and operationally useful. It must not become a separate write system or an overbuilt BI platform.
+
+SCOPE INCLUDES
+
+- analytics read models / query services
+- reporting APIs
+- summary cards, tables, and lightweight charts
+- tenant-scoped and platform-scoped metrics
+- SLA analytics
+- queue / workload analytics
+- workflow throughput analytics
+- assignment / intelligence analytics
+- operations / outbox analytics
+- tenant admin reporting UI
+- platform admin reporting UI
+- documentation/reporting
+
+DO NOT BUILD
+
+- machine learning or predictive analytics
+- warehouse/lakehouse architecture
+- ad hoc report builder
+- scheduled PDF reports
+- external BI platform rollout
+- broad UI redesign
+- full data export platform
+- new event storage systems
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use existing trusted platform sources (tasks, workflows, audit/timeline, outbox, SLA fields)
+- keep analytics read-only
+- make metric definitions explicit and documented
+- preserve tenant isolation and admin visibility boundaries
+- avoid fabricating historical metrics that cannot be derived faithfully
+- make dashboards actionable with drill-down targets where possible
+- keep all API and UI changes additive
+- avoid turning this into a generic BI project
+
+CURRENT CONTEXT
+
+Already completed:
+- E10.1 admin actions
+- E10.2 outbox / async processor
+- E10.3 SLA / timer engine
+- E14.1 / E14.2 assignment model + claim/reassign
+- E15 task inbox / queue UI
+- E16 timeline / history layer
+- E17 outbox / ops visibility
+- E18 work distribution intelligence
+
+Current limitation:
+- rich platform signals exist, but there is no unified analytics/reporting layer
+- operators cannot easily quantify bottlenecks, breach rates, fairness, throughput, or async reliability trends
+- dashboards for tenant and platform leadership do not yet exist
+
+E19 should solve that.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. ANALYTICS DOMAINS
+
+Implement analytics across these domains:
+
+A. SLA Performance
+- active task count
+- overdue count
+- at-risk count
+- overdue percentage
+- average overdue age
+- completed on-time percentage when derivable
+
+B. Queue / Workload
+- role-queue backlog
+- org-queue backlog
+- median or average queue age
+- oldest queued task age
+- active tasks per user
+- overloaded users count
+
+C. Workflow Throughput
+- workflows started
+- workflows completed
+- workflows cancelled
+- active workflow count
+- average / median cycle time where derivable
+
+D. Assignment / Intelligence
+- claim volume
+- reassign volume
+- auto-assign volume
+- no-recommendation count if derivable
+- workload fairness distribution
+- recommendation usage metrics if safely measurable
+
+E. Operations / Outbox
+- pending outbox items
+- processing items
+- failed items
+- dead-lettered items
+- manual retry volume
+- failed / dead-letter by event type
+
+2. SOURCE-OF-TRUTH RULES
+
+Use current trusted sources:
+
+Primary current-state sources:
+- WorkflowTask fields (status, assignment fields, SLA fields, DueAt, AssignedAt, etc.)
+- WorkflowInstance fields (status, timestamps, step/state context)
+- OutboxMessage fields
+- recommendation/auto-assignment outputs where already persisted or auditable
+
+Primary historical sources:
+- audit / timeline event sources
+- existing normalized timeline / audit adapters where appropriate
+
+Rules:
+- prefer persisted fields for current-state metrics
+- prefer audit/timeline events for historical transition metrics
+- do NOT fabricate “historical” metrics that the current system cannot support
+- document every metric’s source clearly
+
+3. TIME WINDOWS
+
+Support reporting windows:
+- today
+- last 7 days
+- last 30 days
+- custom date range if easy/safe
+
+Requirements:
+- all metrics must be explicit about the window
+- use deterministic UTC-based handling unless current admin UX already standardizes otherwise
+- document the exact semantics
+
+4. ANALYTICS READ MODEL / QUERY SERVICES
+
+Create focused query services / read-model helpers rather than putting logic in controllers.
+
+Requirements:
+- reusable backend query services
+- tenant-safe aggregations
+- platform-wide aggregations for platform admin
+- DTOs for:
+  - summary cards
+  - trend series
+  - grouped breakdowns
+  - top-N exception lists
+
+Do not create a new analytics database in this phase.
+
+5. SLA ANALYTICS
+
+Implement:
+- active tasks by SLA bucket
+- overdue trend
+- at-risk trend
+- breach rate by tenant/product/queue where derivable
+- top queues or products by overdue volume
+
+Requirements:
+- use E10.3 fields (`DueAt`, `SlaStatus`, `SlaBreachedAt`)
+- respect the existing due-date semantics (DueAt invariant under claim/reassign)
+- make overdue/at-risk metrics easy to drill into
+
+6. QUEUE / WORKLOAD ANALYTICS
+
+Implement:
+- queue backlog by role/org
+- queue age distributions or summary metrics
+- active task count per assignee
+- overloaded users count
+- queue urgency breakdown
+
+Requirements:
+- use the E15/E18 queue model and workload definitions
+- clearly define what counts as “active workload”
+- expose enough detail for tenant admins to identify imbalance
+
+7. WORKFLOW THROUGHPUT ANALYTICS
+
+Implement:
+- workflows started/completed/cancelled by window
+- active workflow count
+- average or median cycle time where derivable from existing timestamps
+- current-step distribution if safely derivable
+
+Requirements:
+- avoid expensive or fragile calculations if data is incomplete
+- document any assumptions on cycle-time calculation clearly
+
+8. ASSIGNMENT / INTELLIGENCE ANALYTICS
+
+Implement:
+- claim volume
+- reassign volume
+- auto-assign volume
+- workload fairness view (for example top/bottom active counts or simple distribution)
+- recommendation failure/no-candidate count only if the underlying data exists; otherwise document deferment
+
+Requirements:
+- use E14.2 audit and E18 auto-assignment audit where available
+- do not claim to measure recommendation usage if reads are not instrumented durably
+- be honest about what is inferable vs what is not
+
+9. OPERATIONS / OUTBOX ANALYTICS
+
+Build on E17, not a second ops model.
+
+Implement:
+- pending/processing/failed/dead-letter counts
+- dead-letter trend if derivable
+- manual retry volume
+- event-type breakdown for failed/dead-lettered items
+
+Requirements:
+- use the current outbox schema and E17 read model
+- keep metrics consistent with the operational outbox page
+- allow drill-down into outbox views where practical
+
+10. ANALYTICS APIs
+
+Add read-only APIs, such as:
+- GET /api/v1/admin/analytics/summary
+- GET /api/v1/admin/analytics/sla
+- GET /api/v1/admin/analytics/queues
+- GET /api/v1/admin/analytics/workflows
+- GET /api/v1/admin/analytics/assignment
+- GET /api/v1/admin/analytics/outbox
+
+And tenant-scoped equivalents where appropriate.
+
+Requirements:
+- additive only
+- read-only
+- filterable by time window and, where useful, product or tenant
+- stable response shapes
+- preserve current browser -> BFF -> backend boundaries where applicable
+
+11. DASHBOARD SURFACES
+
+A. Tenant Admin Dashboard
+Include lightweight operational widgets such as:
+- SLA summary cards
+- queue backlog summary
+- active workload by user
+- top overdue queue/tasks
+- recent assignment activity
+- workflow throughput summary
+
+B. Platform Admin Dashboard
+Include:
+- tenant comparison
+- product comparison
+- top tenants by overdue rate
+- top queues by backlog
+- outbox health summary
+- dead-letter / failed operational metrics
+
+Requirements:
+- lightweight charts/cards/tables only
+- operational and actionable
+- no broad redesign of admin surfaces
+
+12. DRILL-DOWN BEHAVIOR
+
+Each major metric should have a path to action where practical.
+
+Examples:
+- overdue tasks card -> filtered task list or queue view
+- dead-letter count -> outbox page/filter
+- high backlog queue -> queue/task drill-down
+- workflow throughput hotspot -> workflow list/detail
+
+Requirements:
+- use existing platform surfaces where possible
+- do not build brand-new deep drill-down systems unless necessary
+
+13. SECURITY / VISIBILITY
+
+Requirements:
+- tenant admins see only their tenant analytics
+- platform admins may see cross-tenant analytics
+- no ordinary user access to admin analytics
+- drill-downs must preserve underlying entity access rules
+- no cross-tenant leakage via filters or grouping keys
+
+14. UI / PRESENTATION RULES
+
+Requirements:
+- use lightweight cards, tables, and simple charts
+- metric labels must be clear and operational
+- show time window context
+- keep charting minimal and useful
+- if charts are not already standard, it is acceptable to use simple tables + cards for first delivery
+
+15. METRIC DEFINITIONS
+
+Document every major metric.
+
+Examples:
+- “Overdue tasks” = active tasks where SlaStatus = Overdue
+- “Queue backlog” = open tasks in RoleQueue/OrgQueue assignment modes
+- “Overloaded user” = active task count >= configured max threshold
+- “Cycle time” = completedAt - createdAt, when both exist
+
+This documentation is mandatory.
+
+16. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional
+- summary metrics populate correctly
+- time windows work as documented
+- SLA, queue, workflow, assignment, and outbox analytics all return data
+- drill-down targets are valid where implemented
+
+Security
+- tenant scoping preserved
+- platform admin visibility behaves correctly
+- no cross-tenant leakage
+
+Data Integrity
+- metrics are deterministic
+- no fabricated history
+- current-state numbers align with source state
+- historical metrics align with audit/timeline data where used
+
+Performance
+- no obvious full-table scan regressions without justification
+- aggregations are bounded and reasonably indexed for current scale
+
+UI
+- dashboards render correctly
+- cards/charts/tables are readable
+- analytics are actionable, not decorative
+
+Build / Runtime
+- backend builds
+- relevant frontends compile
+- existing workflow/task/SLA/timeline/outbox surfaces remain stable
+
+17. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- metric definitions
+- source-of-truth per metric
+- date-window semantics
+- tenant/platform visibility rules
+- known limitations from historical data completeness
+- what is available now vs what would require future instrumentation
+- what remains for identity integration / optimization / reporting expansion
+
+18. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E19 unless strictly required:
+- predictive analytics
+- ML-based forecasting
+- ad hoc report builder
+- scheduled report distribution
+- external BI rollout
+- deep export platform
+- major dashboard redesign
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect existing SLA, queue, workflow, assignment, outbox, and timeline sources.
+2. Create /analysis/E19-report.md immediately and begin logging assumptions/actions.
+3. Build analytics read model/query services.
+4. Implement summary and domain-specific APIs.
+5. Add tenant admin dashboard surfaces.
+6. Add platform admin dashboard surfaces.
+7. Wire drill-downs where practical.
+8. Validate performance, integrity, and security.
+9. Finalize the report.
+
+SUCCESS CONDITION
+
+E19 is successful when:
+- tenant and platform admins can measure workflow health, SLA performance, queue backlog, assignment behavior, and async reliability
+- dashboards are trustworthy, deterministic, and actionable
+- bottlenecks and hotspots become visible
+- the platform becomes measurably improvable, not just operable
+
+FAILURE CONDITION
+
+E19 fails if:
+- metrics are inconsistent or opaque
+- analytics contradict source systems
+- dashboards are disconnected from action
+- security boundaries are weakened
+- the phase turns into an overbuilt BI project instead of an operational analytics layer

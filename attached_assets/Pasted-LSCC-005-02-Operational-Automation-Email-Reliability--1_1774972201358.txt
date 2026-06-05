@@ -1,0 +1,477 @@
+LSCC-005-02 — Operational Automation & Email Reliability
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-005-02
+
+Report path:
+- /analysis/LSCC-005-02.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Extend LSCC-005 and LSCC-005-01 so referral-related email delivery becomes more reliable, more automated, and easier to operate.
+
+This iteration must improve:
+
+1. automatic retry of failed referral-related emails
+2. clear distinction between system retry vs user resend
+3. retry outcome visibility
+4. referral audit timeline visibility in the UI
+5. operator understanding of email delivery lifecycle
+
+Do NOT expand into a full notification platform.
+Do NOT add multi-channel messaging.
+Do NOT introduce broad infrastructure unless absolutely necessary.
+Do NOT redesign the overall CareConnect product.
+
+This is a focused operational automation + reliability pass.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Automatic email retry policy
+B. Retry status tracking
+C. Distinction between retry and resend behavior
+D. Referral audit timeline UI
+E. Delivery history visibility improvements
+F. Retry exhaustion handling
+G. Report
+
+Do NOT implement:
+- SMS
+- push notifications
+- full notification center
+- distributed job system unless already present and easy to reuse
+- analytics expansion
+- onboarding changes
+- unrelated referral workflow changes
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing referral notification, audit, and token infrastructure from LSCC-005 and LSCC-005-01
+2. Prefer the lightest viable retry execution mechanism
+3. Keep logic separated:
+   - retry policy / scheduling
+   - email send execution
+   - delivery tracking
+   - audit event generation
+   - UI rendering
+4. Do NOT silently retry forever
+5. Do NOT create uncontrolled duplicate sends
+6. Preserve existing manual resend behavior
+7. Keep changes idempotent and safe
+8. If a retry mechanism depends on application activity rather than a background worker, document that explicitly
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-005 already implemented:
+- referral creation
+- provider notification email
+- secure referral view links
+- provider acceptance paths
+- confirmation emails
+- basic dashboard analytics
+
+LSCC-005-01 already implemented:
+- delivery tracking
+- resend endpoint
+- token revocation
+- replay hardening
+- referral delivery card
+- improved invalid token page
+- notification status fields
+- audit events for token/resend/replay-related events
+
+Current remaining gaps:
+- failed emails require manual resend
+- audit data is not surfaced as a full usable timeline
+- retry behavior is not automated
+- operators cannot clearly distinguish automatic retry lifecycle vs manual resend lifecycle
+
+Treat LSCC-005-01 as the baseline and build on it.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. AUTOMATIC EMAIL RETRY POLICY
+--------------------------------------------------
+
+Implement automatic retry for failed referral-related emails.
+
+Applicable email types in scope:
+- new referral notification to provider
+- referral accepted confirmation to provider
+- referral accepted confirmation to referrer
+
+Retry policy (source of truth):
+- Attempt 1: immediate existing send attempt
+- Attempt 2: retry after 5 minutes
+- Attempt 3: retry after 30 minutes from previous failed attempt
+- Maximum attempts total: 3
+
+After the third failed attempt:
+- do not retry further
+- mark as retry exhausted
+
+Rules:
+- automatic retry must apply only to failed email notifications
+- automatic retry must not create new duplicate notification records for the same failed notification unless the chosen implementation absolutely requires it and is clearly documented
+- manual resend remains a separate operator action and should remain available where appropriate
+- if referral state changes such that the original email is no longer appropriate, do not continue retrying blindly; either stop retrying or document the minimal chosen rule
+
+Preferred implementation approach:
+- use the lightest viable scheduling mechanism already compatible with the repo
+- avoid broad infrastructure additions
+- if no true scheduler exists, a lightweight background worker or app-activity-driven retry pass is acceptable, but the exact mechanism must be explicit and deterministic
+
+--------------------------------------------------
+B. RETRY STATUS TRACKING
+--------------------------------------------------
+
+Extend the delivery state model so operators can understand retry lifecycle.
+
+Minimum statuses/derived states to support in UI and/or backend logic:
+- Pending
+- Sent
+- Failed
+- Retrying
+- RetryExhausted
+
+If the persistence model already stores only Pending/Sent/Failed, it is acceptable to derive Retrying and RetryExhausted from:
+- AttemptCount
+- LastAttemptAtUtc
+- next scheduled retry time
+- max-attempt rule
+
+Requirements:
+- operators must be able to distinguish "failed and will retry" from "failed permanently until manual intervention"
+- attempt count progression must remain visible
+- timestamps must be meaningful and updated consistently
+
+--------------------------------------------------
+C. RETRY VS RESEND DISTINCTION
+--------------------------------------------------
+
+Keep a clear semantic difference:
+
+Retry:
+- system-driven
+- continues lifecycle of the same failed notification if practical
+
+Resend:
+- user-driven
+- explicit manual action
+- should create a distinct event/audit signal
+
+Rules:
+- UI must not confuse retry with resend
+- audit trail must distinguish them
+- if user clicks Resend while a failed notification is still eligible for retry, behavior must be defined explicitly
+
+Recommended minimal behavior:
+- manual resend is allowed
+- resend creates a new notification event
+- original failed notification keeps its own history
+- future auto-retries for the original failed notification should be suppressed once a manual resend succeeds, or the chosen rule must be explicitly documented
+
+--------------------------------------------------
+D. RETRY EXECUTION MECHANISM
+--------------------------------------------------
+
+Implement the smallest reliable mechanism for automatic retries.
+
+Two acceptable patterns:
+
+Option 1 — Lightweight in-process/background worker
+- if the service architecture already supports hosted services or periodic workers, use that
+- periodically scan for retry-eligible failed notifications
+- process them safely
+
+Option 2 — Lazy/system-activity-triggered retry
+- retry evaluation happens on selected application activity
+- only if deterministic and documented
+- must still respect the retry schedule windows
+
+Preferred choice:
+- use the smallest approach that is actually reliable in this codebase
+
+Safety requirements:
+- no duplicate parallel retry attempts for the same notification
+- no retry of Sent notifications
+- no retry past max attempts
+- if concurrency is possible, guard against double-processing
+
+--------------------------------------------------
+E. AUDIT TIMELINE UI
+--------------------------------------------------
+
+Add a lightweight referral audit timeline to the referral detail experience.
+
+Component:
+- ReferralAuditTimeline
+
+Goal:
+- surface meaningful operational and security-relevant events in a readable UI
+
+Minimum events to display if available:
+- Referral Created
+- Provider Notification Sent
+- Provider Notification Failed
+- Retry Attempted
+- Retry Succeeded
+- Retry Exhausted
+- Referral Email Resent
+- Referral Viewed (if already recorded and safe to show)
+- Referral Accepted
+- Token Revoked
+- Invalid Token Attempt (if appropriate to surface operationally)
+
+Requirements:
+- chronological or reverse-chronological order, but be consistent
+- each item shows:
+  - event label
+  - timestamp
+  - optional metadata (attempt number, failure reason)
+- do not dump raw internal payloads/log objects
+- keep it readable for operations users
+
+Data source:
+- reuse existing audit events and notification history where possible
+- if one consolidated endpoint/helper is needed, keep it narrow
+
+--------------------------------------------------
+F. DELIVERY HISTORY VISIBILITY
+--------------------------------------------------
+
+Enhance the existing ReferralDeliveryCard.
+
+Add:
+- full delivery attempt history for referral-related emails
+- distinction between initial send, retry attempts, and manual resend
+- visible attempt progression
+- retry exhaustion state
+- clear current status
+
+Example acceptable UI:
+- Attempt 1 — Failed (SMTP timeout)
+- Attempt 2 — Retrying
+- Attempt 2 — Sent
+- Manual resend — Sent
+
+Requirements:
+- do not clutter the page excessively
+- expandable history/details is acceptable
+- keep operational clarity higher priority than visual flair
+
+--------------------------------------------------
+G. RETRY EXHAUSTION HANDLING
+--------------------------------------------------
+
+When retries are exhausted:
+
+1. mark the notification as exhausted (explicitly or by derivation)
+2. surface this clearly in the UI
+3. allow manual resend where appropriate
+4. record an audit event if feasible
+
+UI should communicate:
+- automatic retries have stopped
+- manual action may be required
+
+Do NOT leave operators guessing whether the system is still retrying.
+
+--------------------------------------------------
+H. INVALID / EDGE EMAIL CASES
+--------------------------------------------------
+
+Handle these safely:
+
+1. SMTP down for extended period
+- retries happen until max attempts
+- then stop
+- exhaustion is visible
+
+2. user manually resends during retry lifecycle
+- behavior must be deterministic and documented
+
+3. referral accepted before retry occurs
+- do not keep retrying an outdated notification blindly
+- either cancel future retry for that notification or document the minimal rule used
+
+4. already-sent notification
+- must never be retried again
+
+5. partially failed provider/referrer confirmation pair
+- track each notification independently
+
+--------------------------------------------------
+I. API / SERVICE ADDITIONS
+--------------------------------------------------
+
+Add only the smallest additional endpoints or service methods needed.
+
+Possible examples if needed:
+- GET /api/referrals/{id}/audit
+- GET /api/referrals/{id}/notifications  (reuse/extend if already exists)
+- internal retry processor service
+
+Do not add broad admin tooling or generalized notification APIs unless clearly required for this feature.
+
+--------------------------------------------------
+J. UI / UX REQUIREMENTS
+--------------------------------------------------
+
+Update the referral detail experience for operators/referrers in a minimal, usable way.
+
+At minimum:
+1. delivery card remains present and improved
+2. audit timeline is accessible on the referral detail page
+3. resend action remains clear
+4. retry status is clear
+5. retry exhausted state is clear
+6. existing toast patterns are used for user-triggered actions where appropriate
+
+Do NOT redesign the full referral detail page.
+
+--------------------------------------------------
+K. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+1. retry eligibility logic
+   - failed + within/outside retry windows
+   - max-attempt enforcement
+
+2. retry execution
+   - failed notification retried
+   - sent notification not retried
+   - exhausted notification not retried
+
+3. retry status derivation or persistence
+   - Retrying
+   - RetryExhausted
+
+4. resend vs retry distinction
+   - resend produces separate event/record behavior as designed
+   - retry does not behave like resend
+
+5. audit/timeline mapping
+   - events are surfaced in readable order with correct labels
+
+6. edge cases
+   - referral accepted before retry
+   - duplicate retry prevention
+   - repeated processor pass does not double-send
+
+7. UI/service integration as practical
+   - if full UI tests are impractical, test the service/API integration layers and document any limitation
+
+Pre-existing unrelated test failures should not be counted as regressions, but must be noted if still present.
+
+--------------------------------------------------
+L. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-005-02.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Retry policy
+- exact schedule
+- max attempts
+- how retry eligibility is determined
+
+3. Retry execution mechanism
+- background worker vs lazy trigger
+- why this approach was chosen
+
+4. Delivery tracking changes
+- statuses/derived states
+- attempt tracking
+- retry exhaustion behavior
+
+5. Resend vs retry behavior
+- how they differ
+- how collisions are handled
+
+6. Audit timeline
+- data sources used
+- what events are shown
+- where it appears in UI
+
+7. Delivery history UI
+- what is shown
+- how operators interpret it
+
+8. Tests
+- what scenarios are covered
+- any remaining gaps
+
+9. Known limitations / follow-ups
+- anything intentionally deferred
+
+10. Recommended next step
+- smallest logical operational improvement after this feature
+
+==================================================
+IMPLEMENTATION STRATEGY
+==================================================
+
+Follow this order:
+
+1. Inspect LSCC-005-01 notification tracking and referral detail UI
+2. Implement retry eligibility + policy logic
+3. Implement retry execution mechanism
+4. Extend delivery state visibility / derivation
+5. Ensure resend and retry semantics are distinct
+6. Implement audit timeline data shaping
+7. Add/extend UI components on referral detail
+8. Add tests
+9. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-005-02 is complete ONLY if:
+
+1. failed referral-related emails are automatically retried according to policy
+2. retry lifecycle is visible and understandable
+3. resend remains available and distinct from retry
+4. retry exhaustion is clearly surfaced
+5. referral audit timeline is visible in the UI
+6. no uncontrolled duplicate sends occur
+7. LSCC-005 and LSCC-005-01 behaviors remain intact
+8. report exists at:
+   /analysis/LSCC-005-02.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this disciplined and operational.
+Do not build a generalized jobs platform.
+Automate only what is necessary to make referral email delivery more reliable and understandable.
+Favor predictable behavior, strong auditability, and minimal infrastructure changes.

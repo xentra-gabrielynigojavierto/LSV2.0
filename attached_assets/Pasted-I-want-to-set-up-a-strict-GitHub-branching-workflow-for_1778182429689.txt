@@ -1,0 +1,34 @@
+I want to set up a strict GitHub branching workflow for this project. There may already be branches or processes in place — clean those up first, then enforce the workflow below going forward.
+
+Cleanup (do this first):
+
+Tell me what branches currently exist on the connected GitHub repo (or note that the repo isn't connected yet — if not, walk me through connecting it via the Git pane).
+Identify any branches outside the workflow below and propose which to delete vs. keep. Wait for my confirmation before deleting anything.
+Make sure the four required branches exist: xenia, dev, qa, main. Create any that are missing, branching each new one off main (or off the most appropriate existing branch if main doesn't exist yet).
+Set xenia as the working branch in this Repl. You will only ever commit to xenia.
+The workflow — two paths, each with a release variant and a QA-only variant:
+
+Path 1 — PM-initiated (changes I ask you to make in this Repl):
+
+Release:    xenia → dev → qa → main → xenia
+QA-only:    xenia → dev → qa → xenia
+
+Path 2 — Developer-initiated (changes a developer builds locally on a feature branch):
+
+Release:    feature/* → xenia → dev → qa → main → xenia
+QA-only:    feature/* → xenia → dev → qa → xenia
+
+Operating rules (enforce these in every change you make):
+
+You commit only to xenia. Never push directly to dev, qa, main, or feature/*.
+Every promotion is one-way and goes through a PR on GitHub: xenia → dev, dev → qa, qa → main (release only), main → xenia (release loop-back), qa → xenia (QA-only loop-back).
+Nothing skips qa. qa is the validation gate for everything reaching main or looping back to xenia.
+For release flows, xenia is updated via main (not directly from qa). For QA-only flows (changes that shouldn't ship to production), xenia is updated directly from qa, skipping main.
+If QA fails on qa, the fix originates upstream (a new change on xenia for Path 1, or a new feature/* branch for Path 2) and flows through the loop again. Never hot-patch qa, main, or dev directly.
+Recommend (but don't auto-apply) GitHub branch protection rules so each branch only accepts merges from the one immediately upstream.
+After cleanup is complete:
+
+Confirm the branch list is correct.
+Make a tiny visible test change on xenia (e.g. update a tagline or footer) and tell me to push it through the release path end-to-end so we can verify the full xenia → dev → qa → main → xenia loop holds without conflicts.
+Then make a second tiny change and tell me to push it through the QA-only path to verify that loop-back works too.
+The product itself is up to me — don't build any features yet. Just set up and verify the Git workflow first.

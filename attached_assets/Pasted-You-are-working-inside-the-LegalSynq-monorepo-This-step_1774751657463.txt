@@ -1,0 +1,150 @@
+You are working inside the LegalSynq monorepo.
+
+This step is to make the **Control Center app runnable and visible in Replit**.
+
+File naming rule:
+Save the report as:
+
+/step_10-run-control-center.md
+
+---
+
+Goal:
+
+Ensure `apps/control-center` can be started independently and viewed in the browser.
+
+---
+
+## 1. Verify app structure
+
+Confirm `apps/control-center` contains:
+- package.json
+- next.config.js (or equivalent)
+- src/app layout and pages
+- tsconfig.json
+- tailwind config (if used)
+
+If anything is missing, create minimal required files.
+
+---
+
+## 2. Add dev script
+
+Update:
+
+apps/control-center/package.json
+
+Ensure it has:
+
+"scripts": {
+  "dev": "next dev -p 3001",
+  "build": "next build",
+  "start": "next start -p 3001"
+}
+
+---
+
+## 3. Ensure dependencies
+
+Make sure these exist in `apps/control-center/package.json`:
+- next
+- react
+- react-dom
+- typescript
+- tailwindcss (if used)
+- postcss / autoprefixer if required
+
+If missing, add them.
+
+---
+
+## 4. Install dependencies
+
+Run (or simulate in setup):
+
+cd apps/control-center
+npm install
+
+---
+
+## 5. Ensure basic layout works
+
+Confirm:
+
+apps/control-center/src/app/layout.tsx
+
+Exists and renders children properly.
+
+---
+
+## 6. Ensure homepage exists
+
+Confirm:
+
+apps/control-center/src/app/page.tsx
+
+Exists and renders a simple dashboard with links:
+- /tenants
+- /tenant-users
+- /roles
+
+---
+
+## 7. Add fallback dev banner
+
+On homepage, add visible text:
+
+"Control Center Running"
+
+So we can confirm it loaded.
+
+---
+
+## 8. Add Replit-friendly start hint
+
+Create file:
+
+apps/control-center/README_DEV.md
+
+Include:
+
+- how to run:
+  cd apps/control-center
+  npm install
+  npm run dev
+
+- expected URL:
+  http://localhost:3001
+
+---
+
+## 9. (Optional) Root-level helper script
+
+If monorepo allows, update root package.json:
+
+Add:
+
+"scripts": {
+  "dev:control-center": "cd apps/control-center && npm run dev"
+}
+
+---
+
+## Output
+
+1. Show file-by-file changes
+2. Generate code updates
+3. Produce report:
+
+# Step 10 – Run Control Center
+
+## App Structure Verified
+## Scripts Added
+## Dependencies Checked
+## Dev Instructions
+## How to Access in Browser
+## Any Issues
+
+4. Save report to:
+
+/step_10-run-control-center.md

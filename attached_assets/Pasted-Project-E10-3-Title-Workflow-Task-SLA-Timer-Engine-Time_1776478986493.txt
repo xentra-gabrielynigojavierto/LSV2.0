@@ -1,0 +1,379 @@
+Project: E10.3
+Title: Workflow / Task SLA + Timer Engine — Time-Based Governance Layer
+
+You are implementing the next enterprise platform-deepening phase for the LegalSynq workflow and task orchestration platform.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E10.3-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around due-date calculation rules, assignment-aware timing, configurable thresholds, worker lifecycle, idempotency, reassignment behavior, and whether SLA is task-only or task + workflow in this phase.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - SLA data model changes
+   - due-date calculation changes
+   - SLA worker / timer changes
+   - DTO / API widening
+   - task UI / Control Center visibility changes
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for escalation / history / queue optimization phase or needs iteration
+
+REPORT FORMAT
+
+# E10.3 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## SLA Data Model Notes
+## Due-Date / Calculation Notes
+## SLA Worker / Timer Notes
+## DTO / API Notes
+## Task UI Notes
+## Control Center Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Add a governed time-awareness layer to the workflow platform so tasks and, if safely feasible, workflows can be evaluated against deadlines, classified as OnTrack / AtRisk / Overdue, and surfaced to users and admins without changing the core execution model.
+
+This phase must introduce due dates, SLA status evaluation, timer-based background processing, and UI/admin visibility, but it must NOT become a full automation/escalation engine yet.
+
+SCOPE INCLUDES
+
+- SLA fields for workflow tasks and/or workflows
+- due-date calculation model
+- SLA status model
+- timer/evaluation worker
+- detection of:
+  - OnTrack
+  - AtRisk
+  - Overdue
+- additive DTO/API widening where needed
+- task inbox / queue UI SLA visibility
+- Control Center SLA visibility support
+- documentation/reporting
+
+DO NOT BUILD
+
+- auto-reassignment
+- escalation notification chains
+- auto-complete / auto-cancel
+- business-hours / holiday calendar engine
+- SLA designer UI
+- analytics dashboards
+- queue optimization / fairness logic
+- broad UI redesign
+- workflow-engine redesign
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep this phase focused on read + classify + surface
+- add time-awareness without destabilizing workflow execution
+- use deterministic and documented due-date logic
+- make the evaluation worker safe, idempotent, and low-noise
+- preserve tenant isolation and service boundaries
+- avoid introducing hidden or opaque SLA heuristics
+- handle claim/reassign timing rules explicitly and consistently
+- keep all DTO/API changes additive
+
+CURRENT CONTEXT
+
+Already completed:
+- workflow execution engine
+- security / atomic ownership
+- admin actions
+- outbox + async processing
+- assignment model (E14.1)
+- claim / reassign APIs (E14.2)
+- task inbox / queue UI (E15)
+
+Current limitation:
+- tasks and workflows have no governed due-date model
+- queues can age indefinitely without objective “at risk” / “overdue” classification
+- prioritization and operational response are reactive rather than time-aware
+
+This E10.3 phase should solve that by adding a minimal but real SLA / timer engine.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. SLA DATA MODEL
+
+Add the minimum durable model needed for timing.
+
+Requirements:
+- add additive SLA-related fields to the relevant model(s), starting with WorkflowTask and extending to WorkflowInstance only if safely practical in this phase
+- likely fields include:
+  - DueAt
+  - SlaStatus
+  - SlaBreachedAt
+  - LastSlaEvaluatedAt
+  - optional SlaPolicyKey if truly useful and lightweight
+- support at minimum these statuses:
+  - OnTrack
+  - AtRisk
+  - Overdue
+  - optional None / NotApplicable if needed for items without SLA
+- document whether this phase is task-only SLA or task + workflow SLA
+
+Recommendation:
+- prioritize task-level SLA first because tasks are user-facing and already have assignment timestamps
+
+2. DUE-DATE CALCULATION MODEL
+
+Define a deterministic rule set for how DueAt is computed.
+
+Requirements:
+- choose and document a clear hierarchy, such as:
+  - from AssignedAt when directly assigned
+  - otherwise from CreatedAt when in queue
+  - optionally influenced by priority or task type if that data already exists safely
+- provide sane defaults if no specialized policy exists
+- avoid hidden/magical date logic
+- do not require a full admin SLA designer in this phase
+
+Important:
+- explicitly document what happens on:
+  - claim from queue to direct user
+  - reassign to another user
+  - reassign to role queue
+  - reassign to org queue
+  - reassign to Unassigned if supported
+
+You must choose one deterministic rule and implement it consistently. For example:
+- direct-user assignment resets DueAt from AssignedAt
+- queue timing uses CreatedAt
+- moving back to queue recalculates based on queue timing rule
+
+3. SLA STATUS / CLASSIFICATION RULES
+
+Define explicit, explainable thresholds.
+
+Requirements:
+- support:
+  - OnTrack
+  - AtRisk
+  - Overdue
+- Overdue = current UTC > DueAt
+- AtRisk = within a configurable threshold window before DueAt
+- OnTrack = neither AtRisk nor Overdue
+- if an item has no applicable SLA, support a documented “not applicable” state or omit status explicitly
+
+Recommended initial model:
+- fixed configurable AtRisk threshold (for example 24 hours before DueAt)
+- avoid percentage-based heuristics unless already natural in current domain data
+
+4. SLA EVALUATION WORKER / TIMER
+
+Add a background worker/process that periodically evaluates SLA state.
+
+Requirements:
+- scheduled evaluation loop
+- scans eligible tasks (and workflows only if implemented in this phase)
+- computes current SLA state
+- updates persisted SLA fields only when changed
+- stamps LastSlaEvaluatedAt
+- stamps SlaBreachedAt when first becoming Overdue
+- runs safely under repeated execution
+- avoids noisy write amplification
+
+Rules:
+- worker must be idempotent
+- worker must not interfere with normal workflow execution
+- if multiple app instances may run it, document the coordination strategy clearly
+- a sibling hosted service to the E10.2 outbox worker is acceptable
+
+5. ASSIGNMENT-AWARE TIMING
+
+Use the assignment model that already exists.
+
+Requirements:
+- define which timestamp is authoritative in each assignment mode:
+  - DirectUser
+  - RoleQueue
+  - OrgQueue
+  - Unassigned if applicable
+- ensure claim/reassign transitions update SLA state or DueAt consistently according to the chosen rule
+- do not leave ambiguous timing semantics after assignment changes
+
+This is a major validation target for the phase.
+
+6. DTO / API WIDENING
+
+Expose SLA data additively.
+
+Requirements:
+- widen task/workflow DTOs as needed, for example with:
+  - dueAt
+  - slaStatus
+  - slaBreachedAt
+- keep changes additive only
+- do not break current task/workflow consumers
+- update any task list/detail endpoints required by E15 and Control Center surfaces
+
+7. TASK INBOX / QUEUE UI EXPOSURE
+
+Surface SLA in the existing work UI.
+
+Requirements:
+- show due date and/or SLA badge in:
+  - My Tasks
+  - Role Queue
+  - Org Queue
+  - task detail drawer where useful
+- visually distinguish:
+  - OnTrack
+  - AtRisk
+  - Overdue
+- keep styling lightweight and operational
+- do not redesign the work UI
+- make it easier for users to identify work that needs attention
+
+8. CONTROL CENTER / ADMIN VISIBILITY
+
+Surface SLA state in admin views.
+
+Requirements:
+- expose SLA fields in the relevant Control Center list/drawer surfaces where practical
+- allow filtering or visual distinction for overdue / at-risk items
+- improve the “needs attention” signal beyond pure workflow status
+
+Minimum acceptable outcome:
+- the data exists and is inspectable in admin surfaces
+- overdue / at-risk work can be identified
+
+9. BACKGROUND PROCESSING SAFETY
+
+Requirements:
+- evaluation runs must be safe under retries
+- repeated runs must not corrupt data
+- if multiple instances could evaluate the same row, document the coordination approach
+- update only when SLA state / relevant fields actually changed
+
+10. AUDIT / EVENT INTERACTION
+
+Decide and document how SLA transitions interact with audit.
+
+Minimum requirement:
+- explicitly document whether SLA changes are audited in this phase
+- recommended: audit the first transition to Overdue if easy/safe
+- if not implemented, document deferment clearly
+
+Do not overbuild a full event history system here.
+
+11. CONFIGURATION
+
+Support configuration for:
+- default SLA duration(s)
+- AtRisk threshold
+- worker interval
+- batch size
+- enable/disable flag
+
+Requirements:
+- use sane defaults
+- document config keys and defaults clearly
+- startup should remain diagnosable if configuration is invalid
+
+12. ERROR / EDGE HANDLING
+
+Handle safely:
+- tasks without sufficient timestamps
+- items with no applicable SLA
+- malformed legacy data
+- reassigned tasks
+- tasks moved between queue and direct assignment
+- tasks already overdue when evaluated for the first time
+
+You must document the exact behavior for these cases.
+
+13. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional
+- due dates are computed correctly
+- SLA status updates correctly over time
+- Overdue detection works
+- AtRisk detection works
+- claim/reassign timing behavior is consistent with the chosen rules
+
+Operational
+- worker runs safely
+- repeated runs are idempotent
+- rows are updated only when necessary
+
+Security / Integrity
+- no tenant-boundary issues
+- no breaking API changes
+- no workflow/task state corruption
+
+UI / Admin
+- due/SLA status visible in task work surfaces
+- admin can identify overdue / at-risk work
+
+Build / Runtime
+- backend builds
+- worker starts/runs
+- existing workflow/task surfaces remain stable
+
+14. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- which model(s) gained SLA fields
+- how DueAt is computed
+- how AtRisk / Overdue are determined
+- how claim/reassign affects SLA timing
+- how the worker operates
+- config keys / defaults
+- what remains for escalation / notifications / optimization phases
+
+15. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E10.3 unless strictly required:
+- auto-reassignment
+- escalation chains
+- notifications
+- business-calendar engine
+- SLA designer UI
+- analytics dashboards
+- queue optimization / fairness logic
+- automated remediation actions
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current task/workflow models, E14.2 assignment transitions, and E15 task work surfaces.
+2. Create /analysis/E10.3-report.md immediately and begin logging assumptions/actions.
+3. Add SLA fields and migration(s).
+4. Implement deterministic DueAt / SLA calculation rules.
+5. Add the SLA evaluation worker / timer.
+6. Widen DTO/API surfaces additively.
+7. Surface SLA in task inbox / queue UI.
+8. Surface SLA in Control Center views where practical.
+9. Validate assignment-aware timing behavior.
+10. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E10.3 is successful when:
+- tasks (and workflows, if implemented) have clear due dates
+- SLA status is computed and surfaced
+- overdue / at-risk work is visible to users and admins
+- evaluation is safe, deterministic, and idempotent
+- assignment transitions interact with SLA timing consistently
+- the platform becomes time-aware without drifting into full automation
+
+FAILURE CONDITION
+
+E10.3 fails if:
+- due-date logic is opaque or inconsistent
+- the worker is unsafe or noisy
+- SLA state is not meaningfully surfaced
+- claim/reassign timing introduces contradictions
+- the phase drifts into escalation/automation prematurely

@@ -1,0 +1,327 @@
+You are implementing LS-LIENS-FLOW-009-01 — Task Manager Layout Compression & Unified UX Refresh for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update it incrementally as you implement
+3. Analyze current UI code before modifying
+4. Refactor existing components (DO NOT rebuild from scratch)
+5. Apply changes to BOTH:
+   - Global Task Manager page
+   - Case-level Task view
+6. Validate UI + behavior
+7. Save report in /analysis
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first:
+
+/analysis/LS-LIENS-FLOW-009-01-report.md
+
+Update continuously with:
+
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- UI Changes (Before vs After)
+- Layout Strategy
+- Component Refactors
+- Reusability (Global vs Case)
+- Validation Results
+- Known Gaps
+- Run Instructions
+
+NO placeholders.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Redesign Task Manager UI to:
+
+- Maximize usable screen space
+- Reduce vertical waste
+- Increase task density
+- Streamline interaction
+- Maintain all existing functionality
+
+Apply the SAME layout system to:
+1. Main Task Manager (/lien/task-manager)
+2. Case Task Manager (inside Case Detail)
+
+==================================================
+CRITICAL RULES
+==================================================
+
+1. DO NOT change business logic
+2. DO NOT break APIs
+3. DO NOT remove features
+4. ONLY optimize layout + UI structure
+5. REUSE components wherever possible
+6. KEEP design system consistent
+7. NO visual over-design — prioritize density and usability
+
+==================================================
+STEP 1 — CODEBASE ANALYSIS
+==================================================
+
+Analyze:
+
+- Task Manager page component
+- Case Task panel component
+- Task board (kanban) components
+- Task card component
+- Filter/search toolbar
+- KPI/stat cards
+
+Identify:
+- duplicated layout logic
+- unnecessary wrappers
+- vertical spacing issues
+- inconsistent component usage
+
+Document findings.
+
+==================================================
+STEP 2 — NEW LAYOUT STRUCTURE
+==================================================
+
+Replace current layout with:
+
+----------------------------------------
+ROW 1 — COMPACT HEADER
+----------------------------------------
+LEFT:
+- "Task Manager (X tasks)"
+
+RIGHT:
+- Board / List toggle
+- + New Task button
+
+REMOVE:
+- large header container
+- excessive padding/margins
+
+----------------------------------------
+ROW 2 — KPI STRIP (COMPACT)
+----------------------------------------
+Replace large cards with small stat chips:
+
+[ Total ] [ New ] [ In Progress ] [ Blocked ] [ Overdue ]
+
+Rules:
+- single horizontal row
+- minimal height
+- tight spacing
+- no card shadows
+
+----------------------------------------
+ROW 3 — TOOLBAR
+----------------------------------------
+Single-line toolbar:
+
+[ Search ] [ Assignee ] [ Status ] [ Priority ] [ More Filters ]
+
+Rules:
+- no wrapping (desktop)
+- reduced height
+- tight spacing
+
+----------------------------------------
+ROW 4 — FULL BOARD
+----------------------------------------
+Kanban board consumes remaining space.
+
+==================================================
+STEP 3 — BOARD OPTIMIZATION
+==================================================
+
+Refactor board container:
+
+- reduce outer padding
+- reduce gaps between columns
+- allow horizontal scroll if needed
+- maximize vertical height
+
+Columns:
+- smaller headers
+- compact count badges
+- reduced header padding
+
+Empty state:
+- reduce height
+- smaller text
+- optional "+ Add Task"
+
+==================================================
+STEP 4 — TASK CARD COMPRESSION
+==================================================
+
+Refactor task card layout:
+
+----------------------------------------
+TOP ROW
+----------------------------------------
+- Priority badge
+- Due date
+
+----------------------------------------
+MIDDLE
+----------------------------------------
+- Task title
+
+----------------------------------------
+BOTTOM
+----------------------------------------
+- Case reference (if exists)
+- Assignee avatar + name
+- Status chip
+
+Rules:
+- reduce padding
+- reduce spacing between rows
+- smaller badges
+- tighter typography
+
+==================================================
+STEP 5 — REMOVE WASTED SPACE
+==================================================
+
+You MUST:
+
+- remove excessive margins between sections
+- reduce vertical padding globally
+- eliminate unused whitespace rows
+- tighten container max-width behavior
+- avoid nested containers unless required
+
+==================================================
+STEP 6 — SHARED COMPONENT STRATEGY
+==================================================
+
+Create reusable components:
+
+- TaskManagerHeader
+- TaskManagerStatsStrip
+- TaskManagerToolbar
+- TaskBoardContainer
+
+Use SAME components for:
+- Global Task Manager
+- Case Task Manager
+
+Pass context:
+- caseId (optional)
+- filters (optional)
+
+==================================================
+STEP 7 — CASE TASK VIEW ALIGNMENT
+==================================================
+
+Update Case Task view to:
+
+- use SAME header (without global title duplication)
+- reuse toolbar
+- reuse board
+- maintain case context filtering
+
+Ensure:
+- UI is consistent with global Task Manager
+- no duplicate layout logic
+
+==================================================
+STEP 8 — RESPONSIVENESS
+==================================================
+
+Desktop:
+- single-line toolbar
+- full board width
+
+Tablet:
+- allow wrapping toolbar
+
+Mobile:
+- stack toolbar
+- maintain usability
+
+==================================================
+STEP 9 — VALIDATION CHECKLIST
+==================================================
+
+Verify:
+
+- more tasks visible without scrolling
+- header is compact
+- KPI row is reduced height
+- toolbar is single-line
+- board uses majority of viewport
+- cards are visually tighter
+- no feature regression
+- filters still work
+- drag/drop still works (if implemented)
+- case view matches global view
+
+==================================================
+STEP 10 — FILE CHANGES
+==================================================
+
+Update:
+
+- Task Manager page
+- Case detail task panel
+- task board components
+- task card component
+- shared layout components
+
+DO NOT create duplicate logic.
+
+==================================================
+STEP 11 — DESIGN PRINCIPLE
+==================================================
+
+Target feel:
+
+- Jira board density
+- Linear-style compact UI
+- operational dashboard, not marketing layout
+
+Principle:
+
+"More tasks visible. Less chrome."
+
+==================================================
+STEP 12 — DEFINITION OF DONE
+==================================================
+
+Complete when:
+
+1. layout is visibly more compact
+2. vertical space is maximized
+3. board dominates screen
+4. task density increased
+5. UI consistent across global + case views
+6. no regression in functionality
+7. report fully completed
+
+==================================================
+START
+==================================================
+
+1. Create:
+/analysis/LS-LIENS-FLOW-009-01-report.md
+
+2. Analyze current UI
+
+3. Implement layout compression across Task Manager and Case view
+
+4. Validate
+
+5. Finalize report

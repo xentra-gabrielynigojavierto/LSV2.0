@@ -1,0 +1,333 @@
+You are implementing BLOCK 1 of the new standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B01-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Preserve existing architecture patterns and coding conventions unless explicitly changed below.
+- Keep the implementation incremental and non-breaking.
+- Do not perform a big-bang migration or cutover in this block.
+- This block must be runnable in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B01 — Standalone Tenant Service Foundation
+================================================================
+
+OBJECTIVE
+Create the foundation for a brand new standalone Tenant service that will become the canonical owner of tenant/company master data, separate from Identity. This first block must establish:
+1. migration-aware field mapping from Identity to Tenant,
+2. a new .NET Tenant service scaffold,
+3. a separate MySQL database configuration for tenant_db,
+4. EF Core persistence and initial schema,
+5. health/diagnostic endpoints,
+6. base API contract,
+7. a canonical core Tenant entity.
+
+This block does NOT perform full migration or cutover yet. It prepares for that safely.
+
+================================================================
+PLATFORM / STACK RULES
+================================================================
+
+Frontend stack context:
+- Next.js (React)
+- TypeScript
+- Tailwind CSS
+- Radix UI / shadcn/ui
+- pnpm monorepo
+
+Backend stack rules for this feature:
+- C# / .NET only
+- ASP.NET Core only
+- Entity Framework Core only
+- MySQL only
+- Follow existing microservice architecture and service layering patterns
+- Reuse current solution/project structure conventions from existing services
+- Must fit current monorepo and Replit shell-script orchestration approach
+
+Service placement:
+- Create a new Tenant service as a backend microservice
+- Recommended port: 5005
+- This service must be standalone and portable, not hardcoded to LegalSynq-only assumptions
+
+Database rule:
+- Use a separate MySQL database for this service
+- Database name: tenant_db
+- Do NOT reuse identity_db
+- Do NOT require direct cross-service DB writes from other services
+
+================================================================
+ARCHITECTURAL RULES
+================================================================
+
+Tenant service WILL own in the future:
+- tenant/company profile
+- branding metadata
+- domain/subdomain ownership
+- product entitlements
+- tenant settings
+- external references
+
+Tenant service will NOT own:
+- users
+- authentication
+- passwords
+- sessions
+- invitations
+- roles / permissions / RBAC logic
+- document binary storage
+
+Identity will eventually keep:
+- users
+- groups
+- roles
+- permissions
+- access control
+- tenant references only where needed
+
+Documents service remains the file/blob owner.
+Tenant service stores asset references only.
+
+Critical ID rule:
+- The future migration must preserve TenantId exactly from Identity.
+- In this block, design the schema and contracts to preserve the same TenantId values.
+- Do NOT generate a new tenant identity model that breaks cross-service references.
+
+================================================================
+BLOCK 1 STORIES TO IMPLEMENT
+================================================================
+
+1) TENANT-E00-S01 — Field Mapping Contract
+Create a migration-aware field mapping contract from Identity tenant data to Tenant service canonical data.
+
+At minimum analyze current Identity tenant-related fields and formalize mapping for:
+- Id -> Id (unchanged)
+- Name -> DisplayName
+- Code -> Code
+- IsActive -> Status (or equivalent active lifecycle mapping)
+- Subdomain -> PreferredSubdomain / Subdomain field
+- LogoDocumentId -> LogoDocumentId
+- LogoWhiteDocumentId -> LogoWhiteDocumentId
+- Any current tenant/domain/product-related references that must be accounted for later
+
+Deliverables:
+- documented mapping in code comments and/or a reference file under the new service or /analysis notes
+- clear indication of which fields belong to Block 1 core schema
+- clear indication of which fields are deferred to later blocks
+
+2) TENANT-E00-S02 — Migration Schema Alignment
+Design the initial Tenant schema so it can safely receive migrated data later from Identity without breaking changes.
+
+For Block 1, include only the foundational schema needed now:
+- tenants table
+- enough columns to receive current Identity core tenant data
+- timestamps / lifecycle support as appropriate
+- do NOT overbuild branding/domains/products yet, but leave clean extensibility
+
+3) TENANT-E01-S01 — Service Scaffold
+Create the new standalone service using the existing backend service conventions in the monorepo.
+
+Expected structure should align with existing services, for example:
+- apps/services/tenant/Tenant.Api
+- apps/services/tenant/Tenant.Domain
+- apps/services/tenant/Tenant.Infrastructure
+
+If the repo uses a slightly different but consistent naming pattern, follow the repo’s actual pattern.
+
+Requirements:
+- solution/project references wired correctly
+- service starts independently
+- configured for port 5005
+- added to local orchestration scripts if applicable
+
+4) TENANT-E01-S02 — Health & Diagnostics
+Add:
+- health endpoint
+- readiness/basic diagnostics endpoint if consistent with current patterns
+- startup logging aligned to current services
+
+5) TENANT-E01-S03 — Repository + Persistence
+Add:
+- TenantDbContext
+- EF Core configuration
+- MySQL provider configuration
+- repository abstraction and implementation for core tenant reads/writes
+- initial migration for tenant_db
+
+6) TENANT-E01-S04 — Base API Contract
+Add minimal versioned REST contract for core tenant operations.
+
+At minimum include:
+- GET /api/v1/tenants/{tenantId}
+- GET /api/v1/tenants/by-code/{code}
+- POST /api/v1/tenants
+- PUT /api/v1/tenants/{tenantId}
+- GET /health
+
+If repo conventions differ (controller style vs minimal API), follow existing service conventions.
+
+Rules:
+- keep DTOs generic and portable
+- avoid LegalSynq-specific naming in the public contract
+- do not expose branding/domain/product management yet unless needed for the core contract
+
+7) TENANT-E02-S01 — Core Tenant Entity
+Create the canonical core Tenant entity.
+
+Minimum recommended fields:
+- Id
+- Code
+- DisplayName
+- LegalName (nullable if not yet available)
+- Status
+- PreferredSubdomain (or Subdomain)
+- LogoDocumentId (nullable)
+- LogoWhiteDocumentId (nullable)
+- CreatedAt
+- UpdatedAt
+
+Rules:
+- entity must be migration-aware
+- entity must be portable to other systems
+- do not mix user/access concerns into this entity
+
+================================================================
+IMPLEMENTATION REQUIREMENTS
+================================================================
+
+A. Monorepo / orchestration
+- Add the new service cleanly into the monorepo
+- Update any shell scripts / orchestration needed so the service can run with the platform stack
+- Do not break existing services
+
+B. Configuration
+- Add config for:
+  - Tenant service port 5005
+  - tenant_db connection string
+- Keep secrets/config consistent with current repo practices
+
+C. Persistence
+- Use EF Core migrations
+- Generate the initial migration for tenant_db
+- Ensure DB context and migrations are scoped only to the Tenant service
+
+D. Portability
+- Keep API contracts generic
+- Avoid LegalSynq-only business terminology in core service models
+- Keep document references generic
+- Do not hardwire Identity-specific implementation assumptions into the Tenant public API
+
+E. Non-breaking rule
+- No production cutover in this block
+- No read switch from Identity yet
+- No dual write yet
+- No removal of tenant fields from Identity yet
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. A new standalone Tenant service exists in the monorepo and builds successfully.
+2. The service can run on port 5005 in Replit.
+3. The service uses ASP.NET Core + EF Core + MySQL.
+4. The service is configured to use a separate database named tenant_db.
+5. An initial EF Core migration exists for the Tenant service.
+6. A core Tenant entity exists and is persisted in tenant_db.
+7. Base tenant CRUD/read endpoints exist and work for the core entity.
+8. Health endpoint works.
+9. Field mapping from Identity -> Tenant is documented and reflected in the design.
+10. The implementation does not break existing services or current orchestration.
+11. The work is migration-aware but does NOT execute migration/cutover yet.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- migration creation success
+- Tenant service startup success
+- DB connection success for tenant_db
+- health endpoint response
+- create tenant API
+- get tenant by id API
+- get tenant by code API
+- update tenant API
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B01-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B01 Report
+
+## 1. Objective
+## 2. Codebase Analysis
+- where existing Identity tenant data currently lives
+- current service patterns reused
+- final location chosen for new Tenant service
+- database/orchestration implications
+
+## 3. Field Mapping Contract
+- Identity -> Tenant mapping table
+- deferred fields list
+
+## 4. Implementation Summary
+- service/projects created
+- files added
+- files modified
+- endpoints added
+- DB context/migrations added
+- scripts/config updated
+
+## 5. Database Changes
+- tenant_db setup details
+- migration name
+- tables created
+- key columns
+
+## 6. Validation Results
+- build
+- startup
+- health
+- CRUD endpoint checks
+- DB connectivity
+
+## 7. Known Gaps / Deferred Items
+- branding full model deferred
+- domains full model deferred
+- product entitlements deferred
+- migration utility deferred
+- dual write deferred
+- cutover deferred
+
+## 8. Next Recommended Block
+State that the next logical block is:
+BLOCK 2 — Tenant Profile + Branding Core
+
+Be concrete. Include enough detail that the implementation can be reviewed without re-opening every file manually.
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse existing patterns from the codebase
+- Prefer minimal, correct, production-oriented code
+- Avoid speculative overengineering
+- Avoid placeholder comments instead of working code
+- Keep the scope tight to Block 1
+- When in doubt, choose the safest migration-aware option
+
+Now execute this block end-to-end and write the report as you go.

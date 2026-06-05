@@ -1,0 +1,324 @@
+# LS-ID-TNT-002 — Add User Flow
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the FIRST mutation feature on top of a stabilized Users page (LS-ID-TNT-001 is already complete).
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Reuse existing components/services
+- Respect tenant scoping (JWT/session-based)
+- NOT break existing list/search/filter behavior
+- Include full validation and fallback handling
+- NOT introduce placeholder logic
+
+---
+
+## FEATURE OBJECTIVE
+
+Enable tenant admins to create new users directly from the Authorization → Users page using a modal-based Add User flow.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Edit User
+- Activate / Deactivate
+- Reset Password
+- Product assignment
+- Group assignment
+- Invite workflows
+- Bulk import
+- Any redesign of page layout
+
+DO NOT MODIFY:
+- Groups tab
+- Access tab
+- Simulator tab
+
+ONLY IMPLEMENT:
+- Add User button
+- Add User modal
+- Create user API integration
+- Role selection
+- Validation
+- Success/failure handling
+- Safe refresh of user list
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-002-report.md
+
+Initialize with:
+
+# LS-ID-TNT-002 — Add User Flow
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing API / Create User Contract
+## 4. Role Source / Contract
+## 5. Files Changed
+## 6. UI Implementation
+## 7. Validation Logic
+## 8. API Integration
+## 9. Tenant Scope Handling
+## 10. Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Update this report AFTER EVERY STEP
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Identify:
+- Users page entry point
+- AuthUserTable component
+- where to place Add User button
+- API client used for users (serverApi / tenant-api)
+
+Also identify:
+- existing create-user endpoint (if exists)
+- role retrieval endpoint or source
+- request/response structure
+
+DO NOT assume — inspect actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing API / Create User Contract
+## 4. Role Source / Contract
+
+---
+
+## STEP 2 — ADD “ADD USER” BUTTON
+
+Add a primary button:
+- Label: "Add User"
+- Location: top-right of Users page (near filters/search)
+
+Behavior:
+- opens modal (DO NOT navigate away)
+
+Ensure:
+- only visible to tenant admin
+- does not break existing layout
+
+Update report:
+## 6. UI Implementation
+
+---
+
+## STEP 3 — CREATE ADD USER MODAL
+
+Build modal (or drawer if consistent with UI system)
+
+Fields (REQUIRED):
+- First Name
+- Last Name
+- Email
+- Role
+
+Optional:
+- Phone (ONLY if supported in API)
+
+Buttons:
+- Cancel
+- Create User
+
+Behavior:
+- modal opens/closes properly
+- retains form state until success or cancel
+
+Update report:
+## 6. UI Implementation
+
+---
+
+## STEP 4 — ROLE SELECTION
+
+Fetch roles from existing source:
+
+- Identify correct endpoint or data source
+- DO NOT hardcode roles
+
+Requirements:
+- dropdown selection
+- must select at least one role
+- roles must be tenant-scoped
+
+Handle:
+- loading state for roles
+- empty roles scenario
+- API failure
+
+Update report:
+## 4. Role Source / Contract
+
+---
+
+## STEP 5 — FORM VALIDATION
+
+Implement client-side validation:
+
+Required:
+- First Name
+- Last Name
+- Email (valid format)
+- Role
+
+Behavior:
+- inline error messages
+- prevent submit if invalid
+- disable submit while processing
+
+Update report:
+## 7. Validation Logic
+
+---
+
+## STEP 6 — CREATE USER API INTEGRATION
+
+Connect form to backend:
+
+- Use existing API client (serverApi / fetch wrapper)
+- DO NOT invent new endpoint unless necessary
+
+Rules:
+- tenant context MUST come from session/JWT
+- DO NOT send tenantId manually unless required by backend contract
+
+Handle:
+- success response
+- validation errors (duplicate email, invalid role)
+- server errors
+
+Update report:
+## 8. API Integration
+
+---
+
+## STEP 7 — SUCCESS HANDLING
+
+On success:
+- close modal
+- show confirmation (toast or message)
+- refresh users list
+
+Acceptable approaches:
+- refetch users
+- route refresh
+- state update (only if safe)
+
+Ensure:
+- list remains stable
+- search/filter still works
+
+---
+
+## STEP 8 — FAILURE HANDLING
+
+On failure:
+- modal stays open
+- form data preserved
+- show user-friendly error
+
+DO NOT:
+- clear form on error
+- show technical messages
+
+---
+
+## STEP 9 — TENANT SAFETY
+
+Ensure:
+- no tenantId passed from UI unless required
+- relies on authenticated session (JWT)
+- no cross-tenant creation possible
+
+Update report:
+## 9. Tenant Scope Handling
+
+---
+
+## STEP 10 — NULL SAFETY COMPATIBILITY
+
+Ensure:
+- newly created users do NOT break list rendering
+- consistent with LS-ID-TNT-001 null-safe logic
+
+DO NOT:
+- reintroduce unsafe assumptions
+
+---
+
+## STEP 11 — TESTING
+
+Test:
+
+### Happy Path
+- create valid user
+- user appears in list
+
+### Validation
+- missing fields
+- invalid email
+- missing role
+
+### Failure Cases
+- duplicate email
+- API error
+- network failure
+
+### Regression
+- list still loads
+- search works
+- filters work
+- no UI break
+
+Document all results:
+
+## 10. Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Add User button visible  
+✔ Modal opens correctly  
+✔ Form validates properly  
+✔ Role selection works  
+✔ User is created successfully  
+✔ New user appears in list  
+✔ Errors handled gracefully  
+✔ Tenant isolation preserved  
+✔ No regression from LS-ID-TNT-001  
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working Add User flow
+2. Completed report:
+/analysis/LS-ID-TNT-002-report.md
+
+---
+
+END OF IMPLEMENTATION

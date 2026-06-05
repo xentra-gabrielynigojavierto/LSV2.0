@@ -1,0 +1,294 @@
+Update the existing LegalSynq Control Center admin dashboard based on the CURRENT backend capabilities and current frontend state.
+
+Important context:
+- Keep the current Control Center layout, shell, spacing, theme, colors, and branding intact.
+- Do NOT redesign the app visually.
+- Do NOT replace the current navigation framework.
+- Treat this as a functional completion pass on top of the existing Control Center admin UI.
+
+## Primary goal
+
+Refresh the Control Center admin so that:
+
+1. the left navigation reflects the backend/admin functionality that now actually exists
+2. pages that already have working backend support are wired and functional
+3. pages for functionality that is not yet implemented are still added as mock pages
+4. every non-functional page must clearly show a visible badge or label saying:
+   MOCKUP
+5. the existing layout and branding remain unchanged
+
+---
+
+## Current backend/platform capabilities you should align to
+
+The platform now includes working backend/admin support for:
+- organization types
+- relationship types
+- organization relationships
+- product organization type rules
+- product relationship type rules
+- scoped role assignments as the sole role source
+- legacy coverage reporting
+- platform readiness reporting
+- scoped role assignment APIs including non-global scopes
+- CareConnect integrity reporting
+
+The platform upgrade added admin endpoints for organization types, relationship types, organization relationships, product org-type rules, and product relationship-type rules. :contentReference[oaicite:3]{index=3}
+Phase G retired UserRoles/UserRoleAssignments and made ScopedRoleAssignments the sole role source, with role assignment flows now centered in Identity admin endpoints. :contentReference[oaicite:4]{index=4}
+The hardening pass added platform-readiness support plus control-center type/mapper/API updates for readiness and legacy coverage. :contentReference[oaicite:5]{index=5}
+Earlier work also noted that the Control Center shell existed but many of the org/relationship/rules UI pages were still not built or only partially wired. :contentReference[oaicite:6]{index=6}
+
+---
+
+## What to do
+
+### 1. Keep existing shell/layout/branding
+
+Do NOT change:
+- top-level layout
+- navigation container style
+- theme tokens
+- brand colors
+- typography system unless required for consistency
+- current responsive structure
+
+You may:
+- reorder nav items
+- rename nav labels for clarity
+- add missing nav items
+- hide or demote dead nav items
+- add status chips like LIVE / MOCKUP / IN PROGRESS
+
+---
+
+### 2. Update the navigation based on actual capability status
+
+Review the current Control Center codebase and reorganize navigation into something like this, adapting to the existing nav structure:
+
+- Dashboard
+- Platform
+  - Platform Readiness
+  - Legacy Coverage
+- Identity
+  - Users
+  - Roles
+  - Scoped Roles
+  - Organization Types
+- Relationships
+  - Relationship Types
+  - Organization Relationships
+- Product Rules
+  - Product Org Type Rules
+  - Product Relationship Type Rules
+- CareConnect
+  - Integrity
+- Tenants
+  - mock or live depending on actual backend support
+- Domains / Tenant Domains
+  - MOCKUP unless backend already exists
+- Products
+  - mock or partial if backend admin support is not ready
+- Settings / System
+  - mock or partial depending on current code
+
+Use your judgment after inspecting the repo, but the navigation should reflect:
+- real working backend features first
+- in-progress features second
+- mockups last
+
+Pages backed by working endpoints should appear as normal functional pages.
+Pages without working backend support should still be accessible, but visibly marked MOCKUP.
+
+---
+
+### 3. Wire pages that already work
+
+Inspect the existing frontend and wire the pages that should now be functional.
+
+At minimum, wire these if the routes/components do not already fully work:
+
+- Platform Readiness
+- Legacy Coverage
+- Organization Types
+- Relationship Types
+- Organization Relationships
+- Product Org Type Rules
+- Product Relationship Type Rules
+- Users
+- Roles
+- Scoped Roles / User Scoped Roles
+- CareConnect Integrity
+
+Use the current backend/admin endpoints and current API client patterns.
+Prefer reusing existing:
+- control-center API client
+- mappers
+- shared table/list components
+- cards, filters, badges, loading states, empty states
+
+If routes/pages already exist but are broken or stale:
+- fix them
+- align types with the current backend response shapes
+- preserve visual style
+
+---
+
+### 4. Mock pages for unsupported or incomplete features
+
+For any nav item/page that does NOT yet have working backend support, create a clean mock page.
+
+Rules for mock pages:
+- keep the same layout shell as real pages
+- include a visible badge near the page title: MOCKUP
+- include 1–2 realistic sections/cards/tables that preview what the page will eventually show
+- include placeholder filter controls if appropriate
+- include realistic empty data examples
+- do NOT fake actual CRUD behavior
+- buttons can be disabled or no-op if clearly labeled
+
+Examples of likely mock candidates if backend is not ready:
+- Tenants management
+- Tenant domains
+- Product catalog admin
+- Settings pages
+- audit/ops pages that are not yet wired
+
+---
+
+### 5. Add status indicators in the UI
+
+For each page or nav item, make the implementation state obvious.
+
+Recommended states:
+- LIVE → fully wired to backend
+- IN PROGRESS → partially wired or mixed live/mock
+- MOCKUP → no real backend wiring yet
+
+Use subtle badges/tags that fit the existing design system.
+Do not make the UI look unfinished or messy.
+
+---
+
+### 6. Review and align frontend types/api/mappers
+
+Inspect and update the relevant Control Center files, including but not limited to:
+- src/types/control-center.ts
+- src/lib/api-client.ts
+- src/lib/api-mappers.ts
+- src/lib/control-center-api.ts
+- existing app routes/pages/components for admin sections
+- navigation config files
+- dashboard cards/widgets
+
+Ensure:
+- current backend response shapes are matched
+- stale Phase F/Phase G assumptions are removed if outdated
+- readiness and coverage pages use the latest shapes
+- scoped-role pages use the current ScopedRoleAssignment model, not retired UserRoles
+
+---
+
+### 7. Functional expectations
+
+Make these pages functional if backend exists:
+- lists
+- detail panels if practical
+- filters if practical
+- loading states
+- empty states
+- basic error states
+
+You do NOT need to overbuild full CRUD unless the backend and current page structure already support it cleanly.
+For working pages, prioritize:
+- read/list/detail visibility first
+- action buttons second
+- full edit/create flows only where low-risk
+
+---
+
+### 8. Suggested implementation approach
+
+1. inspect current nav structure and route map
+2. inspect current control-center API client/mappers/types
+3. audit which pages already exist and whether they are live, stale, partial, or dead
+4. map each page to one of:
+   - LIVE
+   - IN PROGRESS
+   - MOCKUP
+5. update navigation
+6. wire working pages
+7. add mock pages for the rest
+8. keep styling consistent
+9. generate a report
+
+---
+
+## Report required
+
+Create and save:
+
+/analysis/step11_control-center-admin-refresh.md
+
+Use this structure:
+
+# LegalSynq Control Center Admin Refresh
+## 1. Current UI Audit
+## 2. Navigation Changes
+## 3. Live Pages Wired
+## 4. Mockup Pages Added
+## 5. Types / API / Mapper Changes
+## 6. Route and Component Changes
+## 7. Build and Verification Status
+## 8. Remaining UI Gaps
+
+For each page, explicitly mark:
+- LIVE
+- IN PROGRESS
+- MOCKUP
+
+Also include:
+- exact files changed
+- which backend endpoints each LIVE page uses
+- which MOCKUP pages were added because backend is not ready
+
+---
+
+## Constraints
+
+- preserve current layout and branding
+- do not do a visual redesign
+- do not remove existing working pages unless clearly obsolete
+- do not invent backend APIs that do not exist
+- do not fake real functionality on mock pages
+- if a page is not functional, label it clearly as MOCKUP inside the page
+- prefer additive completion over refactoring the whole frontend
+
+---
+
+## Files to inspect first
+
+### Control Center frontend
+- apps/control-center/src/*
+- route/app/page files
+- navigation config/sidebar files
+- platform dashboard widgets/cards
+- API client, mapper, and type files
+
+### Backend/admin references
+- Identity.Api/Endpoints/AdminEndpoints.cs
+- CareConnect.Api endpoints relevant to integrity
+- any existing frontend API wrappers already added for readiness/coverage/platform pages
+
+---
+
+## Final instruction
+
+Do the work now.
+
+Keep the existing Control Center shell and branding.
+Refresh the navigation to reflect the actual platform capabilities.
+Wire the pages that are already supported by the backend.
+For unsupported pages, add polished mock pages with a clear MOCKUP label.
+Then generate:
+
+/analysis/step11_control-center-admin-refresh.md

@@ -1,0 +1,159 @@
+Implement LS-LIENS-UI-011-01 — Provider Mode Backend Enforcement & Config Completion.
+
+Goal:
+Complete Provider Mode by making it persistent, real, and enforced at the backend level.
+
+This iteration must:
+- add persistent provider mode to organization data
+- return real provider mode from org config API
+- block sell-only backend workflows when org mode = manage
+- preserve sell mode behavior
+- keep frontend UI-011 working against real config
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-011-01-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Current gaps from UI-011
+   - Expected backend data model changes
+   - Expected enforcement targets
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g. T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Provider mode source remains tenant/org config API
+- Backend must become the final authority
+- No scattered raw string checks if avoidable
+- No fake enforcement
+- Preserve sell mode behavior
+- Default safely to sell
+- No hybrid mode
+- Keep frontend UI-011 compatible
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Gap Confirmation and Enforcement Audit
+- Review UI-011 implementation gaps
+- Identify all sell-only backend workflows and endpoints that must be blocked in manage mode
+- Confirm current org config endpoint shape and where provider mode is currently hardcoded
+- Log findings in report
+
+T002 — Add Persistent Provider Mode to Organization Model
+- Update organization/entity model to persist provider mode
+- Add allowed values / normalization strategy
+- Prepare safe default behavior
+
+Update report after completion
+
+T003 — Create and Apply Migration
+- Add DB migration for provider mode
+- Backfill existing orgs safely to sell
+- Verify no null/invalid ambiguity remains
+
+Update report after completion
+
+T004 — Update Org Config API
+- Update `GET /api/organizations/my/config` to return real stored provider mode
+- Preserve safe fallback to sell if needed
+- Document final response contract
+
+Update report after completion
+
+T005 — Centralize Backend Mode Resolution
+- Add a helper/service/value-object/policy utility for provider mode checks
+- Expose a clean way to check sell vs manage in backend services
+- Avoid duplicated scattered string checks
+
+Update report after completion
+
+T006 — Enforce Mode on Sell-Only Workflows
+At minimum, enforce manage-mode blocking for:
+- offer creation
+- offer acceptance / lien sale initiation
+- BOS creation via sale flow
+- marketplace-specific actions
+- settlement/sell-only mutation paths where applicable
+
+Use clean business validation errors, not generic failures.
+
+Update report after completion
+
+T007 — Frontend Compatibility Validation
+- Verify existing provider mode frontend still resolves correctly from real API
+- Adjust any minor compatibility issues if needed
+- Ensure blocked action responses are handled cleanly by the UI
+
+Update report after completion
+
+T008 — Activity / Notification Metadata Improvement (If Feasible)
+- Improve sell-only event categorization for activity filtering if practical
+- Improve notification category readiness if practical
+- If not feasible, document exact limitation
+
+Update report after completion
+
+T009 — Validation and Regression
+- Verify sell mode remains intact
+- Verify manage mode blocks sell-only workflows
+- Verify org config returns real mode
+- Verify migration/build/tests pass
+
+Update report after completion
+
+T010 — Finalize Report
+Finalize /analysis/LS-LIENS-UI-011-01-report.md with:
+- executive summary
+- backend model changes
+- migration details
+- org config API before/after
+- enforcement points
+- blocked workflow list
+- frontend compatibility notes
+- activity/notification metadata notes
+- risks/issues/blockers
+- validation results
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Provider mode is stored in backend organization data
+- Org config API returns real provider mode
+- Existing orgs default safely to sell
+- Manage mode blocks sell-only backend workflows
+- Sell mode continues to work unchanged
+- Frontend remains compatible
+- Blocked actions fail cleanly
+- Report created first and updated incrementally
+- Final report is complete and traceable
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT delay report creation.

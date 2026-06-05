@@ -1,0 +1,715 @@
+You are implementing LS-LIENS-FLOW-006 — Task Creation Governance + Email Notifications for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-006-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Task Governance Behavior
+- Notifications / Email Integration
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not leave placeholder sections. Populate with actual implementation details only.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement governed task creation for Synq Liens so new tasks follow minimum operational requirements defined by the tenant.
+
+This feature must ensure, for governed tenants:
+
+1. a task must be assigned
+2. a task must be linked to a case
+3. a task must enter the workflow in a valid starting stage
+4. task creation and assignment must send email notifications through the v2 Notifications service
+
+This upgrades task creation from:
+- generic / flexible entry
+to
+- accountable operational work intake
+
+This is NOT:
+- assignment intelligence
+- workload balancing
+- approval routing
+- SLA enforcement
+- a full intake rules engine
+- required-task gating for transitions
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services only:
+- Identity
+- Audit
+- Notifications
+
+Use existing Synq Liens architecture patterns:
+- repository / DTO / service / endpoint conventions
+- product settings governance patterns
+- workflow config patterns
+- task service patterns
+
+Do NOT:
+- introduce a heavy policy engine
+- redesign the entire task domain
+- redesign notifications architecture
+- add approval logic
+- add routing intelligence
+- add due-date/SLA rules
+- add required lien linkage unless already safely supported and explicitly needed
+
+Keep this feature focused on:
+- assignee requirement
+- case-link requirement
+- valid workflow entry stage
+- task create / assign / reassign email notifications
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE
+==================================================
+
+Before implementing:
+
+Inspect and document:
+- current FLOW-001 task entity/service/API
+- current FLOW-002 templates and creation flow
+- current FLOW-003 automation generation flow
+- current FLOW-005 transition engine and start-stage behavior
+- current task create modal / form
+- current task assignment model (single vs multi assignee reality in code)
+- existing notifications integration pattern used by tasks
+- available notification publisher/service APIs
+- current workflow config and stage retrieval patterns
+- current tenant/admin product settings governance patterns
+- any existing product settings store/entity that could house task governance settings
+- current audit integration for task create/assign actions
+
+Document findings in the report before coding.
+
+Clarify in the report:
+- whether task model currently supports only one assignee or multiple assignees
+- how task create and assign notifications currently behave
+- what runtime path automation uses when generating tasks
+- where governance must be enforced in backend
+
+==================================================
+STEP 2 — IMPLEMENT TASK GOVERNANCE SETTINGS DOMAIN
+==================================================
+
+Create a tenant-scoped task governance settings model for Synq Liens.
+
+--------------------------------------------------
+2.1 Entity / Model
+--------------------------------------------------
+
+Create a settings entity with at minimum:
+
+- id
+- tenantId
+- productCode
+- requireAssigneeOnCreate
+- requireCaseLinkOnCreate
+- allowMultipleAssignees
+- requireWorkflowStageOnCreate
+- defaultStartStageMode
+- explicitStartStageId
+- version
+- lastUpdatedAt
+- lastUpdatedByUserId
+- lastUpdatedByName
+- lastUpdatedSource
+- createdAt
+- updatedAt
+
+Use existing governance naming patterns where applicable.
+
+Recommended name:
+- LienTaskGovernanceSettings
+or equivalent consistent with current codebase
+
+--------------------------------------------------
+2.2 Default Values
+--------------------------------------------------
+
+Use these recommended defaults unless codebase conventions strongly suggest otherwise:
+
+- requireAssigneeOnCreate = true
+- requireCaseLinkOnCreate = true
+- allowMultipleAssignees = false unless multi-assignee is already truly supported
+- requireWorkflowStageOnCreate = true
+- defaultStartStageMode = FIRST_ACTIVE_STAGE
+
+If explicit stage mode is supported, `explicitStartStageId` may be null unless configured.
+
+--------------------------------------------------
+2.3 Persistence / EF
+--------------------------------------------------
+
+Implement:
+- entity configuration
+- tenant/product indexing
+- unique tenant/product governance record protection if appropriate
+
+==================================================
+STEP 3 — IMPLEMENT GOVERNANCE SERVICE / SETTINGS MANAGEMENT
+==================================================
+
+Create service logic to manage task governance settings.
+
+--------------------------------------------------
+3.1 Service Behavior
+--------------------------------------------------
+
+Tenant/admin must be able to:
+- get current task governance settings
+- create settings if missing
+- update settings
+- save/update governance rules
+- use same underlying settings from tenant and control-center surfaces
+
+--------------------------------------------------
+3.2 Governance Pattern
+--------------------------------------------------
+
+Follow the same governance model used in workflow config / templates / automation:
+
+- tenant-side and control-center edits affect the same settings record
+- version increments on update
+- lastUpdatedAt updates
+- lastUpdatedBy updates
+- lastUpdatedSource updates
+
+==================================================
+STEP 4 — ENFORCE TASK CREATION GOVERNANCE IN BACKEND
+==================================================
+
+Backend must be the source of truth.
+
+--------------------------------------------------
+4.1 Creation Validation
+--------------------------------------------------
+
+Update task creation flow so the following are enforced for NEW task creation:
+
+If `requireAssigneeOnCreate = true`
+- task creation must fail if no valid assignee is provided
+
+If `requireCaseLinkOnCreate = true`
+- task creation must fail if caseId is missing
+- case must belong to same tenant
+
+If `requireWorkflowStageOnCreate = true`
+- task creation must result in a valid workflowStageId
+- if not supplied, derive it from start-stage rules
+- stage must be active and belong to tenant workflow
+
+--------------------------------------------------
+4.2 Start Stage Behavior
+--------------------------------------------------
+
+Implement start-stage behavior:
+
+Mode: FIRST_ACTIVE_STAGE
+- choose first active stage ordered by stage order
+
+Mode: EXPLICIT_STAGE
+- use configured explicitStartStageId
+- validate it belongs to active workflow and is active
+
+Creation rules:
+- initial stage placement is allowed without transition validation
+- FLOW-005 transition engine still applies only after task already has a current stage and is moved
+
+--------------------------------------------------
+4.3 Assignee Model Reality
+--------------------------------------------------
+
+IMPORTANT:
+Respect the real current task data model.
+
+If the current system supports only one assignee:
+- enforce exactly one assignee when required
+- do NOT fake multi-assignee in UI/API
+
+If the current system already supports multiple assignees cleanly:
+- allow one or more assignees only when `allowMultipleAssignees = true`
+
+Document clearly in the report which reality the codebase supports and what you implemented.
+
+--------------------------------------------------
+4.4 Error Behavior
+--------------------------------------------------
+
+Return clear validation messages such as:
+- "Task assignee is required."
+- "Task must be linked to a case."
+- "A valid workflow stage is required for task creation."
+- "Selected assignee is not valid for this tenant."
+
+Do not return vague errors.
+
+==================================================
+STEP 5 — TEMPLATE AND AUTOMATION COMPATIBILITY
+==================================================
+
+This feature must remain compatible with FLOW-002 and FLOW-003.
+
+--------------------------------------------------
+5.1 Template-Based Creation
+--------------------------------------------------
+
+When creating from template:
+- template may prefill assignee / role suggestion / stage
+- template does NOT bypass governance validation
+- user must complete missing required fields before save
+
+--------------------------------------------------
+5.2 Event-Driven Generation
+--------------------------------------------------
+
+When system auto-generates tasks:
+- generated task must also satisfy governance rules
+- generation engine must derive:
+  - case linkage from triggering context where possible
+  - workflow entry stage from governance/workflow settings if missing
+  - assignee from template/rule if available
+
+If automation cannot satisfy a required governance rule:
+- do NOT create an invalid task
+- fail generation cleanly
+- audit/log the reason
+
+Document exact failure behavior clearly.
+
+==================================================
+STEP 6 — IMPLEMENT EMAIL NOTIFICATION RULES
+==================================================
+
+Use the v2 Notifications service and existing task notification patterns.
+
+--------------------------------------------------
+6.1 Required Email Events
+--------------------------------------------------
+
+Email must fire for:
+
+1. task created with assignee already present
+2. task assigned after creation
+3. task reassigned to a new assignee
+
+--------------------------------------------------
+6.2 Anti-Duplicate Rule
+--------------------------------------------------
+
+If task is created already assigned:
+- send ONE combined email only
+- do NOT send both:
+  - task created
+  - task assigned
+
+Preferred template/event meaning:
+- TASK_CREATED_ASSIGNED
+
+If task is created without assignee and later assigned:
+- send TASK_ASSIGNED
+
+If task is reassigned:
+- send TASK_REASSIGNED to the new assignee
+- optionally document whether previous assignee is not notified in this phase
+
+--------------------------------------------------
+6.3 Minimum Email Payload
+--------------------------------------------------
+
+Include at minimum:
+- tenantId
+- taskId
+- task title
+- caseId or case reference
+- linked lien context if relevant and available
+- assigned user
+- created by / assigned by
+- priority
+- due date
+- workflow stage
+- direct task link if existing URL conventions support it
+
+--------------------------------------------------
+6.4 Email Templates / Event Taxonomy
+--------------------------------------------------
+
+Use the cleanest available notification event taxonomy consistent with existing patterns.
+
+Recommended events:
+- liens.task.created_assigned
+- liens.task.assigned
+- liens.task.reassigned
+
+If existing notification event naming conventions differ, align to the platform standard and document it.
+
+--------------------------------------------------
+6.5 Triggering Rules
+--------------------------------------------------
+
+Create path:
+- if task created with assignee present → send created-assigned email
+
+Assignment path:
+- if task previously had no assignee and now has one → send assigned email
+
+Reassignment path:
+- if assignee changed from A to B → send reassigned email to B
+
+Do NOT emit duplicate emails for the same user action.
+
+--------------------------------------------------
+6.6 Failure Handling
+--------------------------------------------------
+
+Task creation/update should not silently fail due to email notification issues if existing platform pattern is fire-and-observe.
+
+Follow existing notification publishing pattern:
+- create/update task succeeds
+- notification publish failure is logged/audited per platform pattern if already supported
+
+Document exact behavior.
+
+==================================================
+STEP 7 — FRONTEND SETTINGS UI
+==================================================
+
+Add tenant/admin UI for task governance settings.
+
+--------------------------------------------------
+7.1 Tenant Side
+--------------------------------------------------
+
+Add:
+- Synq Liens → Product Settings → Task Governance
+
+This page must support:
+- Require assignee on create
+- Require case link on create
+- Allow multiple assignees
+- Require workflow stage on create
+- Default start stage mode
+- Explicit start stage selector if explicit mode chosen
+
+Display:
+- version
+- last updated
+- updated by
+- update source
+
+--------------------------------------------------
+7.2 Control Center
+--------------------------------------------------
+
+Mirror the same capability in:
+- Control Center → Tenant → Synq Liens → Task Governance
+
+Use same underlying settings and governance model.
+
+==================================================
+STEP 8 — FRONTEND TASK CREATION UX
+==================================================
+
+Update task creation modal/form to reflect governance.
+
+--------------------------------------------------
+8.1 Required Fields
+--------------------------------------------------
+
+The form must:
+- visibly mark required fields
+- require assignee when policy enabled
+- require case when policy enabled
+- auto-populate workflow entry stage if required
+- prevent save until valid where practical
+
+--------------------------------------------------
+8.2 Context-Aware Behavior
+--------------------------------------------------
+
+From Case page:
+- case should prefill automatically
+
+From Lien page:
+- lien should prefill
+- parent case should prefill if available
+
+From My Tasks page:
+- user must select case when required
+
+--------------------------------------------------
+8.3 Workflow Stage UX
+--------------------------------------------------
+
+If governance requires workflow stage on create:
+- auto-fill default start stage
+- if UX is cleaner, keep it read-only or controlled
+- do not force users to guess the correct start stage
+
+Document your chosen UX behavior.
+
+==================================================
+STEP 9 — API CHANGES
+==================================================
+
+Implement the necessary backend/API changes.
+
+Support at minimum:
+- get task governance settings
+- create/update task governance settings
+- updated task create validation behavior
+- notification trigger integration in task create / assign / reassign flows
+
+Prefer adding governance endpoints consistent with current product settings patterns.
+
+If task create DTOs must change, do so carefully and document:
+- request shape
+- response shape
+- backward compatibility
+
+==================================================
+STEP 10 — PERMISSIONS / SECURITY
+==================================================
+
+Reuse existing workflow/product settings management permission if possible.
+
+Recommended:
+- do NOT introduce a new permission unless necessary
+- use existing workflow/product governance manage permission for task governance settings
+
+Preserve:
+- tenant isolation
+- tenant/admin governance rules
+- task access validation
+- assignee belongs to tenant validation
+
+If a new permission is required, document why.
+
+==================================================
+STEP 11 — AUDIT INTEGRATION
+==================================================
+
+Use v2 Audit service.
+
+Log governance settings changes:
+- liens.task_governance.created
+- liens.task_governance.updated
+
+Also preserve existing task audit events.
+
+If automation generation fails due to governance requirements:
+- log/audit clearly if existing automation audit pattern supports it
+
+Document notification-related audit/log behavior if any exists.
+
+==================================================
+STEP 12 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- task governance settings entity/model
+- EF configuration
+- migration/schema changes
+- repository/data access
+- governance service
+- task create validation updates
+- template/automation compatibility updates
+- notifications integration updates for create/assign/reassign
+- API endpoints
+- audit hooks
+
+Keep domain boundaries clear:
+1. task governance settings
+2. workflow config
+3. workflow stages/transitions
+4. tasks
+5. templates
+6. automation rules
+
+==================================================
+STEP 13 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- task governance types/api/service updates
+- tenant task governance settings page
+- control-center task governance page
+- task creation form updates
+- inline validation / required markers
+- workflow start stage display behavior
+- user-facing error handling
+
+Preserve current styling and layout conventions.
+
+==================================================
+STEP 14 — VALIDATION CHECKLIST
+==================================================
+
+Validate and document:
+
+### Governance Configuration
+- tenant can save governance settings
+- control-center can save same settings
+- tenant/control-center remain in sync
+- version / lastUpdated metadata updates correctly
+
+### Task Creation
+- cannot create task without assignee when required
+- cannot create task without case when required
+- task gets valid workflow start stage automatically when required
+- case-context task creation pre-fills correctly
+- lien-context task creation pre-fills case where available
+- template-based creation still works with governance enforcement
+
+### Notifications / Email
+- task created with assignee sends ONE created-assigned email
+- task assigned after creation sends assigned email
+- task reassigned sends reassigned email
+- no duplicate create+assign email on initial create-with-assignee
+- notification payload contains expected key fields
+
+### Automation
+- generated task succeeds when governance requirements can be satisfied
+- generated task fails/logs when governance requirements cannot be satisfied
+
+### Build / Run
+- backend builds
+- frontend builds / typechecks
+- migrations apply
+- app starts cleanly
+
+If some behavior cannot be fully implemented due to current codebase constraints, document exactly where and why.
+
+==================================================
+STEP 15 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Populate the final `/analysis/LS-LIENS-FLOW-006-report.md` with:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - assignee model findings
+   - workflow entry findings
+   - current notification integration findings
+   - automation compatibility findings
+
+3. Files Changed
+   - backend/frontend/database/config grouped clearly
+
+4. Database / Schema Changes
+   - new tables/entities/indexes
+   - migration name
+
+5. API Changes
+   - endpoints added/updated
+   - request/response behavior
+
+6. UI Changes
+   - task governance settings pages
+   - task create modal changes
+   - validation UX changes
+
+7. Task Governance Behavior
+   - exact create-time rules
+   - assignee/case/stage handling
+   - compatibility with templates/automation
+
+8. Notifications / Email Integration
+   - events/templates used
+   - create/assign/reassign behavior
+   - anti-duplicate logic
+   - failure behavior
+
+9. Permissions / Security
+   - permission reuse or new permission rationale
+   - tenant/admin scoping
+   - assignee validation
+
+10. Audit Integration
+   - governance settings events
+   - automation/governance logging choices
+
+11. Validation Results
+   - build/typecheck/manual validation
+
+12. Known Gaps / Risks
+   - unresolved assignee model limits
+   - automation edge cases
+   - future assignment intelligence opportunities
+   - recommended next step
+
+13. Run Instructions
+   - migration/build/startup/testing instructions
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is complete only if:
+
+1. tenant/admin can configure task governance settings
+2. new tasks cannot be created without required assignee/case when policy requires them
+3. new tasks enter a valid workflow start stage when required
+4. template and automation flows remain compatible
+5. task create/assign/reassign email notifications are sent correctly
+6. duplicate create+assign email noise is avoided
+7. governance metadata updates correctly
+8. implementation is documented in `/analysis/LS-LIENS-FLOW-006-report.md`
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Keep this a focused task-intake governance feature
+- Respect the real assignee model in the current codebase
+- Do not fake multi-assignee if backend does not support it
+- Prefer deterministic defaults over complex rules
+- Preserve tenant isolation
+- Preserve existing task/template/automation behavior wherever possible
+- Make reasonable choices if the codebase has limits, and document them clearly
+
+Begin by creating `/analysis/LS-LIENS-FLOW-006-report.md` immediately, then inspect the codebase, document findings, and proceed with implementation.

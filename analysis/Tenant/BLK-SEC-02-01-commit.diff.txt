@@ -1,0 +1,310 @@
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs
+index 9458949a..2519aef6 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/AnalyticsEndpoints.cs
+@@ -2,7 +2,10 @@
+ // Route: GET /api/admin/analytics/funnel
+ // Auth:  PlatformOrTenantAdmin
+ // Query: ?days=7|30|90  OR  ?startDate=yyyy-MM-dd&endDate=yyyy-MM-dd
++// BLK-SEC-02-01: TenantAdmin callers are scoped to their own tenant.
++//                PlatformAdmin sees platform-wide funnel metrics.
+ using BuildingBlocks.Authorization;
++using BuildingBlocks.Context;
+ using CareConnect.Application.Interfaces;
+ using Microsoft.AspNetCore.Mvc;
+ 
+@@ -18,14 +21,20 @@ public static class AnalyticsEndpoints
+         // GET /api/admin/analytics/funnel?days=30
+         // GET /api/admin/analytics/funnel?startDate=2026-01-01&endDate=2026-03-31
+         group.MapGet("/funnel", async (
+-            [FromQuery] int?    days,
+-            [FromQuery] string? startDate,
+-            [FromQuery] string? endDate,
++            [FromQuery] int?                  days,
++            [FromQuery] string?               startDate,
++            [FromQuery] string?               endDate,
+             IActivationFunnelAnalyticsService analytics,
+-            CancellationToken ct) =>
++            ICurrentRequestContext            ctx,
++            CancellationToken                 ct) =>
+         {
++            // BLK-SEC-02-01: Scope to caller's tenant for non-PlatformAdmin.
++            Guid? scopeTenantId = ctx.IsPlatformAdmin
++                ? null
++                : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
++
+             var (from, to) = ResolveRange(days, startDate, endDate);
+-            var metrics = await analytics.GetMetricsAsync(from, to, ct);
++            var metrics = await analytics.GetMetricsAsync(from, to, scopeTenantId, ct);
+             return Results.Ok(metrics);
+         });
+     }
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs
+index 9115947d..94decd74 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/PerformanceEndpoints.cs
+@@ -6,6 +6,7 @@
+ //       since=<ISO>  — explicit UTC start (overrides days if both provided)
+ //
+ //   Auth: PlatformOrTenantAdmin only
++//   BLK-SEC-02-01: TenantAdmin scoped to their own tenant; PlatformAdmin sees platform-wide.
+ //
+ // Response includes:
+ //   - summary (totalReferrals, acceptedReferrals, acceptanceRate, avgTimeToAcceptHours,
+@@ -14,6 +15,7 @@
+ //   - providers (per-provider totals, rates, avg TTA)
+ //   - windowFrom, windowTo (UTC)
+ using BuildingBlocks.Authorization;
++using BuildingBlocks.Context;
+ using CareConnect.Application.Interfaces;
+ using Microsoft.AspNetCore.Mvc;
+ 
+@@ -43,6 +45,7 @@ public static class PerformanceEndpoints
+     // Both params are optional and shareable in bookmarks/links.
+     private static async Task<IResult> GetPerformanceAsync(
+         IReferralPerformanceService perf,
++        ICurrentRequestContext      ctx,
+         [FromQuery] string?         since    = null,
+         [FromQuery] int             days     = 7,
+         CancellationToken           ct       = default)
+@@ -61,7 +64,12 @@ public static class PerformanceEndpoints
+             windowFrom = nowUtc.AddDays(-clampedDays);
+         }
+ 
+-        var result = await perf.GetPerformanceAsync(windowFrom, ct);
++        // BLK-SEC-02-01: Scope to caller's tenant for non-PlatformAdmin.
++        Guid? scopeTenantId = ctx.IsPlatformAdmin
++            ? null
++            : (ctx.TenantId ?? throw new InvalidOperationException("tenant_id claim is missing."));
++
++        var result = await perf.GetPerformanceAsync(windowFrom, scopeTenantId, ct);
+ 
+         return Results.Ok(new
+         {
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs
+index bdede6bf..12b5316a 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/ProviderAdminEndpoints.cs
+@@ -102,14 +102,28 @@ public static class ProviderAdminEndpoints
+ 
+     // LSCC-01-003: Activate provider IsActive + AcceptingReferrals = true (idempotent).
+     // POST /api/admin/providers/{id}/activate-for-careconnect
+-    // Requires PlatformOrTenantAdmin. Cross-tenant: admin activates the provider record
+-    // regardless of which tenant owns it. Returns activation result.
++    // Requires PlatformOrTenantAdmin.
++    // BLK-SEC-02-01: TenantAdmin may only activate providers within their own tenant.
++    //   PlatformAdmin may activate any provider (platform-wide tooling intent).
+     private static async Task<IResult> ActivateForCareConnectAsync(
+         Guid                   id,
+         IProviderService       service,
+         ICurrentRequestContext ctx,
+         CancellationToken      ct)
+     {
++        // BLK-SEC-02-01: For non-PlatformAdmin, verify provider belongs to caller's tenant.
++        if (!ctx.IsPlatformAdmin)
++        {
++            var callerTenantId = ctx.TenantId
++                ?? throw new InvalidOperationException("tenant_id claim is missing.");
++
++            var provider = await service.GetByIdAsync(callerTenantId, id, ct);
++            // GetByIdAsync throws NotFoundException if provider is not found in the tenant —
++            // that propagates as 404 through the global error handler, which is correct behavior.
++            // An explicit 403 would confirm the provider exists in another tenant; 404 is safer.
++            _ = provider; // ownership confirmed by scoped lookup
++        }
++
+         var result = await service.ActivateForCareConnectAsync(id, ct);
+         return Results.Ok(new
+         {
+diff --git a/apps/services/careconnect/CareConnect.Application/Interfaces/IActivationFunnelAnalyticsService.cs b/apps/services/careconnect/CareConnect.Application/Interfaces/IActivationFunnelAnalyticsService.cs
+index e7a79eec..c652478d 100644
+--- a/apps/services/careconnect/CareConnect.Application/Interfaces/IActivationFunnelAnalyticsService.cs
++++ b/apps/services/careconnect/CareConnect.Application/Interfaces/IActivationFunnelAnalyticsService.cs
+@@ -13,9 +13,12 @@ public interface IActivationFunnelAnalyticsService
+     /// Returns funnel counts and conversion rates for the given date range.
+     /// The range is inclusive: [startDate, endDate] (UTC, date-only boundaries).
+     /// If startDate > endDate the range is swapped before querying.
++    /// BLK-SEC-02-01: tenantId scopes all queries to a single tenant.
++    ///   null → platform-wide (PlatformAdmin only).
+     /// </summary>
+     Task<ActivationFunnelMetrics> GetMetricsAsync(
+         DateTime          startDate,
+         DateTime          endDate,
+-        CancellationToken ct = default);
++        Guid?             tenantId  = null,
++        CancellationToken ct        = default);
+ }
+diff --git a/apps/services/careconnect/CareConnect.Application/Interfaces/IReferralPerformanceService.cs b/apps/services/careconnect/CareConnect.Application/Interfaces/IReferralPerformanceService.cs
+index 1f03434e..1905d34a 100644
+--- a/apps/services/careconnect/CareConnect.Application/Interfaces/IReferralPerformanceService.cs
++++ b/apps/services/careconnect/CareConnect.Application/Interfaces/IReferralPerformanceService.cs
+@@ -19,8 +19,13 @@ public interface IReferralPerformanceService
+     /// in cohort metrics (total, accepted, acceptance rate, TTA, provider stats).
+     /// Aging distribution always covers ALL currently-New referrals.
+     /// </param>
++    /// <param name="tenantId">
++    /// BLK-SEC-02-01: When non-null, restricts all queries to the specified tenant.
++    /// Null means platform-wide (PlatformAdmin only).
++    /// </param>
+     /// <param name="ct">Cancellation token.</param>
+     Task<ReferralPerformanceResult> GetPerformanceAsync(
+         DateTime          since,
+-        CancellationToken ct = default);
++        Guid?             tenantId  = null,
++        CancellationToken ct        = default);
+ }
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Services/ActivationFunnelAnalyticsService.cs b/apps/services/careconnect/CareConnect.Infrastructure/Services/ActivationFunnelAnalyticsService.cs
+index 14684160..a6b6277d 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Services/ActivationFunnelAnalyticsService.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Services/ActivationFunnelAnalyticsService.cs
+@@ -38,7 +38,8 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+     public async Task<ActivationFunnelMetrics> GetMetricsAsync(
+         DateTime          startDate,
+         DateTime          endDate,
+-        CancellationToken ct = default)
++        Guid?             tenantId  = null,
++        CancellationToken ct        = default)
+     {
+         // Normalise: ensure startDate ≤ endDate, then set UTC time boundaries
+         if (startDate > endDate) (startDate, endDate) = (endDate, startDate);
+@@ -47,11 +48,12 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+         var to   = endDate.Date.AddDays(1).ToUniversalTime(); // exclusive upper bound
+ 
+         _logger.LogDebug(
+-            "LSCC-011 Computing funnel metrics from {From:O} to {To:O}.", from, to);
++            "LSCC-011 Computing funnel metrics from {From:O} to {To:O} tenant={TenantId}.",
++            from, to, tenantId?.ToString() ?? "platform");
+ 
+         try
+         {
+-            var counts = await ComputeCountsAsync(from, to, ct);
++            var counts = await ComputeCountsAsync(from, to, tenantId, ct);
+             var rates  = ComputeRates(counts);
+ 
+             return new ActivationFunnelMetrics
+@@ -71,11 +73,23 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+ 
+     // ── Private: DB queries ───────────────────────────────────────────────────
+ 
++    // BLK-SEC-02-01: tenantId scopes all DB queries for TenantAdmin callers.
++    // null = platform-wide (PlatformAdmin).
+     private async Task<FunnelCounts> ComputeCountsAsync(
+-        DateTime from, DateTime to, CancellationToken ct)
++        DateTime from, DateTime to, Guid? tenantId, CancellationToken ct)
+     {
++        // ── Base query sets — apply tenant scope once ─────────────────────────
++        var referralsBase        = _db.Referrals.AsQueryable();
++        var activationRequestsBase = _db.ActivationRequests.AsQueryable();
++
++        if (tenantId.HasValue)
++        {
++            referralsBase          = referralsBase.Where(r => r.TenantId == tenantId.Value);
++            activationRequestsBase = activationRequestsBase.Where(a => a.TenantId == tenantId.Value);
++        }
++
+         // ── Referrals Sent ────────────────────────────────────────────────────
+-        var referralsSent = await _db.Referrals
++        var referralsSent = await referralsBase
+             .CountAsync(r => r.CreatedAtUtc >= from && r.CreatedAtUtc < to, ct);
+ 
+         // ── Referrals Accepted (advanced status within date range) ────────────
+@@ -88,7 +102,7 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+             Referral.ValidStatuses.InProgress,
+             Referral.ValidStatuses.Completed,
+         };
+-        var referralsAccepted = await _db.Referrals
++        var referralsAccepted = await referralsBase
+             .CountAsync(r =>
+                 acceptedStatuses.Contains(r.Status) &&
+                 r.CreatedAtUtc >= from &&
+@@ -98,13 +112,13 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+         // ── Activation Started ────────────────────────────────────────────────
+         // ActivationRequest is created exactly when ActivationStarted fires.
+         // Deduplication by (ReferralId, ProviderId) is enforced by the domain.
+-        var activationStarted = await _db.ActivationRequests
++        var activationStarted = await activationRequestsBase
+             .CountAsync(a => a.CreatedAtUtc >= from && a.CreatedAtUtc < to, ct);
+ 
+         // ── Auto Provision Succeeded ──────────────────────────────────────────
+         // ApprovedByUserId IS NULL → auto-approved by the system (LSCC-010).
+         // Note: "ApprovedAtUtc IS NOT NULL" ensures it was actually approved.
+-        var autoProvisionSucceeded = await _db.ActivationRequests
++        var autoProvisionSucceeded = await activationRequestsBase
+             .CountAsync(a =>
+                 a.CreatedAtUtc >= from &&
+                 a.CreatedAtUtc < to &&
+@@ -114,7 +128,7 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+ 
+         // ── Admin Approved ────────────────────────────────────────────────────
+         // ApprovedByUserId IS NOT NULL → manually approved by an admin.
+-        var adminApproved = await _db.ActivationRequests
++        var adminApproved = await activationRequestsBase
+             .CountAsync(a =>
+                 a.CreatedAtUtc >= from &&
+                 a.CreatedAtUtc < to &&
+@@ -125,7 +139,7 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+         // ── Fallback Pending ──────────────────────────────────────────────────
+         // Activation requests that were submitted in range but remain Pending.
+         // Proxy for "auto-provision fell back to queue and hasn't been processed yet".
+-        var fallbackPending = await _db.ActivationRequests
++        var fallbackPending = await activationRequestsBase
+             .CountAsync(a =>
+                 a.CreatedAtUtc >= from &&
+                 a.CreatedAtUtc < to &&
+@@ -133,10 +147,10 @@ public sealed class ActivationFunnelAnalyticsService : IActivationFunnelAnalytic
+                 ct);
+ 
+         // ── Snapshots (current state, no date filter) ─────────────────────────
+-        var totalPending  = await _db.ActivationRequests
++        var totalPending  = await activationRequestsBase
+             .CountAsync(a => a.Status == ActivationRequestStatus.Pending, ct);
+ 
+-        var totalApproved = await _db.ActivationRequests
++        var totalApproved = await activationRequestsBase
+             .CountAsync(a => a.Status == ActivationRequestStatus.Approved, ct);
+ 
+         return new FunnelCounts
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Services/ReferralPerformanceService.cs b/apps/services/careconnect/CareConnect.Infrastructure/Services/ReferralPerformanceService.cs
+index 07833911..ccb5beb7 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Services/ReferralPerformanceService.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Services/ReferralPerformanceService.cs
+@@ -35,17 +35,26 @@ public sealed class ReferralPerformanceService : IReferralPerformanceService
+         _logger = logger;
+     }
+ 
++    // BLK-SEC-02-01: tenantId scopes all Referral queries for TenantAdmin callers.
++    // null = platform-wide (PlatformAdmin).
+     public async Task<ReferralPerformanceResult> GetPerformanceAsync(
+         DateTime          since,
+-        CancellationToken ct = default)
++        Guid?             tenantId  = null,
++        CancellationToken ct        = default)
+     {
+         var nowUtc = DateTime.UtcNow;
+ 
+         _logger.LogDebug(
+-            "LSCC-01-005 Computing referral performance from {From:O} to {Now:O}.", since, nowUtc);
++            "LSCC-01-005 Computing referral performance from {From:O} to {Now:O} tenant={TenantId}.",
++            since, nowUtc, tenantId?.ToString() ?? "platform");
++
++        // BLK-SEC-02-01: Base query — apply tenant scope once.
++        var referralsBase = _db.Referrals.AsQueryable();
++        if (tenantId.HasValue)
++            referralsBase = referralsBase.Where(r => r.TenantId == tenantId.Value);
+ 
+         // ── 1. Referrals in window (with Provider eager-loaded for name) ─────────
+-        var windowReferrals = await _db.Referrals
++        var windowReferrals = await referralsBase
+             .AsNoTracking()
+             .Include(r => r.Provider)
+             .Where(r => r.CreatedAtUtc >= since)
+@@ -86,7 +95,8 @@ public sealed class ReferralPerformanceService : IReferralPerformanceService
+             .ToList();
+ 
+         // ── 4. All currently-New referrals for aging distribution ────────────────
+-        var currentNewReferrals = await _db.Referrals
++        // BLK-SEC-02-01: Use referralsBase (already tenant-scoped) for consistency.
++        var currentNewReferrals = await referralsBase
+             .AsNoTracking()
+             .Where(r => r.Status == "New")
+             .Select(r => new { r.Id, r.CreatedAtUtc })

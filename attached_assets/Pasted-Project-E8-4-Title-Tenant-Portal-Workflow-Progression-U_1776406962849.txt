@@ -1,0 +1,332 @@
+Project: E8.4
+Title: Tenant Portal Workflow Progression UI — SynqLien-First Advance / Complete Actions
+
+You are implementing the next tenant-portal workflow UI phase after E8.1.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E8.4-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current SynqLien workflow panel structure, API payload expectations for advance/complete, permission visibility, workflow status interpretation, and any existing UI/state-management conventions.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - shared workflow action module changes
+   - SynqLien progression integration changes
+   - API wiring changes
+   - permission-aware action behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for CareConnect/Fund progression rollout or needs iteration
+
+REPORT FORMAT
+
+# E8.4 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Shared Workflow Action Module Notes
+## SynqLien Progression Integration Notes
+## API Wiring Notes
+## Permission / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Extend the tenant-portal workflow UI from read/start to actionable execution by enabling permitted users to advance and complete workflows from the SynqLien case detail page, using the existing hardened SynqLien product-facing workflow endpoints.
+
+This phase should make the workflow panel operational without broad page redesign or direct browser coupling to Flow.
+
+SCOPE INCLUDES
+
+- shared reusable workflow progression UI components
+- SynqLien-first integration for Advance Step and Complete Workflow actions
+- mutation state handling
+- workflow panel refresh after actions
+- permission-aware action visibility
+- graceful error/loading handling
+- documentation/reporting
+
+DO NOT BUILD
+
+- broad tenant portal redesign
+- Control Center workflow UI
+- workflow history timeline
+- template administration UI
+- direct browser calls to Flow
+- new backend workflow features unless absolutely required for UI viability
+- CareConnect or SynqFund rollout in this phase
+- client-side workflow engine/state machine
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use the existing hardened SynqLien product-facing workflow endpoints
+- keep the browser talking only to the SynqLien BFF / product API, not Flow directly
+- extend the existing shared workflow UI module rather than hardcoding SynqLien-only action logic
+- support Advance Step in this phase
+- support Complete Workflow in this phase
+- refresh the visible workflow state after each successful action
+- keep permission-aware behavior aligned with backend authorization
+- degrade gracefully on API errors without breaking the case detail page
+
+CURRENT CONTEXT
+
+E8.1 already delivered:
+- reusable workflow UI module under apps/web/src/components/workflow/
+- browser-side workflow data layer under apps/web/src/lib/workflow/
+- SynqLien workflow panel integrated into the case detail page right rail
+- workflow read/start exposure
+- role-based workflow:view and workflow:start UI behavior
+- browser → SynqLien BFF → Liens.Api → Flow path only
+
+Backend/platform already exists:
+- hardened atomic ownership-aware endpoints
+- product execution endpoints for GET / advance / complete
+- workflow engine with current-step/state transitions
+- validated backend security and execution model
+
+This E8.4 phase should extend the current SynqLien workflow panel so users can progress active workflows from the case page.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. SHARED WORKFLOW ACTION MODULE
+
+Extend the shared workflow module under apps/web/src/components/workflow/ with reusable action-oriented components.
+
+Requirements:
+- add reusable components for:
+  - WorkflowActionBar
+  - AdvanceWorkflowAction
+  - CompleteWorkflowAction
+  - WorkflowActionError or equivalent inline mutation error display
+  - optional transition summary helper if useful
+- keep these components product-agnostic and reusable for CareConnect and SynqFund later
+- follow current tenant portal styling conventions
+- do not introduce a new design language or broad UX pattern
+
+Action states to support:
+- idle
+- submitting
+- success refresh
+- error
+- disabled
+
+The shared module must remain reusable and must not be tightly hardcoded to SynqLien text/paths.
+
+2. SYNQLIEN-FIRST PROGRESSION INTEGRATION
+
+Integrate progression actions into the existing SynqLien case detail workflow panel.
+
+Requirements:
+- identify the existing workflow panel integration on:
+  apps/web/src/app/(platform)/lien/cases/[id]/case-detail-client.tsx
+- keep the current placement in the right rail / Details tab
+- add action controls only when the workflow is active and the user is allowed to act
+- hide or disable action controls for terminal workflows (Completed / Cancelled / Failed)
+- preserve existing empty/error/loading/read-only behavior from E8.1
+- do not redesign the overall case detail layout
+
+3. ADVANCE STEP UX
+
+Support advancing an active workflow from the panel.
+
+Requirements:
+- provide a compact interaction, such as:
+  - inline expander, or
+  - small modal/dialog
+- display:
+  - workflow title/name if available
+  - current step
+  - next step label if determinable
+  - short confirmation text
+- submit the minimum payload required by the existing API, including:
+  - expectedCurrentStepKey
+  - optional toStepKey only if required/available
+- after success:
+  - close the modal/expander
+  - refresh workflow detail and summary
+  - show updated current step/status
+- after failure:
+  - show compact user-friendly error copy
+  - keep the rest of the page stable
+
+Handle common backend codes gracefully:
+- expected_step_mismatch
+- instance_not_active
+- concurrent_state_change
+- generic upstream error
+
+Translate them into user-appropriate language.
+
+4. COMPLETE WORKFLOW UX
+
+Support completing an active workflow from the panel.
+
+Requirements:
+- provide a compact confirmation interaction
+- show:
+  - workflow title/name
+  - current step
+  - completion confirmation message
+- on success:
+  - refresh panel state
+  - status becomes Completed
+  - action buttons disappear or disable
+- on failure:
+  - show compact user-friendly error message
+  - do not break page rendering
+
+Only show Complete when it is appropriate based on workflow state and the backend contract.
+
+5. API WIRING
+
+Use only the existing SynqLien product-facing endpoints.
+
+Expected API shape (adapt to actual paths if they differ slightly):
+- GET  /api/liens/cases/{id}/workflows
+- GET  /api/liens/cases/{id}/workflows/{workflowInstanceId}
+- POST /api/liens/cases/{id}/workflows/{workflowInstanceId}/advance
+- POST /api/liens/cases/{id}/workflows/{workflowInstanceId}/complete
+
+Requirements:
+- extend the existing frontend workflow API layer under apps/web/src/lib/workflow/ to support:
+  - advance workflow
+  - complete workflow
+- preserve the current BFF browser path convention under /api/lien/...
+- do not call Flow directly from the browser
+- after mutation, refetch/invalidate the panel’s workflow data
+- do not introduce a client-side workflow state machine
+
+6. FRONTEND DATA LAYER
+
+Extend or add hooks/services such as:
+- useAdvanceCaseWorkflow(caseId, workflowInstanceId)
+- useCompleteCaseWorkflow(caseId, workflowInstanceId)
+
+Or use your adapter-based structure from E8.1 if already generalized.
+
+Requirements:
+- keep the data layer simple and aligned with existing project patterns
+- if E8.1 already introduced an adapter pattern, continue using it
+- mutation hooks should:
+  - expose loading state
+  - expose error state
+  - trigger a refresh on success
+- avoid introducing React Query/SWR/new libraries unless already present and clearly standard in the codebase
+
+7. PERMISSION / VISIBILITY MODEL
+
+UI must remain permission-aware but backend-authoritative.
+
+Requirements:
+- if the user can view but should not act:
+  - show workflow summary
+  - hide or disable Advance / Complete actions
+- if the workflow is terminal:
+  - do not show progression controls
+- if the API returns 401/403:
+  - handle gracefully
+  - do not break the page
+- align with existing SynqLien role/capability patterns where feasible
+- do not invent a second permission model
+
+If action-level permission cannot be fully known client-side:
+- use the best available role-access signal to gate the UI
+- still rely on backend denials as authoritative
+- document the limitation clearly
+
+8. ERROR / LOADING / EMPTY HANDLING
+
+Requirements:
+- mutation buttons show disabled/loading state while submitting
+- panel remains usable after a failed mutation
+- user-facing error copy should be concise and operational, for example:
+  - "This workflow was updated by someone else. Refresh and try again."
+  - "This workflow can’t be advanced from its current state."
+  - "We couldn’t complete the workflow."
+- do not show raw technical error payloads directly
+- do not block the case detail page from rendering if the workflow APIs fail
+
+9. VALIDATION
+
+You MUST validate and record in the report:
+
+Shared Workflow Action Module
+- action components are reusable and not SynqLien-hardcoded
+- active workflow renders action controls correctly
+- terminal workflow hides or disables action controls correctly
+
+SynqLien Integration
+- workflow panel on case detail supports advance
+- workflow panel on case detail supports complete
+- workflow state refreshes after mutation
+- page remains stable on API failure
+
+API Discipline
+- browser calls SynqLien BFF/product API only
+- existing hardened execution endpoints are used
+- no direct Flow browser calls occur
+
+Permission / Visibility
+- action buttons are hidden/disabled appropriately
+- unauthorized/error responses are handled gracefully
+
+Runtime / Build
+- frontend compiles successfully
+- affected backend/product API code still compiles if changed
+- the case detail page remains operational
+
+10. DOCUMENTATION
+
+Document in the report and any lightweight frontend notes if needed:
+- where shared action components live
+- where SynqLien progression integration was added
+- which product APIs are used
+- what assumptions were made about action permissions and status interpretation
+- what remains for CareConnect and SynqFund progression rollout
+
+11. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E8.4 unless strictly required:
+- workflow history/timeline UI
+- workflow template administration UI
+- Control Center workflow UI
+- CareConnect and SynqFund progression rollout
+- real-time push/live updates
+- broad visual redesign
+- direct Flow UI embedding
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the existing E8.1 shared workflow module and SynqLien case detail integration.
+2. Create /analysis/E8.4-report.md immediately and begin logging assumptions/actions.
+3. Extend the shared workflow API layer/hooks for advance/complete.
+4. Build reusable shared workflow action components.
+5. Integrate those actions into the SynqLien workflow panel.
+6. Add mutation refresh/error/loading handling.
+7. Validate permission-aware action visibility.
+8. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E8.4 is successful when:
+- the shared workflow module supports reusable progression actions
+- SynqLien users can advance and complete workflows from the case detail page
+- the panel refreshes correctly after mutations
+- the browser uses existing SynqLien product APIs only
+- the implementation is reusable for CareConnect and SynqFund progression rollout
+- the case detail page remains stable and operational
+
+FAILURE CONDITION
+
+E8.4 fails if:
+- the action UI is tightly hardcoded to SynqLien and not reusable
+- the browser talks directly to Flow
+- the case page is destabilized
+- advance/complete are not actually wired to the existing hardened endpoints
+- API errors or unauthorized responses break the page

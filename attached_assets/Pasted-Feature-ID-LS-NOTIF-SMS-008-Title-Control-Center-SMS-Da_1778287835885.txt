@@ -1,0 +1,480 @@
+Feature ID: LS-NOTIF-SMS-008
+
+Title:
+Control Center SMS Dashboard APIs
+
+Objective:
+Add Control Center-ready SMS dashboard capabilities inside Notification Service so platform/admin users can view SMS delivery activity, reconciliation health, tenant/provider activity, and failure trends through Notification Service APIs.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all SMS dashboard aggregation, reporting, and Control Center-facing SMS data APIs must remain inside the Notification Service boundary.
+
+Requirements:
+- Do not build Control Center UI in this feature.
+- Do not add SMS dashboard aggregation logic to unrelated services.
+- Do not create shared cross-service SMS dashboard abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - SMS dashboard aggregation
+  - SMS delivery KPI calculations
+  - SMS reconciliation KPI calculations
+  - SMS tenant activity grouping
+  - SMS provider/provider-config grouping
+  - SMS failure-category grouping
+  - Control Center-facing SMS dashboard APIs
+- Control Center should consume Notification Service APIs in a future UI feature.
+- Preserve Notification Service as the system of record for SMS delivery, tracking, reconciliation, and dashboard reporting.
+
+Implementation Requirements:
+1. Add platform/admin SMS dashboard APIs inside Notification Service.
+2. Provide high-level SMS delivery KPIs.
+3. Provide SMS reconciliation KPIs.
+4. Provide failure category/error breakdowns.
+5. Provide tenant activity breakdowns.
+6. Provide provider/provider-config/ownership breakdowns.
+7. Provide time-series trend data for delivery and reconciliation status.
+8. Support date range, tenant, provider, providerConfigId, providerOwnershipMode, and status filters where appropriate.
+9. Require existing platform/admin authorization.
+10. Preserve existing SMS activity APIs from LS-NOTIF-SMS-006 and reconciliation tracking from LS-NOTIF-SMS-007.
+11. Preserve outbound SMS send, retry/dead-letter, webhook, compliance, tenant provider resolution, and reconciliation behavior.
+12. Do not add or expand conversational inbound SMS behavior.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, SmsActivityRepository, SmsActivityService, SmsActivityDtos, admin endpoint, authorization, and query patterns where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT store or expose provider credentials, CredentialsJson, SettingsJson, auth tokens, or raw provider payloads.
+- Do NOT expose full phone numbers in dashboard responses.
+- Dashboard APIs must be read-only.
+- Dashboard APIs must not trigger SMS sends, retries, reconciliation, or provider calls.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-008-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS activity API findings
+3. Existing NotificationAttempt/reconciliation tracking findings
+4. Existing admin authorization findings
+5. Existing dashboard/reporting pattern findings, if any
+6. Existing summary/aggregation query findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. Validation/testing performed
+12. Known gaps/issues
+13. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Service Reporting Architecture
+- Identify:
+  - Existing /v1/admin/sms/activity endpoints from LS-NOTIF-SMS-006/007
+  - SmsActivityQuery and related DTOs
+  - SmsActivityRepository aggregation behavior
+  - NotificationAttempt reconciliation tracking fields
+  - ProviderOwnershipMode and ProviderConfigId usage
+  - Existing admin authorization policy, expected PlatformAdmin role, and endpoint style
+  - Existing pagination/date filter conventions
+  - Existing response DTO naming/style conventions
+  - Existing startup/schema/index conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Dashboard Query and DTO Models
+Add Notification Service-local dashboard query/response DTOs.
+
+Suggested shared query filters:
+- tenantId nullable
+- provider nullable
+- providerConfigId nullable
+- providerOwnershipMode nullable
+- status nullable
+- failureCategory nullable
+- from nullable DateTime
+- to nullable DateTime
+- bucket nullable string for trends, e.g. hour/day/week
+- limit nullable where needed
+
+Suggested summary DTO:
+- totalAttempts
+- sentCount
+- deliveredCount
+- failedCount
+- pendingCount
+- processingCount
+- retryingCount
+- deadLetterCount
+- blockedCount
+- tenantOwnedCount
+- platformOwnedCount
+- unknownOwnershipCount
+- reconciledTotal
+- neverReconciled
+- reconciliationUpdated
+- reconciliationNoChange
+- reconciliationLookupFailed
+- reconciliationSkipped
+- reconciliationProviderConfigFailed
+- uniqueTenantCount
+- uniqueProviderCount
+- uniqueProviderConfigCount
+
+Suggested trend DTO:
+- bucketStart
+- bucketEnd
+- totalAttempts
+- sentCount
+- deliveredCount
+- failedCount
+- pendingCount
+- reconciledTotal
+- reconciliationLookupFailed
+
+Suggested failure breakdown DTO:
+- failureCategory
+- errorCode where available
+- count
+- latestOccurrenceAt
+
+Suggested tenant breakdown DTO:
+- tenantId
+- totalAttempts
+- sentCount
+- deliveredCount
+- failedCount
+- pendingCount
+- reconciledTotal
+- neverReconciled
+- tenantOwnedCount
+- platformOwnedCount
+- latestActivityAt
+
+Suggested provider breakdown DTO:
+- provider
+- providerConfigId
+- providerOwnershipMode
+- totalAttempts
+- sentCount
+- deliveredCount
+- failedCount
+- reconciledTotal
+- reconciliationLookupFailed
+- latestActivityAt
+
+Requirements:
+- DTOs must not include credentials or raw provider config.
+- DTOs must not include raw recipient phone numbers.
+- ProviderMessageId should not be needed for dashboard aggregates.
+- Use existing status naming conventions.
+
+STEP 3 — Add Dashboard Repository/Service Layer
+Add a Notification Service-local dashboard service and repository, or extend existing SMS activity service only if clean.
+
+Suggested interfaces:
+- ISmsDashboardService
+- ISmsDashboardRepository
+
+Suggested methods:
+- GetSummaryAsync(SmsDashboardQuery query, CancellationToken ct)
+- GetTrendsAsync(SmsDashboardQuery query, CancellationToken ct)
+- GetFailureBreakdownAsync(SmsDashboardQuery query, CancellationToken ct)
+- GetTenantBreakdownAsync(SmsDashboardQuery query, CancellationToken ct)
+- GetProviderBreakdownAsync(SmsDashboardQuery query, CancellationToken ct)
+
+Requirements:
+- Reuse existing query predicates where practical.
+- Always restrict to Channel == "sms".
+- Support tenantId filter for platform/admin views.
+- Support provider/providerConfigId/providerOwnershipMode filters.
+- Support status/failureCategory/date range filters where relevant.
+- Keep queries bounded.
+- Prefer database-side grouping/aggregation where practical.
+- Avoid loading raw recipient JSON unless not needed.
+- Do not query or return CredentialsJson or SettingsJson.
+- Do not call external providers.
+- Do not trigger reconciliation.
+
+STEP 4 — Implement Dashboard Summary Aggregation
+Implement high-level dashboard summary.
+
+Required counts:
+- totalAttempts
+- sent
+- delivered
+- failed
+- pending/processing/retrying
+- dead-letter
+- blocked where present
+- tenant-owned
+- platform-owned
+- unknown ownership
+- reconciled total
+- never reconciled
+- reconciliation updated
+- reconciliation no-change
+- reconciliation lookup failed
+- reconciliation skipped
+- reconciliation provider config failed
+- unique tenants
+- unique providers
+- unique provider configs
+
+Requirements:
+- Summary must respect all filters.
+- Summary must use existing reconciliation fields from LS-NOTIF-SMS-007.
+- Summary must not expose individual recipient data.
+- Summary must be read-only.
+
+STEP 5 — Implement Trend Aggregation
+Implement time-series trend aggregation.
+
+Supported buckets:
+- hour
+- day
+- week
+
+Default bucket:
+- day
+
+Default date range:
+- If no date range exists, use a sensible bounded default such as last 30 days.
+- Do not return unbounded time-series data.
+
+Trend data should include:
+- bucketStart
+- bucketEnd
+- totalAttempts
+- sentCount
+- deliveredCount
+- failedCount
+- pendingCount
+- reconciledTotal
+- reconciliationLookupFailed
+
+Requirements:
+- Trends must respect tenant/provider/status/date filters.
+- Use CreatedAt for SMS attempt activity trend.
+- Use LastReconciledAt for reconciliation-specific counts if practical; otherwise document if reconciliation trend is based on attempts created in bucket.
+- Avoid excessive in-memory processing at high volume.
+- Use UTC consistently.
+
+STEP 6 — Implement Failure Breakdown
+Implement failure breakdown endpoint.
+
+Group by:
+- FailureCategory
+- LastReconciliationErrorCode where useful
+
+Required output:
+- failureCategory
+- errorCode
+- count
+- latestOccurrenceAt
+
+Requirements:
+- Exclude null/empty failure categories unless representing unknown failures as `unknown`.
+- Include reconciliation lookup/config failures where useful.
+- Respect all filters.
+- Do not expose raw error payloads or credentials.
+- ErrorMessage may be excluded from aggregate breakdown unless existing patterns treat it as safe.
+
+STEP 7 — Implement Tenant Breakdown
+Implement tenant activity breakdown.
+
+Group by:
+- TenantId
+
+Required output:
+- tenantId
+- totalAttempts
+- sent/delivered/failed/pending counts
+- reconciledTotal
+- neverReconciled
+- tenantOwnedCount
+- platformOwnedCount
+- latestActivityAt
+
+Requirements:
+- Admin-only endpoint.
+- Respect date/provider/status filters.
+- Do not expose tenant secrets.
+- If tenant name is not locally available inside Notification Service, return tenantId only and document tenant-name enrichment as a future Control Center concern.
+- Do not call Identity/Tenant service unless an existing Notification Service-local lookup already exists.
+
+STEP 8 — Implement Provider Breakdown
+Implement provider/provider-config activity breakdown.
+
+Group by:
+- Provider
+- ProviderConfigId
+- ProviderOwnershipMode
+
+Required output:
+- provider
+- providerConfigId
+- providerOwnershipMode
+- totalAttempts
+- sent/delivered/failed counts
+- reconciledTotal
+- reconciliationLookupFailed
+- latestActivityAt
+
+Requirements:
+- Do not expose CredentialsJson or SettingsJson.
+- ProviderConfigId may be returned as opaque operational metadata.
+- Respect tenant/date/status filters.
+
+STEP 9 — Add Admin Dashboard Endpoints
+Add endpoints consistent with existing Notification Service API style.
+
+Suggested endpoints:
+- GET /v1/admin/sms/dashboard/summary
+- GET /v1/admin/sms/dashboard/trends
+- GET /v1/admin/sms/dashboard/failures
+- GET /v1/admin/sms/dashboard/tenants
+- GET /v1/admin/sms/dashboard/providers
+
+Common query parameters:
+- tenantId
+- provider
+- providerConfigId
+- providerOwnershipMode
+- status
+- failureCategory
+- from
+- to
+
+Trends also supports:
+- bucket=hour|day|week
+
+Requirements:
+- Require existing admin authorization, e.g. Policies.AdminOnly.
+- Return structured DTOs only.
+- Do not expose secrets.
+- Do not expose full phone numbers.
+- Validate/normalize bucket values.
+- Apply safe limits/defaults for trend ranges.
+
+STEP 10 — Add Indexes Only if Needed
+Review existing indexes.
+
+Potentially useful indexes:
+- Channel, CreatedAt
+- Channel, TenantId, CreatedAt
+- Channel, Provider, CreatedAt
+- Channel, ProviderConfigId, CreatedAt
+- Channel, ProviderOwnershipMode, CreatedAt
+- Channel, LastReconciliationOutcome, CreatedAt
+
+Requirements:
+- Add only indexes that materially support dashboard filters.
+- Use existing startup safety-net/index convention or EF migration convention consistently.
+- Do not add indexes on sensitive/raw values.
+
+STEP 11 — Documentation
+Update documentation/report notes for:
+- dashboard endpoint purposes
+- query parameters
+- summary metric definitions
+- trend bucket behavior
+- tenant/provider breakdown behavior
+- security constraints
+- distinction between dashboard aggregate APIs and activity-log APIs
+- statement that Control Center UI should consume these APIs in a later feature
+
+Documentation must explain:
+- dashboard APIs are read-only
+- dashboard APIs do not trigger reconciliation or provider calls
+- metrics are derived from NotificationAttempt operational data
+- tenant names are not returned unless already available locally
+- provider config IDs are opaque identifiers, not credential exposure
+
+STEP 12 — Validation
+Perform validation/testing for:
+
+Authorization:
+- admin dashboard endpoints require PlatformAdmin/admin policy
+- non-admin access is rejected
+- tenant activity endpoints from LS-NOTIF-SMS-006 remain unchanged
+
+Summary:
+- total count works
+- status counts work
+- ownership counts work
+- reconciliation counts work
+- unique tenant/provider/providerConfig counts work
+- filters are respected
+
+Trends:
+- default date range is bounded
+- hour/day/week bucket validation works
+- trends respect filters
+- UTC bucketing is consistent
+
+Failure breakdown:
+- groups by failure category/error code
+- excludes credentials/raw payloads
+- latest occurrence timestamp works
+- filters are respected
+
+Tenant breakdown:
+- groups by tenantId
+- counts per tenant are correct
+- tenant names are not guessed
+- filters are respected
+
+Provider breakdown:
+- groups by provider/providerConfigId/ownership
+- credentials/settings are not returned
+- filters are respected
+
+Security:
+- no CredentialsJson returned
+- no SettingsJson returned
+- no authToken returned
+- no raw phone numbers returned
+- no raw provider payloads returned
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS send unchanged
+- LS-NOTIF-SMS-002 preference enforcement unchanged
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- LS-NOTIF-SMS-004 vendor reconciliation behavior unchanged
+- LS-NOTIF-SMS-005 tenant runtime provider resolution unchanged
+- LS-NOTIF-SMS-006 activity APIs unchanged
+- LS-NOTIF-SMS-007 reconciliation tracking unchanged
+- email/in-app notification behavior unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SMS dashboard query DTOs
+- SMS dashboard response DTOs
+- SMS dashboard repository/service
+- Admin dashboard summary endpoint
+- Admin dashboard trends endpoint
+- Admin dashboard failures endpoint
+- Admin dashboard tenant breakdown endpoint
+- Admin dashboard provider breakdown endpoint
+- Optional dashboard-supporting indexes if needed
+- Updated documentation/report
+- Completed analysis report
+
+Do NOT:
+- Build Control Center UI
+- Add conversational inbound SMS
+- Add new SMS providers
+- Trigger sends, retries, reconciliation, or provider calls from dashboard APIs
+- Expose provider credentials or secrets
+- Expose full phone numbers
+- Query or return CredentialsJson
+- Query or return SettingsJson
+- Move dashboard aggregation outside Notification Service
+- Add dashboard logic to unrelated services
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-007 behavior

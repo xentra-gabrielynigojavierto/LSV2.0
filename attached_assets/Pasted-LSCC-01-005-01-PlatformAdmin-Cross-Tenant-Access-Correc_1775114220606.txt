@@ -1,0 +1,370 @@
+LSCC-01-005-01 — PlatformAdmin Cross-Tenant Access Correction
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-005-01
+
+Report path:
+- /analysis/LSCC-01-005-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Correct CareConnect behavior so that PlatformAdmin can consistently perform cross-tenant supervisory actions.
+
+This feature resolves:
+
+- DEF-001: Activation approval fails across tenants
+- DEF-002: PlatformAdmin cannot access referral-by-id across tenants
+
+The goal is to introduce a controlled, explicit global access path for PlatformAdmin while preserving strict tenant isolation for all other roles.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Cross-tenant provider lookup correction (activation approval)
+B. Cross-tenant referral-by-id access for PlatformAdmin
+C. Role-based scope branching (Tenant vs Global)
+D. Minimal audit/logging for cross-tenant actions
+E. Targeted tests
+F. Report
+
+Do NOT implement:
+- RBAC redesign
+- UI changes
+- analytics changes
+- bulk admin tooling
+- schema redesign unless absolutely required
+- unrelated refactoring
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. PlatformAdmin may bypass tenant filters ONLY in admin-level operations
+2. TenantAdmin and StandardUser MUST remain tenant-scoped
+3. Global access must be explicit, not implicit
+4. No data leakage to non-admin users
+5. All cross-tenant actions must remain authenticated and authorized
+6. Prefer minimal, surgical changes over broad refactoring
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Current behavior:
+
+- Admin list endpoints already cross-tenant and working
+- Activation approval is tenant-scoped and broken
+- Referral-by-id endpoints are tenant-scoped and broken
+
+Root issue:
+
+TenantId from JWT is incorrectly enforced in global admin flows
+
+This feature aligns implementation with the intended model:
+
+PlatformAdmin = cross-tenant supervisory authority
+
+==================================================
+CORE ACCESS RULE
+==================================================
+
+Implement this rule consistently:
+
+IF user.role == PlatformAdmin
+    → allow GLOBAL lookup (bypass tenantId filter)
+ELSE
+    → enforce TENANT-SCOPED lookup
+
+IMPORTANT:
+- This rule applies ONLY to backend data access paths
+- Do NOT weaken capability checks or authentication
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. GLOBAL LOOKUP CAPABILITY
+--------------------------------------------------
+
+Introduce a safe and explicit way to perform global lookups.
+
+Acceptable approaches:
+
+Option 1 (preferred):
+- Extend repository/service methods with a scope parameter
+
+Example intent:
+GetReferralById(id, scope: Tenant | Global)
+GetProviderById(id, scope: Tenant | Global)
+
+Option 2:
+- Add dedicated internal/global lookup methods
+- e.g. GetReferralByIdGlobal(id)
+
+Rules:
+- Must be explicit in code
+- Must not accidentally default to global
+- Must be easy to audit
+
+--------------------------------------------------
+B. ACTIVATION APPROVAL FIX (DEF-001)
+--------------------------------------------------
+
+Endpoint:
+POST /api/admin/activations/{id}/approve
+
+Current issue:
+- provider lookup uses request.TenantId and fails cross-tenant
+
+Required behavior:
+
+If caller is PlatformAdmin:
+- resolve provider using GLOBAL lookup
+- do NOT fail due to tenant mismatch
+- proceed with approval if provider exists
+
+Update:
+- ActivationRequestService.ApproveAsync
+- Any provider lookup in this path
+
+Rules:
+- still validate provider existence
+- still validate activation request integrity
+- must not silently succeed if provider truly does not exist
+
+--------------------------------------------------
+C. REFERRAL-BY-ID ACCESS FIX (DEF-002)
+--------------------------------------------------
+
+Affected endpoints:
+
+- GET /api/referrals/{id}
+- GET /api/referrals/{id}/history
+- GET /api/referrals/{id}/audit
+- POST /api/referrals/{id}/resend-email
+
+Current issue:
+- tenantId from JWT is used and cross-tenant referral is not found
+
+Required behavior:
+
+If caller is PlatformAdmin:
+- resolve referral using GLOBAL lookup
+- return correct data if referral exists
+
+If NOT PlatformAdmin:
+- keep existing tenant-scoped behavior
+
+Rules:
+- no fallback to tenant scope after global attempt
+- consistent behavior across all affected endpoints
+
+--------------------------------------------------
+D. AUTHORIZATION PRESERVATION
+--------------------------------------------------
+
+Must still enforce:
+
+- authentication (valid JWT)
+- role check (PlatformAdmin)
+- capability checks where applicable
+
+Must NOT allow:
+
+- TenantAdmin cross-tenant access
+- StandardUser cross-tenant access
+- public access bypass
+
+--------------------------------------------------
+E. AUDIT / LOGGING (MINIMAL)
+--------------------------------------------------
+
+For any PlatformAdmin cross-tenant action:
+
+Log at minimum:
+
+- actorUserId
+- actorRole (PlatformAdmin)
+- targetResourceId (referralId/providerId)
+- targetTenantId (if available)
+- action (e.g. APPROVE_ACTIVATION, VIEW_REFERRAL, RESEND_EMAIL)
+- timestamp
+
+If a structured audit system exists:
+- use it
+
+Otherwise:
+- use structured logging
+
+--------------------------------------------------
+F. NO BEHAVIOR CHANGE FOR OTHER ROLES
+--------------------------------------------------
+
+Must verify:
+
+Role behavior:
+- PlatformAdmin → cross-tenant allowed
+- TenantAdmin → tenant-only
+- StandardUser → tenant-only
+
+--------------------------------------------------
+G. ERROR HANDLING
+--------------------------------------------------
+
+Maintain correct semantics:
+
+- resource not found globally → 404
+- forbidden (wrong role) → 403
+- invalid request → 400
+
+Do NOT:
+- return 500 for authorization or lookup issues
+- mask real errors with generic responses
+
+--------------------------------------------------
+H. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. Provider not found globally
+- return 404
+
+2. Referral not found globally
+- return 404
+
+3. Activation references invalid provider
+- fail with clear error
+
+4. Mixed-tenant activation (expected case)
+- must succeed for PlatformAdmin
+
+5. Orphaned records
+- fail safely without crashing
+
+--------------------------------------------------
+I. TESTING (REQUIRED)
+--------------------------------------------------
+
+Add targeted tests for:
+
+Positive cases:
+1. PlatformAdmin can:
+   - approve activation across tenants
+   - fetch referral by ID across tenants
+   - fetch referral history/audit across tenants
+   - resend email across tenants
+
+Negative cases:
+2. TenantAdmin:
+   - cannot access other tenants' referrals (404 or 403 as per existing design)
+
+3. StandardUser:
+   - cannot access other tenants' referrals
+
+Regression:
+4. Existing tenant-scoped flows remain unchanged
+5. Capability enforcement still applies
+
+--------------------------------------------------
+J. E2E VALIDATION (MANDATORY)
+--------------------------------------------------
+
+Re-run previously failing scenarios:
+
+1. Activation approval (DEF-001)
+2. Referral-by-id access (DEF-002)
+
+Expected:
+PASS for both scenarios
+
+Document results in report.
+
+--------------------------------------------------
+K. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-005-01-report.md
+
+The report MUST include:
+
+1. Summary
+- what was fixed
+- which defects were resolved
+
+2. Implementation Details
+- how global lookup was implemented
+- where scope branching occurs
+
+3. Activation Approval Fix
+- before vs after behavior
+
+4. Referral Access Fix
+- endpoints updated
+- behavior change
+
+5. Authorization Validation
+- proof that non-admin roles remain restricted
+
+6. Tests Added
+- scenarios covered
+
+7. E2E Re-test Results
+- DEF-001 result
+- DEF-002 result
+
+8. Known Limitations
+- anything deferred
+
+9. Final Status
+- READY / NOT READY
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+1. implement global lookup pattern
+2. update activation approval flow
+3. update referral-by-id endpoints
+4. enforce role-based scope branching
+5. add tests
+6. re-run E2E validation scenarios
+7. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-005-01 is complete ONLY if:
+
+1. PlatformAdmin can approve activation across tenants
+2. PlatformAdmin can access referral by ID across tenants
+3. TenantAdmin remains tenant-scoped
+4. StandardUser remains tenant-scoped
+5. no regression in existing flows
+6. both E2E defects are resolved
+7. report exists at:
+   /analysis/LSCC-01-005-01-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Make the smallest, safest changes necessary to introduce correct cross-tenant admin behavior.
+
+Do not over-engineer.
+Do not expand scope.
+Ensure the system becomes consistent with the PlatformAdmin global authority model while preserving strict tenant isolation for all other roles.

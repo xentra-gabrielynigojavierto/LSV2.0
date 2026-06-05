@@ -1,0 +1,371 @@
+Implement the first provider availability + scheduling foundation for LegalSynq CareConnect.
+
+Goal:
+Add the provider availability and scheduling model foundation, starting with:
+1. Facilities
+2. ProviderFacilities
+3. ServiceOfferings
+4. ProviderServiceOfferings
+5. ProviderAvailabilityTemplates
+
+Context:
+- CareConnect already exists and is working
+- Gateway is already routing /careconnect/*
+- Identity and JWT are already working
+- MySQL + EF Core are already configured
+- CareConnect already supports:
+  - Providers
+  - Categories
+  - Referrals
+  - Referral status history
+  - Workflow rules
+  - search/filtering patterns
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+
+Important:
+This step should create the scheduling foundation only.
+Do NOT implement slot generation, appointments, booking, or scheduling exceptions yet.
+
+Requirements
+
+1. Create new domain entities
+
+Facility
+- Id : Guid
+- TenantId : Guid
+- Name : string
+- AddressLine1 : string
+- City : string
+- State : string
+- PostalCode : string
+- Phone : string?
+- IsActive : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+ProviderFacility
+- ProviderId : Guid
+- FacilityId : Guid
+- IsPrimary : bool
+
+ServiceOffering
+- Id : Guid
+- TenantId : Guid
+- Name : string
+- Code : string
+- Description : string?
+- DurationMinutes : int
+- IsActive : bool
+- CreatedAtUtc : DateTime
+
+ProviderServiceOffering
+- ProviderId : Guid
+- ServiceOfferingId : Guid
+- FacilityId : Guid?
+- IsActive : bool
+
+ProviderAvailabilityTemplate
+- Id : Guid
+- TenantId : Guid
+- ProviderId : Guid
+- FacilityId : Guid
+- ServiceOfferingId : Guid?
+- DayOfWeek : int
+- StartTimeLocal : TimeOnly or a suitable EF/MySQL-compatible representation
+- EndTimeLocal : TimeOnly or a suitable EF/MySQL-compatible representation
+- SlotDurationMinutes : int
+- Capacity : int
+- EffectiveFrom : DateTime?
+- EffectiveTo : DateTime?
+- IsActive : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+2. Keep domain clean
+- no EF attributes in Domain
+- use UTC timestamps where applicable
+- use enterprise-friendly naming
+- use existing audit field patterns where appropriate
+
+3. Add EF Core mappings
+
+Create tables:
+- Facilities
+- ProviderFacilities
+- ServiceOfferings
+- ProviderServiceOfferings
+- ProviderAvailabilityTemplates
+
+Keys:
+- Facilities: Id
+- ServiceOfferings: Id
+- ProviderAvailabilityTemplates: Id
+- ProviderFacilities: composite key (ProviderId, FacilityId)
+
+For ProviderServiceOfferings:
+- use a clean key strategy
+- preferred: composite key (ProviderId, ServiceOfferingId, FacilityId) if EF/MySQL handling is clean
+- if nullable FacilityId makes composite key awkward, use a surrogate Id and add a unique index instead
+- choose one clean strategy and stay consistent
+
+Indexes:
+- Facilities: index on (TenantId, Name)
+- ServiceOfferings: unique on (TenantId, Code)
+- ProviderAvailabilityTemplates: index on (TenantId, ProviderId, DayOfWeek)
+- ProviderAvailabilityTemplates: index on (TenantId, FacilityId)
+- ProviderAvailabilityTemplates: index on (TenantId, ServiceOfferingId) if ServiceOfferingId is used
+
+Relationships:
+- ProviderFacilities links Providers and Facilities
+- ProviderServiceOfferings links Providers and ServiceOfferings, optionally per Facility
+- ProviderAvailabilityTemplates belongs to Provider and Facility, optionally ServiceOffering
+- all tenant-scoped entities must remain tenant-safe
+
+4. Update CareConnectDbContext
+- add DbSets
+- register entity configurations cleanly
+
+5. Add migration
+Create a migration for the scheduling foundation.
+
+Migration name:
+- AddSchedulingFoundation
+
+Place it in the existing CareConnect.Infrastructure migrations folder.
+
+6. Add DTOs
+
+Facility DTOs
+- CreateFacilityRequest
+- UpdateFacilityRequest
+- FacilityResponse
+
+CreateFacilityRequest:
+- Name
+- AddressLine1
+- City
+- State
+- PostalCode
+- Phone
+- IsActive
+
+UpdateFacilityRequest:
+- Name
+- AddressLine1
+- City
+- State
+- PostalCode
+- Phone
+- IsActive
+
+FacilityResponse:
+- Id
+- TenantId
+- Name
+- AddressLine1
+- City
+- State
+- PostalCode
+- Phone
+- IsActive
+
+ServiceOffering DTOs
+- CreateServiceOfferingRequest
+- UpdateServiceOfferingRequest
+- ServiceOfferingResponse
+
+CreateServiceOfferingRequest:
+- Name
+- Code
+- Description
+- DurationMinutes
+- IsActive
+
+UpdateServiceOfferingRequest:
+- Name
+- Code
+- Description
+- DurationMinutes
+- IsActive
+
+ServiceOfferingResponse:
+- Id
+- TenantId
+- Name
+- Code
+- Description
+- DurationMinutes
+- IsActive
+
+Availability Template DTOs
+- CreateAvailabilityTemplateRequest
+- UpdateAvailabilityTemplateRequest
+- AvailabilityTemplateResponse
+
+CreateAvailabilityTemplateRequest:
+- FacilityId
+- ServiceOfferingId
+- DayOfWeek
+- StartTimeLocal
+- EndTimeLocal
+- SlotDurationMinutes
+- Capacity
+- EffectiveFrom
+- EffectiveTo
+- IsActive
+
+UpdateAvailabilityTemplateRequest:
+- FacilityId
+- ServiceOfferingId
+- DayOfWeek
+- StartTimeLocal
+- EndTimeLocal
+- SlotDurationMinutes
+- Capacity
+- EffectiveFrom
+- EffectiveTo
+- IsActive
+
+AvailabilityTemplateResponse:
+- Id
+- TenantId
+- ProviderId
+- FacilityId
+- FacilityName
+- ServiceOfferingId
+- ServiceOfferingName
+- DayOfWeek
+- StartTimeLocal
+- EndTimeLocal
+- SlotDurationMinutes
+- Capacity
+- EffectiveFrom
+- EffectiveTo
+- IsActive
+
+7. Add service/use case layer
+
+Create application-layer services for:
+- list facilities
+- create facility
+- update facility
+- list service offerings
+- create service offering
+- update service offering
+- list provider availability templates
+- create provider availability template
+- update provider availability template
+
+Suggested interfaces:
+- IFacilityService
+- IServiceOfferingService
+- IAvailabilityTemplateService
+
+8. Tenant scoping
+Use ICurrentRequestContext for:
+- TenantId
+- UserId
+- roles
+
+All reads and writes must be tenant-scoped.
+
+9. Validation
+
+Facility validation:
+- Name required, max 200
+- AddressLine1 required
+- City required
+- State required
+- PostalCode required
+- Phone max 50 if provided
+
+ServiceOffering validation:
+- Name required, max 200
+- Code required, max 100
+- DurationMinutes > 0
+
+AvailabilityTemplate validation:
+- valid DayOfWeek (choose a consistent range and document it)
+- SlotDurationMinutes > 0
+- Capacity > 0
+- EndTimeLocal must be after StartTimeLocal
+- EffectiveTo must be >= EffectiveFrom if both supplied
+- Provider must exist in tenant
+- Facility must exist in tenant
+- ServiceOffering must exist in tenant if provided
+
+10. Endpoints
+
+Public:
+- GET /health
+- GET /info
+
+Facilities:
+- GET /api/facilities
+- POST /api/facilities
+- PUT /api/facilities/{id}
+
+Service offerings:
+- GET /api/service-offerings
+- POST /api/service-offerings
+- PUT /api/service-offerings/{id}
+
+Availability templates:
+- GET /api/providers/{id}/availability-templates
+- POST /api/providers/{id}/availability-templates
+- PUT /api/availability-templates/{id}
+
+11. Authorization
+- read endpoints => AuthenticatedUser
+- create/update endpoints => PlatformOrTenantAdmin
+- health/info => anonymous
+
+12. Keep architecture clean
+- endpoint layer thin
+- use application services
+- use async EF Core
+- do not return EF entities directly
+- use existing standardized exception handling
+- use existing audit stamping patterns where applicable
+
+13. Time representation
+Use a MySQL-compatible and EF-compatible way to store local start/end times.
+If TimeOnly is used, make sure the EF mapping is correct.
+If a string or TimeSpan-backed approach is cleaner for current setup, use that, but keep it consistent and clean.
+
+14. Do NOT implement yet
+Do not implement:
+- AppointmentSlots
+- Appointments
+- AppointmentStatusHistories
+- slot generation
+- scheduling exceptions / blackouts
+- booking / rescheduling
+- geo search
+- notifications
+- documents
+- payments
+
+15. Output required
+After implementation, output:
+- files created/updated
+- migration command
+- endpoint list
+- validation rules
+- sample curl requests for:
+  - create facility
+  - create service offering
+  - create provider availability template
+  - list provider availability templates
+
+16. Code quality expectations
+- clean namespaces
+- minimal duplication
+- production-minded implementation
+- no breaking changes to existing CareConnect behavior
+- preserve strict tenant isolation
+- UTC timestamps where applicable

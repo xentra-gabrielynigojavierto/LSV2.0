@@ -1,0 +1,613 @@
+# **LS-LIENS-FLOW-005 — Replit Implementation Prompt**
+
+Copy-paste this entire prompt into Replit:
+
+```text
+You are implementing LS-LIENS-FLOW-005 — Workflow Transition Engine for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-005-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Runtime Validation Behavior
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not leave placeholder sections. Populate with actual implementation details only.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Enhance the existing Synq Liens workflow configuration by adding a Workflow Transition Engine.
+
+The system currently supports:
+- workflow definition
+- workflow stages
+- task templates
+- task automation
+- stage-aware behavior
+
+It does NOT yet support controlled stage-to-stage transitions.
+
+Implement:
+1. Workflow transition definitions
+2. Tenant/admin configuration of allowed transitions
+3. Runtime transition validation
+4. UI changes so stage moves are governed by allowed paths
+5. Audit logging for transition configuration changes
+
+This feature must upgrade the workflow from:
+- stage list only
+to
+- stage list + controlled movement
+
+This is NOT:
+- a BPM engine
+- SLA enforcement
+- role-based stage gating
+- approval routing
+- dependency orchestration
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services and existing Synq Liens architecture patterns.
+
+Use:
+- existing workflow config governance model
+- existing audit service integration
+- existing repository / DTO / service / endpoint patterns
+
+Do NOT:
+- introduce a heavy rules engine
+- merge transitions into a generic config blob
+- redesign the workflow domain entirely
+- add approval logic
+- add required-task gating
+- add SLA/timer conditions
+- add role-based transition restrictions yet
+
+Keep this feature focused on:
+- allowed transitions only
+- clear runtime validation
+- understandable admin configuration
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE
+==================================================
+
+Before implementing:
+
+Inspect and document:
+- existing FLOW-001 workflow config entity/service/API
+- existing workflow stage entity and ordering model
+- tenant-side workflow settings page
+- control-center workflow settings page
+- any runtime stage movement logic currently used by tasks/cases/liens
+- any frontend stage selection components currently allowing unrestricted moves
+- existing versioning / lastUpdated / updateSource workflow governance pattern
+- existing audit integration for workflow updates
+- existing case/lien/task workflow stage usage
+
+Document findings in the report before coding.
+
+Clarify in the report:
+- where transitions need to be enforced first
+- whether task stage movement, case stage movement, and lien stage movement all currently exist
+- what runtime paths can actually be validated in this phase
+
+==================================================
+STEP 2 — IMPLEMENT WORKFLOW TRANSITION DOMAIN
+==================================================
+
+Create a new workflow transition model tied to workflow configuration.
+
+--------------------------------------------------
+2.1 Entity / Model
+--------------------------------------------------
+
+Create a workflow transition entity with at minimum:
+
+- id
+- workflowId
+- fromStageId
+- toStageId
+- isActive
+- sortOrder
+- createdAt
+- updatedAt
+
+Use existing naming conventions and entity patterns.
+
+Recommended name:
+- LienWorkflowTransition
+or equivalent consistent with current workflow naming
+
+--------------------------------------------------
+2.2 Rules
+--------------------------------------------------
+
+A transition means:
+- from stage A
+- to stage B
+- movement is allowed if transition is active
+
+Phase 1 rules:
+- backward moves are allowed only if explicitly configured
+- no self-transition unless codebase requires it and it is justified
+- from/to stages must belong to the same workflow
+- duplicate identical transitions must not be allowed
+
+--------------------------------------------------
+2.3 EF / Persistence
+--------------------------------------------------
+
+Implement:
+- entity configuration
+- foreign keys to workflow config / workflow stages
+- indexes for efficient lookup
+
+Recommended indexes:
+- (workflowId, fromStageId)
+- uniqueness protection or service-level guard for (workflowId, fromStageId, toStageId)
+
+--------------------------------------------------
+2.4 Default Initialization Strategy
+--------------------------------------------------
+
+For existing workflows, implement a safe default.
+
+Recommended behavior:
+- when a workflow has stages but no transitions yet, auto-generate linear transitions based on stage order
+
+Example:
+1 -> 2
+2 -> 3
+3 -> 4
+4 -> 5
+
+Do this in the cleanest way supported by the codebase:
+- migration seed if appropriate
+OR
+- service-level initialization on first workflow load/save
+
+Document clearly which strategy you choose.
+
+==================================================
+STEP 3 — EXTEND WORKFLOW CONFIGURATION SERVICE
+==================================================
+
+Extend the existing workflow configuration domain/service to include transitions.
+
+--------------------------------------------------
+3.1 Service Behavior
+--------------------------------------------------
+
+Tenant/admin must be able to:
+- list transitions
+- create transitions
+- update transitions if needed
+- remove or deactivate transitions
+- save workflow config including transitions
+
+Recommended approach:
+- treat transitions as part of workflow configuration editing
+- preserve existing versioning / lastUpdated / updateSource behavior
+
+--------------------------------------------------
+3.2 Governance
+--------------------------------------------------
+
+Transition changes must:
+- update workflow version
+- update lastUpdatedAt
+- update lastUpdatedBy
+- update lastUpdatedSource
+
+The same underlying workflow record/configuration must be editable from:
+- Synq Liens Product Settings
+- Control Center
+
+Do not create a separate duplicated transition store for admin vs tenant surfaces.
+
+==================================================
+STEP 4 — IMPLEMENT RUNTIME TRANSITION VALIDATION
+==================================================
+
+Introduce a reusable validation layer for workflow transitions.
+
+--------------------------------------------------
+4.1 Validation Service
+--------------------------------------------------
+
+Create a service/component that can answer:
+
+- IsTransitionAllowed(workflowId, fromStageId, toStageId)
+- GetAllowedNextStages(workflowId, fromStageId)
+
+This must be reusable by:
+- task stage movement
+- case stage movement
+- lien stage movement
+- future automation logic
+
+--------------------------------------------------
+4.2 Runtime Enforcement
+--------------------------------------------------
+
+Wherever stage changes currently happen in the codebase, add validation.
+
+At minimum, enforce in the runtime paths that already exist and are active in Synq Liens.
+
+Examples may include:
+- task stage/status updates if workflow stage is used there
+- case workflow advancement
+- lien workflow advancement
+
+If some stage runtime paths do not yet exist in a clean way, enforce where possible now and document the boundary clearly.
+
+--------------------------------------------------
+4.3 Error Behavior
+--------------------------------------------------
+
+If transition is invalid:
+- reject request
+- return clear validation error
+
+Use messages like:
+- "Transition from In Progress to To Do is not allowed"
+- "This workflow stage change is not permitted"
+
+Do not use vague error messages.
+
+==================================================
+STEP 5 — API CHANGES
+==================================================
+
+Implement the necessary API changes to manage transitions and support runtime validation.
+
+--------------------------------------------------
+5.1 Workflow Config APIs
+--------------------------------------------------
+
+Extend existing workflow config endpoints or add clearly related transition endpoints.
+
+Support at minimum:
+- get workflow with stages + transitions
+- add transition
+- remove/deactivate transition
+- save workflow transition configuration
+
+Prefer integrating transitions into the existing workflow config API surface unless the codebase structure clearly favors dedicated transition routes.
+
+--------------------------------------------------
+5.2 Runtime APIs
+--------------------------------------------------
+
+If frontend needs allowed next stages for a runtime move UI, add a helper endpoint only if truly needed.
+
+Examples:
+- GET allowed next stages from current stage
+- validate transition endpoint
+
+Prefer not to add unnecessary endpoints if existing workflow config payload is sufficient.
+
+==================================================
+STEP 6 — FRONTEND WORKFLOW SETTINGS UI
+==================================================
+
+Enhance the existing workflow settings page.
+
+Current problem:
+- tenant can define stages but not transition behavior
+
+Implement a new section for transition configuration.
+
+--------------------------------------------------
+6.1 Recommended UX
+--------------------------------------------------
+
+Use a simple per-stage allowed-destinations model.
+
+For each stage show:
+- stage name
+- allowed next stages
+- multi-select or checkbox list of destination stages
+
+Recommended over matrix because:
+- easier for tenant admins
+- easier to implement cleanly
+- less visually dense
+
+--------------------------------------------------
+6.2 Tenant Side
+--------------------------------------------------
+
+Update:
+- Synq Liens → Product Settings → Workflow
+
+Add:
+- transition configuration section
+- save changes support
+- version / updated metadata display preserved
+
+--------------------------------------------------
+6.3 Control Center Side
+--------------------------------------------------
+
+Mirror the same capability in:
+- Control Center → Tenant → Synq Liens → Workflow
+
+Use the same underlying workflow config APIs/data.
+
+--------------------------------------------------
+6.4 UX Constraints
+--------------------------------------------------
+
+Keep UI understandable.
+Do not build a drag-and-drop graph designer.
+Do not build a BPM diagramming tool.
+
+==================================================
+STEP 7 — FRONTEND RUNTIME MOVEMENT UX
+==================================================
+
+Where users can currently move between stages/statuses, improve the UI to reflect allowed moves.
+
+--------------------------------------------------
+7.1 Preferred Behavior
+--------------------------------------------------
+
+If practical:
+- only show valid target stages in dropdown/select controls
+
+If existing UI structure makes that too invasive:
+- keep current UI but allow backend to block invalid transitions
+- document the current UX limitation
+
+--------------------------------------------------
+7.2 Error Handling
+--------------------------------------------------
+
+If invalid move is attempted:
+- show clear error toast/message
+- do not silently fail
+
+==================================================
+STEP 8 — PERMISSIONS / SECURITY
+==================================================
+
+Reuse existing workflow management permission if possible.
+
+Recommended:
+- do NOT introduce a new permission unless necessary
+- use current workflow manage permission for transition configuration
+
+Preserve:
+- tenant scoping
+- admin vs tenant governance rules
+- current workflow config access rules
+
+If a new permission is absolutely needed, document why.
+
+==================================================
+STEP 9 — AUDIT INTEGRATION
+==================================================
+
+Use the v2 Audit service.
+
+Log transition configuration changes:
+
+- liens.workflow_transition.created
+- liens.workflow_transition.updated
+- liens.workflow_transition.deleted
+or
+- liens.workflow_transition.deactivated
+
+Include where practical:
+- tenantId
+- workflowId
+- fromStageId
+- toStageId
+- actorUserId
+- actorName
+- updateSource
+- timestamp
+
+Do not flood audit with runtime validation failures unless there is already a useful pattern for that.
+If you choose to log invalid runtime transition attempts, keep it minimal and document the rationale.
+
+==================================================
+STEP 10 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- workflow transition entity/model
+- EF configuration
+- migration/schema changes
+- repository/data access updates
+- service updates for workflow config
+- transition validation service
+- runtime enforcement hooks
+- API updates
+- audit hooks
+
+Keep domain boundaries clear:
+1. workflow definition
+2. workflow stages
+3. workflow transitions
+4. workflow runtime state
+5. tasks/templates/automation rules
+
+==================================================
+STEP 11 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- workflow config types/api/service updates
+- tenant workflow settings page enhancements
+- control-center workflow settings page enhancements
+- transition editor UI
+- runtime stage move UI filtering if feasible
+- user-facing validation messaging
+
+Preserve current styling and layout conventions.
+
+==================================================
+STEP 12 — VALIDATION CHECKLIST
+==================================================
+
+Validate and document:
+
+### Configuration
+- workflow loads with stages + transitions
+- transition can be added
+- transition can be removed/deactivated
+- tenant-side change reflects in control-center view
+- control-center change reflects in tenant-side view
+- workflow version updates after transition change
+- lastUpdated metadata updates correctly
+
+### Default Initialization
+- existing workflow receives sensible initial transitions
+OR
+- safe no-break fallback behavior is documented and verified
+
+### Runtime
+- valid transition succeeds
+- invalid transition fails
+- backward transition only works if explicitly configured
+- runtime UI shows only valid targets where implemented
+- clear error shown for invalid move attempt
+
+### Audit
+- transition create/update/delete audit events are created
+
+### Build / Run
+- backend builds
+- frontend builds / typechecks
+- migrations apply
+- app starts cleanly
+
+If any runtime path cannot be fully enforced because the current codebase does not yet own stage movement there, document exactly where and why.
+
+==================================================
+STEP 13 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Populate the final `/analysis/LS-LIENS-FLOW-005-report.md` with:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - existing workflow config findings
+   - runtime movement findings
+   - enforcement boundaries
+
+3. Files Changed
+   - backend/frontend/database/config grouped clearly
+
+4. Database / Schema Changes
+   - new tables/entities/indexes
+   - migration name
+   - default transition initialization strategy
+
+5. API Changes
+   - endpoints added/updated
+   - request/response behavior
+
+6. UI Changes
+   - tenant workflow settings changes
+   - control-center changes
+   - runtime stage movement UX changes
+
+7. Runtime Validation Behavior
+   - how transition validation works
+   - where it is enforced
+   - where it is not yet enforced
+
+8. Permissions / Security
+   - confirm permission reuse or explain new permission
+   - tenant/admin scoping notes
+
+9. Audit Integration
+   - transition audit events
+   - any runtime logging choices
+
+10. Validation Results
+   - build/typecheck/manual validation
+
+11. Known Gaps / Risks
+   - unresolved enforcement areas
+   - future gating/enforcement opportunities
+   - recommended next step
+
+12. Run Instructions
+   - migration/build/startup/testing instructions
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is complete only if:
+
+1. workflow transitions can be configured
+2. transitions are editable from both tenant and control-center workflow settings
+3. valid stage movement is allowed
+4. invalid stage movement is blocked in the runtime paths implemented
+5. workflow governance metadata updates correctly
+6. audit logging is wired
+7. implementation is documented in `/analysis/LS-LIENS-FLOW-005-report.md`
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Keep this a lightweight transition engine
+- Do not add BPM complexity
+- Prefer understandable admin UX over maximum flexibility
+- Preserve tenant isolation
+- Preserve existing workflow config patterns
+- Keep future extensibility for SLA, approvals, and gating, but do not implement them now
+- Make reasonable choices if the codebase has runtime movement limitations, and document them clearly
+
+Begin by creating `/analysis/LS-LIENS-FLOW-005-report.md` immediately, then inspect the codebase, document findings, and proceed with implementation.
+```

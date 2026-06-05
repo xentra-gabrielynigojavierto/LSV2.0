@@ -1,0 +1,329 @@
+Feature ID: UIX-003
+Feature Title: Access Control Management (Roles, Groups, Membership Operations)
+
+Implement UIX-003 for the LegalSynq Control Center.
+
+Context:
+- UIX-001 is complete enough for account/auth foundations
+- UIX-002, UIX-002-01, and UIX-002-02 established:
+  - admin portal separation
+  - admin navigation
+  - live user list/detail
+  - invite flow
+  - membership/role/group visibility
+  - tenant-scoped identity queries
+- Current state:
+  - roles are visible but read-only
+  - groups are visible but mostly read-only
+  - organization memberships are visible but not operationally managed from UI
+- This feature should make access control truly manageable from the Control Center
+- Backend remains the security boundary
+
+Objective:
+Make access control operational for admins by implementing the first real management layer for:
+- role assignment / revocation
+- group membership assignment / removal
+- organization membership assignment / removal
+- primary organization management
+- tenant-admin-scoped administration
+
+This is the feature that converts “user management visibility” into “user access management.”
+
+========================================
+CORE RULES
+========================================
+
+Keep these concepts separate:
+
+1. User
+2. Organization Membership
+3. Admin/System Roles
+4. Groups
+5. Permissions
+6. Product Roles
+
+Important:
+- Product roles still drive workflow participation
+- Admin/system roles drive administrative authority
+- Groups are tenant-scoped reusable containers for access structure
+- This feature is about managing access relationships, not redefining auth architecture
+- Do NOT collapse product workflow roles into admin roles
+- Do NOT redesign existing identity/session model
+
+========================================
+MVP SCOPE FOR UIX-003
+========================================
+
+Implement the first operational access-control slice in the Control Center:
+
+1. Role Assignment
+- assign existing admin/system roles to a user
+- revoke existing admin/system roles from a user
+- show current assignments clearly
+- support at least:
+  - TenantAdmin
+  - OrganizationManager
+  - SecurityManager
+  - StandardUser
+
+2. Group Membership Management
+- add user to an existing group
+- remove user from a group
+- show current group memberships
+- keep group operations tenant-scoped
+
+3. Organization Membership Management
+- add a user to an organization
+- remove a user from an organization (respect existing safety rules)
+- set a user’s primary organization
+- show primary vs secondary memberships clearly
+
+4. TenantAdmin Scope Enablement
+- UI and backend behavior must support tenant-scoped admin management
+- TenantAdmin should be able to manage users/access only inside their own tenant
+- PlatformAdmin retains cross-tenant reach where already designed
+
+5. Access Summary
+- update effective access summary to reflect changes immediately
+- show role count, group count, org count, primary org, account state
+- remain informational, not a replacement for backend enforcement
+
+========================================
+DO NOT IMPLEMENT IN UIX-003
+========================================
+
+Do NOT implement unless trivially scaffolded only:
+- custom role builder
+- permission editor
+- per-user permission overrides
+- MFA/security session tooling
+- product role assignment editor
+- domain/product subscription management
+- org switching
+- audit analytics dashboard
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+Implement or wire the backend endpoints needed for UIX-003.
+
+1. Role Assignment Endpoints
+Implement and verify:
+- POST /identity/api/admin/users/{id}/roles
+- DELETE /identity/api/admin/users/{id}/roles/{roleCode}
+
+Requirements:
+- enforce TenantAdmin tenant scope
+- PlatformAdmin may operate across tenants where allowed
+- prevent duplicate assignment
+- return clear 409/400 errors where appropriate
+- audit log changes
+
+2. Group Membership Endpoints
+Implement and verify:
+- POST /identity/api/admin/groups/{id}/members
+- DELETE /identity/api/admin/groups/{id}/members/{userId}
+
+Requirements:
+- group and user must belong to same tenant unless PlatformAdmin path explicitly permits otherwise
+- reject duplicate membership
+- audit log changes
+
+3. Organization Membership Endpoints
+Implement and verify:
+- POST /identity/api/admin/users/{id}/memberships
+- DELETE /identity/api/admin/users/{id}/memberships/{membershipId}
+- POST /identity/api/admin/users/{id}/memberships/{membershipId}/set-primary
+
+Requirements:
+- existing safety rules remain enforced:
+  - cannot remove last membership
+  - cannot remove primary incorrectly
+- setting primary must clear previous primary safely
+- org must belong to same tenant
+- audit log changes
+
+4. Support Queries
+Ensure current user detail endpoint returns enough data for immediate UI refresh after mutations:
+- memberships
+- roles
+- groups
+- primary membership
+- any role/group identifiers required for removal
+
+If needed, extend:
+- GET /identity/api/admin/users/{id}
+- GET /identity/api/admin/groups/{id}
+- GET /identity/api/admin/organizations
+
+========================================
+FRONTEND — CONTROL CENTER
+========================================
+
+Extend the existing admin UI. Do NOT rebuild it.
+
+1. User Detail Page
+Update:
+- /tenant-users/[id]
+
+Add functional panels for:
+
+A. RoleAssignmentPanel
+- show current roles
+- allow assign existing role
+- allow revoke removable role
+- prevent removing required/system-protected role if backend enforces that
+- show loading / success / error states
+
+B. OrganizationMembershipPanel
+- show memberships clearly
+- add membership to organization
+- remove membership
+- set primary membership
+- highlight primary org
+- reflect backend conflict errors cleanly
+
+C. GroupMembershipPanel
+- show current groups
+- add user to group
+- remove user from group
+- link to group detail if route exists
+
+2. Supporting Pages / Data
+Reuse existing:
+- /tenant-users
+- /groups
+- /groups/[id]
+
+If needed, extend:
+- user detail fetch
+- organizations fetch for selection dropdowns
+- groups list for assignment dropdowns
+
+3. Components to Build or Extend
+Build or update as needed:
+
+- RoleAssignmentPanel
+- OrganizationMembershipPanel
+- GroupMembershipPanel
+- AddMembershipDialog or inline form
+- AddRoleDialog or inline form
+- AddGroupDialog or inline form
+- ConfirmActionDialog or lightweight confirm pattern
+- EffectiveAccessSummary (refresh/update after mutations)
+
+4. UX Rules
+- destructive actions require confirmation
+- disable controls while mutation is running
+- use optimistic refresh only if safe; otherwise refetch after mutation
+- show correlationId on API failures where available
+- clearly label editable vs non-editable controls
+- keep design aligned with current Control Center UI
+
+========================================
+TENANTADMIN / PLATFORMADMIN BEHAVIOR
+========================================
+
+This feature must explicitly support both:
+
+TenantAdmin:
+- may manage users only inside their tenant
+- may assign memberships/roles/groups only inside their tenant
+- must not see or mutate cross-tenant data
+
+PlatformAdmin:
+- may manage broader scope where allowed
+- if current UI is still tenant-context based, document the limitation clearly
+- do not fake cross-tenant behavior if backend path is not ready
+
+If any PlatformAdmin cross-tenant workflow remains partial, document it explicitly in the report.
+
+========================================
+BACKEND / BFF INTEGRATION
+========================================
+
+Use real endpoints only. Do not fake successful state changes.
+
+Expected BFF integration pattern:
+- Control Center → BFF route → gateway → identity service
+
+Add/update BFF handlers as needed for:
+- assign role
+- revoke role
+- add membership
+- remove membership
+- set primary membership
+- add group member
+- remove group member
+
+========================================
+VALIDATION BEHAVIOR
+========================================
+
+At minimum, the finished feature should allow a valid admin to:
+
+1. open a user detail page
+2. assign a role
+3. revoke a role
+4. add the user to an org
+5. set the org as primary
+6. remove a non-primary org
+7. add the user to a group
+8. remove the user from a group
+9. see the updated effective access summary
+10. be blocked appropriately on invalid/conflicting operations
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-003-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Backend Endpoints Implemented / Verified
+6. BFF Routes Implemented / Updated
+7. User Detail UI Changes
+8. Role Assignment Implementation
+9. Organization Membership Implementation
+10. Group Membership Implementation
+11. TenantAdmin / PlatformAdmin Scope Handling
+12. Validation / Conflict Rules Enforced
+13. Read-only vs Editable Areas
+14. Known Issues / Missing Backend Dependencies
+15. Manual Test Results
+16. What remains for Phase 2
+17. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- role assignment works
+- role revocation works
+- membership add works
+- membership remove works
+- primary org set works
+- membership safety rules enforced
+- group add works
+- group remove works
+- user detail refreshes correctly
+- effective access summary updates
+- tenant admin scope enforced
+- platform admin behavior documented
+- non-admin blocked
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend existing UIX-002 work; do not rewrite
+- use real backend-backed behavior where available
+- if an endpoint is missing, document it clearly and keep related UI read-only or stubbed
+- keep the feature focused on access management
+- save the report to /analysis/UIX-003-report.md

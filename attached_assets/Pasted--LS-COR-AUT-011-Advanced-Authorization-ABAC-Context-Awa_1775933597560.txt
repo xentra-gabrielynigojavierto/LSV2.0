@@ -1,0 +1,411 @@
+# LS-COR-AUT-011 — Advanced Authorization (ABAC + Context-Aware Policies)
+
+## Objective
+
+Extend LS-COR-AUT from **permission-based authorization (PBAC)** to **policy-driven authorization (ABAC + contextual enforcement)** by introducing:
+
+* attribute-based access control (ABAC)
+* contextual policy evaluation
+* conditional permissions
+* dynamic enforcement rules
+
+At completion, the system must support:
+
+```text
+User → Roles → Permissions → Policies → Context → Enforcement
+```
+
+This enables **fine-grained, dynamic, real-world authorization decisions** beyond static roles and permissions.
+
+---
+
+## Architectural Principles
+
+### Layered Authorization Model
+
+* RBAC → assignment
+* PBAC → capability
+* ABAC → decision logic
+
+All layers must coexist.
+
+---
+
+### Non-Breaking Evolution
+
+* Existing permission enforcement remains functional
+* Policies are additive (not replacing permissions initially)
+
+---
+
+### Explicit Evaluation
+
+* Authorization decisions must be:
+
+  * explainable
+  * traceable
+  * observable
+
+---
+
+## In Scope
+
+---
+
+## 1. Policy Model (Core)
+
+### Create Entity
+
+`Policy`
+
+Fields:
+
+* `Id`
+* `PolicyCode` (string, unique)
+* `Name`
+* `Description`
+* `ProductCode`
+* `IsActive`
+* `Priority` (int, for evaluation order)
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
+
+---
+
+### Example
+
+```text
+SYNQ_FUND.approval.limit
+SYNQ_CARECONNECT.referral.region
+```
+
+---
+
+## 2. Policy Rule Definition
+
+### Create Entity
+
+`PolicyRule`
+
+Fields:
+
+* `Id`
+* `PolicyId`
+* `ConditionType` (enum/string)
+* `Field` (e.g., "amount", "organizationId")
+* `Operator` (e.g., `==`, `>`, `<`, `IN`)
+* `Value` (string/JSON)
+* `LogicalGroup` (AND/OR grouping)
+* `CreatedAtUtc`
+
+---
+
+### Examples
+
+```text
+amount < 50000
+organizationId == user.organizationId
+region IN ["CA", "NV"]
+```
+
+---
+
+## 3. Policy → Permission Mapping
+
+### Create Entity
+
+`PermissionPolicy`
+
+Fields:
+
+* `Id`
+* `PermissionCode`
+* `PolicyId`
+* `IsActive`
+
+---
+
+### Purpose
+
+Defines:
+
+```text
+Permission → Conditions
+```
+
+Example:
+
+```text
+SYNQ_FUND.application:approve
+→ Policy: amount < 50000
+```
+
+---
+
+## 4. Attribute Sources
+
+### Supported Sources
+
+* User attributes:
+
+  * tenantId
+  * organizationId
+  * roles
+* Resource attributes:
+
+  * caseId
+  * amount
+  * owner
+* Request context:
+
+  * time
+  * IP
+  * region
+
+---
+
+### Implementation
+
+Create abstraction:
+
+```csharp
+IAttributeProvider
+```
+
+Responsibilities:
+
+* fetch user attributes
+* fetch resource attributes
+* fetch request context
+
+---
+
+## 5. Policy Evaluation Engine
+
+### Create Service
+
+```csharp
+IPolicyEvaluationService
+```
+
+---
+
+### Method
+
+```csharp
+EvaluateAsync(user, permission, resourceContext)
+```
+
+---
+
+### Behavior
+
+1. check permission exists
+2. retrieve linked policies
+3. evaluate rules
+4. combine results (AND/OR)
+5. return:
+
+```json
+{
+  "allowed": true/false,
+  "reason": "...",
+  "matchedPolicies": [...]
+}
+```
+
+---
+
+## 6. Enforcement Integration
+
+### Update Filter
+
+Enhance:
+
+```csharp
+RequirePermissionFilter
+```
+
+---
+
+### Flow
+
+```text
+Check permission claim
+→ If no policy → allow
+→ If policy exists → evaluate
+→ If pass → allow
+→ If fail → deny
+```
+
+---
+
+### Optional Config
+
+```text
+EnablePolicyEvaluation = true/false
+```
+
+---
+
+## 7. Debug / Explainability
+
+### Extend Debug Endpoint
+
+```http
+GET /api/admin/users/{id}/access-debug
+```
+
+---
+
+### Add:
+
+```json
+"policies": [
+  {
+    "permission": "...",
+    "result": "ALLOW",
+    "rules": [...]
+  }
+]
+```
+
+---
+
+## 8. Admin UI — Policy Management
+
+### New Section: Policies
+
+---
+
+### Policy List Page
+
+* list policies
+* filter by product
+* status
+
+---
+
+### Policy Detail Page
+
+* rules editor
+* condition builder UI
+* assign to permissions
+
+---
+
+### UI Components
+
+* condition builder:
+
+  * field dropdown
+  * operator dropdown
+  * value input
+* logical grouping (AND/OR)
+
+---
+
+## 9. Validation Rules
+
+### Policy
+
+* must belong to product
+* must have valid rules
+
+### Rule
+
+* field must be supported
+* operator must match data type
+* value must be valid
+
+---
+
+## 10. Testing Requirements
+
+---
+
+### Unit Tests
+
+* rule evaluation logic
+* operator correctness
+* AND/OR grouping
+* edge cases
+
+---
+
+### Integration Tests
+
+* permission + policy enforcement
+* policy pass/deny behavior
+* debug endpoint shows policy evaluation
+
+---
+
+### Security Tests
+
+* invalid policy rejected
+* malformed rules rejected
+* bypass not possible
+
+---
+
+## Acceptance Criteria
+
+* policy model exists
+* rules can be defined and stored
+* permission can be linked to policies
+* policy evaluation engine works
+* enforcement integrates with permission checks
+* debug endpoint shows policy decisions
+* UI allows policy management
+* no breaking changes to existing system
+
+---
+
+## Implementation Notes
+
+* keep rule engine simple initially
+* use JSON for flexible rule storage
+* avoid over-engineering DSL in first version
+* prioritize explainability
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+/analysis/LS-COR-AUT-011-report.md
+
+---
+
+### Report must include:
+
+1. policy model implementation
+2. rule engine design
+3. enforcement integration
+4. UI changes
+5. test results
+6. build status
+7. known limitations
+8. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+LS-COR-AUT becomes:
+
+* dynamic
+* context-aware
+* policy-driven
+
+Transitioning from:
+
+```text
+Static Authorization → Intelligent Authorization
+```

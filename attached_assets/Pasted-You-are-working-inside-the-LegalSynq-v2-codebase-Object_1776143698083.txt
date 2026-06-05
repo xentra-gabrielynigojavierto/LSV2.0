@@ -1,0 +1,336 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the Sale Finalization Application Service for the Liens microservice so the core SynqLiens sale workflow can execute safely and consistently:
+
+Accept Offer → Create BillOfSale → Update Lien → Reject competing offers
+
+This is the first true multi-entity business workflow in Liens. It must coordinate repositories correctly and execute transactionally.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Do NOT put orchestration logic in repositories
+- Do NOT put persistence logic in domain entities
+- Do NOT add API endpoints in this feature
+- Do NOT add cross-service joins
+- Do NOT implement notifications/documents/audit publishing yet
+- Preserve donor SynqLiens behavior and API compatibility as much as practical
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING APPLICATION SERVICE PATTERNS
+--------------------------------------------------
+
+Inspect how existing v2 services structure application services and workflow orchestration.
+
+Look at relevant services such as:
+- CareConnect
+- Fund
+- any current Liens application services if present
+
+Identify:
+- interface placement
+- implementation placement
+- DI registration pattern
+- exception handling style
+- transaction handling pattern
+- return model/result style
+
+Follow the existing v2 pattern as closely as possible.
+Do NOT invent a brand-new service architecture for Liens.
+
+--------------------------------------------------
+STEP 2 — CREATE THE SALE FINALIZATION SERVICE
+--------------------------------------------------
+
+Create an application service in the appropriate Liens Application location.
+
+Suggested shape:
+- `ILienSaleService`
+- `LienSaleService`
+
+The service should implement a method equivalent to:
+
+`AcceptOfferAsync(Guid tenantId, Guid lienOfferId, Guid actingUserId, CancellationToken ct)`
+
+You may choose a slightly different signature if the existing platform pattern strongly suggests a better one, but the method must support:
+- tenant-scoped execution
+- target offer id
+- acting user id
+- cancellation token
+
+--------------------------------------------------
+STEP 3 — LOAD AND VALIDATE THE TARGET OFFER
+--------------------------------------------------
+
+Using the repository layer:
+
+1. Load the offer by `lienOfferId`
+2. Validate:
+   - it exists
+   - it belongs to the specified tenant
+   - it is in a valid actionable state
+   - it has not expired
+   - it has not already been accepted/rejected/withdrawn in a terminal way
+
+Use the existing domain methods and status model where appropriate.
+Do NOT duplicate domain status logic unnecessarily, but do enforce workflow preconditions at the application layer.
+
+--------------------------------------------------
+STEP 4 — LOAD AND VALIDATE THE LIEN
+--------------------------------------------------
+
+Load the lien associated with the offer.
+
+Validate:
+- lien exists
+- lien belongs to the same tenant
+- lien is in a state where accepting an offer is allowed
+- lien has not already been finalized through another sale path
+- lien does not already have a BillOfSale for the accepted sale path
+
+If the workflow encounters an already-finalized condition, fail safely and clearly.
+
+--------------------------------------------------
+STEP 5 — BEGIN A TRANSACTION
+--------------------------------------------------
+
+Use the scoped `LiensDbContext` transaction mechanism consistent with the current v2 pattern.
+
+All of the following steps must occur in a single transaction:
+- offer acceptance
+- competing offer rejection
+- lien update
+- BillOfSale creation
+
+If anything fails, the whole operation must roll back.
+
+Do NOT fake transactional behavior at the repository level.
+Use the real DbContext transaction.
+
+--------------------------------------------------
+STEP 6 — CREATE THE BILL OF SALE
+--------------------------------------------------
+
+Create the BillOfSale using the domain factory.
+
+Use the accepted offer + lien information to populate:
+- tenant
+- lien id
+- lien offer id
+- seller org
+- buyer org
+- purchase amount
+- original lien amount
+- bill of sale number / reference according to current domain/factory expectations
+- acting user context where applicable
+
+Persist it through the repository layer.
+
+Do NOT generate documents in this feature.
+Do NOT call the Documents service here.
+
+--------------------------------------------------
+STEP 7 — ACCEPT THE TARGET OFFER
+--------------------------------------------------
+
+Update the target offer using the domain model:
+- status → Accepted
+- response timestamps/notes as applicable
+
+Persist it through the repository layer.
+
+Make sure this does not conflict with the BillOfSale creation order or transaction semantics.
+
+--------------------------------------------------
+STEP 8 — REJECT COMPETING OFFERS
+--------------------------------------------------
+
+Load all other offers for the same lien.
+
+For every competing offer that is still actionable:
+- reject it
+- stamp the relevant response metadata
+- persist the update
+
+Be careful not to:
+- reject the accepted offer
+- mutate already terminal offers incorrectly
+- introduce partial state changes outside the transaction
+
+This is a required part of the sale finalization workflow.
+
+--------------------------------------------------
+STEP 9 — UPDATE THE LIEN
+--------------------------------------------------
+
+Update the lien through the domain model to reflect sale completion.
+
+At minimum:
+- move to the sold state (or equivalent approved status)
+- update holder/ownership fields appropriately
+- record purchase/sale-related data needed by the existing domain model
+
+Persist it through the repository layer.
+
+Use the current Lien entity’s methods rather than directly mutating fields.
+
+--------------------------------------------------
+STEP 10 — COMMIT TRANSACTION
+--------------------------------------------------
+
+Commit only after:
+- BillOfSale has been created
+- target offer accepted
+- competing offers rejected
+- lien updated
+
+If anything fails before commit:
+- roll back
+- return/throw a clear failure
+
+--------------------------------------------------
+STEP 11 — RETURN A STRUCTURED RESULT
+--------------------------------------------------
+
+Return a clean application-layer result model.
+
+Do NOT return EF entities directly.
+
+At minimum, return:
+- accepted offer id
+- lien id
+- bill of sale id
+- final lien status
+- accepted offer status
+
+Use an application-layer result/response model consistent with the codebase style.
+
+--------------------------------------------------
+STEP 12 — HANDLE IDEMPOTENCY / SAFE RE-RUNS
+--------------------------------------------------
+
+Design the workflow so it fails safely if re-run or double-invoked.
+
+At minimum address:
+- offer already accepted
+- BillOfSale already exists for the same finalized sale
+- lien already sold
+
+You may either:
+- return an existing result safely
+OR
+- throw a clear application error
+
+Choose the approach that best matches existing v2 service style and document it clearly.
+
+--------------------------------------------------
+STEP 13 — KEEP CROSS-CUTTING CONCERNS DEFERRED
+--------------------------------------------------
+
+Do NOT implement yet:
+- Audit publishing
+- Notifications sending
+- Document generation/storage
+- cross-service enrichment
+- API exposure
+
+This feature is only the application workflow orchestration.
+
+However, structure the service so future features can add:
+- audit events
+- notifications
+- BOS document generation
+
+without rewriting the workflow.
+
+--------------------------------------------------
+STEP 14 — REGISTER IN DI
+--------------------------------------------------
+
+Register the application service in DI using the existing v2 pattern.
+
+Do NOT modify unrelated services.
+
+--------------------------------------------------
+STEP 15 — VALIDATE THE WORKFLOW
+--------------------------------------------------
+
+Perform validation that demonstrates:
+1. the service builds successfully
+2. the workflow can run against the current repository layer
+3. the transaction scope works
+4. no partial updates survive on failure
+5. accepted offer + rejected competing offers + sold lien + BillOfSale creation all occur together
+
+If you create a small validation harness or targeted test path, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 16 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add API endpoints
+- add controllers/minimal API handlers
+- add cross-service event publishing
+- add new domain entities
+- rewrite repositories
+- add frontend code
+
+This feature is only:
+- application service
+- transaction orchestration
+- DI registration
+- validation
+
+--------------------------------------------------
+STEP 17 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-05-002-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 application service pattern identified and followed
+3. Exact files created/changed
+4. Service interface and implementation added
+5. Method signature(s)
+6. Workflow step breakdown
+7. Transaction handling approach
+8. Idempotency handling approach
+9. Repository interactions
+10. How competing offers are handled
+11. How lien ownership/state is updated
+12. Result model returned
+13. DI registration changes
+14. Validation performed
+15. Confirmation:
+    - no API endpoints added
+    - no cross-service joins introduced
+    - no documents/notifications/audit integration added yet
+16. Build results:
+    - Liens
+    - relevant solution/workspace
+17. Risks / assumptions
+18. Final readiness statement:
+    - Is the sale finalization application service established?
+    - Is the system ready for API exposure of the workflow?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Implement the core transactional business workflow that finalizes a lien sale by accepting an offer, creating a BillOfSale, updating the lien, and resolving competing offers — all safely and consistently.
+
+Proceed.

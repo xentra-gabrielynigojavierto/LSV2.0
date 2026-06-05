@@ -1,0 +1,288 @@
+You are implementing **LS-REPORTS-01-001-01 — Persistence Model Alignment** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This is a **controlled refactor iteration**. The goal is to align the persistence/domain naming with the correct product language:
+- `ReportDefinition` → `ReportTemplate`
+
+This is **not** a functional expansion story.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-01-001-01-results.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not change code before this.
+
+## 2. Update the report continuously
+After each step, update the report with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- issues encountered
+- decisions made
+- build/startup status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- report execution logic changes
+- template APIs
+- scheduling
+- UI
+- adapter redesign
+- schema redesign beyond what is needed for naming alignment
+
+## 4. Protect migration stability
+Do not introduce unnecessary destructive schema changes.
+
+Preferred approach:
+- change code-level naming
+- keep existing table names stable unless there is a compelling reason and it is safe
+
+---
+
+# ITERATION ID
+**LS-REPORTS-01-001-01 — Persistence Model Alignment**
+
+---
+
+# OBJECTIVE
+Align the persistence model with the correct domain language by refactoring:
+
+- `ReportDefinition` → `ReportTemplate`
+
+and updating related code artifacts so the service uses consistent product terminology before API and template management features are added.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Rename Domain Entity
+Rename:
+
+- `ReportDefinition.cs` → `ReportTemplate.cs`
+- `class ReportDefinition` → `class ReportTemplate`
+
+Update all references across the solution.
+
+---
+
+## B. Update Related Entities
+
+### `ReportExecution`
+Update:
+- `ReportDefinitionId` → `ReportTemplateId`
+- navigation property from `ReportDefinition` to `ReportTemplate`
+
+### `ReportTemplateVersion`
+Update:
+- FK/reference from `ReportDefinitionId` to `ReportTemplateId`
+- navigation property from `ReportDefinition` to `ReportTemplate`
+
+Do not change behavior — only align naming.
+
+---
+
+## C. Update DbContext
+Update:
+
+- `DbSet<ReportDefinition>` → `DbSet<ReportTemplate>`
+
+Ensure all references compile and mappings still work.
+
+---
+
+## D. Update EF Configurations
+Rename/update:
+
+- `ReportDefinitionConfiguration.cs` → `ReportTemplateConfiguration.cs`
+
+Update the configuration class name and any references accordingly.
+
+### Important:
+Prefer to keep the existing physical table name stable for now unless renaming is demonstrably safe and necessary.
+
+If the current table is:
+- `rpt_ReportDefinitions`
+
+it is acceptable to keep that table name for now while aligning code names.
+Document the decision clearly in the report.
+
+---
+
+## E. Update Repository Layer
+Update repository interfaces and implementations so they use the new `ReportTemplate` naming consistently.
+
+This includes:
+- repository method return types
+- parameters
+- includes/navigation
+- query code
+- mock implementations
+
+If `ITemplateRepository` already exists, align its method signatures to `ReportTemplate` terminology.
+
+---
+
+## F. Update Any Remaining References
+Ensure there are no stale `ReportDefinition` references left in:
+- Contracts
+- Infrastructure
+- Api
+- Worker
+- Shared
+- tests if applicable
+
+If any legacy reference must remain temporarily for migration reasons, document it clearly.
+
+---
+
+## G. Build / Startup Validation
+Validate:
+- solution builds successfully
+- service starts successfully
+- `/api/v1/health` works
+- `/api/v1/ready` works
+
+---
+
+# MIGRATION / SCHEMA SAFETY RULES
+
+## Preferred approach
+For this iteration:
+- keep the database table names stable unless there is a very safe, low-risk rename path
+- avoid destructive or unnecessary migration churn
+- prioritize code-level domain alignment
+
+## If migration updates are needed
+- keep them minimal
+- do not drop/recreate tables unless absolutely required
+- document exactly what changed and why
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This iteration is complete only if:
+
+1. `ReportDefinition` is fully replaced by `ReportTemplate` in code
+2. `ReportExecution` references `ReportTemplateId`
+3. `ReportTemplateVersion` references `ReportTemplateId`
+4. DbContext is updated correctly
+5. EF configuration class is renamed/aligned
+6. repository layer is updated consistently
+7. solution builds successfully
+8. service starts successfully
+9. `/api/v1/health` works
+10. `/api/v1/ready` works
+11. no accidental schema-breaking change is introduced
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report
+Create:
+- `/analysis/LS-REPORTS-01-001-01-results.md`
+
+Seed it with:
+- Title
+- Iteration ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Rename entity
+Rename `ReportDefinition` file and class to `ReportTemplate`.
+Update the report.
+
+## Step 3 — Update related entity references
+Update `ReportExecution` and `ReportTemplateVersion` references and navigation properties.
+Update the report.
+
+## Step 4 — Update DbContext and configurations
+Update DbContext and rename/update EF configuration class.
+Keep table mapping stable unless absolutely necessary.
+Update the report.
+
+## Step 5 — Update repository layer
+Update interfaces and implementations to use `ReportTemplate`.
+Update the report.
+
+## Step 6 — Sweep remaining references
+Search entire solution for stale `ReportDefinition` references and clean them up.
+Update the report.
+
+## Step 7 — Validate
+Run build/startup validation and verify:
+- `/api/v1/health`
+- `/api/v1/ready`
+
+Update the report with outputs and any issues.
+
+## Step 8 — Finalize report
+Complete `/analysis/LS-REPORTS-01-001-01-results.md` with:
+- summary of renaming/alignment work
+- schema/migration impact
+- files changed
+- build/startup status
+- remaining follow-ups
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Iteration ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the changes without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- naming is aligned to `ReportTemplate`
+- no functional regressions
+- codebase references are consistent
+- build/startup/health/readiness still pass
+- schema remains stable
+- the report was created first and updated throughout
+
+Now implement **LS-REPORTS-01-001-01** exactly as described.

@@ -1,0 +1,560 @@
+You are implementing LS-LIENS-UI-004 for the LegalSynq Liens v2 migration.
+
+Feature ID: LS-LIENS-UI-004
+Feature Title: Servicing + Task Manager Integration
+
+Objective:
+Wire the Servicing and Task Manager modules to real backend APIs using the same enforced frontend service-layer architecture established in LS-LIENS-UI-002 and LS-LIENS-UI-003. This feature must preserve the current UI baseline while replacing mock/store-driven operational behavior with real API-backed integration and real cross-entity navigation to Cases and Liens.
+
+This feature makes the system operational, not just viewable.
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES (NON-NEGOTIABLE)
+--------------------------------------------------
+
+1. Preserve the v2 shell, including top nav and side nav.
+2. Preserve the current UI layout and v1-derived workflow feel unless minimal adaptation is required for real API integration.
+3. Enforce strict layering:
+   - API client layer
+   - service layer
+   - mapper / adapter layer
+   - UI state layer
+   - presentation layer
+4. No direct HTTP calls in pages or presentation components.
+5. No DTO-to-UI transformation logic inside page/components.
+6. No production mock/static servicing or task data.
+7. Reuse the exact architectural pattern used in LS-LIENS-UI-002 and LS-LIENS-UI-003.
+8. Do not invent backend APIs. Use only what actually exists.
+9. Preserve donor SynqLiens behavior where backend support exists.
+10. Operational data, KPI values, overdue flags, and task status changes must come from real backend truth or clearly documented client-side derivation from backend responses.
+11. If Zustand or another store is used, it must be UI state only, not the source of truth for servicing/task data.
+
+--------------------------------------------------
+REQUIRED FRONTEND ARCHITECTURE
+--------------------------------------------------
+
+You must implement equivalent module structures for both Servicing and Task Manager.
+
+Servicing stack:
+- servicing.types.ts
+- servicing.api.ts
+- servicing.mapper.ts
+- servicing.service.ts
+
+Task stack:
+- tasks.types.ts or task-manager.types.ts
+- tasks.api.ts or task-manager.api.ts
+- tasks.mapper.ts or task-manager.mapper.ts
+- tasks.service.ts or task-manager.service.ts
+
+Responsibilities:
+
+Layer 1 - API client
+- raw HTTP only
+- endpoint definitions
+- typed DTOs
+- no UI shaping
+- no business logic
+
+Layer 2 - Service layer
+- business-facing methods only
+- only approved data-access path for UI
+- calls API client
+- applies mappers
+- isolates backend quirks
+
+Layer 3 - Mapper layer
+- DTO to UI model transformation
+- safe defaults / null normalization
+- status / priority / overdue display mapping
+- no duplication across components
+
+Layer 4 - Types layer
+- backend DTOs
+- query models
+- update/action request models
+- UI models
+- minimal cross-entity reference models where useful
+
+Layer 5 - UI state
+- filters
+- pagination
+- sorting
+- board/list mode
+- selected row/card
+- drawer/modal state
+- loading/error flags if consistent with existing architecture
+- currentRole / addToast if already part of current UI pattern
+
+Layer 6 - Presentation
+- rendering only
+- receives typed UI models
+- no raw HTTP
+- no ad hoc response parsing
+
+--------------------------------------------------
+IMPLEMENTATION SCOPE
+--------------------------------------------------
+
+You must:
+
+1. Inspect the existing Servicing UI:
+   - /lien/servicing
+   - /lien/servicing/[id]
+
+2. Inspect the existing Task Manager UI:
+   - /lien/task-manager
+
+3. Identify all places using:
+   - useLienStore mock data
+   - static arrays
+   - local fake lifecycle state
+   - mock KPI counts
+   - mock overdue flags
+   - unsupported actions that currently look interactive
+
+4. Inspect actual backend APIs available for:
+   - servicing list
+   - servicing detail
+   - task list
+   - task detail if available
+   - task status actions
+   - KPI/summary counts
+   - cross-entity references to case/lien
+   - assignment if supported
+   - escalation/hold/complete/start if supported
+
+5. Implement real API-backed Servicing and Task Manager integration using the required layered pattern.
+
+6. Preserve the UI baseline established earlier.
+
+--------------------------------------------------
+A. ANALYZE EXISTING SERVICING UI
+--------------------------------------------------
+
+Inspect the current Servicing list and detail pages and document:
+- current mock/store dependencies
+- filter/search/sort behavior
+- current detail sections
+- actions currently shown
+- cross-entity references currently shown
+- timeline/history sections if present
+- unsupported controls that may need disabling
+
+--------------------------------------------------
+B. ANALYZE EXISTING TASK MANAGER UI
+--------------------------------------------------
+
+Inspect the current Task Manager page and document:
+- board/list view behavior
+- current KPI cards
+- columns and statuses
+- action buttons such as Start Work, Mark Complete, Put On Hold, Escalate, Assign, Create Task
+- mock task counts
+- overdue logic
+- linked case/lien or servicing references
+- any current role-gated behavior
+
+--------------------------------------------------
+C. ANALYZE BACKEND API AVAILABILITY
+--------------------------------------------------
+
+Identify real backend endpoints and contracts for operational modules.
+
+Possible endpoint categories, subject to actual availability:
+- list servicing items
+- get servicing item by id
+- update servicing item
+- update servicing status
+- get servicing history
+- list tasks
+- get task by id
+- update task status
+- start task
+- complete task
+- hold task
+- escalate task
+- assign task
+- create task
+- get task KPI counts
+- get related case/lien identifiers
+
+Do not invent missing APIs. If a UI action has no backend support, document it and disable/hide it.
+
+--------------------------------------------------
+D. IMPLEMENT SERVICING API CLIENT
+--------------------------------------------------
+
+Create or refine servicing.api.ts.
+
+Responsibilities:
+- raw HTTP only
+- typed DTOs
+- route/query parameter handling
+- no UI shaping
+- no business logic
+
+Example methods only if supported:
+- list(query)
+- getById(id)
+- update(id, request)
+- updateStatus(id, request)
+- getHistory(id)
+- getSummary()
+- assign(id, request)
+
+--------------------------------------------------
+E. IMPLEMENT SERVICING SERVICE LAYER
+--------------------------------------------------
+
+Create servicing.service.ts.
+
+Responsibilities:
+- business-facing methods only
+- only approved UI-facing data path
+- call API client
+- apply mapper transformations
+- isolate backend quirks
+
+Example methods only if supported:
+- getServicingItems(query)
+- getServicingItem(id)
+- updateServicingItem(id, request)
+- updateServicingStatus(id, status)
+- getServicingHistory(id)
+- getServicingSummary()
+- performServicingAction(...)
+
+--------------------------------------------------
+F. IMPLEMENT TASK API CLIENT
+--------------------------------------------------
+
+Create tasks.api.ts or task-manager.api.ts.
+
+Responsibilities:
+- raw HTTP only
+- typed DTOs
+- endpoint definitions
+- no UI shaping
+- no business logic
+
+Example methods only if supported:
+- list(query)
+- getById(id)
+- getKpis()
+- start(id)
+- complete(id)
+- hold(id)
+- escalate(id)
+- assign(id, request)
+- create(request)
+
+--------------------------------------------------
+G. IMPLEMENT TASK SERVICE LAYER
+--------------------------------------------------
+
+Create tasks.service.ts or task-manager.service.ts.
+
+Responsibilities:
+- business-facing methods only
+- only approved UI-facing data path
+- call API client
+- apply mapper transformations
+- normalize backend action/status quirks
+
+Example methods only if supported:
+- getTasks(query)
+- getTask(id)
+- getTaskKpis()
+- startTask(id)
+- completeTask(id)
+- holdTask(id)
+- escalateTask(id)
+- assignTask(id, request)
+- createTask(request)
+
+--------------------------------------------------
+H. IMPLEMENT MAPPER LAYERS
+--------------------------------------------------
+
+Create mapper files for both modules.
+
+Servicing mapper must cover:
+- servicing list row UI model
+- servicing detail UI model
+- linked case/lien summary
+- priority/status display mapping
+- date normalization
+- history/timeline mapping if shown in UI
+
+Task mapper must cover:
+- task board card model
+- task list row model
+- KPI models
+- linked case/lien/servicing reference model
+- assignee display model if supported
+- overdue calculation input mapping
+- status/priority display mapping
+
+Rules:
+- no inline mapping in components
+- no duplication across board/list/detail screens
+- provide stable typed UI models
+
+--------------------------------------------------
+I. IMPLEMENT TYPES
+--------------------------------------------------
+
+Create types files for both modules.
+
+Include:
+- backend DTOs
+- request/update/action DTOs
+- query models for filters/search/sort/page
+- pagination models
+- UI-facing list/detail/card/KPI models
+- minimal shared cross-entity reference models where needed
+
+Make query contracts explicit and typed.
+
+--------------------------------------------------
+J. WIRE SERVICING LIST PAGE
+--------------------------------------------------
+
+Replace all production mock/store-driven servicing data with servicingService.getServicingItems().
+
+Must support:
+- initial load
+- refresh
+- search
+- filters
+- sorting
+- pagination
+- open servicing detail
+- loading/error/empty states
+- real status/priority
+- real linked case/lien indicators if backend provides them
+
+Keep layout intact.
+
+--------------------------------------------------
+K. WIRE SERVICING DETAIL PAGE
+--------------------------------------------------
+
+Replace all production mock/store-driven servicing detail data with servicingService.getServicingItem() and related service calls.
+
+Must support:
+- route-based load
+- refresh on direct URL load
+- real detail sections
+- related case/lien context
+- history/timeline if supported
+- loading/error/not-found/unauthorized states
+
+Keep layout intact.
+
+--------------------------------------------------
+L. WIRE TASK MANAGER PAGE
+--------------------------------------------------
+
+Replace all production mock/store-driven task data with task service calls.
+
+Both board and list views must use the same backend-backed source of truth.
+
+Must support:
+- board view
+- list view
+- shared filters/search
+- shared pagination if needed
+- shared task source of truth
+- real KPI counts if backend provides them
+- or clearly documented client-side KPI derivation from backend task list results
+- real overdue indicators
+- loading/error/empty states
+
+Keep layout intact.
+
+--------------------------------------------------
+M. WIRE TASK LIFECYCLE ACTIONS
+--------------------------------------------------
+
+Wire only actions actually supported by backend APIs.
+
+Potential actions:
+- Start Work
+- Mark Complete
+- Put On Hold
+- Escalate
+- Assign
+- Create Task
+
+Rules:
+- supported actions call real service methods
+- refresh UI after mutation
+- show proper success/error toast behavior
+- unsupported actions must be hidden, disabled, or clearly labeled unavailable
+- no local-only fake lifecycle state changes
+
+--------------------------------------------------
+N. KPI AND OVERDUE LOGIC
+--------------------------------------------------
+
+Task Manager KPI cards and overdue flags must be real.
+
+Rules:
+- prefer backend KPI endpoints if they exist
+- if KPI values must be derived client-side, derive them from backend task list data and document the formula
+- overdue must be based on real due dates and task status conditions
+- no hardcoded metric cards
+- no fake overdue badges
+
+--------------------------------------------------
+O. CROSS-ENTITY INTEGRATION
+--------------------------------------------------
+
+Operational pages must connect back to the underlying business entities.
+
+Required integrations where backend relationships exist:
+- servicing item -> case detail
+- servicing item -> lien detail
+- task -> servicing detail if applicable
+- task -> case detail if applicable
+- task -> lien detail if applicable
+
+Rules:
+- displayed references must come from backend truth
+- navigation routes must work
+- no fake relationship badges
+- no mismatched entity references across modules
+
+--------------------------------------------------
+P. STATE MANAGEMENT BOUNDARY
+--------------------------------------------------
+
+Allowed store usage:
+- currentRole
+- addToast
+- filters
+- view mode
+- pagination
+- sorting
+- drawer/modal open state
+- selected id
+- loading/error flags if consistent with existing pattern
+
+Not allowed:
+- mock servicing repository
+- mock task repository
+- client-only workflow truth
+- domain data in store as primary source of truth
+- raw API DTO blobs managed directly in UI components as the data source
+
+--------------------------------------------------
+Q. ERROR / LOADING / EMPTY / NOT-FOUND HANDLING
+--------------------------------------------------
+
+All operational pages must handle:
+- initial loading
+- refetch loading
+- empty queue / no tasks
+- API/server error
+- unauthorized/forbidden
+- not found
+
+No blank broken UI states.
+
+--------------------------------------------------
+R. PRESERVE UI AND WORKFLOW FEEL
+--------------------------------------------------
+
+Do not redesign the product.
+
+The goal is:
+- keep the current layout
+- keep the v1-derived task/servicing feel
+- make it real with backend data
+
+Only adapt the UI where needed for:
+- API correctness
+- loading/error states
+- hiding unsupported actions
+- backend field reality
+
+--------------------------------------------------
+S. FILES TO CREATE OR MODIFY
+--------------------------------------------------
+
+Expected, adapted to repo conventions:
+
+Servicing:
+- servicing.types.ts
+- servicing.api.ts
+- servicing.mapper.ts
+- servicing.service.ts
+- /lien/servicing/page.tsx
+- /lien/servicing/[id]/page.tsx
+
+Tasks:
+- tasks.types.ts or task-manager.types.ts
+- tasks.api.ts or task-manager.api.ts
+- tasks.mapper.ts or task-manager.mapper.ts
+- tasks.service.ts or task-manager.service.ts
+- /lien/task-manager/page.tsx
+
+Cross-entity updates:
+- adjust related components only where needed for navigation or service integration
+- do not introduce unnecessary coupling
+
+--------------------------------------------------
+T. REPORT OUTPUT
+--------------------------------------------------
+
+Create this report exactly:
+
+/analysis/LS-LIENS-UI-004-report.md
+
+The report must include:
+- Executive summary
+- Current Servicing data flow before changes
+- Current Task Manager data flow before changes
+- New data flow after changes
+- Backend endpoints used
+- Servicing API/service/mapper/types created or updated
+- Task API/service/mapper/types created or updated
+- Task lifecycle actions wired and backend support status
+- KPI and overdue derivation method
+- Cross-entity integration details
+- Unsupported actions found and how handled
+- Schema/contract mismatches
+- Files changed
+- Risks/issues/blockers
+- Confirmation that the implementation remains consistent with UI-002 and UI-003 architectural pattern
+- Recommended next module to wire
+
+--------------------------------------------------
+U. EXECUTION INSTRUCTIONS
+--------------------------------------------------
+
+- Do the implementation, not just analysis
+- Make real code changes
+- If backend APIs are missing, complete as much as possible using real APIs and document the rest clearly
+- Do not stop at planning
+- Save the report in /analysis before finishing
+- Run appropriate build/type validation and include the result in the report
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+The feature is successful when:
+- Servicing list uses real APIs
+- Servicing detail uses real APIs
+- Task Manager board/list use real APIs
+- Supported task actions call real backend APIs
+- Mock/static servicing/task data is removed from production flows
+- Service layer is enforced for both modules
+- Cross-entity navigation works with real relationships
+- KPI cards and overdue indicators are real or clearly documented derived values
+- Unsupported actions are hidden, disabled, or clearly deferred
+- Current layout and workflow feel remain intact
+- Report is complete and precise

@@ -1,0 +1,312 @@
+Implement LS-LIENS-CASE-ACT-001 — Case Details Action Enablement.
+
+Goal:
+Enable the lower-level actions inside Case Detail → Details so the existing edit UI becomes real, usable functionality.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Details
+
+Focus only on action enablement for:
+1. Plaintiff Info
+2. Case Tracking
+
+The UI is already present.
+This ticket is about making the existing actions functional.
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the action behavior for the Details tab.
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- routing
+- shell layout
+- other tabs
+- global header structure
+
+Do NOT fake persistence.
+
+--------------------------------------------------
+CORE REQUIREMENTS
+--------------------------------------------------
+
+1. PLAINTIFF INFO ACTION
+- wire the existing edit action
+- open the existing modal/form
+- prefill current values
+- support save/cancel
+- validate inputs
+- show success/error feedback
+- refresh displayed data after save
+
+2. CASE TRACKING ACTION
+- wire the existing edit action
+- use the current edit modal or edit mode pattern already in the page
+- prefill current values
+- support save/cancel
+- validate inputs
+- show success/error feedback
+- refresh displayed data after save
+
+--------------------------------------------------
+API / DATA DISCOVERY
+--------------------------------------------------
+
+Before implementing:
+- inspect the current case update APIs/services already used by the app
+- determine which fields are actually supported by the backend
+- determine whether Plaintiff Info and Case Tracking save through:
+  - one unified case update API
+  - separate update paths
+  - BFF wrapper / service methods
+
+Only wire real supported persistence.
+
+If some visible fields are not currently supported by backend:
+- keep the UI honest
+- disable them or omit save behavior for those specific fields
+- document clearly in report
+
+Do NOT pretend unsupported fields save.
+
+--------------------------------------------------
+PLAINTIFF INFO FIELDS
+--------------------------------------------------
+
+Support currently visible/supported fields where backend allows, such as:
+- First Name
+- Last Name
+- Sex
+- Date of Birth
+- Email Address
+- Phone
+- Address
+- City
+- State
+- Zip Code
+
+Only persist the fields truly supported by the existing backend contract.
+
+--------------------------------------------------
+CASE TRACKING FIELDS
+--------------------------------------------------
+
+Support currently visible/supported fields where backend allows, such as:
+- Tracking Follow Up
+- Current Status
+- Current Medical Status
+- Case Type
+- State of Incident
+- Lead
+- Case Tracking Note
+- flags/toggles:
+  - Share this case with Associated Law Firm
+  - UCC Filed
+  - Case Dropped
+  - Child Support
+  - Minor Comp
+
+Only persist fields truly supported by the current backend.
+
+--------------------------------------------------
+VALIDATION REQUIREMENTS
+--------------------------------------------------
+
+Add client-side validation where appropriate:
+- required fields
+- email format
+- date format
+- phone formatting if supported
+- any obvious invalid input handling
+
+Requirements:
+- invalid fields must block save
+- user sees clear validation messages
+- no silent failure
+
+--------------------------------------------------
+SAVE / CANCEL BEHAVIOR
+--------------------------------------------------
+
+Implement proper action behavior:
+
+SAVE:
+- show loading state while saving
+- prevent duplicate submissions
+- on success:
+  - close modal or exit edit mode
+  - refresh visible Details data immediately
+  - show clear success feedback
+- on failure:
+  - preserve user input
+  - show clear error feedback
+
+CANCEL:
+- close modal or exit edit mode
+- discard unsaved changes
+- do not partially persist anything
+
+--------------------------------------------------
+DATA REFRESH STRATEGY
+--------------------------------------------------
+
+After successful save:
+- refetch current case detail
+OR
+- safely patch local state if current architecture already supports that cleanly
+
+Preferred outcome:
+- updated values appear immediately
+- no full page reload
+- no stale Details tab view
+
+--------------------------------------------------
+ROLE / PERMISSION RULE
+--------------------------------------------------
+
+Respect the existing:
+- role-access logic
+- provider-mode behavior
+
+Requirements:
+- unauthorized users must not see active edit actions
+- backend remains authoritative if a user bypasses UI controls
+
+--------------------------------------------------
+FEEDBACK / ERROR HANDLING
+--------------------------------------------------
+
+Use existing UX patterns already present in the app for:
+- success toast/snackbar
+- error toast/snackbar
+- inline validation messaging
+- disabled/loading button states
+
+Do not expose raw server errors directly to users.
+
+--------------------------------------------------
+DESIGN / CONSISTENCY RULES
+--------------------------------------------------
+
+- keep current fonts unchanged
+- keep current colors unchanged
+- keep current modal/form styling language
+- keep current button styling
+- keep current refined Details tab layout intact
+
+This ticket is action enablement, not visual redesign.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-ACT-001-report.md
+
+2. Initialize the report with:
+   - objective
+   - exact scope
+   - current action flow analysis
+   - current modal/edit pattern analysis
+   - expected API/service support
+   - planned save/cancel flows
+
+3. DURING implementation:
+   - update the report after each major step
+   - include:
+     - step id
+     - files changed
+     - API/service support discovered
+     - fields supported vs unsupported
+     - validation added
+     - save/cancel behavior implemented
+     - refresh strategy used
+     - issues found and fixes applied
+
+4. FINAL:
+   - summarize final implementation
+   - validation results
+   - remaining unsupported fields or backend gaps
+   - note exactly what is fully wired vs partially deferred
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze existing Plaintiff Info and Case Tracking actions
+- inspect current edit buttons, modals, or edit states
+- inspect current form state handling
+- inspect current save handlers if any
+
+T002 — Inspect available case update APIs/services
+- identify real update path(s)
+- confirm supported field contract(s)
+- document what can actually persist
+
+T003 — Wire Plaintiff Info edit flow
+- open modal/edit state
+- prefill values
+- connect save/cancel behavior
+
+T004 — Add Plaintiff Info validation
+- required fields
+- email/date/etc where appropriate
+
+T005 — Wire Case Tracking edit flow
+- open edit state or modal
+- prefill values
+- connect save/cancel behavior
+
+T006 — Add Case Tracking validation
+- validate supported fields and toggles as appropriate
+
+T007 — Add loading, success, and error behavior
+- loading state
+- duplicate-submit prevention
+- success feedback
+- failure feedback
+
+T008 — Refresh Details data after save
+- refetch or safe local patch
+- confirm visible values update immediately
+
+T009 — Final validation
+- successful save path
+- failed save path
+- cancel path
+- role/provider behavior
+- no regressions to other tabs
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Plaintiff Info edit works end-to-end
+- Case Tracking edit works end-to-end
+- supported fields persist correctly
+- invalid forms are blocked
+- save/cancel behavior works correctly
+- success/error feedback is shown
+- updated values appear immediately after save
+- role/provider behavior remains intact
+- no regressions to the rest of the Case page
+- report is complete and traceable
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change fonts/colors/navigation.
+Do NOT fake persistence.

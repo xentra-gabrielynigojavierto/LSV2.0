@@ -1,0 +1,76 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Integrate the Liens service with the v2 Audit service so that all critical business actions emit structured audit events for traceability, compliance, and observability.
+
+This feature must add audit publishing WITHOUT breaking or tightly coupling existing workflows.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+Audit storage and querying MUST be handled by the v2 Audit service.
+- Liens must NOT store audit data
+- Liens must NOT create audit tables
+- Liens must ONLY emit events
+
+CRITICAL IMPLEMENTATION RULES:
+- Audit must be NON-BLOCKING (failures must not break workflows)
+- Audit must be emitted from application layer (NOT controllers)
+- Do NOT duplicate business logic
+- Do NOT introduce cross-service DB joins
+- Do NOT expose Audit service directly to API layer
+- Use the same integration pattern as Documents service (HTTP or messaging)
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING AUDIT INTEGRATION PATTERNS
+--------------------------------------------------
+
+Inspect how other v2 services integrate with Audit.
+
+Look for:
+- HTTP vs message/event bus usage
+- event structure conventions
+- authentication/service-to-service pattern
+- correlation ID handling
+- naming conventions for event types
+
+Follow the existing pattern exactly.
+If no clear pattern exists, use a simple HTTP-based publish approach.
+
+--------------------------------------------------
+STEP 2 — CREATE AUDIT ABSTRACTION
+--------------------------------------------------
+
+Create a Liens-side abstraction for audit publishing.
+
+Example:
+- `IAuditService`
+- `AuditService`
+
+Responsibilities:
+- publish audit events
+- standardize payload structure
+- hide transport details (HTTP/event bus)
+
+Do NOT:
+- call Audit service directly from endpoints
+- scatter audit calls across infrastructure layer
+
+--------------------------------------------------
+STEP 3 — DEFINE AUDIT EVENT MODEL
+--------------------------------------------------
+
+Create a common audit event model.
+
+Example:
+```csharp
+class AuditEvent
+{
+    string EventType;
+    DateTime TimestampUtc;
+    Guid TenantId;
+    Guid? UserId;
+    Guid? OrgId;
+    string EntityType;
+    Guid EntityId;
+    object Data;
+    string Source;
+}

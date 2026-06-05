@@ -1,0 +1,238 @@
+Use this on a separate agent:
+
+```text
+Project: E13.1
+Title: Audit Aggregation API — Workflow Timeline Data for Control Center
+
+You are implementing a parallel-safe track while E10.2 is running.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E13.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current audit event shape, available audit adapter/storage access patterns, Control Center data needs, event ordering, actor metadata, and any gaps in historical audit consistency.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - backend/API changes
+   - aggregation/query behavior
+   - auth/visibility behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for timeline UI or needs iteration
+
+REPORT FORMAT
+
+# E13.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Audit Aggregation API Notes
+## Event Ordering / Mapping Notes
+## Authorization / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Create a read-only workflow audit aggregation API that can power a future Control Center workflow timeline view, without changing workflow execution behavior, without introducing new workflow mutations, and without depending on unfinished E10.2 work.
+
+This track must be parallel-safe and must not interfere with the core workflow engine, task model, outbox schema changes, or admin-action behavior.
+
+SCOPE INCLUDES
+
+- read-only aggregation/query endpoint(s) for workflow audit history
+- normalization of audit events into timeline-friendly records
+- ordering and shaping of events for Control Center consumption
+- admin-safe authorization and tenant visibility rules
+- documentation/reporting
+
+DO NOT BUILD
+
+- timeline UI in Control Center
+- workflow execution controls
+- workflow mutation behavior
+- task engine changes
+- outbox processing changes
+- notification redesign
+- tenant portal changes
+- broad audit platform redesign
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep this track read-only
+- avoid touching workflow execution logic
+- avoid touching the E10.2 outbox implementation in progress
+- preserve tenant isolation and admin visibility rules
+- produce an API shape that a timeline UI can consume directly
+- keep the implementation isolated to audit aggregation/query concerns
+
+CURRENT CONTEXT
+
+Already completed:
+- workflow engine
+- admin actions
+- Control Center workflow list and detail drawer
+- audit events for workflow and admin actions
+- hardened admin visibility patterns
+
+In progress elsewhere:
+- E10.2 outbox + async processing
+
+This E13.1 track must therefore be safe to run in parallel and should avoid modifying the same code paths/files where possible.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. READ-ONLY AUDIT AGGREGATION ENDPOINT
+
+Add a read-only endpoint for workflow audit history, for example:
+
+- GET /api/v1/admin/workflow-instances/{id}/timeline
+or
+- GET /api/v1/admin/workflow-instances/{id}/audit-events
+
+Choose the least disruptive option aligned with existing admin controller patterns.
+
+Requirements:
+- endpoint must be read-only
+- endpoint must be admin-scoped
+- endpoint must preserve tenant/platform visibility rules
+- unauthorized/out-of-scope access must not leak cross-tenant existence
+- endpoint should be shaped for timeline rendering, not raw storage dumping
+
+2. TIMELINE RECORD SHAPE
+
+Return records suitable for UI consumption.
+
+Each item should include, where available:
+- event id
+- timestamp
+- event type/action
+- actor / performedBy
+- source (workflow engine / admin action / SLA engine / notification if available)
+- summary/description
+- previous status/state if available
+- new status/state if available
+- metadata relevant to operators
+
+Requirements:
+- normalize inconsistent audit metadata where practical
+- tolerate missing optional fields gracefully
+- do not expose excessive raw internals if a cleaner normalized field is available
+
+3. EVENT ORDERING
+
+Requirements:
+- return events ordered deterministically (oldest→newest or newest→oldest; document choice clearly)
+- preserve stable ordering when timestamps tie
+- make the order easy for a future timeline UI to consume
+
+Recommended:
+- ascending chronological order for timeline playback
+- fallback tie-breaker on event id / created order if available
+
+4. EVENT CLASSIFICATION / NORMALIZATION
+
+Support at minimum:
+- workflow lifecycle events
+- admin action events
+- SLA/audit transitions if they already exist in current audit store
+- optional notification/audit-linked events if already available
+
+Requirements:
+- map raw audit action strings into a normalized category/label if useful
+- do not lose original action values; keep raw action available if helpful
+- document the normalization rules
+
+5. AUTHORIZATION / VISIBILITY
+
+Requirements:
+- align with existing admin visibility rules used in E9.x/E10.1
+- recommended:
+  - PlatformAdmin may inspect cross-tenant workflow audit history
+  - TenantAdmin may inspect only in-tenant workflow audit history if backend already supports that safely
+- ordinary product users must not gain access
+- 404 instead of existence leakage where appropriate
+
+6. API / DATA ACCESS BOUNDARY
+
+Requirements:
+- use the appropriate backend data source for audit history
+- if audit data is in a service/store that already has an adapter, prefer using that access pattern
+- do not introduce direct browser coupling
+- if a new Control Center server-API helper is added, keep it read-only and minimal
+
+7. VALIDATION
+
+You MUST validate and record in the report:
+
+API
+- endpoint returns timeline/audit items for a workflow
+- ordering is deterministic
+- fields are normalized as documented
+
+Authorization
+- unauthorized access is denied
+- cross-tenant leakage is prevented
+- admin visibility rules remain correct
+
+Runtime / Build
+- backend project(s) changed still compile
+- no regression introduced to workflow list/detail APIs
+- implementation remains read-only
+
+8. DOCUMENTATION
+
+Document in the report:
+- endpoint added
+- response shape
+- normalization rules
+- ordering rules
+- auth/visibility assumptions
+- what E13.2/E13.3 can build on next
+
+9. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope:
+- Control Center timeline UI
+- task-level timeline expansion
+- audit storage redesign
+- workflow mutations
+- outbox UI
+- analytics/reporting
+- notification redesign
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect current audit event sources and existing admin visibility/controller patterns.
+2. Create /analysis/E13.1-report.md immediately and begin logging assumptions/actions.
+3. Add the read-only workflow audit aggregation endpoint.
+4. Normalize and order timeline events for UI consumption.
+5. Add any minimal server-side API helper needed for future Control Center use.
+6. Validate authorization, ordering, and response shape.
+7. Finalize the report.
+
+SUCCESS CONDITION
+
+E13.1 is successful when:
+- there is a read-only admin-safe API for workflow audit/timeline data
+- timeline events are normalized and deterministically ordered
+- tenant/platform visibility rules are preserved
+- the result is ready for a future Control Center timeline UI
+- no workflow execution behavior is changed
+
+FAILURE CONDITION
+
+E13.1 fails if:
+- it mutates workflow behavior
+- it interferes with E10.2 work in progress
+- audit ordering is inconsistent
+- visibility rules are weakened
+- the API is too raw or unstable for a timeline UI to consume
+```
+
+This is the safest parallel track because it is read-only and should not collide with the outbox work.

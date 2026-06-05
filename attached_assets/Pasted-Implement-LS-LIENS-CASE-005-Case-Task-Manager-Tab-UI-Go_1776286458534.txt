@@ -1,0 +1,189 @@
+Implement LS-LIENS-CASE-005 — Case Task Manager Tab UI.
+
+Goal:
+Complete the Case Detail → Task Manager tab with both Kanban view and List view.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Task Manager
+
+Reference direction:
+- board-style task workspace
+- add new action
+- support both Kanban and List views
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the Task Manager tab body content in the Case Detail page.
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- routing
+- APIs/services
+- role-access
+- provider-mode
+- Details tab
+- Liens tab
+- Documents tab
+- Servicing tab
+- global header structure
+
+--------------------------------------------------
+CORE REQUIREMENTS
+--------------------------------------------------
+
+1. TASK WORKSPACE
+Implement the Task Manager tab as a task workspace.
+
+2. VIEW SWITCHER
+Add a switcher between:
+- Kanban
+- List
+
+3. KANBAN VIEW
+Support columns:
+- Upcoming
+- In Progress
+- In Review
+- Completed
+
+4. LIST VIEW
+Support a table/list format for the same tasks
+
+5. ADD TASK
+Provide an Add New task action
+
+--------------------------------------------------
+LAYOUT DIRECTION
+--------------------------------------------------
+
+Preferred:
+- full-width task workspace for usability
+
+Do not force the communications rail if it reduces board usability.
+If you keep the communications rail, document why.
+If you remove it for this tab, document that as an intentional exception.
+
+--------------------------------------------------
+TASK DATA
+--------------------------------------------------
+
+Use real case-related task data where available.
+If incomplete, use TEMP visual fallback data only for UI completeness.
+
+Do NOT fake persistence or workflow success.
+
+--------------------------------------------------
+KANBAN TARGET
+--------------------------------------------------
+
+Render four columns:
+- Upcoming
+- In Progress
+- In Review
+- Completed
+
+Each column should:
+- have a title
+- render tasks for that status
+- support empty states
+- allow Add New affordance
+
+--------------------------------------------------
+LIST TARGET
+--------------------------------------------------
+
+Render a compact task table.
+
+Suggested columns:
+- Task Name
+- Status
+- Priority
+- Assignee
+- Due Date
+- Updated At
+- Actions
+
+--------------------------------------------------
+ICON REQUIREMENT
+--------------------------------------------------
+
+Use Remix icons consistently and subtly across this tab.
+
+--------------------------------------------------
+TEMPORARY FALLBACK RULE
+--------------------------------------------------
+
+If needed, use TEMP visual fallback data only for:
+- task rows
+- task status mapping
+- assignee/due date fields
+
+Comment clearly:
+TEMP: visual fallback data for UI review only
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-005-report.md
+
+2. Initialize with:
+   - objective
+   - scope
+   - current Task Manager tab analysis
+   - planned layout approach
+   - view switcher plan
+
+3. DURING implementation:
+   - update after each step
+   - include files changed, fields mapped, fallback usage, actions supported/deferred
+
+4. FINAL:
+   - summarize final implementation
+   - validation results
+   - remaining gaps
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze current Task Manager tab
+T002 — Choose layout approach (full-width preferred)
+T003 — Build view switcher
+T004 — Build Kanban view
+T005 — Build List view
+T006 — Add Add New task action
+T007 — Map real/fallback task data
+T008 — Final validation
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Task Manager tab complete
+- Kanban view present
+- List view present
+- Add New present
+- case-scoped task workspace implemented
+- no regressions
+- report complete
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change top nav or side nav.
+Do NOT change fonts or colors.

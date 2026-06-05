@@ -1,0 +1,527 @@
+```text
+You are implementing LS-LIENS-FLOW-007 — Task ↔ Flow Instance Linking for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-007-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Flow Integration Behavior
+- Runtime Linking Behavior
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not leave placeholder sections. Populate with actual implementation details only.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement first-class linkage between Synq Liens tasks and Flow workflow instances.
+
+This feature must ensure that:
+
+1. tasks tied to a case can be linked to the active Flow workflow instance for that case
+2. tasks can optionally store the current Flow step context at time of creation/linking
+3. task creation remains successful even if no Flow instance exists
+4. no breaking change is introduced to existing task flows
+5. the system is prepared for later task ↔ workflow stage synchronization
+
+This is a bridge feature.
+
+It is NOT:
+- moving tasks into Flow
+- replacing the Liens task system
+- full workflow-step synchronization
+- SLA / timer logic
+- assignment intelligence
+- approval routing
+- a Flow service redesign
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services and current platform architecture.
+
+Use:
+- existing Flow service integration patterns
+- existing `IFlowClient`
+- existing Synq Liens task service patterns
+- existing audit / notification / DTO / repository conventions
+
+CRITICAL RULES:
+
+1. Flow remains the workflow execution engine for case/lien processes
+2. Liens remains the owner of operational tasks for now
+3. This feature creates a linkage bridge, not a runtime migration
+4. Task creation must NOT fail solely because Flow instance lookup fails or no instance exists
+5. Do NOT invent new Flow APIs unless absolutely necessary; first use existing available APIs
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE
+==================================================
+
+Before implementing:
+
+Inspect and document:
+- current task model (`LienTask`)
+- current task create/update service path
+- current task response DTOs
+- current case/lien linkage fields on tasks
+- current Flow service integration:
+  - `IFlowClient`
+  - `WorkflowEndpoints.cs`
+  - product-scoped workflow access
+  - any existing list/find-by-source-entity behavior
+- current case workflow runtime usage in Synq Liens
+- how cases are correlated to Flow workflow instances today
+- current automation path (`LienTaskGenerationEngine`)
+- current task create form / task display UI
+- current audit patterns for task create/update
+
+Document in the report:
+
+1. what Flow APIs exist today that can be used to look up workflow instances by case/source entity
+2. what case identifier / source entity identifier is available at task creation time
+3. whether multiple active workflow instances per case are possible and how they are currently distinguished
+4. what exact selection rule you will use when more than one workflow instance is returned
+
+==================================================
+STEP 2 — EXTEND TASK DOMAIN FOR FLOW LINKAGE
+==================================================
+
+Add Flow-linkage fields to the task model.
+
+--------------------------------------------------
+2.1 Entity Changes
+--------------------------------------------------
+
+Extend `LienTask` with at minimum:
+
+- `Guid? WorkflowInstanceId`
+- `string? WorkflowStepKey`
+
+Use existing naming conventions if needed, but preserve this meaning:
+- `WorkflowInstanceId` = linked Flow workflow instance
+- `WorkflowStepKey` = current Flow step / workflow step key at time of linking
+
+If the Flow runtime exposes a different canonical step identifier (e.g. step id, slug, code), use the most stable field available and document the choice.
+
+--------------------------------------------------
+2.2 Domain Behavior
+--------------------------------------------------
+
+Add a domain method such as:
+- `SetWorkflowLink(Guid workflowInstanceId, string? workflowStepKey)`
+or equivalent
+
+This method must:
+- safely update linkage
+- allow clearing only if required by existing patterns
+- preserve backward compatibility
+
+--------------------------------------------------
+2.3 Persistence
+--------------------------------------------------
+
+Update persistence layer:
+- EF configuration
+- migration/schema
+- indexes as appropriate
+
+Recommended additions to `liens_Tasks`:
+- `WorkflowInstanceId` nullable
+- `WorkflowStepKey` nullable
+
+Recommended index:
+- `(TenantId, WorkflowInstanceId)`
+
+==================================================
+STEP 3 — IMPLEMENT FLOW INSTANCE RESOLUTION
+==================================================
+
+Implement runtime logic to resolve the relevant Flow workflow instance for a task.
+
+--------------------------------------------------
+3.1 Resolution Rule
+--------------------------------------------------
+
+When creating a task:
+
+If `caseId` is present:
+- attempt to resolve the active Flow workflow instance associated with that case
+
+Use the cleanest existing Flow client method available, for example:
+- list by source entity
+- get product workflow by source entity
+- equivalent existing supported query path
+
+Do NOT invent speculative APIs if an existing one works.
+
+--------------------------------------------------
+3.2 Selection Rule
+--------------------------------------------------
+
+If zero workflow instances are found:
+- task creation still succeeds
+- `WorkflowInstanceId = null`
+- `WorkflowStepKey = null`
+
+If one active workflow instance is found:
+- link to it
+
+If multiple workflow instances are found:
+- choose the most appropriate deterministic rule and document it clearly
+
+Recommended preference:
+1. active instance for the Synq Liens product context
+2. most recently updated/created active instance
+3. if no active instance exists, do not link rather than guessing
+
+Do NOT choose non-deterministically.
+
+--------------------------------------------------
+3.3 Error Handling
+--------------------------------------------------
+
+If Flow lookup fails due to service/network/error:
+- log appropriately per existing pattern
+- do NOT fail task creation
+- create task without Flow linkage
+
+This is a soft-link feature.
+
+==================================================
+STEP 4 — LINK TASK CREATION TO FLOW CONTEXT
+==================================================
+
+Update task creation flow so Flow linkage happens during create.
+
+--------------------------------------------------
+4.1 Create Path
+--------------------------------------------------
+
+In `LienTaskService.CreateAsync` (or the true create path if different):
+
+After:
+- governance validation
+- case linkage validation
+- workflow stage determination
+
+and before final persistence/response mapping:
+
+attempt to resolve Flow workflow instance using the case context and set:
+- `WorkflowInstanceId`
+- `WorkflowStepKey`
+
+--------------------------------------------------
+4.2 Automation Path
+--------------------------------------------------
+
+Ensure automation-created tasks also go through the same create path so they inherit the same Flow-linking behavior.
+
+If automation bypasses `LienTaskService.CreateAsync`, refactor carefully so the Flow-linking logic is shared, not duplicated.
+
+==================================================
+STEP 5 — API / DTO CHANGES
+==================================================
+
+Extend task API responses to expose Flow linkage.
+
+--------------------------------------------------
+5.1 Response DTOs
+--------------------------------------------------
+
+Extend task response DTO(s) with optional fields:
+
+- `workflowInstanceId`
+- `workflowStepKey`
+
+These must be nullable / optional so existing consumers do not break.
+
+--------------------------------------------------
+5.2 Request DTOs
+--------------------------------------------------
+
+Do NOT require new request fields from users for this feature.
+Flow linkage should be resolved by backend runtime, not user input.
+
+Only add request fields if absolutely needed for internal/admin tools, and document why.
+
+==================================================
+STEP 6 — UI CHANGES
+==================================================
+
+Add lightweight, non-intrusive visibility for Flow linkage where practical.
+
+--------------------------------------------------
+6.1 Task View / Task Panel
+--------------------------------------------------
+
+If a task is linked to Flow:
+- display a small read-only section such as:
+  - Linked Workflow Instance
+  - Current Flow Step
+
+Example display:
+- Workflow Instance: `<id or short display>`
+- Flow Step: `Document Review`
+
+Do NOT clutter the UI.
+Do NOT add editing controls for these fields.
+
+--------------------------------------------------
+6.2 Create Form
+--------------------------------------------------
+
+No new required user inputs are needed.
+Task creation form should remain unchanged except for any internal display if useful.
+
+--------------------------------------------------
+6.3 Optional Minimal UX
+--------------------------------------------------
+
+If a good UI location exists, show a subtle "Linked to active workflow" indicator for case-linked tasks that resolved to a Flow instance.
+
+This is optional if it would be invasive.
+
+==================================================
+STEP 7 — AUDIT INTEGRATION
+==================================================
+
+Use existing audit patterns.
+
+Add audit behavior as appropriate when a task is successfully linked to a Flow instance.
+
+Recommended event:
+- `liens.task.workflow_linked`
+
+Payload / metadata should include where practical:
+- tenantId
+- taskId
+- caseId
+- workflowInstanceId
+- workflowStepKey
+
+Do NOT over-audit noisy lookup failures.
+If Flow lookup fails and task is created without linkage, log it only if current platform pattern supports useful non-noisy logging.
+
+==================================================
+STEP 8 — FLOW INTEGRATION BEHAVIOR
+==================================================
+
+Document and implement the exact boundary clearly.
+
+By the end of this feature:
+
+- Flow owns workflow instance execution
+- Liens owns operational tasks
+- Tasks can now be correlated to Flow instances
+- No stage synchronization is attempted yet
+- No task execution is delegated to Flow yet
+
+If helpful, add targeted code comments in the most relevant service(s) describing this boundary.
+
+==================================================
+STEP 9 — PERMISSIONS / SECURITY
+==================================================
+
+No new permissions should be required for this feature unless absolutely necessary.
+
+Preserve:
+- existing task access rules
+- tenant isolation
+- case access validation
+- Flow lookup only within correct tenant/product context
+
+Do NOT expose cross-tenant workflow instance data.
+
+==================================================
+STEP 10 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- task entity extension
+- EF configuration updates
+- migration/schema changes
+- flow resolution logic
+- task create path integration
+- automation path compatibility
+- response DTO updates
+- audit hook for workflow linking
+- any minimal shared helper/service for resolving workflow instance context
+
+Keep domain boundaries clear:
+1. Flow workflow instance execution
+2. Liens tasks
+3. Task ↔ Flow linkage bridge
+4. Workflow stage sync (future, not here)
+
+==================================================
+STEP 11 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- task response type updates
+- task service/api type updates
+- task detail/panel display of workflow link info
+- any minimal UX indicator for linked workflow context
+
+Preserve current styling and layout conventions.
+
+==================================================
+STEP 12 — VALIDATION CHECKLIST
+==================================================
+
+Validate and document:
+
+### Task Creation
+- task with caseId links to active Flow workflow instance when one exists
+- task without caseId still succeeds
+- task with caseId but no Flow instance still succeeds
+- task with Flow lookup failure still succeeds without linkage
+
+### Data
+- `WorkflowInstanceId` stored correctly
+- `WorkflowStepKey` stored correctly when available
+- API response includes new fields correctly
+
+### Automation
+- auto-generated tasks also link to Flow instance when applicable
+- automation still succeeds/fails only according to existing governance rules, not because of missing Flow linkage
+
+### UI
+- linked workflow information displays correctly where implemented
+- no regression to task create/edit flows
+
+### Build / Run
+- backend builds
+- frontend builds/typechecks
+- migrations apply
+- app starts cleanly
+
+If any Flow client limitation prevents ideal implementation, document exactly where and why.
+
+==================================================
+STEP 13 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Populate the final `/analysis/LS-LIENS-FLOW-007-report.md` with:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - available Flow APIs
+   - task create/runtime findings
+   - workflow-instance lookup findings
+   - selection-rule rationale
+
+3. Files Changed
+   - backend/frontend/database/config grouped clearly
+
+4. Database / Schema Changes
+   - new columns/indexes
+   - migration name
+
+5. API Changes
+   - response DTO additions
+   - any helper/API adjustments
+
+6. UI Changes
+   - where workflow linkage is displayed
+   - what remained unchanged
+
+7. Flow Integration Behavior
+   - exact linkage logic
+   - fallback behavior
+   - what is Flow-owned vs Liens-owned
+
+8. Runtime Linking Behavior
+   - when linking happens
+   - how instance selection works
+   - how automation uses it
+
+9. Permissions / Security
+   - confirm no auth expansion or explain minimal change
+   - tenant/product scoping notes
+
+10. Audit Integration
+   - event(s) added
+   - any non-noisy logging choices
+
+11. Validation Results
+   - build/typecheck/manual validation
+
+12. Known Gaps / Risks
+   - latency risk
+   - multiple-instance ambiguity
+   - future stage-sync work
+   - recommended next step
+
+13. Run Instructions
+   - migration/build/startup/testing instructions
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is complete only if:
+
+1. tasks can store Flow workflow linkage
+2. task creation attempts to resolve active Flow workflow instance from case context
+3. task creation still succeeds when no Flow instance exists or lookup fails
+4. API responses expose linkage fields
+5. automation path also gains linkage behavior
+6. Flow-owned vs Liens-owned boundary remains explicit
+7. implementation is documented in `/analysis/LS-LIENS-FLOW-007-report.md`
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Keep this as a small, safe bridge feature
+- Do not migrate task runtime into Flow
+- Do not block task creation on Flow lookup
+- Prefer deterministic linking over aggressive guessing
+- Preserve tenant isolation
+- Reuse existing Flow client and platform patterns
+- Prepare the ground for LS-LIENS-FLOW-008 (Task ↔ Workflow Stage Synchronization)
+
+Begin by creating `/analysis/LS-LIENS-FLOW-007-report.md` immediately, then inspect the codebase, document findings, and proceed with implementation.
+```

@@ -1,0 +1,469 @@
+You are implementing **LS-REPORTS-09-001 — Report Designer Enhancements (v2)** for the LegalSynq Reports Service.
+
+## Platform Context
+You have already completed:
+- Templates, Versioning, Assignment, Overrides
+- Execution Engine (real data)
+- Export Engine (CSV/XLSX/PDF)
+- Scheduling + Delivery
+- Audit Integration
+- Production integrations (Email, SFTP, S3, Liens adapter)
+- Full UI (Admin + Tenant + Builder)
+- Launch Readiness & Platform Integration
+
+This story enhances the existing report designer so it becomes more powerful and usable without turning into a full BI platform.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Create:
+
+`/analysis/LS-REPORTS-09-001-report.md`
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each major step include:
+- files created/modified
+- schema changes
+- API changes
+- UI changes
+- validation results
+- issues encountered
+- decisions made
+
+## 3. Keep scope controlled
+DO NOT implement:
+- drag-drop visual canvas layout engine
+- charts/dashboards
+- pivot tables
+- advanced grouping/aggregation UI
+- AI builder
+- arbitrary code execution
+- arbitrary SQL formulas
+
+Focus ONLY on:
+- calculated fields
+- column formatting
+- saved views / report variants
+- improved filter UX + persistence
+
+## 4. Preserve architecture
+- UI → API → Service → Execution/Export/Schedule → Adapters
+- backend remains the enforcement layer
+- do NOT bypass execution/export/schedule services
+- formula evaluation must be safe and post-query (not raw SQL execution)
+
+---
+
+# STORY ID
+**LS-REPORTS-09-001 — Report Designer Enhancements (v2)**
+
+---
+
+# OBJECTIVE
+Enhance the existing report designer with:
+- calculated fields
+- column formatting
+- saved views / report variants
+- improved filter UX and filter persistence
+
+The goal is to improve power, usability, and flexibility while preserving the current controlled architecture.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+# A. Saved Views / Variants Model
+
+Introduce support for multiple saved report variants per tenant/template.
+
+## Preferred persistence model
+Create a new entity:
+
+### `TenantReportView`
+Suggested fields:
+- `Id`
+- `TenantId`
+- `ReportTemplateId`
+- `BaseTemplateVersionNumber`
+- `Name`
+- `Description`
+- `IsDefault`
+- `IsActive`
+- `LayoutConfigJson`
+- `ColumnConfigJson`
+- `FilterConfigJson`
+- `FormulaConfigJson`
+- `FormattingConfigJson`
+- `CreatedAtUtc`
+- `CreatedByUserId`
+- `UpdatedAtUtc`
+- `UpdatedByUserId`
+
+## Rules
+- a tenant can have multiple active views per template
+- only one active default view per tenant/template
+- views must belong to the same tenant/template pairing
+- keep this model explicit rather than overloading the existing override model unless there is a very strong reason
+
+## Required work
+- domain entity
+- EF configuration
+- migration
+- repository support
+- service layer support
+
+---
+
+# B. Calculated Fields
+
+Add support for calculated fields inside a saved view / effective report definition.
+
+## Each calculated field should support:
+- key / name
+- label
+- expression
+- output type
+
+## Supported expression scope (v1)
+Keep this intentionally limited and safe.
+
+### Arithmetic
+- `+`
+- `-`
+- `*`
+- `/`
+
+### String
+- concatenation
+
+### Basic functions
+Support a small safe set such as:
+- `COALESCE`
+- `ROUND`
+- `UPPER`
+- `LOWER`
+- `CONCAT`
+
+## Rules
+- formulas may reference only allowed existing fields
+- formulas must be validated before save
+- formulas must not allow arbitrary code execution
+- formulas must not become direct SQL execution in this story
+- calculated fields must be applied in a safe transformation layer after base query execution
+
+## Required work
+- formula/calculated field config structure
+- validator for allowed functions/operators/field references
+- execution-layer transformation support
+- export support for calculated columns
+
+---
+
+# C. Column Formatting
+
+Add presentation-level formatting configuration.
+
+## Supported formatting types
+At minimum:
+- plain text
+- currency
+- date
+- datetime
+- number
+- percentage
+- boolean display
+
+## Formatting options
+Examples:
+- decimal places
+- currency symbol or code
+- date format
+- fallback/null display text
+
+## Rules
+- formatting is presentation-level only
+- formatting should affect:
+  - viewer/grid output
+  - exports where practical
+  - effective report definition returned to UI
+
+## Required work
+- formatting config model
+- validation
+- UI support in builder
+- application in viewer/export pipeline
+
+---
+
+# D. Filter UX & Filter Persistence
+
+Improve persisted filter structure and the builder/viewer filter UX.
+
+## Backend
+Support richer filter definitions:
+- field
+- operator
+- value
+- optional second value for ranges
+- optional list values for `in`
+
+## Initial operators
+- equals
+- not equals
+- contains
+- starts with
+- ends with
+- greater than
+- less than
+- between
+- in
+
+## UI
+Improve filter builder with:
+- operator dropdowns
+- type-aware inputs where possible
+- better validation and missing-value handling
+
+## Required work
+- persisted filter model in saved view config
+- UI filter builder improvements
+- validation in backend and UI
+
+---
+
+# E. Effective Report Resolution Updates
+
+Extend effective report resolution to support:
+- base template
+- tenant override (if applicable)
+- selected saved view (if provided)
+- calculated fields
+- formatting rules
+- filter config
+
+## Minimum behavior
+Resolved report definition returned to UI/execution layer should include:
+- selected columns
+- labels
+- calculated fields
+- filters
+- formatting config
+
+---
+
+# F. Execution Engine Integration
+
+Execution must support running against a selected saved view.
+
+## Required behavior
+- base query executes first
+- saved view field/filter configuration applies
+- calculated fields are applied after data retrieval
+- formatted values are applied for presentation/export where appropriate
+
+## Rules
+- do not execute formulas as SQL
+- do not duplicate execution logic outside the existing execution service architecture
+
+---
+
+# G. Export Integration
+
+Exports must honor:
+- selected columns
+- renamed labels
+- calculated fields
+- formatting where practical
+
+## Minimum requirement
+CSV/XLSX/PDF should include calculated columns in correct order and formatted output where reasonable.
+
+---
+
+# H. Scheduling Integration
+
+Schedules should be able to reference a selected saved view.
+
+## Required update
+- extend scheduling model minimally if needed to store `TenantReportViewId`
+- validate that referenced view belongs to same tenant/template
+- scheduled runs should execute/export based on selected view when provided
+
+If migration is needed for schedules, keep it minimal and document clearly.
+
+---
+
+# I. APIs
+
+Add APIs for saved views.
+
+## Required endpoints
+- `POST /api/v1/tenant-report-views`
+- `PUT /api/v1/tenant-report-views/{viewId}`
+- `GET /api/v1/tenant-report-views/{viewId}`
+- `GET /api/v1/tenant-report-views?tenantId={tenantId}&templateId={templateId}`
+- `DELETE /api/v1/tenant-report-views/{viewId}`
+
+## Existing endpoints to extend if needed
+- effective report resolution endpoint may accept `viewId`
+- execution endpoint may accept `viewId`
+- export endpoint may accept `viewId`
+- schedule create/update may accept `tenantReportViewId`
+
+Use DTOs. Do not expose raw domain entities.
+
+---
+
+# J. UI Changes
+
+Update the existing report builder and viewer UI.
+
+## Builder additions
+- calculated fields panel
+- formatting panel
+- save-as-view flow
+- list/select existing saved views
+- default-view selection
+- improved filter editor
+
+## Viewer additions
+- select saved view
+- run selected view
+- export selected view
+- schedule selected view
+
+## Admin UI
+Only minimal changes if needed. This story is primarily tenant-facing.
+
+---
+
+# K. Validation Rules
+
+At minimum enforce:
+
+## Calculated fields
+- unique key within the report/view
+- valid expression syntax
+- only supported functions/operators
+- only known fields referenced
+
+## Saved views
+- `TenantId` required
+- `ReportTemplateId` required
+- `Name` required
+- one default max per tenant/template
+
+## Formatting
+- supported format type only
+- options must match format type
+
+## Scheduling
+- if schedule references a saved view, it must belong to the same tenant/template
+
+## Security
+- saved views are tenant-scoped
+- users cannot access or mutate another tenant’s saved views
+
+---
+
+# L. Audit Events
+
+Add audit events such as:
+- `report.view.created`
+- `report.view.updated`
+- `report.view.deleted`
+- `report.view.selected`
+- `report.calculated_field.created`
+- `report.calculated_field.updated`
+
+Use the same standardized audit integration approach already implemented.
+
+---
+
+# M. Preserve Existing Functionality
+
+Do not break:
+- template APIs
+- assignment APIs
+- override APIs
+- execution APIs
+- export APIs
+- scheduling APIs
+- audit integration
+- launch-readiness security/tenant isolation
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. saved view persistence model exists
+2. migration exists and applies successfully
+3. saved views can be created, updated, listed, retrieved, and deleted
+4. multiple saved views per tenant/template are supported
+5. one default view per tenant/template is enforced
+6. calculated fields can be defined and saved
+7. calculated fields appear in execution results
+8. calculated fields appear in exports
+9. column formatting configuration exists
+10. formatting is reflected in UI and/or export output as designed
+11. filter UX and persistence are improved
+12. execution can run against a selected saved view
+13. scheduling can reference a saved view
+14. UI builder supports saved views, calculated fields, formatting, and improved filters
+15. backend security/tenant isolation still holds
+16. service builds successfully
+17. UI builds successfully
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file FIRST
+2. Design saved view model
+3. Add domain entity, EF config, migration
+4. Add repository and service layer for saved views
+5. Add calculated field validation model
+6. Extend execution layer for calculated fields
+7. Extend export layer for calculated fields + formatting
+8. Extend schedule model if needed for selected view support
+9. Add saved view APIs
+10. Update UI builder and viewer
+11. Validate end-to-end flows
+12. Finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- Files Created/Modified
+- Schema Summary
+- API Changes Summary
+- UI Changes Summary
+- Validation Results
+- Issues Encountered
+- Decisions Made
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- report designer is meaningfully more powerful
+- tenants can save multiple report variants
+- calculated fields are supported safely
+- formatting improves usability
+- saved views integrate with execution/export/scheduling
+- system remains stable, secure, and extensible
+
+---
+
+Now implement **LS-REPORTS-09-001** exactly as described.

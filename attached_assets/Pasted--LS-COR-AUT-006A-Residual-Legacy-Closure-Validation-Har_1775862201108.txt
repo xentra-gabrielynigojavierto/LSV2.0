@@ -1,0 +1,404 @@
+# LS-COR-AUT-006A — Residual Legacy Closure + Validation Hardening
+
+## Objective
+
+Complete the remaining closure work after LS-COR-AUT-006 so LS-COR-AUT can be treated as a **fully unified, validated, and internally consistent access-control system**.
+
+This feature must resolve the remaining ambiguity around:
+
+* retained legacy role infrastructure
+* retained legacy group data structures
+* route naming consistency
+* `product_roles` claim consumer compatibility
+* runtime dependency verification
+
+At completion, the system must have:
+
+* explicit and verified role-model boundaries
+* no accidental runtime dependence on deprecated group/role paths
+* validated claim-format compatibility across internal consumers
+* documented final architecture state
+
+This is a **closure + hardening feature**, not a net-new capability feature.
+
+---
+
+## Architectural Constraints
+
+### Identity
+
+* Do NOT change authentication flow unless required to complete model unification safely
+* JWT issuance remains in Identity
+* Any JWT claim changes must be narrowly scoped and validated
+
+### Synq Audit
+
+* Do NOT remove or weaken audit coverage
+* Any migration or cleanup steps that mutate source-of-truth access data must preserve audit expectations
+
+### Compatibility
+
+* Existing LS-COR-AUT-005 admin UI must remain functional
+* Existing LS-COR-AUT-001 enforcement must remain functional
+* Existing LS-COR-AUT-002/003/004 source-of-truth behavior must remain functional
+
+---
+
+## Primary Problem Statement
+
+LS-COR-AUT-006 removed the legacy product-role merge path and legacy group endpoints/UI, but it intentionally retained some legacy structures, especially:
+
+* `ScopedRoleAssignment` for system roles
+* legacy group tables kept in DB
+* possible route naming ambiguity (`/groups` vs `/access-groups`)
+* possible remaining consumers of old `product_roles` expectations
+
+This feature must **close those residual gaps** and produce a final validated architecture.
+
+---
+
+## In Scope
+
+### 1. Final Role Model Decision and Enforcement
+
+Assess and implement one of these two paths:
+
+#### Preferred Path A — Explicit Dual-Boundary Model
+
+Keep:
+
+* `ScopedRoleAssignment` only for system/global administrative roles such as:
+
+  * `PlatformAdmin`
+  * `TenantAdmin`
+  * any other non-product-scoped administrative roles
+
+Use:
+
+* `UserRoleAssignment`
+* `GroupRoleAssignment`
+
+for:
+
+* all product-scoped roles
+* all inherited roles
+
+If this path is chosen:
+
+* document this as the **final intentional architecture**
+* ensure code clearly enforces this separation
+* remove any remaining ambiguous or overlapping usage
+
+#### Alternative Path B — Full Role Unification
+
+Migrate remaining system/admin role handling into the new unified model and eliminate `ScopedRoleAssignment`.
+
+Only choose this path if it is feasible without destabilizing the platform.
+
+### Required Outcome
+
+There must be **no ambiguous overlap** where both legacy and new systems can grant the same type of role.
+
+---
+
+### 2. Runtime Dependency Audit
+
+Perform a code and runtime audit to verify whether any remaining runtime paths still depend on:
+
+* legacy group entities/tables
+* legacy role resolution logic
+* deprecated endpoint families
+* old claim assumptions
+
+This must include:
+
+* service-layer reads
+* repository queries
+* auth pipeline
+* admin endpoints
+* UI BFF routes
+* gateway/proxy path usage where relevant
+
+### Required Outcome
+
+Produce a validated list of:
+
+* what is still used at runtime
+* what is retained only for migration/history
+* what can now be safely removed
+
+---
+
+### 3. Canonical Route Family Standardization
+
+Verify and standardize the canonical route family for new access groups.
+
+Expected canonical backend family:
+
+* `/api/tenants/{tenantId}/groups/...`
+
+Expected frontend routing can differ for page paths if needed, but API naming must be consistent.
+
+Tasks:
+
+* confirm no backend/API code still points to deprecated group route families
+* confirm no BFF or client code still references removed legacy endpoints
+* correct any inconsistent naming in code or route builders
+* update comments/docs where route language drift exists
+
+### Required Outcome
+
+There must be **one canonical API family** for access groups.
+
+---
+
+### 4. `product_roles` Contract Validation
+
+Now that claims are unified to `PRODUCT:Role`, validate all internal consumers.
+
+Audit at minimum:
+
+* `RequireProductAccessFilter`
+* `RequireProductRoleFilter`
+* claim extension helpers
+* downstream services consuming JWTs
+* any BFF/session parsing logic
+* any diagnostic/debug endpoints or middleware
+
+Tasks:
+
+* verify no internal consumer still expects bare role codes in `product_roles`
+* verify system roles remain correctly handled via separate `role` claims
+* verify mixed-token transitional behavior is handled intentionally, or explicitly dropped
+
+### Required Outcome
+
+The `product_roles` contract must be:
+
+* internally consistent
+* documented
+* validated end-to-end
+
+---
+
+### 5. Legacy Group Data Closure
+
+Legacy group tables may remain in the DB temporarily, but the platform must prove they are not active runtime dependencies.
+
+Tasks:
+
+* identify legacy tables/entities still present
+* confirm whether they are read by production code
+* if not used, mark them as deprecated in code comments / migration notes
+* if safe, prepare or execute removal migration
+* if not yet safe to drop, document exact blockers
+
+### Required Outcome
+
+Legacy group tables must be either:
+
+* removed, or
+* explicitly retained as inactive migration residue with no runtime dependency
+
+---
+
+### 6. Validation Hardening
+
+Add targeted verification so future regressions are caught quickly.
+
+This should include:
+
+* tests ensuring product roles are emitted only in `PRODUCT:Role` format
+* tests ensuring filters reject wrong-format claims where appropriate
+* tests ensuring system roles still work through `role` claims
+* tests ensuring no legacy group endpoints are reachable
+* tests ensuring UI uses only current endpoints
+
+---
+
+## Out of Scope
+
+Do not implement:
+
+* new UI features
+* permission/capability redesign
+* performance optimization beyond what is necessary for cleanup
+* audit viewer UI
+* unrelated identity/authentication redesign
+* nested groups
+* new access features
+
+---
+
+## Required Code / Validation Work
+
+### Backend
+
+* remove or isolate any remaining ambiguous role-resolution paths
+* verify all product authorization depends only on `EffectiveAccessService`
+* standardize group API route usage
+* mark deprecated entities/tables clearly if not yet removable
+* add tests for claim format and endpoint closure
+
+### Frontend / BFF
+
+* verify all access-group operations go through the canonical current route family
+* remove any dead code or unused helpers tied to legacy groups
+* verify user/group admin pages still function after cleanup
+
+---
+
+## Required Architecture Output
+
+By the end of this feature, the architecture must be explicitly one of:
+
+### Option 1 — Final Intentional Split
+
+* system/admin roles → `ScopedRoleAssignment`
+* product/inherited roles → `UserRoleAssignment` + `GroupRoleAssignment`
+
+or
+
+### Option 2 — Full Unification
+
+* all roles → new source-of-truth model only
+
+Whichever option is selected, it must be:
+
+* intentional
+* enforced in code
+* documented in the report
+
+No ambiguous middle state.
+
+---
+
+## Validation Requirements
+
+### Role model validation
+
+* no overlapping role-grant paths for the same role category
+* product-scoped roles come only from the new source-of-truth system
+* system/admin roles are granted only by the chosen final model
+
+### Claim validation
+
+* `product_roles` contains only `PRODUCT:Role`
+* no legacy bare role codes emitted
+* `role` claims continue to represent system/admin roles only
+
+### Endpoint validation
+
+* no legacy group admin endpoints reachable
+* no frontend/BFF references to removed group APIs
+* canonical group API family used consistently
+
+### Runtime dependency validation
+
+* retained legacy tables/entities must not be active runtime dependencies unless explicitly justified
+
+---
+
+## Testing Requirements
+
+### Unit Tests
+
+* claim parsing with valid `PRODUCT:Role` format
+* claim parsing rejects or ignores invalid/bare product role entries as intended
+* role source separation behaves correctly
+* no legacy resolver invocation remains
+
+### Integration Tests
+
+* login emits only unified `product_roles`
+* product access filters work with unified claims
+* product role filters work with unified claims
+* system roles still authorize correctly via `role` claims
+* group management UI/API flows still work end-to-end
+
+### Regression Tests
+
+* LS-COR-AUT-005 admin UI remains functional
+* no legacy group endpoints accessible
+* no runtime path depends on removed legacy merge behavior
+* downstream product enforcement remains intact
+
+### Audit / Migration Safety Checks
+
+* any migration/removal step does not corrupt source-of-truth access data
+* any retained legacy structure is clearly marked and not used by active flows
+
+---
+
+## Acceptance Criteria
+
+This feature is complete only if all of the following are true:
+
+1. The final role architecture is explicitly decided and enforced in code.
+2. There is no ambiguous overlap between legacy and new role-grant paths.
+3. `product_roles` is validated end-to-end as `PRODUCT:Role` only.
+4. System/admin roles continue to function correctly through the intended final model.
+5. Legacy group endpoints are fully removed and unreachable.
+6. Canonical group API routes are standardized and consistently used.
+7. Any remaining legacy group tables/entities are either removed or proven to have no runtime dependency.
+8. Targeted tests exist for claim format, endpoint closure, and role-system boundaries.
+9. LS-COR-AUT-005 admin UI remains functional after cleanup.
+10. The codebase builds cleanly and the final architecture is documented without ambiguity.
+
+---
+
+## Implementation Notes
+
+* Prefer explicitness over partial cleanup.
+* If a legacy structure must remain temporarily, document exactly why and prove it is runtime-inactive.
+* Do not broaden scope into new access features.
+* The purpose of this feature is to convert “mostly unified” into “provably unified and supportable.”
+
+---
+
+## Output Report (REQUIRED)
+
+Create the following file:
+
+`/analysis/LS-COR-AUT-006A-report.md`
+
+### Report must include:
+
+1. Summary of residual cleanup performed
+2. Final role architecture decision:
+
+   * intentional split or full unification
+   * rationale
+3. Runtime dependency audit results:
+
+   * active dependencies
+   * deprecated retained structures
+   * removed structures
+4. Canonical route validation results
+5. `product_roles` contract validation results
+6. Legacy table/entity status:
+
+   * removed
+   * retained but inactive
+   * blockers to removal
+7. Test results:
+
+   * unit
+   * integration
+   * regression
+8. Build status
+9. Known remaining gaps, if any
+10. Assumptions made
+
+---
+
+## Final Goal
+
+After this feature, LS-COR-AUT must no longer be “mostly unified.”
+
+It must be:
+
+* **explicitly unified**
+* **validated**
+* **internally consistent**
+* **supportable without legacy ambiguity**

@@ -1,0 +1,373 @@
+# LS-ID-TNT-015-004 — Disabled State Explainability
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental authorization UX feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity, access, authorization, and governance behavior
+- Reuse the existing frontend permission/session surfaces from LS-ID-TNT-015
+- Keep backend authority intact; frontend explainability is UX-only
+- Keep frontend, API, and backend concerns clearly separated
+- Include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Be honest in the report about exact UI coverage achieved
+- Improve clarity without cluttering the interface
+
+---
+
+## FEATURE OBJECTIVE
+
+Add clear, consistent disabled-state explainability so users understand why an action is unavailable and what to do next, while preserving backend enforcement as the source of truth.
+
+This feature should introduce shared UX primitives and apply them to a validated initial product scope.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- New backend permission logic
+- Tenant Portal permission-management redesign
+- Control Center governance redesign
+- ABAC/policy-rule activation
+- Broad product redesigns
+- Per-user permission editing
+- Replacing hidden actions with disabled actions everywhere
+- A complex rules engine for disabled explanations
+
+ONLY IMPLEMENT:
+- Shared disabled-state explainability components/utilities
+- Standard disabled-reason model and message builder
+- Tooltip-based explainability for disabled actions
+- Read-only banner pattern where appropriate
+- Initial rollout to a validated product UI scope
+- Minimal UX alignment for existing backend 403 handling where needed
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-015-004-report.md
+
+Initialize with:
+
+# LS-ID-TNT-015-004 — Disabled State Explainability
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Permission-Aware UI Analysis
+## 4. Existing Tooltip / Banner / Action Component Analysis
+## 5. Coverage Scope Selection
+## 6. Explainability Design Rules
+## 7. Files Changed
+## 8. Shared Component / Utility Implementation
+## 9. Product UI Implementation
+## 10. Backend Alignment / Error Handling
+## 11. Testing Results
+## 12. Known Issues / Gaps
+## 13. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Existing permission-aware UI
+- the shared permission hook(s) from LS-ID-TNT-015
+- the exact product components currently covered by permission-aware UI
+- where unavailable actions are currently hidden vs shown
+- where backend 403 handling already exists
+
+### Existing shared UI primitives
+- current tooltip components/primitives
+- current inline banner/notice components
+- button/menu/dropdown patterns
+- row action/menu item patterns
+- any existing read-only banner or alert component
+
+### Existing explainability gaps
+Identify where users currently lack clarity, such as:
+- actions simply hidden with no context
+- disabled states with no explanation
+- read-only pages with no explanation
+- workflow blockers not distinguished from permission blockers
+
+DO NOT assume component availability or UX patterns until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Permission-Aware UI Analysis
+## 4. Existing Tooltip / Banner / Action Component Analysis
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 2 — SELECT AND DOCUMENT THE INITIAL COVERAGE
+
+Choose the validated initial rollout scope.
+
+Requirements:
+- prioritize high-value/high-frequency product actions
+- prefer surfaces already touched by LS-ID-TNT-015
+- choose actions where explainability clearly improves UX
+- avoid over-claiming full platform-wide coverage
+
+Likely candidates (validate first):
+- CareConnect referral actions
+- SynqFund review/decision actions
+- selected Liens actions if there is a suitable current action surface
+- additional actions already permission-aware but still unclear when unavailable
+
+You MUST document:
+- what products/components/actions are covered now
+- what remains unchanged
+- why this scope was selected
+
+Update report:
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 3 — IMPLEMENT SHARED DISABLED-STATE EXPLAINABILITY PRIMITIVES
+
+Implement the smallest coherent shared UX primitives that fit the current codebase.
+
+Possible shared primitives include:
+- `DisabledActionWrapper`
+- `PermissionTooltip`
+- `ReadOnlyBanner`
+- `DisabledMenuItem`
+- `buildDisabledReason(...)`
+
+Requirements:
+- reuse existing tooltip/banner/component primitives where possible
+- support buttons, row actions, menus, and page-level read-only notices where appropriate
+- work with disabled or pseudo-disabled interaction patterns
+- be accessible for keyboard users as supported by the current UI stack
+
+Do NOT overbuild. Use what the current component system already supports.
+
+Update report:
+## 6. Explainability Design Rules
+## 8. Shared Component / Utility Implementation
+
+---
+
+## STEP 4 — IMPLEMENT A STANDARD DISABLED REASON MODEL
+
+Implement a simple shared reason model for unavailable actions.
+
+Minimum supported reason categories:
+- `missing_permission`
+- `workflow_state`
+- `missing_data`
+- `external_dependency`
+- `system_managed`
+- `temporary_unavailable`
+
+Requirements:
+- each reason can produce:
+  - short message
+  - optional detail
+  - optional next step guidance
+- use a shared message builder/utility where practical
+- keep copy clear and non-technical
+- do not expose raw backend codes in normal product UI
+
+Examples:
+- “You do not have permission to approve this record.”
+- “This action is not available in the current status.”
+- “Complete the required information before continuing.”
+- “Contact your administrator if you need this access.”
+
+Update report:
+## 6. Explainability Design Rules
+## 8. Shared Component / Utility Implementation
+
+---
+
+## STEP 5 — DEFINE AND APPLY HIDE / DISABLE / READ-ONLY RULES
+
+Define the actual UX rules and apply them consistently in the selected scope.
+
+You must explicitly decide when to:
+- hide an action
+- show it disabled with explanation
+- show a read-only page/section/banner
+
+Recommended principles:
+- hide when visibility adds no user value
+- disable when visibility helps the user understand the workflow
+- use read-only mode where view is allowed but edit is not
+
+Requirements:
+- rules must be documented clearly in the report
+- the selected rollout scope must follow those rules consistently
+- do not create inconsistent per-page behavior unless justified
+
+Update report:
+## 6. Explainability Design Rules
+## 9. Product UI Implementation
+
+---
+
+## STEP 6 — APPLY EXPLAINABILITY TO THE VALIDATED PRODUCT SCOPE
+
+Implement the shared explainability patterns in the selected product UI scope.
+
+Examples of acceptable application:
+- a disabled action button with tooltip explanation
+- a visible panel with `ForbiddenBanner` or read-only notice
+- a disabled row action with a clear explanation
+- a read-only banner for detail/edit surfaces where view is allowed but edit is not
+
+Requirements:
+- align with existing permission-aware UI behavior from LS-ID-TNT-015
+- do not duplicate permission logic unnecessarily
+- preserve backend calls and flows for authorized users
+- keep implementation localized and incremental
+
+Update report:
+## 9. Product UI Implementation
+
+---
+
+## STEP 7 — IMPROVE PERMISSION / BLOCKED-STATE UX WITHOUT WEAKENING BACKEND AUTHORITY
+
+Even after explainability is added, backend 403s may still happen due to stale session or forced/direct interaction.
+
+Requirements:
+- preserve existing backend-denied error handling
+- ensure the new explainability layer complements rather than replaces current 403 handling
+- if a user still hits a backend denial, present a clear and stable message
+- avoid duplicate/conflicting messages where possible
+
+If there is a centralized API error mapping utility, reuse or extend it instead of scattering custom logic.
+
+Update report:
+## 10. Backend Alignment / Error Handling
+## 11. Testing Results
+
+---
+
+## STEP 8 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- LS-ID-TNT-015 permission-aware UI behavior
+- backend permission enforcement
+- route-level product access enforcement
+- Tenant Portal permission UI
+- Control Center governance UI
+- invite/activation/password reset
+- product pages outside the selected scope
+- TypeScript/build/runtime stability
+
+Explicitly validate:
+- authorized users still see and use actions normally
+- unauthorized users get clearer UX, not broken UX
+- no new hydration/runtime issues are introduced
+
+Update report:
+## 11. Testing Results
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 9 — TESTING
+
+Test and document each scenario.
+
+### Shared primitives
+- disabled action explanation renders correctly
+- tooltip works on hover/focus for covered components
+- read-only banner renders correctly where implemented
+- accessibility behavior is reasonable for keyboard users
+
+### Product UI behavior
+For each covered product/action:
+- authorized user sees and can use the action
+- unauthorized user gets the intended hide/disable/read-only behavior
+- explanation copy is correct and understandable
+- direct/stale interaction still gets backend denial handled cleanly
+
+### Regression
+- permission-aware UI from LS-ID-TNT-015 still works
+- tenant permission UI still works
+- control center governance UI still works
+- route-level product access still works
+- no TypeScript/build/runtime regressions
+
+Update report:
+## 11. Testing Results
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 12. Known Issues / Gaps
+## 13. Final Status = Complete
+
+Your final report must clearly state:
+- what shared explainability primitives were implemented
+- what disabled-reason model/message builder was implemented
+- what hide/disable/read-only rules were chosen
+- what products/components/actions are now explainable
+- how backend-denied UX was preserved/aligned
+- what remains deferred
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Shared disabled-state explainability primitives exist
+✔ Standard disabled-reason model and message generation exist
+✔ Tooltip-based explanation works for covered disabled actions
+✔ Read-only banner pattern exists where implemented
+✔ A validated initial set of product UI actions now explains why they are unavailable
+✔ Existing backend permission enforcement remains intact
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-015 behavior does not regress
+✔ Accessibility considerations are handled appropriately for the implemented scope
+✔ Coverage boundaries and remaining gaps are documented honestly
+✔ The product UX becomes more understandable for unauthorized or blocked actions
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working shared disabled-state explainability primitives
+2. Working initial rollout of explainable unavailable actions
+3. Preserved backend-aligned permission-denied UX
+4. Completed report:
+/analysis/LS-ID-TNT-015-004-report.md
+
+---
+
+END OF IMPLEMENTATION

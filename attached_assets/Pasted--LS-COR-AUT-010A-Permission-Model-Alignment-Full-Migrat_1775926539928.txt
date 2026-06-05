@@ -1,0 +1,375 @@
+# LS-COR-AUT-010A — Permission Model Alignment + Full Migration
+
+## Objective
+
+Standardize and complete the transition to **permission-driven authorization (PBAC)** by:
+
+* unifying permission naming model
+* eliminating “Capability vs Permission” ambiguity
+* completing enforcement migration across all services
+* enforcing permission lifecycle at runtime
+* introducing controlled role fallback toggle
+
+At completion, the system must have:
+
+* **one canonical permission model**
+* **permission-first enforcement**
+* **consistent naming across backend, UI, and JWT**
+* **no ambiguity between capability and permission concepts**
+
+---
+
+## Architectural Principles
+
+### Single Canonical Model
+
+* Permission must be a **first-class entity**
+* No split models (product + capability vs permission)
+
+### Backward Compatibility (Controlled)
+
+* Role-based enforcement remains as fallback ONLY
+* Controlled via feature flag
+
+### Explicitness
+
+* No dual semantics
+* No implicit concatenation at runtime
+
+---
+
+## In Scope
+
+---
+
+## 1. Permission Naming Unification (CRITICAL)
+
+### Problem
+
+Current state:
+
+* DB stores: `capability_code` (e.g. `application:approve`)
+* Runtime builds: `PRODUCT.capability_code`
+
+👉 This creates split semantics.
+
+---
+
+### Required Action
+
+Refactor to:
+
+```text
+PermissionCode = {PRODUCT}.{domain}:{action}
+```
+
+Examples:
+
+```text
+SYNQ_FUND.application:approve
+SYNQ_CARECONNECT.referral:create
+```
+
+---
+
+### Changes Required
+
+#### Backend
+
+* update `Capability` (rename later) to store FULL permission code
+* remove any runtime concatenation logic
+* update seed data
+* update validation logic
+
+#### Regex Update
+
+```regex
+^[A-Z0-9_]+\.[a-z][a-z0-9]*(?:\:[a-z][a-z0-9]*)*$
+```
+
+---
+
+### Migration
+
+* update existing capability records:
+
+  * prepend product code
+* ensure no duplicates created
+
+---
+
+## 2. Rename Capability → Permission (System-wide)
+
+### Required Refactor
+
+Rename:
+
+* `Capability` → `Permission`
+* `CapabilityConfiguration` → `PermissionConfiguration`
+* `RoleCapabilityAssignment` → `RolePermission`
+* `EffectivePermissionEntry` (keep, already correct naming)
+
+---
+
+### Scope
+
+* domain models
+* EF configurations
+* services
+* APIs
+* UI types
+* test classes
+* audit events naming (if applicable)
+
+---
+
+### Goal
+
+Remove ALL references to:
+
+```text
+Capability
+```
+
+---
+
+## 3. Complete Enforcement Migration
+
+### Problem
+
+Only Fund service migrated.
+
+---
+
+### Required Action
+
+Migrate ALL services:
+
+* CareConnect
+* SynqLien
+* Documents
+* Notifications
+* any remaining services
+
+---
+
+### Replace
+
+```csharp
+.RequireProductRole(...)
+```
+
+WITH:
+
+```csharp
+.RequirePermission("SYNQ_PRODUCT.domain:action")
+```
+
+---
+
+### Validation
+
+* ensure permissions exist before applying
+* ensure mapping exists in RolePermission
+
+---
+
+## 4. Introduce Role Fallback Toggle
+
+### Add Config
+
+```text
+EnableRoleFallback = true | false
+```
+
+---
+
+### Behavior
+
+If `true`:
+
+* if permission missing → fallback to role check
+
+If `false`:
+
+* permission ONLY enforcement
+* roles ignored in enforcement
+
+---
+
+### Placement
+
+* `RequirePermissionFilter`
+* central policy evaluation logic
+
+---
+
+## 5. Enforce Permission Lifecycle
+
+### Problem
+
+Inactive permissions may still exist in system.
+
+---
+
+### Required Enforcement
+
+Inactive permissions must:
+
+* NOT appear in:
+
+  * JWT `permissions` claim
+  * EffectiveAccessService results
+
+* NOT grant access in:
+
+  * RequirePermissionFilter
+
+---
+
+### Implementation
+
+* filter `IsActive == true` everywhere:
+
+  * mapping resolution
+  * JWT projection
+  * enforcement
+
+---
+
+## 6. JWT Claim Consistency
+
+### Ensure:
+
+```json
+permissions: [
+  "SYNQ_FUND.application:approve"
+]
+```
+
+---
+
+### Remove:
+
+* any legacy concatenation logic
+* any partial permission formats
+
+---
+
+## 7. API & UI Alignment
+
+### Backend APIs
+
+* return full `PermissionCode`
+* no splitting into product + capability
+
+---
+
+### UI
+
+* display full permission code
+* remove concatenation logic
+* update validation regex
+
+---
+
+## 8. Audit Alignment
+
+Update audit payloads:
+
+* use full `PermissionCode`
+* remove capability references
+
+---
+
+## 9. Testing Requirements
+
+---
+
+### Unit Tests
+
+* permission naming validation (new regex)
+* lifecycle enforcement (inactive permission excluded)
+* fallback toggle behavior
+* no capability references remain
+
+---
+
+### Integration Tests
+
+* all services enforce via permissions
+* role fallback works when enabled
+* role fallback disabled blocks access correctly
+
+---
+
+### Migration Tests
+
+* existing data correctly transformed
+* no duplicate permission codes
+
+---
+
+### Security Tests
+
+* invalid format rejected
+* inactive permission denied
+* cross-product permission blocked
+
+---
+
+## Acceptance Criteria
+
+* PermissionCode is fully unified across system
+* No “Capability” naming remains
+* All services use permission-based enforcement
+* Role fallback toggle works correctly
+* Inactive permissions never grant access
+* JWT permissions claim is consistent
+* UI aligned with new model
+* System builds cleanly
+* All tests pass
+
+---
+
+## Implementation Notes
+
+* perform rename + migration carefully (atomic where possible)
+* validate data integrity before enforcement switch
+* keep rollout safe using fallback toggle
+* prioritize consistency over speed
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+/analysis/LS-COR-AUT-010A-report.md
+
+---
+
+### Report must include:
+
+1. permission naming migration details
+2. renamed entities and files
+3. enforcement migration status across services
+4. fallback toggle implementation
+5. lifecycle enforcement validation
+6. test results
+7. build status
+8. known gaps
+9. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+LS-COR-AUT must have:
+
+* **one canonical permission model**
+* **permission-first enforcement across all services**
+* **no legacy naming or split semantics**
+* **clean, scalable, enterprise-grade PBAC architecture**

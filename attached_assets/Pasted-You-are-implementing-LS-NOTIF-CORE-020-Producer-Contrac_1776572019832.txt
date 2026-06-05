@@ -1,0 +1,207 @@
+You are implementing LS-NOTIF-CORE-020 — Producer Contract Standardization & Platform Decoupling.
+
+================================================================================
+WORKFLOW RULES (MANDATORY)
+================================================================================
+
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-CORE-020-report.md
+
+2. Update the report incrementally after each major step.
+
+3. At completion, the report MUST include:
+   - what canonical contract was implemented
+   - how existing producers were reviewed/aligned
+   - what shared client/helper was added or updated
+   - what files changed
+   - validation performed
+   - remaining gaps
+   - risks / follow-up recommendations
+
+================================================================================
+OBJECTIVE
+================================================================================
+
+Standardize the Notifications producer contract so the Notifications service
+is a standalone, reusable, product-agnostic shared platform service.
+
+The service must be usable by LegalSynq products and by future unrelated
+platforms without embedding LegalSynq-specific business logic in the contract.
+
+Products must adapt to Notifications.
+Notifications must not adapt itself to each product.
+
+================================================================================
+STANDING ARCHITECTURE RULE
+================================================================================
+
+Do NOT embed LegalSynq-specific business workflows, terminology, or product
+rules into the Notifications domain, API contracts, routing logic, or template
+selection beyond configuration, metadata, and adapters.
+
+================================================================================
+IN SCOPE
+================================================================================
+
+1. Define and implement a canonical producer contract for notification creation
+
+2. Standardize these contract concepts:
+   - tenantId
+   - productKey
+   - eventKey
+   - templateKey
+   - channel or channels
+   - recipient or recipients
+   - payload
+   - metadata
+   - correlationId
+   - idempotencyKey
+   - sourceSystem
+   - requestedBy
+   - priority (if already practical)
+
+3. Standardize recipient model so it is generic and reusable
+
+4. Create or standardize a shared Notifications producer client / SDK / helper
+
+5. Review and align current producers at minimum:
+   - Liens
+   - CareConnect
+   - Comms
+   - Reports
+   - any additional producers found in the repo
+
+6. Add validation rules for the canonical contract
+
+7. Preserve backward compatibility:
+   - legacy producers must continue to work during transition
+   - use compatibility mapping/adapters where needed
+
+================================================================================
+OUT OF SCOPE
+================================================================================
+
+- Do NOT redesign notification sending logic
+- Do NOT redesign channels/providers
+- Do NOT redesign auth
+- Do NOT redesign UI
+- Do NOT redesign event bus
+- Do NOT rewrite template engine
+
+================================================================================
+CANONICAL CONTRACT REQUIREMENTS
+================================================================================
+
+The canonical producer request should support at minimum:
+
+- tenantId
+- productKey
+- eventKey
+- templateKey (optional/recommended)
+- channel or channels
+- recipient or recipients
+- payload
+- metadata
+- correlationId
+- idempotencyKey
+- sourceSystem
+- requestedBy
+- priority (optional if practical)
+
+Rules:
+
+1. productKey
+   - stable product/module identifier
+   - lowercase slug/kebab style
+   - no UI labels
+   - no LegalSynq-only assumption
+
+2. eventKey
+   - stable business event identifier
+   - not channel-specific
+   - not template-specific
+
+3. templateKey
+   - explicit template identifier when needed
+   - separate concern from eventKey
+
+4. payload
+   - render data only
+   - concise and deliberate
+   - no giant domain dumps
+
+5. metadata
+   - operational/context data only
+   - not a dumping ground
+   - not for secrets
+   - not the main rendering model
+
+6. recipient model
+   - generic
+   - explicit type-based recipient specification
+   - no product-specific recipient assumptions
+
+================================================================================
+IMPLEMENTATION GUIDELINES
+================================================================================
+
+- Reuse existing layers where practical
+- Prefer additive, backward-compatible changes
+- If legacy contracts exist, add compatibility mapping rather than breaking them
+- Introduce contract versioning only if necessary
+- Keep endpoint handlers thin
+- Put mapping/validation logic in service/application layer
+- Shared client/helper should reduce producer-side drift
+
+================================================================================
+REQUIRED PRODUCER REVIEW
+================================================================================
+
+Review current notification-producing integrations and document for each:
+- current call path
+- current DTO/contract shape
+- deviations from canonical contract
+- changes made
+- remaining debt
+
+At minimum cover:
+- Liens
+- CareConnect
+- Comms
+- Reports
+
+================================================================================
+VALIDATION
+================================================================================
+
+You MUST:
+- build affected projects
+- fix compile errors introduced by this feature
+- verify canonical contract compiles and is usable
+- verify existing producers still build
+- document any producer not fully migrated
+
+================================================================================
+REPORT FORMAT
+================================================================================
+
+Create and maintain:
+   /analysis/LS-NOTIF-CORE-020-report.md
+
+Include:
+
+# LS-NOTIF-CORE-020 Report
+
+## Summary
+## Canonical Contract Implemented
+## Producer Alignment Review
+## Shared Client / SDK Changes
+## Files Changed
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations
+
+IMPORTANT:
+If you discover LegalSynq-specific assumptions that cannot safely be removed in
+this feature, isolate them, document them precisely, and avoid spreading them
+further.

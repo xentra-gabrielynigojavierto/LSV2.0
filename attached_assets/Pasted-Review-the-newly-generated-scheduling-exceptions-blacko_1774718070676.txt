@@ -1,0 +1,148 @@
+Review the newly generated scheduling exceptions / blackout dates implementation before applying any migration.
+
+Goal:
+Validate correctness, safety, and simplicity of:
+- ProviderAvailabilityExceptions
+- exception-aware slot generation
+- apply-exceptions slot blocking
+before database changes are applied.
+
+Context:
+- CareConnect scheduling foundation and booking baseline already exist
+- New code includes:
+  - ProviderAvailabilityException
+  - exception CRUD
+  - slot generation integration with exceptions
+  - apply-exceptions endpoint for existing slots
+- Migration has been created but should NOT be applied yet
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. ENTITY REVIEW
+==================================================
+
+Confirm ONLY these new exception-related additions exist:
+- ProviderAvailabilityException
+- exception validation/constants if any
+- exception CRUD endpoints/services
+- slot generation exception filtering
+- apply-exceptions logic for existing slots
+
+Ensure NO accidental additions:
+- recurring exception engine
+- appointment cancellation automation
+- notifications/reminders
+- calendar sync
+- provider portal logic
+- billing/payment logic
+
+==================================================
+2. PROVIDERAVAILABILITYEXCEPTION REVIEW
+==================================================
+
+Check:
+- fields are correct:
+  - Id
+  - TenantId
+  - ProviderId
+  - FacilityId
+  - StartAtUtc
+  - EndAtUtc
+  - ExceptionType
+  - Reason
+  - IsActive
+  - CreatedAtUtc
+  - UpdatedAtUtc
+  - CreatedByUserId
+  - UpdatedByUserId
+
+Confirm:
+- table name is ProviderAvailabilityExceptions
+- indexes are correct:
+  - (TenantId, ProviderId, StartAtUtc)
+  - (TenantId, FacilityId, StartAtUtc) if FacilityId is used
+  - (TenantId, StartAtUtc, EndAtUtc)
+
+==================================================
+3. EXCEPTION TYPE REVIEW
+==================================================
+
+Confirm allowed ExceptionType values are exactly:
+- Unavailable
+- Holiday
+- Vacation
+- Blocked
+
+Check validation:
+- invalid exception type returns clean 400
+- EndAtUtc must be > StartAtUtc
+
+==================================================
+4. SLOT GENERATION INTEGRATION REVIEW
+==================================================
+
+Verify:
+- active exceptions are checked during slot generation
+- slots overlapping exception windows are NOT generated
+- provider-wide exceptions (FacilityId null) apply across provider slots
+- facility-specific exceptions apply only to matching facility
+- tenant isolation is preserved
+
+Confirm overlap logic is correct.
+A slot should be considered blocked if its time window overlaps the exception window.
+
+==================================================
+5. APPLY-EXCEPTIONS LOGIC REVIEW
+==================================================
+
+Verify the admin endpoint logic:
+- tenant-scoped
+- finds existing slots for provider
+- blocks slots overlapping active exception windows
+- sets Status = Blocked where appropriate
+
+Safety checks:
+- does NOT delete slots
+- does NOT reduce ReservedCount
+- does NOT break existing booked appointments
+- if a slot has ReservedCount > 0, it should be handled safely and not corrupted
+- logic is conservative and safe
+
+==================================================
+6. AUTHORIZATION REVIEW
+==================================================
+
+Confirm:
+- GET /api/providers/{id}/availability-exceptions => AuthenticatedUser
+- POST /api/providers/{id}/availability-exceptions => PlatformOrTenantAdmin
+- PUT /api/availability-exceptions/{id} => PlatformOrTenantAdmin
+- POST /api/providers/{id}/slots/apply-exceptions => PlatformOrTenantAdmin
+
+==================================================
+7. MIGRATION REVIEW
+==================================================
+
+Confirm migration name is:
+- AddProviderAvailabilityExceptions
+or equivalent clean name
+
+Confirm migration creates ONLY:
+- ProviderAvailabilityExceptions
+
+If the migration includes unrelated tables/columns, identify and fix before applying.
+
+==================================================
+8. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- confirmation that:
+  - exception model is correct
+  - slot generation respects exceptions
+  - apply-exceptions logic is safe
+  - migration is SAFE to apply
+- final list of changed files

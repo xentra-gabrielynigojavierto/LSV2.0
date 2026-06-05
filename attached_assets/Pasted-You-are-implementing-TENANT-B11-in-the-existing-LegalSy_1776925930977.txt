@@ -1,0 +1,468 @@
+You are implementing TENANT-B11 in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B11-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse Blocks 1–10 structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- This block is the CONTROLLED WRITE-OWNERSHIP TRANSITION block.
+- This block must remain rollback-safe.
+- Do NOT destructively remove Identity storage or endpoints in this block.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B11 — Complete Tenant Write Ownership (Controlled)
+================================================================
+
+OBJECTIVE
+Move tenant-management write ownership further from Identity into the Tenant service in a controlled, reversible way, while preserving Identity’s role for authentication, admin-user creation, role assignment, provisioning, and session enforcement.
+
+This block must:
+1. move safe tenant-management writes to the Tenant service,
+2. expose richer Tenant admin read APIs so Control Center can stop depending on Identity for tenant-management views,
+3. introduce controlled Tenant → Identity orchestration only where Identity still owns auth/provisioning concerns,
+4. close known sync gaps from prior blocks,
+5. preserve rollback capability and backward compatibility.
+
+This block must NOT:
+- delete Identity tenant tables/columns,
+- remove Identity fallback/compatibility endpoints,
+- move auth/session enforcement out of Identity,
+- force a big-bang CreateTenant rewrite without preserving provisioning dependencies.
+
+================================================================
+CONTEXT FROM PRIOR BLOCKS
+================================================================
+
+Current state after prior blocks:
+- Tenant is primary runtime read source for branding/resolution by default
+- Identity still owns:
+  - auth/session concerns
+  - admin-user creation
+  - role assignment
+  - some provisioning workflows
+  - some remaining tenant-management write paths
+- Tenant now owns:
+  - tenant master data
+  - branding
+  - domains
+  - entitlements/capabilities/settings
+  - migration tracking
+  - most runtime read behavior
+- B10 moved authoritative logo-management writes into Tenant service, while Identity logo endpoints were deprecated but kept functional for compatibility.
+
+Known remaining gaps from B10:
+1. Control Center tenant list/get-by-id still relies on Identity because Identity returns richer data (entitlements, session timeout, org-related info).
+2. Identity clear-logo / clear-logo-white sync gap still exists and must be fixed.
+3. CreateTenant remains in Identity due to coupling with:
+   - admin-user creation
+   - role assignment
+   - scoped permissions
+   - DNS provisioning
+   - product provisioning
+
+This block must close the safe gaps and prepare the full ownership pattern, without breaking existing flows.
+
+================================================================
+BLOCK 11 STORIES
+================================================================
+
+This block includes:
+
+- TENANT ADMIN READ MODEL COMPLETION
+- SAFE WRITE OWNERSHIP MIGRATION TO TENANT
+- TENANT → IDENTITY ORCHESTRATION FOR AUTH / PROVISIONING DEPENDENCIES
+- CONTROL CENTER BFF TRANSITION TO TENANT FOR ADMIN TENANT MANAGEMENT
+- SYNC GAP FIXES
+- BACKWARD-COMPATIBLE IDENTITY RETENTION
+
+================================================================
+SCOPE
+================================================================
+
+A) Expand Tenant admin read APIs so Control Center can use Tenant as the main tenant-management source
+
+Implement richer Tenant admin read endpoints so Control Center no longer needs Identity for basic tenant-management screens.
+
+Target endpoints in Tenant service:
+- GET /api/v1/admin/tenants
+- GET /api/v1/admin/tenants/{id}
+- optionally:
+  - GET /api/v1/admin/tenants/by-code/{code}
+  - GET /api/v1/admin/tenants/{id}/summary
+
+The response must include enough data for tenant-management UI and BFFs, at minimum:
+- tenant core profile
+- branding basics
+- domains
+- product entitlements
+- capabilities summary or counts
+- settings summary or selected key settings
+- migration/cutover indicators only if it fits naturally
+
+IMPORTANT:
+- If session timeout still truly belongs to Identity auth policy, do NOT duplicate ownership.
+- Instead, either:
+  1. expose it as compatibility/read-through data from Identity in a clearly marked compatibility field, OR
+  2. omit it from Tenant admin response and document why.
+- Prefer a clean aggregated admin DTO rather than leaking internal entities one by one.
+
+The goal is to enable Control Center tenant-admin views to read primarily from Tenant.
+
+B) Transition safe tenant-management write APIs to Tenant service
+
+Move safe tenant-management writes into Tenant service where Tenant is already the true owner.
+
+Candidate writes to move in this block:
+- tenant profile update
+- branding update (already mostly Tenant-owned)
+- domain management (already Tenant-owned)
+- product entitlements
+- capabilities
+- tenant settings
+- possibly tenant activation/suspension status updates where this does not break auth semantics
+
+Expose/complete Tenant admin endpoints as needed, for example:
+- PUT /api/v1/admin/tenants/{id}
+- PATCH /api/v1/admin/tenants/{id}/status
+- existing admin branding/domain/settings/product endpoints as appropriate
+
+Rules:
+- Tenant becomes the primary write owner for tenant master data
+- writes must update Tenant persistence first
+- if Identity still needs mirrored state for auth/session/login gating, use controlled sync/orchestration
+- do not move session-timeout enforcement ownership out of Identity in this block unless you can prove it is safe and already modeled cleanly
+
+C) Introduce controlled Tenant → Identity orchestration where Identity still owns downstream concerns
+
+This is the reverse-direction counterpart to earlier Identity → Tenant sync.
+
+Implement a controlled adapter/orchestration path from Tenant service to Identity for the cases where Identity still must do work.
+
+Examples:
+- Create tenant with admin user
+- update auth-relevant status fields if Identity must mirror them
+- provision admin access/roles if the originating write now starts in Tenant
+- optionally read-through for session settings if needed
+
+Recommended architecture:
+- Tenant-side interface such as:
+  - IIdentityProvisioningAdapter
+  - IIdentityTenantCompatAdapter
+- Infrastructure HTTP implementation in Tenant service
+- Feature-flagged and non-breaking
+- explicit timeout handling
+- strict vs non-strict behavior if needed
+
+Rules:
+- keep the service boundary clean
+- no direct DB access from Tenant to Identity DB
+- use HTTP/internal service APIs or existing admin endpoints
+- failures must be contained and logged
+- choose strict vs non-strict carefully and default to safe behavior
+
+D) Controlled CreateTenant ownership transition
+
+This is the highest-risk part of B11.
+Do NOT blindly remove CreateTenant from Identity.
+
+Implement one of these safe patterns:
+
+Pattern A (recommended):
+- Introduce a new Tenant service admin endpoint for orchestrated tenant creation, e.g.:
+  - POST /api/v1/admin/tenants
+- Tenant service persists the canonical tenant record
+- Tenant service then calls Identity adapter to:
+  - create admin user / tenant admin context
+  - assign roles
+  - provision auth-related scaffolding
+  - trigger existing provisioning hooks as needed
+- If downstream Identity provisioning fails:
+  - choose explicit behavior:
+    - rollback Tenant create if safe, OR
+    - mark tenant as Pending / ProvisioningFailed and return a controlled error/result
+- Document chosen transactional model clearly
+
+Pattern B:
+- Keep CreateTenant endpoint in Identity, but make Tenant the explicit primary owner by moving tenant persistence responsibility first into Tenant and making Identity act as orchestrator only.
+
+Choose the pattern that best fits current code structure with minimum risk.
+The goal is:
+- new tenant master record ownership is in Tenant,
+- Identity still performs auth/provisioning steps,
+- no big-bang breakage.
+
+E) Fix known sync gaps from B10
+
+You MUST fix the pre-existing sync gaps noted in B10, especially:
+- Identity ClearTenantLogo / ClearTenantLogoWhite must trigger sync/update behavior so Tenant does not lag when fallback endpoints are still used
+- ensure all remaining Identity-side tenant write operations that affect Tenant-owned fields either:
+  - sync correctly, or
+  - are fully redirected to Tenant
+
+Document all write paths audited and their sync status.
+
+F) Control Center BFF transition
+
+Update Control Center BFF/API routes so tenant-management reads and the newly transitioned writes target Tenant service where appropriate.
+
+Likely targets:
+- tenant list
+- tenant detail
+- tenant profile update
+- settings / entitlements / branding / logo routes already moved or to be aligned
+
+Rules:
+- keep UI unchanged where possible
+- centralize route retargeting in BFF/server routes
+- do not scatter source-selection logic into client components
+- preserve backward compatibility where needed
+
+G) Compatibility and rollback
+
+Identity compatibility endpoints may remain, but they should be:
+- clearly deprecated if they are no longer primary
+- either write-through to Tenant or sync with Tenant if still callable
+- safe for rollback
+
+Do NOT:
+- remove Identity tenant entity
+- drop columns
+- remove fallback configs
+- remove Identity branding endpoint entirely
+
+This block is about completing ownership transfer, not destructive retirement.
+
+================================================================
+DATA / CONTRACT GUIDANCE
+================================================================
+
+A) Tenant admin aggregate DTO
+
+Create a stable admin-focused DTO for tenant management responses.
+Suggested shape (adapt as needed):
+
+{
+  "tenantId": "...",
+  "code": "...",
+  "displayName": "...",
+  "legalName": "...",
+  "status": "...",
+  "subdomain": "...",
+  "branding": {
+    "brandName": "...",
+    "logoDocumentId": "...",
+    "logoWhiteDocumentId": "...",
+    "primaryColor": "..."
+  },
+  "domains": [...],
+  "entitlements": [...],
+  "capabilityCount": 0,
+  "settingsSummary": {
+    "defaultProduct": "...",
+    "locale": "...",
+    "timezone": "..."
+  },
+  "identityCompatibility": {
+    "sessionTimeoutMinutes": 60,
+    "source": "IdentityCompat|Tenant|Unavailable"
+  }
+}
+
+Do not expose internal/sensitive fields unnecessarily.
+Do not make this UI-specific; keep it API-stable and generic enough for admin consumers.
+
+B) Identity adapter contracts
+
+Possible Tenant-side interfaces:
+- IIdentityProvisioningAdapter
+- IIdentityTenantCompatAdapter
+
+Possible operations:
+- CreateTenantAdminContextAsync
+- MirrorAuthRelevantTenantStateAsync
+- GetTenantSessionSettingsAsync (read-through only if needed)
+- UpdateTenantSessionSettingsAsync (only if intentionally included)
+
+Only add what is necessary for this block.
+
+================================================================
+VALIDATION / BEHAVIOR RULES
+================================================================
+
+1. Ownership rule
+- Tenant owns tenant master-data writes
+- Identity owns auth/session/provisioning
+- when both need updates, use adapter/orchestration
+- avoid ambiguous ownership
+
+2. No direct DB coupling
+- Tenant must never write directly to Identity DB
+- use service/API calls only
+
+3. Failure handling
+- explicit handling required for:
+  - timeout
+  - Identity downstream failure
+  - partial provisioning failure
+- document whether tenant creation is:
+  - all-or-nothing, or
+  - staged with pending state
+
+4. Cache correctness
+- any new Tenant-side write path must evict/refresh relevant caches
+- branding/domain/profile changes must not leave stale public/admin data beyond TTL
+
+5. Backward compatibility
+- previous blocks’ routes and fallback paths must still function
+- Identity deprecated endpoints remain usable unless explicitly redirected
+
+================================================================
+NON-GOALS
+================================================================
+
+Do NOT:
+- drop Identity columns/tables
+- remove Identity auth/session ownership
+- do broad UI redesign
+- add unrelated infrastructure
+- force strict distributed transactions across services
+- remove rollback/fallback paths
+- rewrite provisioning architecture wholesale
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if:
+
+1. Control Center can read tenant-management data primarily from Tenant service for list/detail flows.
+2. Safe tenant-management writes are owned by Tenant service.
+3. A controlled Tenant → Identity adapter/orchestration path exists for auth/provisioning dependencies.
+4. CreateTenant ownership is moved or wrapped safely so Tenant is the canonical owner without breaking provisioning.
+5. Known B10 sync gaps are fixed.
+6. Backward compatibility and rollback remain intact.
+7. Existing Blocks 1–10 functionality still works.
+8. No destructive Identity cleanup is performed.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+You MUST verify and record results for:
+
+- solution/build success
+- Tenant service startup success
+- Identity service startup success
+- gateway startup success
+- control center/web startup success (if touched)
+
+READ VALIDATION
+- tenant list via Control Center BFF now reads from Tenant service
+- tenant detail via Control Center BFF now reads from Tenant service
+- branding/logo/admin summary remain correct
+
+WRITE VALIDATION
+- tenant profile update through Tenant path persists correctly
+- branding update through Tenant path persists correctly
+- logo set/clear persists correctly
+- entitlements/settings/capabilities updates still work
+
+ORCHESTRATION VALIDATION
+- Tenant → Identity adapter invoked for required auth/provisioning concerns
+- downstream failure path behaves as designed
+- no direct DB coupling introduced
+
+CREATE TENANT VALIDATION
+- new tenant creation works end-to-end
+- admin/provisioning path still works
+- tenant canonical record ends up in Tenant service
+- Identity receives required mirrored/provisioned state
+
+SYNC GAP VALIDATION
+- clear-logo and clear-logo-white no longer leave Tenant out of sync when Identity compatibility endpoints are used
+
+ROLLBACK VALIDATION
+- legacy/compatibility paths still function
+- no irreversible behavior introduced
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B11-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B11 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what B10 left incomplete
+- which reads/writes still depended on Identity
+- why this block is needed now
+
+## 3. Ownership Transition Design
+- what writes moved to Tenant
+- what stayed in Identity
+- orchestration/adapter design chosen
+- transactional/failure model for CreateTenant
+
+## 4. API Contract
+- new/updated Tenant admin endpoints
+- BFF route changes
+- any Identity compatibility endpoint changes
+- request/response shapes
+
+## 5. Identity Integration
+- adapter interfaces/implementations
+- hook points added
+- sync gap fixes
+- what remains deferred
+
+## 6. Implementation Summary
+- files added
+- files modified
+- configs added/changed
+- cache invalidation changes
+- cleanup performed
+
+## 7. Validation Results
+- build
+- startup
+- read-path validation
+- write-path validation
+- create-tenant/provisioning validation
+- sync-gap validation
+- rollback/backward compatibility validation
+
+## 8. Remaining Identity Dependencies
+- what still remains in Identity
+- why
+- when it could be retired later
+
+## 9. Final Assessment
+State whether:
+- Tenant is now the effective full owner of tenant management
+- Identity is now primarily auth/provisioning + compatibility
+- the platform is ready for future physical retirement planning
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Make small, reversible changes
+- Prefer ownership transfer over compatibility deletion
+- Preserve rollback at all times
+- Keep scope tight to B11
+
+Now execute TENANT-B11 carefully end-to-end and write the report as you go.

@@ -1,0 +1,344 @@
+You are implementing feature XNA_Core-08-011 for the Xenia v2.0 codebase.
+
+Feature Title:
+Reverse Traceability & Artifact-Centric Feedback View
+
+Objective:
+Extend Xenia’s feedback traceability model so delivery artifacts can surface the feedback and feedback actions linked to them, creating bidirectional traceability between user feedback and implementation artifacts.
+
+Critical implementation rules:
+1. Reuse the existing feedback, feedback-action, traceability, RBAC, and artifact architecture already present in the codebase.
+2. Prefer incremental, shippable changes over broad rewrites.
+3. Separate reverse-traceability query logic, validation, API wiring, and artifact-detail UI integration cleanly.
+4. Do not introduce AI/LLM behavior.
+5. Reverse traceability logic must be deterministic, auditable, and testable.
+6. Use explicit persisted links only; do not infer relationships automatically.
+7. Admin-only access must be enforced server-side in v1.
+8. Save a full implementation report in the root /analysis folder named exactly:
+   XNA_Core-08-011-report.md
+
+Context:
+The platform already supports:
+- feedback capture
+- structured feedback intelligence
+- feedback analytics
+- feedback action items
+- explicit feedback-action-to-artifact links
+- RBAC-backed admin controls
+
+However, traceability is still forward-only. Admins can link feedback actions to artifacts, but artifact views do not yet expose the linked feedback context. This feature must add the reverse-traceability layer.
+
+Feature Scope:
+Implement Reverse Traceability & Artifact-Centric Feedback View with:
+- reverse lookup from artifact to linked feedback actions
+- originating feedback context in the response
+- admin-only reverse-traceability API
+- lightweight artifact-centric UI integration
+- deterministic ordering and empty-state handling
+
+==================================================
+FUNCTIONAL REQUIREMENTS
+==================================================
+
+1. Core domain concepts
+
+Implement support for:
+
+type ReverseTraceArtifactType =
+  | 'FEATURE'
+  | 'DEFECT'
+  | 'REQUIREMENT'
+  | 'MITIGATION'
+
+type ArtifactFeedbackLinkView = {
+  artifactType: 'FEATURE' | 'DEFECT' | 'REQUIREMENT' | 'MITIGATION'
+  artifactId: number
+
+  links: Array<{
+    linkId: number
+    feedbackActionId: number
+    feedbackActionTitle: string
+    feedbackActionStatus: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED'
+
+    feedbackId: number
+    inquiryType: 'BUG' | 'FEATURE_REQUEST' | 'SUGGESTION' | 'QUESTION' | 'GENERAL'
+    summary: string
+    createdAt: string
+  }>
+}
+
+You may adapt names to the codebase conventions, but the logical contract must remain:
+- artifact
+- linked action
+- originating feedback
+
+2. Data source rules
+
+Use existing persisted records only:
+- feedback_action_links
+- feedback_action_items
+- feedback_records
+
+Requirements:
+- no new linkage table
+- no inferred relationships
+- no AI/LLM matching
+- no reprocessing of conversation text
+
+3. Supported artifact types
+
+Required supported artifact types:
+- FEATURE
+- DEFECT
+- REQUIREMENT
+- MITIGATION
+
+Validation requirements:
+- artifactType must be one of the supported values
+- artifactId must refer to a real artifact row
+- invalid type or missing artifact must fail deterministically
+
+4. Service design
+
+Create a new service/module:
+
+ArtifactFeedbackTraceabilityService
+
+Suggested path:
+artifacts/api-server/src/lib/artifact-feedback-traceability-service.ts
+
+Responsibilities:
+- validate artifact type/id
+- validate artifact existence
+- resolve reverse links from artifact -> action -> feedback
+- return a stable ordered reverse-traceability view
+
+Recommended methods:
+- getLinksForArtifact(userId, artifactType, artifactId)
+
+If useful, add internal helpers such as:
+- assertArtifactExists(...)
+- mapRowsToArtifactFeedbackLinkView(...)
+- orderArtifactLinks(...)
+
+5. Reverse lookup rules
+
+For a given artifact:
+- find rows in feedback_action_links matching artifactType + artifactId
+- join to feedback_action_items via feedback_action_id
+- join to feedback_records via action.feedback_id
+- return all linked feedback/action context
+
+Important:
+- preserve one row per explicit link
+- do not collapse or deduplicate separate feedback actions unless the underlying link rows are actually identical
+
+6. Ordering rules
+
+Choose a deterministic ordering and document it clearly.
+
+Recommended ordering:
+1. feedback action status priority:
+   - OPEN
+   - IN_PROGRESS
+   - RESOLVED
+   - DISMISSED
+2. feedback createdAt descending
+3. feedbackId ascending as stable tiebreaker
+
+Alternative acceptable ordering:
+- feedback createdAt descending
+- feedbackId ascending
+
+Use one consistent strategy only.
+
+7. API
+
+Add endpoint:
+
+GET /api/admin/artifacts/:artifactType/:artifactId/feedback-links
+
+Examples:
+- GET /api/admin/artifacts/FEATURE/12/feedback-links
+- GET /api/admin/artifacts/DEFECT/42/feedback-links
+
+Behavior:
+- authenticated
+- admin only
+- validate artifactType
+- validate artifact existence
+- return ArtifactFeedbackLinkView
+
+Response example:
+{
+  "artifactType": "FEATURE",
+  "artifactId": 12,
+  "links": [
+    {
+      "linkId": 3,
+      "feedbackActionId": 7,
+      "feedbackActionTitle": "Improve project dashboard performance",
+      "feedbackActionStatus": "IN_PROGRESS",
+      "feedbackId": 42,
+      "inquiryType": "BUG",
+      "summary": "The dashboard takes too long to load",
+      "createdAt": "2026-04-04T16:18:00.000Z"
+    }
+  ]
+}
+
+Error handling:
+- 400 for invalid artifactType / malformed id
+- 401 unauthenticated
+- 403 non-admin
+- 404 artifact not found
+- 200 with empty links array if valid artifact exists but has no linked feedback
+
+8. Access control
+
+v1 access model:
+- admin only
+
+Requirements:
+- server-side RBAC enforcement mandatory
+- frontend hiding is not sufficient
+- reuse existing admin middleware / RBAC service patterns
+
+9. UI integration
+
+Add a lightweight “Linked Feedback” section to artifact-centric surfaces where practical.
+
+Preferred v1 surfaces:
+- Feature detail view
+- Defect detail view
+- Requirement detail view
+- Mitigation detail/admin view
+
+Implementation rule:
+- if all four surfaces are not cleanly available in the current UI architecture, implement the strongest one or two and document the remaining gaps clearly
+- make a best effort to cover as many as practical without large page rewrites
+
+10. UI display requirements
+
+For each linked entry show:
+- inquiry type badge
+- feedback summary
+- linked action title
+- linked action status
+- created date
+
+Optional if practical:
+- button/link to open feedback detail
+- button/link to open feedback action detail
+
+Minimum empty-state behavior:
+- show “No linked feedback.”
+- do not silently hide the section if the artifact detail view exists
+
+11. Backward compatibility
+
+Requirements:
+- existing feedback/action/link flows continue to work unchanged
+- artifacts with no links still load normally
+- reverse-traceability is additive
+- no schema change required in v1 unless absolutely necessary
+
+==================================================
+NON-FUNCTIONAL REQUIREMENTS
+==================================================
+
+- deterministic only
+- no AI/LLM
+- no new linkage schema
+- reuse existing feedback/action/link tables
+- admin-only access enforced server-side
+- tests required for:
+  - valid artifact lookup
+  - invalid artifact type rejection
+  - invalid artifact id rejection
+  - empty result handling
+  - join correctness
+  - ordering
+  - admin-only enforcement if route tests are supported
+
+==================================================
+IMPLEMENTATION GUIDANCE
+==================================================
+
+1. First inspect:
+- feedback_action_links schema/service
+- feedback_action_items schema/service
+- feedback_records schema/service
+- artifact retrieval paths for features, defects, requirements, mitigations
+- RBAC/admin middleware
+- current artifact detail UI surfaces
+
+2. Prefer a structure like:
+- artifact-feedback-traceability service
+- admin reverse-traceability route
+- small linked-feedback panel/component(s) for artifact detail surfaces
+
+3. Keep artifact type constants centralized in one place.
+
+4. Reuse existing authoritative artifact lookup logic where possible.
+Do not create a parallel raw-query system unless the codebase lacks a clean existing service path and a direct Drizzle read is the best minimal option.
+
+5. Keep output shape stable.
+Even with zero links, return:
+- artifactType
+- artifactId
+- links: []
+
+6. Keep UI integration lightweight.
+This is an artifact-context enhancement, not a new standalone workflow.
+
+7. Preserve the admin-first model in v1.
+Do not broaden visibility unless the codebase already supports a safe read-only role for these surfaces.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+- Admin can fetch linked feedback for a feature
+- Admin can fetch linked feedback for a defect
+- Admin can fetch linked feedback for a requirement
+- Admin can fetch linked feedback for a mitigation
+- Response includes both linked feedback action data and originating feedback data
+- Results are deterministic and ordered
+- Artifact detail UI shows linked feedback where implemented
+- Empty states are handled cleanly
+- RBAC is enforced server-side
+- Existing feedback/action/traceability flows continue to work unchanged
+
+==================================================
+DELIVERABLES
+==================================================
+
+1. Implement the feature in the codebase.
+2. Run relevant tests.
+3. Create a report at:
+   /analysis/XNA_Core-08-011-report.md
+
+The report must include:
+- Summary of what was implemented
+- Files added/changed
+- Supported artifact surfaces implemented
+- Reverse-traceability query strategy
+- Ordering rule implemented
+- API contract summary
+- UI changes summary
+- RBAC enforcement points
+- Test coverage summary
+- Assumptions made
+- Known limitations or follow-up recommendations
+
+4. In the report, include a final status block in this format:
+
+- Feature ID: XNA_Core-08-011
+- Status: Complete | Partial | Blocked
+- Test Status: pass/fail counts if available
+- Reverse Traceability Logic: Deterministic | Not Deterministic
+- Access Control: Enforced | Partial | Not Enforced
+- Notes: brief summary
+
+Now implement the feature.

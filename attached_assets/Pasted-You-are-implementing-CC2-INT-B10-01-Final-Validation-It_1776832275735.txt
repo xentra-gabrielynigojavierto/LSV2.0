@@ -1,0 +1,459 @@
+You are implementing CC2-INT-B10-01 — Final Validation Iteration for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B10-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This is a VALIDATION ITERATION, not a feature build.
+   DO NOT add new features.
+   DO NOT change architecture unless a blocking defect must be fixed.
+
+5. This validation MUST cover the COMPLETE integrated system after:
+   - CC2-INT-B06-01 (shared provider registry)
+   - CC2-INT-B06-02 (provider access stage lifecycle)
+   - CC2-INT-B07 (public network surface + subdomain/public routing)
+   - CC2-INT-B08 (public referral initiation)
+   - CC2-INT-B09 (provider tenant onboarding)
+   - CC2-INT-B09-01 (provider tenant onboarding hardening iteration)
+
+6. Be honest and critical.
+   If something is incomplete or broken, document it clearly.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Re-run final validation across the full CareConnect system after the late-stage integration changes.
+
+At the end of this block:
+
+- the full system is revalidated end-to-end
+- provider lifecycle is verified:
+  URL → COMMON_PORTAL → TENANT
+- public network surface is verified
+- public referral flow is verified
+- provider tenant onboarding is verified
+- production readiness is re-assessed based on the CURRENT state, not older reports
+
+--------------------------------------------------
+
+VALIDATION SCOPE
+
+You MUST validate all of the following surfaces together:
+
+1. Backend (CareConnect service)
+2. Gateway routing
+3. Identity integration
+4. Documents integration
+5. Notifications integration
+6. Public network surface
+7. Common Portal
+8. Tenant Portal
+9. Provider lifecycle
+10. Provider tenant onboarding
+
+--------------------------------------------------
+
+PART A — END-TO-END FLOW VALIDATION
+
+--------------------------------------------------
+
+A.1 Public Directory → Referral → Provider (URL stage)
+
+Validate full flow:
+
+1. Browse:
+   [tenant-subdomain].[baseurl]/network
+   OR dev fallback:
+   /network?tenant=<code>
+
+2. See providers in public directory
+3. Submit referral from public provider card
+4. Referral is created
+5. URL-stage provider receives notification with signed referral URL
+6. URL-stage provider can access referral via referral-specific URL
+7. Provider does NOT get portal access unless activated
+
+--------------------------------------------------
+
+A.2 Public Directory → Referral → Provider (COMMON_PORTAL stage)
+
+Validate full flow:
+
+1. Provider exists in COMMON_PORTAL stage
+2. Public referral is submitted
+3. Provider receives notification
+4. Provider can log in through Common Portal
+5. Referral appears in Common Portal dashboard/detail views
+6. Documents are accessible via signed URLs
+
+--------------------------------------------------
+
+A.3 Provider lifecycle: COMMON_PORTAL → TENANT
+
+Validate full flow:
+
+1. Provider in COMMON_PORTAL sees onboarding CTA
+2. Provider starts onboarding
+3. Tenant is created
+4. Identity user is reused (same IdentityUserId)
+5. Provider AccessStage transitions to TENANT
+6. Provider.TenantId updated correctly
+7. Provider can log into new tenant subdomain
+8. CareConnect appears in tenant portal navigation
+
+--------------------------------------------------
+
+A.4 Lien Company / Network Manager flow
+
+Validate:
+
+1. Login to tenant portal
+2. Access CareConnect
+3. Create network
+4. Search global provider registry
+5. Associate existing provider
+6. Create new provider if no match
+7. Remove association only
+8. View network map
+9. No provider ownership confusion in behavior/UI
+
+--------------------------------------------------
+
+A.5 Law Firm flow (CURRENT STATE)
+
+Validate CURRENT behavior honestly.
+
+Confirm:
+- what law firm users can currently do
+- whether law firm activation flow exists or not
+- whether law firm access is partial / deferred
+
+Do NOT invent missing capability.
+Document exact current state.
+
+--------------------------------------------------
+
+PART B — PROVIDER LIFECYCLE VALIDATION
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. New provider defaults to AccessStage = URL
+2. URL-stage providers have no portal access
+3. Token activation upgrades provider to COMMON_PORTAL
+4. COMMON_PORTAL provider has Identity linkage
+5. Tenant onboarding upgrades provider to TENANT
+6. No duplicate provider records are created during stage progression
+7. AccessStage badges/rendering are correct in tenant UI
+8. Provider record remains globally shared across networks/tenants
+
+--------------------------------------------------
+
+PART C — SECURITY VALIDATION
+
+--------------------------------------------------
+
+You MUST verify:
+
+1. Authentication
+   - Identity JWT required where expected
+   - no local auth paths active
+   - HttpOnly cookie / BFF pattern preserved
+
+2. Authorization
+   - CARECONNECT_NETWORK_MANAGER enforced
+   - product access enforced
+   - tenant scoping enforced
+   - provider/common portal guards correct
+
+3. Public surface security
+   - no cross-tenant leakage via subdomain resolution
+   - tenant resolved server-side, not user-controlled
+   - public referral endpoint rate limiting works
+
+4. Document security
+   - signed URLs only
+   - no raw storage URLs exposed
+
+5. Internal API security
+   - internal endpoints remain protected
+   - no accidental anonymous exposure
+
+--------------------------------------------------
+
+PART D — INTEGRATION VALIDATION
+
+--------------------------------------------------
+
+You MUST validate integration with:
+
+1. Identity
+   - JWT validation
+   - tenant resolution
+   - provider onboarding / self-provision flow
+
+2. Documents
+   - upload / lookup / signed URL flow still works
+   - scoped access still correct
+
+3. Notifications
+   - referral notification triggers still fire
+   - URL-stage providers still get tokenized links
+   - portal-stage providers still get portal-visible notifications where applicable
+
+4. Gateway
+   - protected routes still protected
+   - public routes still anonymous where intended
+   - internal routes still blocked
+
+--------------------------------------------------
+
+PART E — DATA INTEGRITY VALIDATION
+
+--------------------------------------------------
+
+Validate:
+
+1. Networks remain tenant-owned
+2. Providers remain globally shared
+3. NetworkProvider remains association-only
+4. Removing provider from network does NOT delete provider
+5. Existing provider association does NOT create duplicate
+6. NPI / matching behavior works as currently designed
+7. Provider stage progression does NOT create duplicate provider rows
+8. Soft delete behavior for networks still works
+9. No orphaned records introduced by recent migrations
+
+--------------------------------------------------
+
+PART F — UI / UX VALIDATION
+
+--------------------------------------------------
+
+Validate the following surfaces:
+
+### Public surface
+- `/network` public page
+- provider cards
+- referral modal / success state
+- public error states
+- search/filter behavior
+
+### Common Portal
+- provider dashboard
+- referral detail
+- onboarding CTA
+- onboarding page/form
+- post-login / post-onboarding redirects
+
+### Tenant Portal
+- CareConnect navigation
+- referrals
+- networks
+- provider association flow
+- map rendering
+- access-stage badges
+
+Check for:
+- broken routes
+- missing data
+- incorrect role visibility
+- stale redirects
+- obvious UX inconsistencies
+
+--------------------------------------------------
+
+PART G — PERFORMANCE / SANITY OBSERVATIONS
+
+--------------------------------------------------
+
+You do NOT need full load testing, but you MUST assess:
+
+1. public directory load
+2. referral submission latency
+3. network list load
+4. network detail + map load
+5. provider onboarding flow latency
+6. any obvious N+1 or repeated API-call patterns
+
+Document risks honestly.
+
+--------------------------------------------------
+
+PART H — CONFIGURATION VALIDATION
+
+--------------------------------------------------
+
+Re-check configuration readiness after all recent changes.
+
+Validate:
+
+1. IdentityService:BaseUrl
+2. DocumentsService:BaseUrl
+3. DocumentsService:ServiceToken
+4. NotificationsService:BaseUrl
+5. AuditClient:BaseUrl
+6. AuditClient:ServiceToken
+7. Gateway routes / addresses
+8. JWT signing key setup
+9. production subdomain / base URL assumptions
+10. any new env vars introduced by B06-02, B07, B08, B09, B09-01
+
+Classify each as:
+- ready
+- requires production override
+- blocker
+
+--------------------------------------------------
+
+PART I — REGRESSION CHECK
+
+--------------------------------------------------
+
+You MUST confirm that recent changes did NOT break:
+
+- B01 service alignment
+- B02 gateway/audit/monitoring
+- B03 documents/notifications
+- B04 identity core
+- B05 common portal
+- B06 tenant network management
+- B06-01 provider registry alignment
+- B06-02 provider lifecycle
+- B07 public network surface
+- B08 public referral initiation
+- B09 provider tenant onboarding
+- B09-01 provider tenant onboarding hardening
+
+--------------------------------------------------
+
+PART J — PRODUCTION READINESS ASSESSMENT
+
+--------------------------------------------------
+
+Provide a final, explicit readiness table:
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Backend stable | YES/NO | ... |
+| Gateway stable | YES/NO | ... |
+| Identity integration correct | YES/NO | ... |
+| Public network surface usable | YES/NO | ... |
+| Common Portal usable | YES/NO | ... |
+| Tenant Portal usable | YES/NO | ... |
+| Provider lifecycle complete | YES/NO | ... |
+| Security validated | YES/NO | ... |
+| Config ready for production | YES/NO | ... |
+| Major blockers exist | YES/NO | ... |
+
+If anything is not production-ready, state it plainly.
+
+--------------------------------------------------
+
+PART K — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Public network page loads for tenant
+2. Public referral can be submitted
+3. URL-stage provider receives and uses tokenized referral link
+4. COMMON_PORTAL provider can see referral in portal
+5. Provider onboarding creates tenant successfully
+6. Provider transitions to TENANT stage
+7. Provider can log in to new tenant subdomain
+8. Lien company/network manager can manage networks
+9. Existing provider can be associated without duplication
+10. New provider can be created and associated
+11. Network map renders providers
+12. Role-based access works
+13. Unauthorized access is blocked
+14. No cross-tenant leakage
+15. dotnet build LegalSynq.sln succeeds
+16. Next.js build / tsc succeeds
+17. Gateway routing still works
+18. Documents and notifications integrations still work
+19. Existing Common Portal routes still work
+20. Existing Tenant Portal routes still work
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B10-01-report.md
+
+Use this exact structure:
+
+# CC2-INT-B10-01 Report
+
+## 1. Summary
+High-level result of validation
+
+## 2. End-to-End Flow Validation
+Public referral, provider, tenant, law firm flows
+
+## 3. Provider Lifecycle Validation
+URL, COMMON_PORTAL, TENANT stages
+
+## 4. Security Validation
+Auth, authz, public surface, data isolation
+
+## 5. Integration Validation
+Identity, Documents, Notifications, Gateway
+
+## 6. Data Integrity
+Provider registry, networks, associations, migrations
+
+## 7. UI / UX Validation
+Public, Common Portal, Tenant Portal
+
+## 8. Performance Observations
+Latency and obvious risks
+
+## 9. Configuration Validation
+Ready vs override vs blocker
+
+## 10. Regression Check
+What remained stable
+
+## 11. Known Gaps & Risks
+Explicit list
+
+## 12. Production Readiness
+Final YES/NO assessment table
+
+--------------------------------------------------
+
+DO NOT:
+
+- add new features
+- expand scope
+- redesign architecture
+- silently fix unrelated issues unless they are blockers for validation
+- hide failures or gaps
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- report is complete
+- saved at:
+  /analysis/CC2-INT-B10-01-report.md
+- all validation categories executed
+- system state is clearly assessed
+
+--------------------------------------------------
+
+BEGIN VALIDATION

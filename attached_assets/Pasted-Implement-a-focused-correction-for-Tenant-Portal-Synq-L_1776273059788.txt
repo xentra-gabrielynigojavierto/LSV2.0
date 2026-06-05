@@ -1,0 +1,195 @@
+Implement a focused correction for:
+
+Tenant Portal → Synq Liens → Case Detail
+Tenant Portal → Synq Liens → Lien Detail
+
+Goal:
+Restore the expand/collapse interaction between the two middle panels AND balance the header layout visually.
+
+This is NOT a redesign.
+This is an interaction + alignment correction only.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create:
+     /analysis/LS-LIENS-UI-013-02-report.md
+
+2. Initialize with:
+   - Objective
+   - Current issue summary
+   - Expected expand/collapse behavior
+   - Header imbalance observations
+   - Files to inspect
+
+3. DURING implementation:
+   - Update after each step
+   - Include:
+     - step id
+     - files modified
+     - issue found
+     - fix applied
+     - current status
+
+4. FINAL:
+   - Final summary
+   - validation results
+   - remaining UI gaps if any
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only fix:
+1. Middle panel expand/collapse interaction
+2. Header content balance and alignment
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- service/API logic
+- routing
+- role-access
+- provider-mode
+- data fields
+- business logic
+
+--------------------------------------------------
+CURRENT ISSUES TO FIX
+--------------------------------------------------
+
+1. Expand/collapse interaction missing or unclear
+2. Header content is visually unbalanced:
+   - left side (title/subtitle) too light
+   - right side metadata too dense
+   - inconsistent vertical alignment
+   - uneven spacing between metadata groups
+
+--------------------------------------------------
+REQUIRED BEHAVIOR (MIDDLE PANELS)
+--------------------------------------------------
+
+State 1: split
+- left panel visible
+- right panel visible
+
+State 2: left-expanded
+- left panel expands
+- right panel hidden
+
+State 3: right-expanded
+- right panel expands
+- left panel hidden
+
+Restore:
+- always able to return to split
+
+--------------------------------------------------
+DIVIDER / CONTROL REQUIREMENTS
+--------------------------------------------------
+
+- place controls between panels
+- vertically centered
+- clearly visible
+- usable click area
+- indicate direction
+- allow restore
+
+--------------------------------------------------
+HEADER BALANCING (CRITICAL)
+--------------------------------------------------
+
+The header must feel visually balanced across left and right sections.
+
+Fix the following:
+
+1. LEFT SIDE (TITLE BLOCK)
+- Title (person name) should be dominant
+- Subtitle (ID / secondary info) directly under title
+- Add proper vertical spacing between title and subtitle
+- Ensure left block has enough visual weight (not compressed)
+
+2. RIGHT SIDE (METADATA GRID)
+- Convert metadata into a clean, evenly spaced grid
+- Ensure consistent column structure (e.g., 3–4 columns max)
+- Each field:
+  - label (small, muted)
+  - value (stronger, aligned)
+- Align all values horizontally across rows
+- Avoid uneven stacking of fields
+
+3. VERTICAL ALIGNMENT
+- All metadata fields should align on a consistent baseline
+- Avoid jagged vertical layout (no uneven heights between columns)
+
+4. SPACING
+- Equal horizontal spacing between metadata groups
+- Equal vertical spacing between rows
+- Balanced gap between left title block and right metadata
+
+5. ACTION BUTTON
+- "Actions" button must align with metadata grid
+- Vertically centered relative to the metadata block
+- Not floating higher or lower than surrounding content
+
+6. OVERALL HEADER BALANCE
+- Left and right sides should feel proportionally balanced
+- Avoid:
+  - overly dense right side
+  - overly empty left side
+- Maintain a clean horizontal flow
+
+--------------------------------------------------
+LAYOUT RULES
+--------------------------------------------------
+
+- Preserve current container padding
+- Preserve rounded card styling
+- Do NOT change header structure — only refine alignment and spacing
+- Keep tabs attached below header
+
+--------------------------------------------------
+IMPLEMENTATION APPROACH
+--------------------------------------------------
+
+1. Inspect current header layout
+2. Refactor metadata section into a consistent grid
+3. Adjust spacing and alignment
+4. Validate visual balance at multiple screen widths
+5. Restore expand/collapse interaction for middle panels
+6. Ensure no layout regression
+
+--------------------------------------------------
+VALIDATION CHECKLIST
+--------------------------------------------------
+
+Header:
+- title and subtitle properly spaced
+- metadata aligned in clean grid
+- action button aligned correctly
+- left/right visually balanced
+
+Panels:
+- expand/collapse works
+- controls visible and centered
+- no overflow issues
+- layout remains aligned
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Header looks visually balanced and aligned
+- Metadata grid is clean and consistent
+- Title block has proper visual weight
+- Action button aligned correctly
+- Expand/collapse interaction restored
+- No regression to previous layout improvements
+
+Execute ONLY this correction.
+Do NOT redesign.
+Do NOT change fonts, colors, or navigation.

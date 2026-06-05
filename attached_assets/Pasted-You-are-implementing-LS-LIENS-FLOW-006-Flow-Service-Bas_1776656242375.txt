@@ -1,0 +1,809 @@
+You are implementing LS-LIENS-FLOW-006 — Flow-Service-Based Task Creation Governance for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-006-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Flow Service Alignment
+- Task Governance Behavior
+- Notifications / Email Integration
+- Permissions / Security
+- Audit Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not leave placeholder sections. Populate with actual implementation details only.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement task creation governance for Synq Liens using the Flow service as the execution engine.
+
+This feature must ensure that new tasks created under My Tasks are governed by Flow-backed workflow rules, while Synq Liens remains the product-facing configuration and business-context surface.
+
+For governed tenants, new tasks must:
+
+1. be created through / aligned with the Flow service
+2. be assigned to a responsible user
+3. be linked to a case
+4. enter the My Tasks workflow in a valid starting stage
+5. fire email notifications on create / assign / reassign
+
+This upgrades task intake from:
+- Liens-local flexible task entry
+to
+- Flow-governed operational work intake for Synq Liens
+
+This is NOT:
+- assignment intelligence
+- workload balancing
+- approval routing
+- SLA enforcement
+- a full intake rules engine
+- full case/lien workflow unification
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services only:
+- Identity
+- Audit
+- Notifications
+- Flow service (as the workflow/task execution engine)
+
+Use existing patterns:
+- current Synq Liens product settings governance patterns
+- current Flow service patterns where task/workflow runtime ownership already exists
+- repository / DTO / service / endpoint conventions
+- audit and notification publishing patterns
+
+CRITICAL ARCHITECTURE RULE:
+- Do NOT continue building this as a permanently separate Liens-local workflow engine
+- Flow service must be treated as the source of truth for task/workflow runtime behavior in this feature area
+- Synq Liens must remain the product-facing configuration + business-context layer
+
+Do NOT:
+- redesign the full platform architecture
+- add a heavy policy engine
+- introduce SLA/timer logic
+- add role-based routing intelligence
+- add approvals
+- add required-task gating
+- add due-date governance unless already necessary for compatibility
+- fake multi-assignee if runtime model does not support it
+
+Keep this feature focused on:
+- required assignee
+- required case link
+- valid workflow entry stage
+- Flow-aligned task create / assign / reassign email notifications
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE
+==================================================
+
+Before implementing:
+
+Inspect and document:
+- current task runtime ownership: what is in Liens service vs Flow service
+- current My Tasks workflow implementation and how it currently relates to Flow
+- current task create/update APIs and services
+- current task assignment model (single vs multi assignee reality)
+- current FLOW-005 transition engine implementation and where it currently lives
+- current workflow stage source of truth and how My Tasks workflow stages are stored/resolved
+- current Flow service APIs and models relevant to task/workflow runtime
+- current Synq Liens product settings UI and governance models
+- current FLOW-002 template creation path
+- current FLOW-003 automation generation path
+- current notification/email integration pattern for task events
+- current audit patterns for task create/assign/reassign events
+- current case/lien context linkage patterns
+
+Document findings in the report before coding.
+
+CRITICAL ANALYSIS OUTPUT:
+Explain clearly:
+1. what parts are already Flow-owned
+2. what parts are still Liens-local
+3. what this feature will align directly to Flow now
+4. what remains transitional and must be documented as such
+
+==================================================
+STEP 2 — IMPLEMENT TASK GOVERNANCE SETTINGS DOMAIN
+==================================================
+
+Create a tenant-scoped task governance settings model for Synq Liens.
+
+--------------------------------------------------
+2.1 Entity / Model
+--------------------------------------------------
+
+Create a settings entity with at minimum:
+
+- id
+- tenantId
+- productCode
+- requireAssigneeOnCreate
+- requireCaseLinkOnCreate
+- allowMultipleAssignees
+- requireWorkflowStageOnCreate
+- defaultStartStageMode
+- explicitStartStageId
+- version
+- lastUpdatedAt
+- lastUpdatedByUserId
+- lastUpdatedByName
+- lastUpdatedSource
+- createdAt
+- updatedAt
+
+Use existing product settings / governance naming conventions where applicable.
+
+Recommended name:
+- LienTaskGovernanceSettings
+or equivalent consistent with current codebase
+
+--------------------------------------------------
+2.2 Default Values
+--------------------------------------------------
+
+Use these defaults unless current architecture strongly requires otherwise:
+
+- requireAssigneeOnCreate = true
+- requireCaseLinkOnCreate = true
+- allowMultipleAssignees = false unless real runtime support exists
+- requireWorkflowStageOnCreate = true
+- defaultStartStageMode = FIRST_ACTIVE_STAGE
+
+If explicit start stage mode is supported:
+- explicitStartStageId may be null until configured
+
+--------------------------------------------------
+2.3 Persistence
+--------------------------------------------------
+
+Implement:
+- EF/persistence mapping if this belongs in Liens settings store
+OR
+- equivalent persistence pattern if settings belong in another existing configuration store
+
+Protect uniqueness at tenant/product level if appropriate.
+
+IMPORTANT:
+This settings model governs how Synq Liens creates tasks into the Flow-backed My Tasks workflow. It is a configuration layer, not a replacement runtime engine.
+
+==================================================
+STEP 3 — IMPLEMENT GOVERNANCE SETTINGS SERVICE / MANAGEMENT
+==================================================
+
+Create service logic to manage task governance settings.
+
+--------------------------------------------------
+3.1 Service Behavior
+--------------------------------------------------
+
+Tenant/admin must be able to:
+- get current task governance settings
+- create settings if missing
+- update settings
+- save/update governance rules
+- use the same underlying settings from tenant and control-center surfaces
+
+--------------------------------------------------
+3.2 Governance Pattern
+--------------------------------------------------
+
+Follow the same governance model used in:
+- workflow config
+- task templates
+- automation rules
+
+That means:
+- tenant-side and control-center edits affect the same settings record
+- version increments on update
+- lastUpdatedAt updates
+- lastUpdatedBy updates
+- lastUpdatedSource updates
+
+==================================================
+STEP 4 — ENFORCE FLOW-ALIGNED TASK CREATION GOVERNANCE
+==================================================
+
+Backend must be the source of truth.
+
+This feature must govern NEW task creation aligned with Flow-backed runtime behavior.
+
+--------------------------------------------------
+4.1 Creation Validation
+--------------------------------------------------
+
+Update the task creation flow so the following are enforced for NEW task creation:
+
+If `requireAssigneeOnCreate = true`
+- task creation must fail if no valid assignee is provided
+
+If `requireCaseLinkOnCreate = true`
+- task creation must fail if caseId is missing
+- case must belong to same tenant
+
+If `requireWorkflowStageOnCreate = true`
+- task creation must result in a valid workflow stage in the My Tasks workflow
+- if not supplied, derive it from start-stage rules
+- stage must belong to the active My Tasks workflow used by the Flow-backed runtime
+
+--------------------------------------------------
+4.2 Start Stage Behavior
+--------------------------------------------------
+
+Implement start-stage behavior:
+
+Mode: FIRST_ACTIVE_STAGE
+- choose first active stage ordered by stage order from the My Tasks workflow
+
+Mode: EXPLICIT_STAGE
+- use configured explicitStartStageId
+- validate it belongs to the active My Tasks workflow and is active
+
+Creation rules:
+- initial stage placement is always allowed
+- subsequent movement remains governed by transition rules
+- do NOT require a prior transition for initial workflow entry
+
+--------------------------------------------------
+4.3 Assignee Model Reality
+--------------------------------------------------
+
+IMPORTANT:
+Respect the real runtime assignment model.
+
+If the current Flow/task runtime supports only one assignee:
+- enforce exactly one assignee when required
+- do NOT fake multi-assignee in UI/API
+
+If multiple assignees are already truly supported cleanly end-to-end:
+- allow one or more only when `allowMultipleAssignees = true`
+
+Document clearly:
+- what the codebase actually supports
+- what you implemented
+- what remains future work
+
+--------------------------------------------------
+4.4 Transitional Architecture Rule
+--------------------------------------------------
+
+If task creation is still currently executed in Liens service rather than directly in Flow:
+- align validation and stage resolution to Flow-backed workflow rules
+- avoid introducing more long-term divergence
+- document exactly what remains transitional
+
+Do NOT create a separate permanent Liens-only governance path.
+
+--------------------------------------------------
+4.5 Error Behavior
+--------------------------------------------------
+
+Return clear validation messages such as:
+- "Task assignee is required."
+- "Task must be linked to a case."
+- "A valid My Tasks workflow stage is required for task creation."
+- "Selected assignee is not valid for this tenant."
+
+Do not return vague errors.
+
+==================================================
+STEP 5 — TEMPLATE AND AUTOMATION COMPATIBILITY
+==================================================
+
+This feature must remain compatible with FLOW-002 and FLOW-003.
+
+--------------------------------------------------
+5.1 Template-Based Creation
+--------------------------------------------------
+
+When creating from template:
+- template may prefill assignee / role suggestion / stage
+- template does NOT bypass governance validation
+- user must complete missing required fields before save
+
+--------------------------------------------------
+5.2 Event-Driven Generation
+--------------------------------------------------
+
+When system auto-generates tasks:
+- generated task must also satisfy governance rules
+- generation must derive:
+  - case linkage from event context where possible
+  - workflow entry stage from active My Tasks workflow defaults if missing
+  - assignee from template/rule if available
+
+If automation cannot satisfy a required governance rule:
+- do NOT create an invalid task
+- fail generation cleanly
+- audit/log the reason
+
+CRITICAL:
+Automation must align with Flow-backed task/runtime behavior, not bypass it through a separate path.
+
+Document exact failure behavior clearly.
+
+==================================================
+STEP 6 — IMPLEMENT EMAIL NOTIFICATION RULES
+==================================================
+
+Use the v2 Notifications service and existing platform notification patterns.
+
+--------------------------------------------------
+6.1 Required Email Events
+--------------------------------------------------
+
+Email must fire for:
+1. task created with assignee already present
+2. task assigned after creation
+3. task reassigned to a new assignee
+
+--------------------------------------------------
+6.2 Anti-Duplicate Rule
+--------------------------------------------------
+
+If task is created already assigned:
+- send ONE combined email only
+- do NOT send both:
+  - task created
+  - task assigned
+
+Preferred combined semantic:
+- TASK_CREATED_ASSIGNED
+
+If task is created without assignee and later assigned:
+- send TASK_ASSIGNED
+
+If task is reassigned:
+- send TASK_REASSIGNED to the new assignee
+
+--------------------------------------------------
+6.3 Minimum Email Payload
+--------------------------------------------------
+
+Include at minimum:
+- tenantId
+- taskId
+- task title
+- caseId or case reference
+- lien context if available
+- assigned user
+- created by / assigned by
+- priority
+- due date
+- workflow stage
+- direct task link if current URL conventions support it
+
+--------------------------------------------------
+6.4 Event Taxonomy
+--------------------------------------------------
+
+Use the cleanest existing notification taxonomy consistent with platform patterns.
+
+Recommended logical events:
+- liens.task.created_assigned
+- liens.task.assigned
+- liens.task.reassigned
+
+If platform standard differs, align to it and document clearly.
+
+--------------------------------------------------
+6.5 Triggering Rules
+--------------------------------------------------
+
+Create path:
+- if task created with assignee present → send created-assigned email
+
+Assignment path:
+- if task previously had no assignee and now has one → send assigned email
+
+Reassignment path:
+- if assignee changed from A to B → send reassigned email to B
+
+Do NOT emit duplicate emails for the same user action.
+
+--------------------------------------------------
+6.6 Failure Handling
+--------------------------------------------------
+
+Follow existing notification publishing pattern.
+
+Preferred behavior:
+- task create/update succeeds
+- notification publish is fire-and-observe / non-blocking if that matches platform behavior
+- notification failures are logged/audited according to current platform pattern
+
+Document exact behavior.
+
+==================================================
+STEP 7 — FRONTEND SETTINGS UI
+==================================================
+
+Add tenant/admin UI for task governance settings.
+
+--------------------------------------------------
+7.1 Tenant Side
+--------------------------------------------------
+
+Add:
+- Synq Liens → Product Settings → Task Governance
+
+This page must support:
+- Require assignee on create
+- Require case link on create
+- Allow multiple assignees
+- Require workflow stage on create
+- Default start stage mode
+- Explicit start stage selector if explicit mode chosen
+
+Display:
+- version
+- last updated
+- updated by
+- update source
+
+--------------------------------------------------
+7.2 Control Center
+--------------------------------------------------
+
+Mirror the same capability in:
+- Control Center → Tenant → Synq Liens → Task Governance
+
+Use same underlying settings and governance model.
+
+==================================================
+STEP 8 — FRONTEND TASK CREATION UX
+==================================================
+
+Update task creation modal/form to reflect governance.
+
+--------------------------------------------------
+8.1 Required Fields
+--------------------------------------------------
+
+The form must:
+- visibly mark required fields
+- require assignee when policy enabled
+- require case when policy enabled
+- auto-populate workflow entry stage if required
+- prevent save until valid where practical
+
+--------------------------------------------------
+8.2 Context-Aware Behavior
+--------------------------------------------------
+
+From Case page:
+- case should prefill automatically
+
+From Lien page:
+- lien should prefill
+- parent case should prefill if available
+
+From My Tasks page:
+- user must select case when required
+
+--------------------------------------------------
+8.3 Workflow Stage UX
+--------------------------------------------------
+
+If governance requires workflow stage on create:
+- auto-fill default start stage from My Tasks workflow
+- if cleaner, keep it read-only or controlled
+- do not force users to guess a valid start stage
+
+Document chosen UX behavior.
+
+==================================================
+STEP 9 — FLOW SERVICE ALIGNMENT
+==================================================
+
+This section is critical. Implement and document the Flow alignment explicitly.
+
+--------------------------------------------------
+9.1 Required Alignment Outcome
+--------------------------------------------------
+
+By the end of this feature, it must be clear:
+
+- what is Flow-owned at runtime
+- what is Synq Liens-owned as configuration/context
+- what parts of task creation currently route through Flow directly
+- what parts are transitional and still run inside Liens service while honoring Flow-backed workflow rules
+
+--------------------------------------------------
+9.2 Do Not Hide Transitional Reality
+--------------------------------------------------
+
+If the current codebase cannot fully route task creation through Flow service yet:
+- do NOT fake that it does
+- implement the strongest possible alignment now
+- document exact transitional boundaries honestly
+
+--------------------------------------------------
+9.3 Preferred Direction
+--------------------------------------------------
+
+Prefer:
+- Flow-backed workflow/stage semantics
+- Synq Liens product settings controlling task governance
+- Liens passing business context (case/lien linkage)
+- Flow/runtime remaining the long-term execution owner
+
+==================================================
+STEP 10 — API CHANGES
+==================================================
+
+Implement necessary backend/API changes.
+
+Support at minimum:
+- get task governance settings
+- create/update task governance settings
+- updated task create validation behavior
+- notification trigger integration in create / assign / reassign flows
+
+If task create DTOs must change, do so carefully and document:
+- request shape
+- response shape
+- backward compatibility
+
+If helper endpoints are needed to support UI/start-stage behavior, add only what is necessary.
+
+==================================================
+STEP 11 — PERMISSIONS / SECURITY
+==================================================
+
+Reuse existing workflow/product settings management permission if possible.
+
+Recommended:
+- do NOT introduce a new permission unless necessary
+- use existing workflow/product governance manage permission for task governance settings
+
+Preserve:
+- tenant isolation
+- tenant/admin governance rules
+- task access validation
+- assignee belongs-to-tenant validation
+- case belongs-to-tenant validation
+
+If a new permission is required, document why.
+
+==================================================
+STEP 12 — AUDIT INTEGRATION
+==================================================
+
+Use v2 Audit service.
+
+Log governance settings changes:
+- liens.task_governance.created
+- liens.task_governance.updated
+
+Also preserve existing task audit events.
+
+If automation generation fails due to governance requirements:
+- log/audit clearly if current automation pattern supports it
+
+Document notification-related audit/log behavior if any exists.
+
+==================================================
+STEP 13 — BACKEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- task governance settings entity/model
+- persistence/configuration
+- repository/data access
+- governance service
+- task create validation updates
+- Flow-aligned workflow stage resolution
+- template/automation compatibility updates
+- notifications integration updates for create/assign/reassign
+- API endpoints
+- audit hooks
+
+Keep domain boundaries clear:
+1. task governance settings
+2. workflow config / My Tasks workflow
+3. workflow runtime / Flow ownership
+4. tasks
+5. templates
+6. automation rules
+
+==================================================
+STEP 14 — FRONTEND DELIVERABLES
+==================================================
+
+Implement as applicable:
+
+- task governance types/api/service updates
+- tenant task governance settings page
+- control-center task governance page
+- task creation form updates
+- inline validation / required markers
+- workflow start-stage display behavior
+- user-facing error handling
+
+Preserve existing styling and layout conventions.
+
+==================================================
+STEP 15 — VALIDATION CHECKLIST
+==================================================
+
+Validate and document:
+
+### Governance Configuration
+- tenant can save governance settings
+- control-center can save same settings
+- tenant/control-center remain in sync
+- version / lastUpdated metadata updates correctly
+
+### Task Creation
+- cannot create task without assignee when required
+- cannot create task without case when required
+- task gets valid My Tasks workflow start stage automatically when required
+- case-context task creation pre-fills correctly
+- lien-context task creation pre-fills parent case where available
+- template-based creation still works with governance enforcement
+
+### Notifications / Email
+- task created with assignee sends ONE created-assigned email
+- task assigned after creation sends assigned email
+- task reassigned sends reassigned email
+- no duplicate create+assign email on initial create-with-assignee
+- notification payload contains expected key fields
+
+### Automation
+- generated task succeeds when governance requirements can be satisfied
+- generated task fails/logs when governance requirements cannot be satisfied
+
+### Flow Alignment
+- report clearly states Flow-owned vs Liens-owned responsibilities
+- no new permanent Liens-local workflow divergence introduced
+- any transitional runtime path is explicitly documented
+
+### Build / Run
+- backend builds
+- frontend builds / typechecks
+- migrations apply
+- app starts cleanly
+
+If something cannot be fully implemented due to current codebase constraints, document exactly where and why.
+
+==================================================
+STEP 16 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Populate the final `/analysis/LS-LIENS-FLOW-006-report.md` with:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - assignee model findings
+   - Flow service/runtime ownership findings
+   - workflow entry findings
+   - current notification integration findings
+   - automation compatibility findings
+
+3. Files Changed
+   - backend/frontend/database/config grouped clearly
+
+4. Database / Schema Changes
+   - new tables/entities/indexes
+   - migration name
+
+5. API Changes
+   - endpoints added/updated
+   - request/response behavior
+
+6. UI Changes
+   - task governance settings pages
+   - task create modal changes
+   - validation UX changes
+
+7. Flow Service Alignment
+   - what is Flow-owned
+   - what remains Synq Liens-owned
+   - what is transitional
+   - how this feature avoids further divergence
+
+8. Task Governance Behavior
+   - exact create-time rules
+   - assignee/case/stage handling
+   - compatibility with templates/automation
+
+9. Notifications / Email Integration
+   - events/templates used
+   - create/assign/reassign behavior
+   - anti-duplicate logic
+   - failure behavior
+
+10. Permissions / Security
+   - permission reuse or new permission rationale
+   - tenant/admin scoping
+   - assignee validation
+
+11. Audit Integration
+   - governance settings events
+   - automation/governance logging choices
+
+12. Validation Results
+   - build/typecheck/manual validation
+
+13. Known Gaps / Risks
+   - unresolved assignee model limits
+   - automation edge cases
+   - transitional Flow alignment boundaries
+   - future assignment intelligence opportunities
+   - recommended next step
+
+14. Run Instructions
+   - migration/build/startup/testing instructions
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is complete only if:
+
+1. tenant/admin can configure task governance settings
+2. new tasks cannot be created without required assignee/case when policy requires them
+3. new tasks enter a valid My Tasks workflow start stage when required
+4. template and automation flows remain compatible
+5. task create/assign/reassign email notifications are sent correctly
+6. duplicate create+assign email noise is avoided
+7. Flow alignment is explicit and honest
+8. governance metadata updates correctly
+9. implementation is documented in `/analysis/LS-LIENS-FLOW-006-report.md`
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Keep this a focused task-intake governance feature
+- Respect the real current runtime ownership in the codebase
+- Use Flow service direction as the source of truth for architecture decisions
+- Do not fake multi-assignee if backend/runtime does not support it
+- Prefer deterministic defaults over complex rules
+- Preserve tenant isolation
+- Preserve existing task/template/automation behavior wherever possible
+- Make reasonable choices if the codebase has transitional architecture limits, and document them clearly
+
+Begin by creating `/analysis/LS-LIENS-FLOW-006-report.md` immediately, then inspect the codebase, document findings, and proceed with implementation.

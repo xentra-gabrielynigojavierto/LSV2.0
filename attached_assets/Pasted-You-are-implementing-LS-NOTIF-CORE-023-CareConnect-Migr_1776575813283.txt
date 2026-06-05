@@ -1,0 +1,175 @@
+You are implementing LS-NOTIF-CORE-023 — CareConnect Migration to Shared Notifications Service.
+
+================================================================================
+WORKFLOW RULES (MANDATORY)
+================================================================================
+
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-CORE-023-report.md
+
+2. Update the report incrementally after each major step.
+
+3. At completion, the report MUST include:
+   - what CareConnect notification paths were identified
+   - what was migrated to the shared Notifications service
+   - what was intentionally left in CareConnect
+   - files changed
+   - validation performed
+   - remaining gaps
+   - risks / follow-up recommendations
+
+================================================================================
+OBJECTIVE
+================================================================================
+
+Migrate CareConnect email delivery from its internal SMTP/direct notification
+implementation to the shared Notifications platform service.
+
+CareConnect must stop bypassing the platform notification architecture.
+
+IMPORTANT:
+Do NOT move CareConnect business logic into the Notifications service.
+CareConnect should remain responsible for referral workflow logic, token generation,
+and domain-specific orchestration.
+Notifications should become the delivery engine.
+
+================================================================================
+IN SCOPE
+================================================================================
+
+1. Identify all current CareConnect email/notification send paths, including:
+   - ReferralEmailService
+   - internal notification services/repositories/entities
+   - retry workers
+   - SMTP senders
+   - any direct email dispatch logic
+
+2. Migrate outbound email delivery to the shared Notifications API:
+   POST /v1/notifications
+
+3. Use the canonical producer contract implemented in Notifications:
+   - tenantId / claim-based tenant context where applicable
+   - productKey
+   - eventKey
+   - sourceSystem
+   - templateKey where appropriate
+   - payload
+   - metadata
+   - idempotencyKey where useful
+   - recipient model
+
+4. Preserve CareConnect-specific logic inside CareConnect, including:
+   - referral token generation
+   - HMAC/signing logic
+   - referral workflow state changes
+   - domain status tracking
+
+5. Replace SMTP/direct send dependency with Notifications producer client usage
+
+6. Reuse shared service-to-service authentication model for submissions
+
+7. Preserve or adapt CareConnect notification tracking where needed, but avoid
+   duplicate delivery logic once the shared Notifications service is the sender
+
+================================================================================
+OUT OF SCOPE
+================================================================================
+
+- Do NOT redesign CareConnect referral workflow
+- Do NOT move business/domain logic into Notifications
+- Do NOT redesign templates globally
+- Do NOT redesign provider routing
+- Do NOT redesign auth architecture already implemented
+- Do NOT add new channels beyond current migration need
+
+================================================================================
+IMPLEMENTATION REQUIREMENTS
+================================================================================
+
+1. Discovery
+   Audit current CareConnect notification/email architecture and document:
+   - what sends email
+   - what tracks email
+   - what retries email
+   - what uses SMTP directly
+   - what can be removed vs retained
+
+2. Canonical integration
+   Route CareConnect outbound notifications through the shared Notifications service.
+
+3. Contract requirements
+   Use:
+   - productKey = "careconnect"
+   - sourceSystem = "careconnect-service"
+   - meaningful eventKey values such as:
+       referral.created
+       referral.invite.sent
+       referral.reminder.sent
+       referral.accepted
+     (adjust to actual workflow reality found in code)
+
+4. Token handling
+   Referral links/tokens must continue to be generated inside CareConnect and passed
+   into notification payload/template data. Notifications must not generate or own them.
+
+5. Retry ownership
+   After migration, shared delivery retry should belong to Notifications.
+   CareConnect should not continue duplicating SMTP retry behavior unless there is a
+   clear domain-level reason. If a retry/status model remains in CareConnect, document
+   exactly why.
+
+6. Backward compatibility
+   Preserve current CareConnect behavior during transition. Do not break live flows.
+
+7. Cleanup
+   Remove or disable obsolete direct SMTP delivery paths when safe.
+   If full removal is too risky in one step, isolate them and document the remaining debt.
+
+================================================================================
+VALIDATION
+================================================================================
+
+You MUST:
+- build affected projects
+- fix compile errors introduced by the feature
+- verify CareConnect now calls Notifications instead of sending SMTP directly
+- verify canonical producer contract usage
+- verify token/signing logic remains in CareConnect
+- document any parts of CareConnect still not migrated
+
+================================================================================
+REPORT FORMAT
+================================================================================
+
+Create and maintain:
+   /analysis/LS-NOTIF-CORE-023-report.md
+
+Include:
+
+# LS-NOTIF-CORE-023 Report
+
+## Summary
+## Existing CareConnect Notification Paths
+## Shared Notifications Integration Implemented
+## What Remains in CareConnect
+## Files Changed
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations
+
+IMPORTANT:
+If full migration cannot be completed safely in one pass, prioritize:
+1. replacing direct SMTP send path
+2. preserving workflow correctness
+3. documenting remaining technical debt precisely
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+- CareConnect no longer depends primarily on direct SMTP for platform notifications
+- Shared Notifications service becomes the delivery engine
+- CareConnect retains its own business logic and token generation
+- Canonical producer contract is used
+- Build succeeds with no new errors
+- Remaining gaps are clearly documented

@@ -1,0 +1,116 @@
+Design the frontend architecture for a tenant-aware, multi-organization, product-role platform in Next.js.
+
+Use the existing platform foundation:
+
+- Tenant is resolved from subdomain
+- Organization is the active business actor
+- JWT/session includes:
+  - tenant_id
+  - tenant_code
+  - org_id
+  - org_type
+  - product_roles
+  - system roles
+- Capabilities are enforced by backend services, not trusted in the frontend
+- Gateway is the single entry point for all frontend API calls
+
+Products already modeled:
+- CareConnect
+- SynqFund
+- SynqLien
+
+Core goals:
+- one shared frontend platform can support multiple actor experiences
+- tenant drives branding and home context
+- organization + product role drive navigation and workflows
+- different actors can land in different interfaces
+- frontend must remain compatible with subdomain-based tenant routing
+
+Generate the output in these exact sections:
+
+1. Frontend Responsibility Model
+- what the frontend is responsible for
+- what the backend/gateway remains responsible for
+- explicitly separate:
+  - session handling
+  - tenant context
+  - org context
+  - navigation logic
+  - capability trust boundary
+
+2. Session and Context Model
+Define the frontend session shape including:
+- user
+- tenant
+- organization
+- productRoles
+- systemRoles
+- correlationId if relevant
+Explain which fields come from the JWT/login response.
+
+3. Tenant Resolution and App Boot Flow
+- describe how the frontend resolves tenant from subdomain
+- explain login flow
+- explain app boot sequence after login
+- include local/dev behavior
+
+4. App Shell Architecture
+Design the shared shell for:
+- top bar
+- sidebar/navigation
+- organization badge/switcher placeholder
+- tenant branding
+- product-aware navigation groups
+
+5. Actor-Specific Experience Model
+Define how the frontend should support:
+- law firm experience
+- provider experience
+- funder experience
+- lien owner experience
+- injured party portal experience
+Explain whether this should be one app with role-aware views or multiple apps.
+
+6. Route Strategy
+Define the route structure for:
+- CareConnect
+- SynqFund
+- SynqLien
+- injured party portal
+Keep tenant out of the path and rely on subdomain resolution.
+
+7. Navigation Rules
+Explain how navigation is derived from:
+- org_type
+- product_roles
+- system roles
+Give example nav sets for:
+- LAW_FIRM
+- PROVIDER
+- FUNDER
+- LIEN_OWNER
+- PlatformAdmin
+
+8. Frontend Data Access Layer
+Define:
+- API client shape
+- request context handling
+- error handling
+- use of gateway only
+- how correlation IDs should be surfaced/logged if useful
+
+9. Auth Guard and Route Protection
+Define:
+- anonymous routes
+- authenticated routes
+- org-required routes
+- actor-specific route guards
+- how to handle stale or missing session context
+
+10. Risks and Edge Cases
+Cover:
+- wrong subdomain + valid token
+- user with no org membership
+- user with multiple org memberships
+- backend denies capability despite frontend nav showing page
+- injured party portal needing separate auth/session shape

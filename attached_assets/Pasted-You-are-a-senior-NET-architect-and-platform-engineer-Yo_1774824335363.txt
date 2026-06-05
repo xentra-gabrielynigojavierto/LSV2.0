@@ -1,0 +1,382 @@
+You are a senior .NET architect and platform engineer.
+
+Your task is to create a **new parallel .NET Core implementation** of the current Documents Service, while **preserving the existing Node.js/TypeScript service unchanged**.
+
+## Primary Goal
+
+Build a **.NET Core version of the Documents Service** that mirrors the current Node.js service architecture and behavior, but lives as a separate service in the repository.
+
+This is a **parallel implementation**, not a replacement.
+
+### Important constraints
+
+* Do NOT remove or rewrite the current Node.js service
+* Do NOT break existing Node.js builds
+* Do NOT rename or repurpose the current service
+* The .NET version must be created as a **new service** alongside the existing implementation
+* Preserve the current API behavior and security model as closely as practical
+* Use the current Node.js implementation as the source of truth for behavior
+
+---
+
+## Target Outcome
+
+Create a new standalone service, for example:
+
+* `apps/services/documents-dotnet/`
+
+or equivalent repo-appropriate location.
+
+This new service should:
+
+* run independently
+* expose equivalent endpoints
+* follow the same business rules
+* use a clean .NET Core architecture
+* be ready for incremental parity validation against the Node.js service
+
+---
+
+## Technology Requirements
+
+Use:
+
+* **.NET 8 / ASP.NET Core**
+* C#
+* Swagger / OpenAPI
+* dependency injection
+* structured logging
+* clean architecture style
+
+Recommended packages / patterns:
+
+* ASP.NET Core Web API
+* Swashbuckle for Swagger
+* FluentValidation for request validation
+* Dapper or EF Core for DB access
+* StackExchange.Redis for Redis-backed state if needed
+* JWT Bearer authentication
+* Serilog for structured logging
+
+You may choose Controllers or Minimal APIs, but keep the design clean and maintainable.
+
+---
+
+## Architectural Requirements
+
+Mirror the same conceptual layers as the Node.js service:
+
+* API layer
+* Application layer
+* Domain layer
+* Infrastructure layer
+* Shared/configuration layer
+
+Suggested structure:
+
+* `Documents.Api`
+* `Documents.Application`
+* `Documents.Domain`
+* `Documents.Infrastructure`
+* `Documents.Contracts` (optional)
+* `Documents.Tests`
+
+Keep abstractions for:
+
+* `IStorageProvider`
+* `IAuthProvider` or auth abstraction as appropriate
+* `IAccessTokenStore`
+* `IFileScannerProvider`
+* `IRateLimitProvider` if needed
+* repository interfaces
+
+---
+
+## Functional Scope
+
+Implement a .NET version of the current service behavior for at least these endpoints:
+
+* `POST /api/v1/documents`
+* `GET /api/v1/documents`
+* `GET /api/v1/documents/{id}`
+* `PATCH /api/v1/documents/{id}`
+* `DELETE /api/v1/documents/{id}`
+* `POST /api/v1/documents/{id}/versions`
+* `POST /api/v1/documents/{id}/view-url`
+* `POST /api/v1/documents/{id}/download-url`
+* `GET /api/v1/documents/{id}/content`
+* `GET /access/{token}`
+
+Also include:
+
+* health endpoints
+* Swagger/OpenAPI exposure
+
+---
+
+## Behavior Parity Requirements
+
+Match the Node.js service as closely as possible for:
+
+### Authentication
+
+* Bearer JWT
+* tenant-aware principal extraction
+* role-based access control
+* default deny
+
+### Tenant isolation
+
+* enforce tenant scoping in repository/service flows
+* preserve the same multi-tenant security model
+
+### Malware scanning
+
+* preserve scan-status-aware behavior
+* allow pluggable scanner provider
+* block access when scan rules require it
+
+### Access mediation
+
+* preserve token-based access flow
+* keep one-time-use token design where implemented
+* do not expose storage keys to clients
+
+### Rate limiting
+
+* scaffold or implement equivalent rate limiting behavior
+* document if exact parity is deferred
+
+### Audit logging
+
+* preserve audit-oriented design and core events
+* log critical document lifecycle and access events
+
+---
+
+## Database Requirement
+
+IMPORTANT:
+Before implementing, inspect the current Node.js service and determine the actual schema and database assumptions.
+
+Then do the following:
+
+1. document whether the current implementation is actually PostgreSQL-specific, MySQL-specific, or mixed
+2. choose a realistic strategy for the .NET version:
+
+   * either match the existing real DB behavior
+   * or explicitly isolate the DB layer behind repositories and document assumptions
+
+Do NOT blindly claim MySQL compatibility if the current schema is PostgreSQL-specific.
+
+Generate a clear report on this.
+
+---
+
+## Delivery Phases
+
+Work in phases. For each phase:
+
+1. inspect current Node.js behavior
+2. implement the corresponding .NET structure/code
+3. keep the new .NET service buildable
+4. generate a report under `/analysis`
+
+---
+
+### Phase 1 — Discovery and architecture mapping
+
+Analyze the current Node.js Documents Service and map it into a .NET architecture.
+
+Produce:
+
+* route mapping
+* service mapping
+* middleware mapping
+* provider mapping
+* DB access mapping
+* security model mapping
+* known parity risks
+
+Create:
+`/analysis/dotnet_phase1_discovery_and_mapping.md`
+
+Also create the new .NET solution/project skeleton.
+
+---
+
+### Phase 2 — Project scaffolding and core architecture
+
+Create the .NET service structure with:
+
+* solution
+* projects
+* DI wiring
+* config model
+* logging
+* Swagger
+* health endpoints
+* auth scaffolding
+* shared error model
+
+Create:
+`/analysis/dotnet_phase2_scaffolding.md`
+
+---
+
+### Phase 3 — Domain and contracts
+
+Implement:
+
+* document entities
+* document version entities
+* audit entities
+* DTOs / request models / response models
+* enums / status models
+* interfaces for providers and repositories
+
+Create:
+`/analysis/dotnet_phase3_domain_and_contracts.md`
+
+---
+
+### Phase 4 — API and application flows
+
+Implement .NET endpoints and application services for:
+
+* upload
+* list
+* get by id
+* patch
+* delete
+* version upload
+* view/download token issuance
+* token redemption
+* direct content access if supported
+
+Create:
+`/analysis/dotnet_phase4_api_and_application.md`
+
+---
+
+### Phase 5 — Infrastructure providers
+
+Implement or scaffold:
+
+* storage provider abstraction
+* local storage provider
+* AWS S3 provider scaffold
+* GCP storage scaffold
+* Redis-backed token store or scaffold
+* scanner provider abstraction
+* DB repositories
+
+Create:
+`/analysis/dotnet_phase5_infrastructure.md`
+
+---
+
+### Phase 6 — Security and tenant isolation
+
+Implement:
+
+* JWT auth
+* authorization
+* tenant enforcement
+* audit hooks
+* secure error handling
+* request correlation id
+* safe config validation
+
+Create:
+`/analysis/dotnet_phase6_security_and_tenancy.md`
+
+---
+
+### Phase 7 — Parity review and developer setup
+
+Compare the new .NET service to the Node.js service.
+
+Document:
+
+* what is fully implemented
+* what is scaffolded
+* what differs
+* what remains to reach parity
+
+Also include:
+
+* build/run instructions
+* how to test locally
+* Swagger route
+* recommended next steps
+
+Create:
+`/analysis/dotnet_phase7_parity_review.md`
+
+Also create:
+`/analysis/dotnet_final_summary.md`
+
+---
+
+## Implementation Rules
+
+### Non-destructive requirement
+
+* The current Node.js service must remain intact
+* New .NET code must live separately
+* Do not change Node.js behavior unless absolutely necessary for understanding
+
+### Quality requirements
+
+* Keep code buildable
+* Use clean naming
+* Prefer maintainability over cleverness
+* Add comments only where useful
+* Preserve security-sensitive behavior
+
+### Documentation requirements
+
+Each phase report must include:
+
+1. Objective
+2. What was analyzed
+3. What was implemented
+4. Files created/changed
+5. Parity notes
+6. Risks / gaps
+7. How to run / verify
+8. Next step
+
+---
+
+## Final Deliverables
+
+At minimum create:
+
+* new .NET solution and project structure
+* initial implementation of the Documents Service in .NET
+* Swagger/OpenAPI enabled
+* analysis reports for all phases
+* final summary
+
+Expected file examples:
+
+* `/analysis/dotnet_phase1_discovery_and_mapping.md`
+* `/analysis/dotnet_phase2_scaffolding.md`
+* `/analysis/dotnet_phase3_domain_and_contracts.md`
+* `/analysis/dotnet_phase4_api_and_application.md`
+* `/analysis/dotnet_phase5_infrastructure.md`
+* `/analysis/dotnet_phase6_security_and_tenancy.md`
+* `/analysis/dotnet_phase7_parity_review.md`
+* `/analysis/dotnet_final_summary.md`
+
+---
+
+## Start now
+
+1. inspect the existing Node.js Documents Service
+2. create a new parallel .NET Core service without modifying the Node.js service
+3. begin with Phase 1 discovery and architecture mapping
+4. generate `/analysis/dotnet_phase1_discovery_and_mapping.md`
+5. continue through the phases in order

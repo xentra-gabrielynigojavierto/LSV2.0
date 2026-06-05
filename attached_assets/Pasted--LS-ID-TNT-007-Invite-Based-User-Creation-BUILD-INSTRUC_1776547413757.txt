@@ -1,0 +1,412 @@
+# LS-ID-TNT-007 — Invite-Based User Creation
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing user-management behavior unless changes are required to support secure invite onboarding
+- Reuse existing token, email, and notifications patterns where appropriate
+- Keep backend, API, UI, and email-delivery concerns clearly separated
+- Include explicit fallback behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Prefer secure activation by invited user over admin-handled passwords
+- Preserve production security (no raw invite token exposure in production)
+- Preserve non-production usability
+
+---
+
+## FEATURE OBJECTIVE
+
+Replace the current admin-supplied password onboarding model with a secure invite-based user creation flow so tenant admins invite users by email and invited users set their own password through a secure activation link.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- SSO onboarding
+- Bulk invite/import
+- Product assignment
+- Group assignment
+- Tenant-scoped role redesign
+- Full auth architecture rewrite
+- Full self-service registration
+- Invite analytics/reporting UI
+- Page redesign
+- Changes to Groups / Access / Simulator tabs
+
+ONLY IMPLEMENT:
+- Invite-based Add User flow
+- Invite token/activation backend path using validated codebase patterns
+- Invite email delivery
+- Invite acceptance flow for end users
+- User-state handling required for invited/pending users
+- Minimal Users-page/UI adjustments needed to support invite onboarding
+- Resend invite only if it is cleanly supported by the validated architecture
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-007-report.md
+
+Initialize with:
+
+# LS-ID-TNT-007 — Invite-Based User Creation
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Add User Contract
+## 4. Existing Auth / Activation / Reset Token Analysis
+## 5. Existing User State / Login Behavior Analysis
+## 6. Existing Email / Notifications Reuse Analysis
+## 7. Invite Flow Design
+## 8. Invite State Model
+## 9. Files Changed
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 12. Frontend / UX Implementation
+## 13. Email Template / Content
+## 14. Audit / Observability
+## 15. Testing Results
+## 16. Known Issues / Gaps
+## 17. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Current Add User flow
+- Add User frontend modal
+- current create-user backend endpoint and request contract
+- whether password is currently mandatory in the backend
+- whether user records are created active by default
+- whether any user state flags already exist beyond `IsActive`
+
+### Current auth/reset flow
+- password reset token model and storage
+- reset-password confirm endpoint and handler
+- whether reset/activation could share the same token model
+- current login behavior for inactive users / uninitialized users
+- whether any activation/invite token model already exists
+
+### Current email infrastructure
+- notifications/email integration added in LS-ID-TNT-006
+- existing reset-email template and service-to-service call pattern
+- whether invite email can reuse the same notifications path
+
+### Current frontend acceptance routes
+- existing `/reset-password` route and confirm API
+- whether the same page can be safely reused for invite acceptance
+- whether a distinct `/accept-invite` route is needed
+
+### Optional resend capability
+- whether the backend already has any partial resend/token replacement behavior
+- whether resend can be implemented safely in-scope
+
+DO NOT assume any contract or behavior until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Add User Contract
+## 4. Existing Auth / Activation / Reset Token Analysis
+## 5. Existing User State / Login Behavior Analysis
+## 6. Existing Email / Notifications Reuse Analysis
+
+---
+
+## STEP 2 — DESIGN THE INVITE MODEL
+
+Based on actual findings, design the safest invite model.
+
+You must determine and document:
+
+- whether invites should use:
+  - a new invite token model, OR
+  - the existing password reset token model with a distinct purpose/state, OR
+  - an extension of the current reset-confirm flow
+- whether newly invited users should be:
+  - inactive until activation
+  - active but unable to authenticate without a password
+  - represented by a separate pending/invited state if supported
+- whether invite acceptance should:
+  - reuse the reset-password page/confirm handler
+  - use a dedicated accept-invite page/handler
+- whether resend-invite is safe to include now
+
+Preferred design principles:
+- minimize new concepts if existing reset-token architecture can be safely reused
+- invited users must not have a usable password before accepting
+- invited users must not be able to authenticate normally before activation
+- production must not expose raw invite tokens to normal callers
+- non-production may support explicit safe fallback if email is unavailable
+
+Update report:
+## 7. Invite Flow Design
+## 8. Invite State Model
+
+---
+
+## STEP 3 — IMPLEMENT BACKEND INVITE CREATION
+
+Modify the Add User backend path or add the minimum validated backend support required for invite-based creation.
+
+Requirements:
+- Admin no longer needs to set a password during invite-based onboarding
+- User is created in the chosen invite-safe state
+- An invite/activation token is generated and persisted
+- Existing tenant isolation and role assignment behavior remain intact
+- Duplicate email handling remains correct
+- No placeholder passwords or insecure defaults
+
+If the existing create-user endpoint cannot support invite creation cleanly:
+- implement the smallest safe backend extension necessary
+- document why it was needed
+
+Update report:
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+
+---
+
+## STEP 4 — IMPLEMENT INVITE EMAIL DELIVERY
+
+Use the validated notifications/email path from LS-ID-TNT-006.
+
+Requirements:
+- send a real invite email in production-capable environments
+- include a valid activation link
+- use environment-safe behavior
+- do not expose raw invite token in production responses
+- preserve non-production fallback only if needed and explicitly gated
+
+If delivery fails:
+- do not return false success
+- document whether the token is retained, revoked, or regenerated on retry
+
+Update report:
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 13. Email Template / Content
+
+---
+
+## STEP 5 — IMPLEMENT INVITE ACCEPTANCE FLOW
+
+Create or adapt the end-user activation path.
+
+Requirements:
+- Invited user opens activation link
+- User can set their password securely
+- Token is validated
+- Token becomes single-use or otherwise securely invalidated
+- Account becomes active/usable only after successful completion
+- Invalid/expired/reused token is handled clearly
+
+If the existing `/reset-password` route and confirm endpoint can be safely reused:
+- prefer reuse
+- adjust copy and logic minimally
+
+If reuse is not safe/clean:
+- implement the smallest coherent dedicated invite-accept flow
+
+Update report:
+## 10. Backend Implementation
+## 12. Frontend / UX Implementation
+
+---
+
+## STEP 6 — UPDATE ADD USER FRONTEND
+
+Update the existing Add User modal to support invite onboarding.
+
+Requirements:
+- remove the admin-entered password field if backend invite flow supports it
+- keep:
+  - First Name
+  - Last Name
+  - Email
+  - Role
+  - optional Phone only if supported
+- adjust CTA and success messaging appropriately, for example:
+  - “Send Invite”
+  - “Create & Send Invite”
+- preserve validation and overall layout consistency
+- do not redesign the Users page
+
+If non-production fallback returns a token/link:
+- surface it safely and explicitly using the existing modal/result patterns where appropriate
+
+Update report:
+## 12. Frontend / UX Implementation
+
+---
+
+## STEP 7 — HANDLE USER STATE AND LIST BEHAVIOR
+
+Make invited/pending users coherent in the Users page and auth behavior.
+
+Requirements:
+- document exactly how invited users appear in the list
+- ensure invited users do not authenticate before acceptance
+- if a new visible state is introduced, reflect it minimally and clearly
+- preserve existing list/search/filter/null-safe behavior
+- ensure activate/deactivate/edit/reset flows behave coherently with invited users
+
+If special handling is needed for invited users in row actions:
+- make only minimal changes required
+- document them clearly
+
+Update report:
+## 8. Invite State Model
+## 12. Frontend / UX Implementation
+
+---
+
+## STEP 8 — OPTIONAL RESEND INVITE (ONLY IF CLEANLY SUPPORTED)
+
+Implement resend invite ONLY if the validated architecture supports it safely without overreach.
+
+If implemented:
+- available only for still-invited/pending users
+- previous invite token must be invalidated or superseded if needed
+- avoid parallel active invites unless explicitly intended and documented
+- send accurate success/failure feedback
+
+If not implemented:
+- explicitly document why it was deferred
+
+Update report:
+## 10. Backend Implementation
+## 12. Frontend / UX Implementation
+## 16. Known Issues / Gaps
+
+---
+
+## STEP 9 — SECURITY, TENANT SAFETY, AND OBSERVABILITY
+
+Validate and ensure:
+- no cross-tenant invite leakage
+- invite sent only to the intended user email
+- no raw invite token exposure in production
+- invited users cannot authenticate before acceptance
+- acceptance binds correctly to the intended user/token
+- no weakening of password reset or other auth flows
+- audit/observability is sufficient for:
+  - invite created
+  - invite accepted
+  - invite failed or invalid/expired, if tracked
+
+Document any new audit events or logs.
+
+Update report:
+## 14. Audit / Observability
+## 15. Testing Results
+
+---
+
+## STEP 10 — TESTING
+
+Test and document each scenario.
+
+### Invite creation
+- Admin opens Add User
+- Enters valid user details
+- Invite sends successfully
+- Correct success message displayed
+- Email contains valid activation link
+
+### Invite acceptance
+- Invited user opens link
+- Sets password successfully
+- Account becomes active/usable
+- Login succeeds afterward
+
+### Failure cases
+- Email delivery failure
+- Invalid email
+- Duplicate existing user
+- Expired invite token
+- Invalid invite token
+- Reused invite token
+- Unauthorized tenant/admin attempt
+
+### Non-production
+- Safe fallback path works if email delivery unavailable
+- No production token exposure regression
+
+### Regression
+- Users list still loads
+- Search/filter still work
+- Edit/status/reset still work
+- Last-admin protection still works
+- Password reset flow still works
+- Null-safe rendering remains intact
+
+Update report:
+## 15. Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 16. Known Issues / Gaps
+## 17. Final Status = Complete
+
+Your final report must clearly state:
+- What invite model was implemented
+- Whether invite uses a new token model or reuses the reset-token model
+- How invited user state is represented
+- Whether invited users can authenticate before acceptance
+- Where activation link construction occurs
+- What the Add User API/UI now do
+- Whether resend invite was implemented or deferred
+- What remaining onboarding/security gaps still exist
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Add User no longer requires admin-entered password if invite-based onboarding is implemented
+✔ Creating a user sends an invite email in production-capable environments
+✔ Invite email contains a valid activation link
+✔ Invited user can activate account through the link and set their password
+✔ Invited user cannot authenticate normally before activation, unless explicitly intended and documented
+✔ Invite acceptance activates the user account successfully
+✔ Invalid or expired invite links are handled clearly
+✔ No raw invite token is exposed in production responses
+✔ No regression to LS-ID-TNT-001 through LS-ID-TNT-006
+✔ Invite behavior, state model, and delivery path are clearly documented in the report
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working invite-based user creation flow
+2. Working invite acceptance flow
+3. Compatible frontend handling for invite onboarding
+4. Completed report:
+/analysis/LS-ID-TNT-007-report.md
+
+---
+
+END OF IMPLEMENTATION

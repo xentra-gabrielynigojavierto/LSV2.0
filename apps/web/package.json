@@ -1,0 +1,42 @@
+{
+  "name": "legalsynq-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "start": "next start -p 3000",
+    "type-check": "tsc --noEmit",
+    "test": "tsx --test src/lib/__tests__/*.test.ts && vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:update-snapshots": "playwright test --update-snapshots",
+    "playwright:install": "playwright install chromium --with-deps",
+    "playwright:install:custom-path": "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH playwright install chromium --with-deps"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/google.maps": "^3.64.0"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.21",
+    "leaflet": "^1.9.4",
+    "next": "15.5.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "remixicon": "^4.9.1"
+  },
+  "overrides": {
+    "file-type": "^22.0.1",
+    "fast-xml-parser": "^5.7.1",
+    "uuid": "^11.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "next": "^15.5.15",
+      "file-type": "^22.0.1",
+      "fast-xml-parser": "^5.7.1",
+      "uuid": "^11.0.5"
+    }
+  }
+}

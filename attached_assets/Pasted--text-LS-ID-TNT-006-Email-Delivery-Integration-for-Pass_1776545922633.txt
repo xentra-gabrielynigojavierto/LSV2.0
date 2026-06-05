@@ -1,0 +1,386 @@
+```text
+# LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental hardening/completion feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing user-management behavior unless changes are required to align with real delivery behavior
+- Reuse existing notifications/email infrastructure if available
+- Keep backend, API, email delivery, and UI concerns clearly separated
+- Include explicit fallback behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Preserve production security (no raw reset token exposure in production)
+- Preserve non-production usability
+
+---
+
+## FEATURE OBJECTIVE
+
+Integrate the Identity service password reset flow with a real email delivery path so password reset becomes operational for actual users in production-capable environments, while preserving the safe environment-gated fallback already established in LS-ID-TNT-005.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Invite-based onboarding
+- First-login password reset enforcement unless it already exists and is trivially exposable
+- Bulk email system redesign
+- General notifications platform rewrite
+- Product assignment
+- Group assignment
+- Tenant-scoped role redesign
+- Audit dashboard UI
+- Full auth flow redesign
+- Page redesign
+- Changes to Groups / Access / Simulator tabs
+
+ONLY IMPLEMENT:
+- Password reset email delivery integration
+- Reset link construction using validated config/patterns
+- Email template/content for reset emails
+- Delivery failure handling
+- Environment-appropriate behavior:
+  - production uses secure delivery behavior
+  - non-production keeps safe fallback if needed
+- Minimal frontend alignment only where needed to reflect actual backend result truthfully
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-006-report.md
+
+Initialize with:
+
+# LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Reset Password Contract
+## 4. Existing Reset Link / Frontend Route Analysis
+## 5. Existing Notifications / Email Infrastructure Analysis
+## 6. Delivery Integration Design
+## 7. Environment Strategy
+## 8. Files Changed
+## 9. Backend Implementation
+## 10. Email Template / Content
+## 11. API / Error Contract Changes
+## 12. Frontend Compatibility Adjustments
+## 13. Audit / Observability
+## 14. Testing Results
+## 15. Known Issues / Gaps
+## 16. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Identity reset flow
+- admin reset-password endpoint and handler
+- reset token generation/storage
+- token expiry
+- current production vs non-production response behavior
+- any audit events emitted
+
+### Frontend reset UX
+- current row-action reset flow
+- current reset link modal / non-production flow
+- actual end-user reset-password route and expected query params
+- any shared config for frontend base URL / app URL
+
+### Notifications / email infrastructure
+- notifications service email capabilities
+- existing email template patterns
+- any service-to-service integration pattern already used in the platform
+- whether identity can call notifications directly
+- whether a shared event/job queue exists
+- whether a common HTTP client / internal auth mechanism exists
+- how environment/config values are managed
+
+DO NOT assume the integration mechanism until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Reset Password Contract
+## 4. Existing Reset Link / Frontend Route Analysis
+## 5. Existing Notifications / Email Infrastructure Analysis
+
+---
+
+## STEP 2 — DESIGN DELIVERY INTEGRATION
+
+Based on actual findings, design the safest and most coherent integration path.
+
+Determine and document:
+- whether Identity should call Notifications directly
+- whether an internal HTTP call / message / shared library already exists
+- where reset link construction should occur:
+  - Identity
+  - Notifications
+  - BFF
+  - shared configuration/util
+- what payload Notifications needs
+- what configuration is required for base URL / branding / email sender
+- whether delivery success/failure should affect the reset-password API response
+
+Preferred design principles:
+- reuse platform-standard notifications/email path
+- keep production secure
+- keep non-production testable
+- avoid leaking raw secrets to normal callers
+- avoid duplicating email logic across services
+
+Update report:
+## 6. Delivery Integration Design
+## 7. Environment Strategy
+
+---
+
+## STEP 3 — IMPLEMENT BACKEND EMAIL DELIVERY INTEGRATION
+
+Implement the actual reset-email dispatch path using the validated architecture.
+
+Requirements:
+- admin reset-password must trigger email delivery in production-capable environments
+- use existing notifications/email infrastructure if available
+- pass only the required information to send the email
+- preserve tenant safety and correct target-user behavior
+- avoid exposing raw reset token in production API responses
+- avoid relying on server logs as the only delivery mechanism
+
+If a service-to-service call is required:
+- use existing internal service patterns/config where possible
+- handle failures explicitly
+- do not silently swallow delivery failures
+
+Update report:
+## 9. Backend Implementation
+## 11. API / Error Contract Changes
+## 13. Audit / Observability
+
+---
+
+## STEP 4 — IMPLEMENT RESET LINK CONSTRUCTION
+
+Ensure the email contains the correct user-facing reset link.
+
+Requirements:
+- use the actual reset-password route already supported by the app
+- use environment-appropriate base URL configuration
+- do NOT hardcode localhost or environment-specific URLs in business logic
+- construct the link safely with the required token (and any other required parameters only if the current reset flow needs them)
+
+Document:
+- where the reset link is built
+- what config key(s) are used
+- how the behavior differs by environment if applicable
+
+Update report:
+## 6. Delivery Integration Design
+## 9. Backend Implementation
+## 10. Email Template / Content
+
+---
+
+## STEP 5 — IMPLEMENT EMAIL TEMPLATE / CONTENT
+
+Create or reuse a production-suitable reset email template.
+
+Minimum content:
+- clear explanation that a password reset was requested
+- reset call-to-action with link/button
+- expiration or validity period if supported by current token model
+- guidance to ignore the email if not expected
+- LegalSynq/platform-consistent branding if supported by current template system
+
+Requirements:
+- keep content professional and actionable
+- align with existing email style if one exists
+- avoid exposing unnecessary technical details
+
+Update report:
+## 10. Email Template / Content
+
+---
+
+## STEP 6 — DEFINE ENVIRONMENT-SAFE RESPONSE BEHAVIOR
+
+Preserve secure production behavior while keeping non-production usable.
+
+Requirements:
+- Production:
+  - no raw reset token exposure to normal API callers
+  - success response must reflect actual delivery outcome
+- Non-production:
+  - safe fallback may remain if email is unavailable or intentionally bypassed
+  - if `resetToken` or `resetLink` is returned, it must remain explicitly environment-gated
+  - behavior must be documented clearly
+
+Do NOT claim “email sent” unless dispatch actually succeeded.
+Do NOT regress the secure behavior established in LS-ID-TNT-005.
+
+Update report:
+## 7. Environment Strategy
+## 11. API / Error Contract Changes
+
+---
+
+## STEP 7 — HANDLE DELIVERY FAILURES EXPLICITLY
+
+Implement and document explicit failure handling.
+
+Requirements:
+- if email delivery fails, backend must not return false success
+- frontend must be able to surface a meaningful failure message
+- determine and document what happens to the created reset token when delivery fails:
+  - retained
+  - revoked
+  - retried
+  - regenerated on next attempt
+
+This decision must be explicit and consistent with the actual implementation.
+
+Update report:
+## 9. Backend Implementation
+## 11. API / Error Contract Changes
+## 15. Known Issues / Gaps
+
+---
+
+## STEP 8 — ALIGN FRONTEND WITH BACKEND TRUTH (MINIMAL CHANGES ONLY)
+
+Update the existing frontend only as needed to reflect actual delivery behavior.
+
+Requirements:
+- keep the current row-action reset flow intact
+- if production success messaging changes, update it
+- if non-production fallback now returns a link/token, keep or refine the existing reset-link modal behavior
+- if delivery can fail with a structured backend message, surface it cleanly
+- do not redesign the Users page
+
+Potential updates:
+- success toast wording
+- reset-link modal behavior
+- error messaging based on actual backend response shape
+
+Update report:
+## 12. Frontend Compatibility Adjustments
+
+---
+
+## STEP 9 — TENANT SAFETY AND OBSERVABILITY
+
+Validate and ensure:
+- no cross-tenant reset-email leakage
+- email is sent only to the intended user email address
+- no raw token exposure in production responses
+- logs/observability are sufficient to diagnose delivery behavior without exposing secrets unnecessarily
+- audit behavior remains correct
+- if new delivery success/failure events are added, document them clearly
+
+Update report:
+## 13. Audit / Observability
+## 14. Testing Results
+
+---
+
+## STEP 10 — TESTING
+
+Test and document each scenario.
+
+### Delivery success
+- Admin triggers reset for active user in an email-enabled environment
+- Email dispatch succeeds
+- Email contains valid reset link
+- Reset link opens the correct reset-password flow
+- Reset token works as expected
+
+### Delivery failure
+- Email service unavailable
+- Email dispatch failure
+- Target user email missing/invalid if such scenario is possible
+- Backend returns failure, not false success
+- Frontend surfaces failure correctly
+
+### Environment behavior
+- Production-mode response does not expose raw reset token
+- Non-production response remains safe and usable
+- Existing non-production reset-link workflow still works if applicable
+
+### Regression
+- Users list still loads
+- Search/filter still work
+- Add User still works
+- Edit User still works
+- Activate/Deactivate still works
+- Last-admin protection still works
+- Reset password row action still works end to end
+- Null-safe rendering remains intact
+
+Update report:
+## 14. Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 15. Known Issues / Gaps
+## 16. Final Status = Complete
+
+Your final report must clearly state:
+- What delivery integration path was implemented
+- Whether Identity now sends email directly or via Notifications
+- Where reset link construction occurs
+- What the reset-password API response looks like by environment
+- Whether delivery failure blocks success response
+- What remaining infrastructure or operational gaps still exist
+- Whether any production fallback risk remains
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Admin-triggered password reset sends a real reset email in production-capable environments
+✔ Production reset API response does not expose raw reset tokens
+✔ Non-production fallback remains safe and usable
+✔ Reset email contains a valid reset link
+✔ Reset email content is clear and production-appropriate
+✔ If email delivery fails, backend does not return false success
+✔ Frontend surfaces real success/failure outcomes cleanly
+✔ No regression to LS-ID-TNT-001 through LS-ID-TNT-005
+✔ Tenant safety and reset-token security remain intact
+✔ Delivery behavior is clearly documented in the report
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working password reset email delivery integration
+2. Compatible frontend handling for real delivery results
+3. Completed report:
+/analysis/LS-ID-TNT-006-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

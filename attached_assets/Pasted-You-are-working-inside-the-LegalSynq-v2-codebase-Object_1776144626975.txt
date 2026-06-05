@@ -1,0 +1,275 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the first real Liens HTTP APIs for Case so the `liens` service can expose database-backed case operations through the existing v2 gateway and authorization model.
+
+This feature should replace stub behavior with real case endpoints backed by the current repository/application architecture.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Keep authorization in the API/filter layer
+- Keep business logic in the application layer
+- Keep persistence logic in repositories
+- Do NOT introduce cross-service DB joins
+- Do NOT trust client-supplied tenant/org identifiers when request context already provides them
+
+--------------------------------------------------
+STEP 1 — INSPECT CURRENT LIENS API + APPLICATION PATTERNS
+--------------------------------------------------
+
+Inspect the current Liens minimal API structure and how existing v2 services expose real APIs.
+
+Look at:
+- current Liens endpoint style
+- current use of `RequireProductAccess` and `RequirePermission`
+- how request context is accessed
+- whether DTOs live in Api or Application in the current pattern
+- whether create/update operations use dedicated application services or lightweight endpoint orchestration
+
+Follow the existing v2 pattern as closely as possible.
+Do NOT invent a new API structure for Liens.
+
+--------------------------------------------------
+STEP 2 — IMPLEMENT CASE DTOs
+--------------------------------------------------
+
+Create request/response DTOs for Case operations.
+
+At minimum support:
+
+### Response DTO
+Fields should cover practical case UI needs such as:
+- `id`
+- `caseNumber`
+- `title`
+- `clientFirstName`
+- `clientLastName`
+- `clientDisplayName` (if useful)
+- `status`
+- `dateOfIncident`
+- `clientDob`
+- `clientPhone`
+- `clientEmail`
+- `clientAddress`
+- `insuranceCarrier`
+- `policyNumber`
+- `claimNumber`
+- `demandAmount`
+- `settlementAmount`
+- `notes`
+- `openedAtUtc`
+- `closedAtUtc`
+- `createdAtUtc`
+- `updatedAtUtc`
+
+### List/Search response
+Support paginated result shape:
+- items
+- page
+- pageSize
+- totalCount
+
+### Create request DTO
+Only include fields the client should supply.
+Do NOT allow:
+- `TenantId`
+- audit fields
+- direct ownership fields that should come from request context
+
+### Update request DTO
+Include only mutable fields.
+Do NOT allow mutation of fields that should remain system-controlled.
+
+Preserve donor compatibility as much as practical while staying v2-clean.
+
+--------------------------------------------------
+STEP 3 — ADD APPLICATION SERVICE OR HANDLER FOR CASE OPERATIONS
+--------------------------------------------------
+
+Implement the application-layer orchestration needed for:
+
+- list/search cases
+- get case by id
+- get case by case number
+- create case
+- update case
+
+Use the existing repository layer:
+- `ICaseRepository`
+- related repositories only if actually needed
+
+Keep endpoint handlers thin.
+Do NOT put domain/repository orchestration inline in the endpoint methods if the platform pattern favors services.
+
+Expected behaviors:
+- tenant-scoped access
+- org-aware access where applicable
+- use domain creation/update methods instead of direct field mutation where possible
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT REAL CASE ENDPOINTS
+--------------------------------------------------
+
+Add/replace the Liens Case endpoints so they expose real database-backed behavior.
+
+Expected external routes:
+- `GET /api/liens/cases`
+- `GET /api/liens/cases/{id}`
+- `GET /api/liens/cases/by-number/{caseNumber}`
+- `POST /api/liens/cases`
+- `PUT /api/liens/cases/{id}`
+
+If the service-internal route shape differs due to current conventions, preserve the external contract through the gateway-facing pattern.
+
+### List/Search endpoint
+Support query parameters such as:
+- `search`
+- `status`
+- `page`
+- `pageSize`
+
+### Get endpoints
+- by id
+- by case number
+
+### Create endpoint
+- create a real `Case`
+- use request context for tenant/user/org values where appropriate
+
+### Update endpoint
+- load case
+- apply allowed updates
+- persist via repository/application layer
+
+--------------------------------------------------
+STEP 5 — APPLY AUTHORIZATION USING EXISTING FILTERS
+--------------------------------------------------
+
+Protect the endpoints using the existing auth model:
+- `RequireProductAccess`
+- `RequirePermission`
+
+Do NOT invent a new auth mechanism.
+
+Use the closest correct current Liens permissions.
+If the permission model is slightly coarse-grained for case-specific actions, document the gap in the report instead of creating a new parallel model.
+
+--------------------------------------------------
+STEP 6 — USE REQUEST CONTEXT CORRECTLY
+--------------------------------------------------
+
+Use `ICurrentRequestContext` (or current platform equivalent) to get:
+- tenant id
+- acting user id
+- org id / org context if needed
+
+Do NOT trust client-supplied:
+- tenant id
+- acting user id
+- org id for ownership-scoped operations
+
+All create/update actions must derive these values from the authenticated request context where appropriate.
+
+--------------------------------------------------
+STEP 7 — KEEP API / APP / PERSISTENCE BOUNDARIES CLEAN
+--------------------------------------------------
+
+Do NOT:
+- return EF entities directly
+- put repository logic directly into endpoint handlers if the application-service pattern is preferred
+- join to Identity/Documents/Audit tables
+- add unrelated Lien, Offer, or BOS APIs in this feature
+
+This feature is only for Case APIs.
+
+--------------------------------------------------
+STEP 8 — VALIDATE REAL EXECUTION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. endpoints compile and resolve
+4. list/search returns expected DTO shape
+5. get-by-id works
+6. get-by-case-number works
+7. create persists correctly
+8. update persists correctly
+9. authorization filters remain applied
+10. no regression to gateway behavior
+
+If you add a lightweight validation path or temporary smoke-test support, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 9 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add Lien APIs
+- add LienOffer APIs
+- add BillOfSale APIs
+- add ServicingTask APIs
+- add CaseNote APIs
+- add cross-service enrichment for org/user/document names
+- add audit/notifications/documents integration
+- add frontend work
+- add ETL scripts
+
+This feature is only:
+- Case DTOs
+- Case application logic
+- Case endpoints
+- validation
+
+--------------------------------------------------
+STEP 10 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-06-001-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing Liens/v2 API pattern identified and followed
+3. Exact files created/changed
+4. DTOs added
+5. Application services/handlers added
+6. Endpoint list and routes
+7. Repository interactions
+8. Authorization approach used
+9. Request-context usage
+10. Donor API compatibility notes
+11. Validation performed
+12. Confirmation:
+    - no EF entities returned directly
+    - no cross-service joins introduced
+    - no unrelated APIs added
+13. Build results:
+    - Liens
+    - relevant solution/workspace
+14. Any permission-model gaps or deferred items
+15. Risks / assumptions
+16. Final readiness statement:
+    - Are real Case APIs established?
+    - Is the system ready for Lien APIs next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Expose the first real production-ready Liens API surface by implementing authorized, database-backed Case APIs that fit the current v2 architecture cleanly.
+
+Proceed.

@@ -1,0 +1,348 @@
+# LS-COR-AUT-009 — Permission / Capability Layer
+
+## Objective
+
+Evolve LS-COR-AUT from **role-based access control (RBAC)** into a **permission-driven authorization system** by introducing:
+
+* permission catalog
+* role → permission mapping
+* capability-based enforcement (fine-grained)
+* optional UI for permission visibility
+
+At completion, the system must support:
+
+```text
+User → Roles → Permissions → Capabilities → Enforcement
+```
+
+Without breaking existing role-based enforcement.
+
+---
+
+## Architectural Principles
+
+### Backward Compatibility
+
+* Existing role-based enforcement MUST continue to work
+* Permissions are **additive**, not a replacement (yet)
+
+### Layered Authorization
+
+* Roles remain the assignment mechanism
+* Permissions become the enforcement mechanism
+
+### Separation of Concerns
+
+* Roles = grouping mechanism
+* Permissions = execution authority
+
+---
+
+## In Scope
+
+---
+
+## 1. Permission Catalog
+
+### Create Entity
+
+`Permission`
+
+Fields:
+
+* `Id`
+* `PermissionCode` (string, unique)
+* `Name`
+* `Description`
+* `ProductCode`
+* `Category` (optional grouping)
+* `IsActive`
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+
+---
+
+### Example Permissions
+
+```text
+SYNQ_FUND.CREATE_APPLICATION
+SYNQ_FUND.SUBMIT_APPLICATION
+SYNQ_FUND.APPROVE_APPLICATION
+SYNQ_CARECONNECT.VIEW_PROVIDER
+SYNQ_CARECONNECT.MANAGE_REFERRAL
+```
+
+---
+
+## 2. Role → Permission Mapping
+
+### Create Entity
+
+`RolePermission`
+
+Fields:
+
+* `Id`
+* `RoleCode`
+* `PermissionCode`
+* `ProductCode`
+* `IsActive`
+
+---
+
+### Rules
+
+* Role must belong to product
+* Permission must belong to same product
+* Prevent cross-product mapping
+
+---
+
+## 3. Permission Resolution
+
+### Extend Effective Access
+
+Update `IEffectiveAccessService`:
+
+Add:
+
+```csharp
+List<string> Permissions
+```
+
+---
+
+### Resolution Logic
+
+Permissions are derived from:
+
+```text
+UserRoles (direct + group)
+→ RolePermission mapping
+→ Effective Permissions
+```
+
+---
+
+### Output Example
+
+```json
+{
+  "permissions": [
+    "SYNQ_FUND.CREATE_APPLICATION",
+    "SYNQ_FUND.SUBMIT_APPLICATION"
+  ]
+}
+```
+
+---
+
+## 4. JWT Claim Extension
+
+### Add New Claim
+
+```text
+permissions
+```
+
+---
+
+### Format
+
+```json
+[
+  "SYNQ_FUND.CREATE_APPLICATION",
+  "SYNQ_FUND.SUBMIT_APPLICATION"
+]
+```
+
+---
+
+### Rules
+
+* Keep `product_roles` unchanged
+* Add `permissions` as new claim
+* Maintain backward compatibility
+
+---
+
+## 5. Permission-Based Filters
+
+### New Filter
+
+```csharp
+RequirePermissionFilter
+```
+
+---
+
+### Usage
+
+```csharp
+[Authorize(Policy = "RequirePermission:SYNQ_FUND.CREATE_APPLICATION")]
+```
+
+---
+
+### Behavior
+
+* check `permissions` claim
+* fallback to role-based check (optional, configurable)
+
+---
+
+## 6. Policy Registration
+
+Add policy builder:
+
+```csharp
+RequirePermission(product, permission)
+```
+
+---
+
+### Example
+
+```csharp
+.RequirePermission("SYNQ_FUND.CREATE_APPLICATION")
+```
+
+---
+
+## 7. Enforcement Strategy
+
+### Phase 1 (this feature)
+
+* introduce permission-based enforcement
+* keep role-based enforcement active
+
+### Phase 2 (future)
+
+* migrate endpoints gradually to permissions
+
+---
+
+## 8. Admin UI — Permission Visibility (Read-Only)
+
+### Extend User Detail Page
+
+Add section:
+
+**Permissions**
+
+Display:
+
+* permission code
+* product
+* source:
+
+  * via role
+  * via group
+
+---
+
+### Extend Group Page
+
+Show:
+
+* permissions granted via roles
+
+---
+
+## 9. Permission Catalog API
+
+### Endpoints
+
+* `GET /api/permissions`
+* `GET /api/products/{productCode}/permissions`
+
+---
+
+## 10. Validation Rules
+
+* permission must belong to product
+* role-permission mapping must match product
+* duplicate mapping prevented
+
+---
+
+## 11. Testing Requirements
+
+### Unit Tests
+
+* permission resolution from roles
+* cross-product validation
+* duplicate prevention
+
+---
+
+### Integration Tests
+
+* login includes permissions claim
+* permission-based enforcement works
+* role-based fallback still works
+
+---
+
+### Security Tests
+
+* invalid permission rejected
+* missing permission denied
+
+---
+
+## Acceptance Criteria
+
+* permission catalog exists
+* role → permission mapping exists
+* effective access includes permissions
+* JWT includes `permissions` claim
+* permission-based policies work
+* UI shows permissions
+* no breaking changes to role-based system
+
+---
+
+## Implementation Notes
+
+* do NOT over-engineer hierarchy yet
+* do NOT remove roles
+* permissions should be flat initially
+* keep system extensible
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+/analysis/LS-COR-AUT-009-report.md
+
+---
+
+### Report must include:
+
+1. permission model implemented
+2. role-permission mapping details
+3. JWT changes
+4. filter/policy implementation
+5. UI changes
+6. test results
+7. build status
+8. known gaps
+9. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+LS-COR-AUT must support:
+
+* role-based access (existing)
+* permission-based access (new)
+* fine-grained authorization
+* future capability expansion
+
+Transitioning from RBAC → PBAC without breaking the system.

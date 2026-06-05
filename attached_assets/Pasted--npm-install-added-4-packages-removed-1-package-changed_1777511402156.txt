@@ -1,0 +1,938 @@
+--> npm install
+
+
+added 4 packages, removed 1 package, changed 113 packages, and audited 237 packages in 7s
+
+49 packages are looking for funding
+
+  run `npm fund` for details
+
+
+2 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.13.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+npm notice To update run: npm install -g npm@11.13.0
+npm notice
+
+2026-04-30T01:01:55Z info: Starting Build
+[pnpm-restore] Restoring pnpm-managed node_modules after npm install...
+
+Lockfile is up to date, resolution step is skipped
+
+Already up to date
+
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.26.1 → 10.33.2.   │
+   │   Changelog: https://pnpm.io/v/10.33.2   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+
+
+dependencies:
++ @playwright/test 1.59.1
++ @tailwindcss/postcss 4.2.2
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @testing-library/user-event 14.6.1
++ @types/node 25.5.0
++ @types/react 18.3.28
++ @types/react-dom 18.3.7
++ @types/testing-library__jest-dom 5.14.9
++ @vitejs/plugin-react 6.0.1
++ autoprefixer 10.4.27
++ clsx 2.1.1
++ jose 6.2.2
++ jsdom 29.0.2
++ leaflet 1.9.4
++ lucide-react 1.7.0
++ mysql2 3.22.1
++ next 15.5.15
++ postcss 8.5.8
++ react 18.3.1
++ react-dom 18.3.1
++ react-leaflet 4.2.1
++ remixicon 4.9.1
++ tailwindcss 4.2.2
++ typescript 6.0.2
++ vitest 4.1.5
++ zustand 5.0.12
+
+devDependencies:
++ @types/leaflet 1.9.21
++ tsx 4.21.0
+
+
+Done in 4.8s using pnpm v10.26.1
+
+[pnpm-restore] Done
+
+Using next binary: /home/runner/workspace/node_modules/next/dist/bin/next
+====== Pre-build disk cleanup ======
+
+[pre-cleanup] Removing git history...
+
+[pre-cleanup] Removing archived files...
+
+[pre-cleanup] Removing analysis/exports/downloads...
+
+[pre-cleanup] Removing attached_assets...
+
+[pre-cleanup] Removing Replit agent/workflow state...
+
+[pre-cleanup] Done
+====== Building web app ======
+
+[dedup] Linked apps/web/node_modules/next → /home/runner/workspace/node_modules/.pnpm/next@15.5.15_@playwright+test@1.59.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+   ▲ Next.js 15.5.15
+
+   - Environments: .env.local, .env.production
+   - Experiments (use with caution):
+     · serverActions
+     ⨯ webpackBuildWorker
+     ✓ webpackMemoryOptimizations
+
+   Creating an optimized production build ...
+
+ ✓ Compiled successfully in 25.1s
+
+   Linting and checking validity of types ...
+
+   Collecting page data ...
+
+   Generating static pages (0/22) ...
+
+   Generating static pages (5/22) 
+
+   Generating static pages (10/22) 
+   Generating static pages (16/22) 
+ ✓ Generating static pages (22/22)
+
+   Finalizing page optimization ...
+
+   Collecting build traces ...
+
+Route (app)                                                 Size  First Load JS
+┌ ƒ /                                                      264 B         103 kB
+├ ƒ /_not-found                                            264 B         103 kB
+├ ƒ /.well-known/tenant-verify                             264 B         103 kB
+├ ƒ /accept-invite                                       2.77 kB         111 kB
+├ ƒ /access-denied                                         240 B         106 kB
+├ ƒ /activity                                              264 B         103 kB
+├ ƒ /admin/organizations                                   264 B         103 kB
+├ ƒ /admin/products                                        264 B         103 kB
+├ ƒ /admin/tenants                                         264 B         103 kB
+├ ƒ /admin/users                                         1.89 kB         105 kB
+├ ƒ /ai/dashboard                                          264 B         103 kB
+├ ƒ /api/admin/branding-metrics                            264 B         103 kB
+├ ƒ /api/audit/[...path]                                   264 B         103 kB
+├ ƒ /api/auth/accept-invite                                264 B         103 kB
+├ ƒ /api/auth/change-password                              264 B         103 kB
+├ ƒ /api/auth/forgot-password                              264 B         103 kB
+├ ƒ /api/auth/login                                        264 B         103 kB
+├ ƒ /api/auth/logout                                       264 B         103 kB
+├ ƒ /api/auth/me                                           264 B         103 kB
+├ ƒ /api/auth/reset-password                               264 B         103 kB
+├ ƒ /api/branding/logo/[docId]                             264 B         103 kB
+├ ƒ /api/branding/logo/public                              264 B         103 kB
+├ ƒ /api/careconnect/[...path]                             264 B         103 kB
+├ ƒ /api/flow/[...path]                                    264 B         103 kB
+├ ƒ /api/fund/[...path]                                    264 B         103 kB
+├ ƒ /api/geocode/address                                   264 B         103 kB
+├ ƒ /api/health                                            264 B         103 kB
+├ ƒ /api/identity/[...path]                                264 B         103 kB
+├ ƒ /api/lien/[...path]                                    264 B         103 kB
+├ ƒ /api/notifications/list                                264 B         103 kB
+├ ƒ /api/notifications/stats                               264 B         103 kB
+├ ƒ /api/org-config                                        264 B         103 kB
+├ ƒ /api/profile/avatar                                    264 B         103 kB
+├ ƒ /api/profile/avatar/[id]                               264 B         103 kB
+├ ƒ /api/profile/phone                                     264 B         103 kB
+├ ƒ /api/public/careconnect/[...path]                      264 B         103 kB
+├ ƒ /api/support/[...path]                                 264 B         103 kB
+├ ƒ /api/tenant-branding                                   264 B         103 kB
+├ ○ /apple-icon.png                                          0 B            0 B
+├ ƒ /careconnect/admin/activations                         240 B         106 kB
+├ ƒ /careconnect/admin/activations/[id]                  1.56 kB         108 kB
+├ ƒ /careconnect/admin/analytics/activation                693 B         107 kB
+├ ƒ /careconnect/admin/dashboard                           240 B         106 kB
+├ ƒ /careconnect/admin/performance                         240 B         106 kB
+├ ƒ /careconnect/admin/providers/blocked                   240 B         106 kB
+├ ƒ /careconnect/admin/providers/provisioning            2.68 kB         105 kB
+├ ƒ /careconnect/admin/referrals                           240 B         106 kB
+├ ƒ /careconnect/appointments                              176 B         106 kB
+├ ƒ /careconnect/appointments/[id]                       3.81 kB         118 kB
+├ ƒ /careconnect/dashboard                               1.25 kB         107 kB
+├ ƒ /careconnect
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+====== Building control center ======
+
+[control-center] Own next binary not found, falling back to root binary
+[control-center] Using next binary: /home/runner/workspace/node_modules/next/dist/bin/next
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+This information is used to shape Next.js' roadmap and prioritize features.
+
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+   ▲ Next.js 15.5.15
+
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+
+   Creating an optimized production build ...
+
+ ✓ Compiled successfully in 16.3s
+
+   Linting and checking validity of types ...
+
+   Collecting page data ...
+
+   Generating static pages (0/17) ...
+
+   Generating static pages (4/17) 
+
+   Generating static pages (8/17) 
+   Generating static pages (12/17) 
+
+ ✓ Generating static pages (17/17)
+
+   Finalizing page optimization ...
+
+   Collecting build traces ...
+
+Route (app)                                                                   Size  First Load JS
+┌ ƒ /                                                                      1.59 kB         116 kB
+├ ƒ /_not-found                                                              323 B         102 kB
+├ ƒ /access-groups/[tenantId]/[groupId]                                    3.84 kB         118 kB
+├ ƒ /analytics                                                               208 B         114 kB
+├ ƒ /api/access-groups/[tenantId]                                            323 B         102 kB
+├ ƒ /api/access-groups/[tenantId]/[groupId]                                  323 B         102 kB
+├ ƒ /api/access-groups/[tenantId]/[groupId]/members                          323 B         102 kB
+├ ƒ /api/access-groups/[tenantId]/[groupId]/members/[userId]                 323 B         102 kB
+├ ƒ /api/access-groups/[tenantId]/[groupId]/products/[productCode]           323 B         102 kB
+├ ƒ /api/access-groups/[tenantId]/[groupId]/roles                            323 B         102 kB
+├ ƒ /api/access-groups/[tenantId]/[groupId]/roles/[assignmentId]             323 B         102 kB
+├ ƒ /api/admin/outbox                                                        323 B         102 kB
+├ ƒ /api/admin/outbox/[id]                                                   323 B         102 kB
+├ ƒ /api/admin/outbox/[id]/retry                                             323 B         102 kB
+├ ƒ /api/admin/outbox/summary                                                323 B         102 kB
+├ ƒ /api/admin/users/[userId]/avatar/[docId]                                 323 B         102 kB
+├ ƒ /api/admin/workflow-instances/[id]/[action]                              323 B         102 kB
+├ ƒ /api/admin/workflow-instances/[id]/timeline                              323 B         102 kB
+├ ƒ /api/auth/login                                                          323 B         102 kB
+├ ƒ /api/auth/logout                                                         323 B         102 kB
+├ ƒ /api/geocode/address                                                     323 B         102 kB
+├ ƒ /api/health                                                              323 B         102 kB
+├ ƒ /api/identity/admin/permissions                                          323 B         102 kB
+├ ƒ /api/identity/admin/roles                                                323 B         102 kB
+├ ƒ /api/identity/admin/roles/[id]/permissions                               323 B         102 kB
+├ ƒ /api/identity/admin/roles/[id]/permissions/[capabilityId]                323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/activate                                  323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/activity                                  323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/assignable-roles                          323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/cancel-invite                             323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/deactivate                                323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/force-logout                              323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/lock                                      323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/memberships                               323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/memberships/[membershipId]                323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/memberships/[membershipId]/set-primary    323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/permissions                               323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/phone                                     323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/resend-invite                             323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/reset-password                            323 B         102 kB
+├ ƒ /api/identity/admin/users/[id]/roles                                     3
+ƒ  (Dynamic)  server-rendered on demand
+
+
+====== Building .NET services ======
+
+[dotnet] Restoring packages...
+
+  Determining projects to restore...
+
+  Restored /home/runner/workspace/apps/services/liens/Liens.Domain/Liens.Domain.csproj (in 2.96 sec).
+
+  Restored /home/runner/workspace/apps/services/liens/Liens.Application/Liens.Application.csproj (in 2.96 sec).
+
+  Restored /home/runner/workspace/apps/services/comms/Comms.Infrastructure/Comms.Infrastructure.csproj (in 509 ms).
+
+  Restored /home/runner/workspace/apps/services/identity/Identity.Infrastructure/Identity.Infrastructure.csproj (in 3.69 sec).
+
+  Restored /home/runner/workspace/apps/services/comms/Comms.Tests/Comms.Tests.csproj (in 738 ms).
+
+  Restored /home/runner/workspace/apps/services/liens/Liens.Infrastructure/Liens.Infrastructure.csproj (in 3.89 sec).
+
+  Restored /home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj (in 3.9 sec).
+
+  Restored /home/runner/workspace/apps/services/tenant/Tenant.Application/Tenant.Application.csproj (in 115 ms).
+
+  Restored /home/runner/workspace/apps/services/identity/Identity.Tests/Identity.Tests.csproj (in 4.32 sec).
+
+  Restored /home/runner/workspace/apps/services/flow/backend/src/Flow.Application/Flow.Application.csproj (in 257 ms).
+
+  Restored /home/runner/workspace/apps/services/documents/Documents.Application/Documents.Application.csproj (in 408 ms).
+
+  Restored /home/runner/workspace/apps/services/tenant/Tenant.Application.Tests/Tenant.Application.Tests.csproj (in 1.15 sec).
+
+  Restored /home/runner/workspace/apps/services/notifications/Notifications.Tests/Notifications.Tests.csproj (in 1.6 sec).
+
+/home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/Notifications.Infrastructure.csproj : warning NU1902: Package 'MailKit' 4.3.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-9j88-vvj5-vhgr [/home/runner/workspace/LegalSynq.sln]
+
+  Restored /home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/Notifications.Infrastructure.csproj (in 1.57 sec).
+
+  Restored /home/runner/workspace/apps/services/careconnect/CareConnect.Api/CareConnect.Api.csproj (in 385 ms).
+
+  Restored /home/runner/workspace/apps/services/documents/Documents.Infrastructure/Documents.Infrastructure.csproj (in 1.29 sec).
+
+  Restored /home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj (in 260 ms).
+
+  Restored /home/runner/workspace/apps/services/flow/backend/src/Flow.Infrastructure/Flow.Infrastructure.csproj (in 121 ms).
+
+  Restored /home/runner/workspace/apps/services/careconnect/CareConnect.Tests/CareConnect.Tests.csproj (in 1.04 sec).
+
+  Restored /home/runner/workspace/apps/services/identity/Identity.Api.Tests/Identity.Api.Tests.csproj (in 2.1 sec).
+
+  Restored /home/runner/workspace/apps/services/reports/src/Reports.Infrastructure/Reports.Infrastructure.csproj (in 4.29 sec).
+
+  Restored /home/runner/workspace/shared/building-blocks/BuildingBlocks.IntegrationTests/BuildingBlocks.IntegrationTests.csproj (in 2.46 sec).
+
+  31 of 53 projects are up-to-date for restore.
+
+  Determining projects to restore...
+
+  Restored /home/runner/workspace/apps/services/flow/backend/src/Flow.Api/Flow.Api.csproj (in 1.61 sec).
+
+  6 of 7 projects are up-to-date for restore.
+
+  Determining projects to restore...
+
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8785-wc3w-h8q6
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g94r-2vxg-569j
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-37gx-xxp4-5rgx
+
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-w3x6-4m5h-cxqf
+
+  Restored /home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj (in 1.59 sec).
+
+  2 of 3 projects are up-to-date for restore.
+
+[dotnet] Building Gateway...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:   
+      /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+
+  Gateway.Api -> /home/runner/workspace/apps/gateway/Gateway.Api/bin/Release/net8.0/Gateway.Api.dll
+
+Build succeeded.
+
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/gateway/Gateway.Api/Gateway.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspa
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:07.04
+
+[dotnet] Gateway — OK
+[dotnet] Building Identity...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Identity.Domain -> /home/runner/workspace/apps/services/identity/Identity.Domain/bin/Release/net8.0/Identity.Domain.dll
+
+  Identity.Application -> /home/runner/workspace/apps/services/identity/Identity.Application/bin/Release/net8.0/Identity.Application.dll
+
+  Identity.Infrastructure -> /home/runner/workspace/apps/services/identity/Identity.Infrastructure/bin/Release/net8.0/Identity.Infrastructure.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/wo
+/home/runner/workspace/apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs(2831,70): warning CS8601: Possible null reference assignment. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+
+/home/runner/workspace/apps/services/identity/Identity.Api/Endpoints/TenantBrandingEndpoints.cs(38,17): warning CA2017: Number of parameters supplied in the logging message template do not match the number of named placeholders (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2017) [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+
+  Identity.Api -> /home/runner/workspace/apps/services/identity/Identity.Api/bin/Release/net8.0/Identity.Api.dll
+
+Build succeeded.
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that cou
+ld not be resolved. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.0/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspace/apps/services/identity/Identity.Api/Identity.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/M
+[dotnet] Identity — OK
+
+[dotnet] Building Fund...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Fund.Domain -> /home/runner/workspace/apps/services/fund/Fund.Domain/bin/Release/net8.0/Fund.Domain.dll
+
+  Fund.Application -> /home/runner/workspace/apps/services/fund/Fund.Application/bin/Release/net8.0/Fund.Application.dll
+
+  Fund.Infrastructure -> /home/runner/workspace/apps/services/fund/Fund.Infrastructure/bin/Release/net8.0/Fund.Infrastructure.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspac
+  Fund.Api -> /home/runner/workspace/apps/services/fund/Fund.Api/bin/Release/net8.0/Fund.Api.dll
+
+Build succeeded.
+
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/fund/Fund.Api/Fund.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspa
+    1 Warning(s)
+    0 Error(s)
+
+
+Time Elapsed 00:00:03.12
+
+[dotnet] Fund — OK
+[dotnet] Building CareConnect...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  CareConnect.Domain -> /home/runner/workspace/apps/services/careconnect/CareConnect.Domain/bin/Release/net8.0/CareConnect.Domain.dll
+
+  CareConnect.Application -> /home/runner/workspace/apps/services/careconnect/CareConnect.Application/bin/Release/net8.0/CareConnect.Application.dll
+
+  CareConnect.Infrastructure -> /home/runner/workspace/apps/services/careconnect/CareConnect.Infrastructure/bin/Release/net8.0/CareConnect.Infrastructure.dll
+
+/home/runner/workspace/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs(333,21): warning CS8604: Possible null reference argument for parameter 'contentType' in 'Task<AttachmentMetadataResponse> IReferralAttachmentService.UploadAsync(Guid tenantId, Guid referralId, Guid? userId, Stream fileContent, string fileName, string contentType, long fileSizeBytes, UploadAttachmentRequest request, CancellationToken ct = default(CancellationToken))'. [/home/runner/workspace/apps/services/careconnect/CareConnect.Api/CareConnect.Api.csproj]
+
+  CareConnect.Api -> /home/runner/workspace/apps/services/careconnect/CareConnect.Api/bin/Release/net8.0/CareConnect.Api.dll
+
+
+Build succeeded.
+
+/home/runner/workspace/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs(333,21): warning CS8604: Possible null reference argument for parameter 'contentType' in 'Task<AttachmentMetadataResponse> IReferralAttachmentService.UploadAsync(Guid tenantId, Guid referralId, Guid? userId, Stream fileContent, string fileName, string contentType, long fileSizeBytes, UploadAttachmentRequest request, CancellationToken ct = default(CancellationToken))'. [/home/runner/workspace/apps/services/careconnect/CareConnect.Api/CareConnect.Api.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:05.86
+
+[dotnet] CareConnect — OK
+
+[dotnet] Building Documents...
+
+  Determining projects to restore...
+
+  Restored /home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj (in 1.25 sec).
+
+  5 of 6 projects are up-to-date for restore.
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  Documents.Domain -> /home/runner/workspace/apps/services/documents/Documents.Domain/bin/Release/net8.0/Documents.Domain.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Documents.Application -> /home/runner/workspace/apps/services/documents/Documents.Application/bin/Release/net8.0/Documents.Application.dll
+
+  Documents.Infrastructure -> /home/runner/workspace/apps/services/documents/Documents.Infrastructure/bin/Release/net8.0/Documents.Infrastructure.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused
+/home/runner/workspace/apps/services/documents/Documents.Api/Program.cs(304,93): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+
+  Documents.Api -> /home/runner/workspace/apps/services/documents/Documents.Api/bin/Release/net8.0/Documents.Api.dll
+
+
+Build succeeded.
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.4/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/documents/Documents.Api/Documents.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item in
+[dotnet] Documents — OK
+
+[dotnet] Building Audit...
+
+  Determining projects to restore...
+
+  Restored /home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj (in 2.12 sec).
+
+  2 of 3 projects are up-to-date for restore.
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.
+412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+
+/home/runner/workspace/apps/services/audit/Services/AuditAnalyticsService.cs(16,43): warning CS1574: XML comment has cref attribute 'AuditEventRecordConfiguration' that could not be resolved [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+
+/home/runner/workspace/apps/services/audit/Services/IAuditAnalyticsService.cs(8,62): warning CS1734: XML comment on 'IAuditAnalyticsService' has a paramref tag for 'callerTenantId', but there is no parameter by that name [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/home/runner/workspace/apps/services/audit/Services/IAuditAnomalyService.cs(13,21): warning CS1734: XML comment on 'IAuditAnomalyService' has a paramref tag for 'callerTenantId', but there is no parameter by that name [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/home/runner/workspace/apps/services/audit/Services/IAuditAnomalyService.cs(14,21): warning CS1734: XML comment on 'IAuditAnomalyService' has a paramref tag for 'callerTenantId', but there is no parameter by that name [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/home/runner/workspace/apps/services/audit/Services/IAuditAnomalyService.cs(14,62): warning CS1734: XML comment on 'IAuditAnomalyService' has a paramref tag for 'isPlatformAdmin', but there is no parameter by that name [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+
+  PlatformAuditEventService -> /home/runner/workspace/apps/services/audit/bin/Release/net8.0/PlatformAuditEventService.dll
+
+Build succeeded.
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.1/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blo
+/home/runner/workspace/apps/services/audit/Services/IAuditAnomalyService.cs(14,21): warning CS1734: XML comment on 'IAuditAnomalyService' has a paramref tag for 'callerTenantId', but there is no parameter by that name [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+/home/runner/workspace/apps/services/audit/Services/IAuditAnomalyService.cs(14,62): warning CS1734: XML comment on 'IAuditAnomalyService' has a paramref tag for 'isPlatformAdmin', but there is no parameter by that name [/home/runner/workspace/apps/services/audit/PlatformAuditEventService.csproj]
+    6 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:05.18
+
+[dotnet] Audit — OK
+[dotnet] Building Notifications...
+
+  Determining projects to restore...
+
+/home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/Notifications.Infrastructure.csproj : warning NU1902: Package 'MailKit' 4.3.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-9j88-vvj5-vhgr [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+
+  All projects are up-to-date for restore.
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+/home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/Notifications.Infrastructure.csproj : warning NU1902: Package 'MailKit' 4.3.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-9j88-vvj5-vhgr
+
+  Notifications.Domain -> /home/runner/workspace/apps/services/notifications/Notifications.Domain/bin/Release/net8.0/Notifications.Domain.dll
+
+  Notifications.Application -> /home/runner/workspace/apps/services/notifications/Notifications.Application/bin/Release/net8.0/Notifications.Application.dll
+
+  Notifications.Infrastructure -> /home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/bin/Release/net8.0/Notifications.Infrastructure.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microso
+  Notifications.Api -> /home/runner/workspace/apps/services/notifications/Notifications.Api/bin/Release/net8.0/Notifications.Api.dll
+
+Build succeeded.
+
+
+/home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/Notifications.Infrastructure.csproj : warning NU1902: Package 'MailKit' 4.3.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-9j88-vvj5-vhgr [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/home/runner/workspace/apps/services/notifications/Notifications.Infrastructure/Notifications.Infrastructure.csproj : warning NU1902: Package 'MailKit' 4.3.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-9j88-vvj5-vhgr
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/notifications/Notifications.Api/Notifications.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0,
+    3 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.10
+
+[dotnet] Notifications — OK
+
+[dotnet] Building Liens...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Liens.Domain -> /home/runner/workspace/apps/services/liens/Liens.Domain/bin/Release/net8.0/Liens.Domain.dll
+
+  Liens.Application -> /home/runner/workspace/apps/services/liens/Liens.Application/bin/Release/net8.0/Liens.Application.dll
+
+  Liens.Infrastructure -> /home/runner/workspace/apps/services/liens/Liens.Infrastructure/bin/Release/net8.0/Liens.Infrastructure.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.d
+  Liens.Api -> /home/runner/workspace/apps/services/liens/Liens.Api/bin/Release/net8.0/Liens.Api.dll
+
+Build succeeded.
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/liens/Liens.Api/Liens.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.
+[dotnet] Liens — OK
+
+[dotnet] Building Flow API...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  Flow.Domain -> /home/runner/workspace/apps/services/flow/backend/src/Flow.Domain/bin/Release/net8.0/Flow.Domain.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+/home/runner/workspace/apps/services/flow/backend/src/Flow.Application/Services/AutomationConditionEvaluator.cs(25,25): warning CS0108: 'ConditionOperators.Equals' hides inherited member 'object.Equals(object?)'. Use the new keyword if hiding was intended. [/home/runner/workspace/apps/services/flow/backend/src/Flow.Application/Flow.Application.csproj]
+
+  Flow.Application -> /home/runner/workspace/apps/services/flow/backend/src/Flow.Application/bin/Release/net8.0/Flow.Application.dll
+
+  Flow.Infrastructure -> /home/runner/workspace/apps/services/flow/backend/src/Flow.Infrastructure/bin/Release/net8.0/Flow.Infrastructure.dll
+
+  Flow.Api -> /home/runner/workspace/apps/services/flow/backend/src/Flow.Api/bin/Release/net8.0/Flow.Api.dll
+
+
+Build succeeded.
+
+/home/runner/workspace/apps/services/flow/backend/src/Flow.Application/Services/AutomationConditionEvaluator.cs(25,25): warning CS0108: 'ConditionOperators.Equals' hides inherited member 'object.Equals(object?)'. Use the new keyword if hiding was intended. [/home/runner/workspace/apps/services/flow/backend/src/Flow.Application/Flow.Application.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.75
+
+[dotnet] Flow API — OK
+
+[dotnet] Building Monitoring...
+
+  Determining projects to restore...
+
+  Restored /home/runner/workspace/apps/services/monitoring/Monitoring.Infrastructure/Monitoring.Infrastructure.csproj (in 980 ms).
+
+  Restored /home/runner/workspace/apps/services/monitoring/Monitoring.Api/Monitoring.Api.csproj (in 981 ms).
+
+  4 of 6 projects are up-to-date for restore.
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  Monitoring.Domain -> /home/runner/workspace/apps/services/monitoring/Monitoring.Domain/bin/Release/net8.0/Monitoring.Domain.dll
+
+  Monitoring.Application -> /home/runner/workspace/apps/services/monitoring/Monitoring.Application/bin/Release/net8.0/Monitoring.Application.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Monitoring.Infrastructure -> /home/runner/workspace/apps/services/monitoring/Monitoring.Infrastructure/bin/Release/net8.0/Monitoring.Infrastructure.dll
+
+  Monitoring.Api -> /home/runner/workspace/apps/services/monitoring/Monitoring.Api/bin/Release/net8.0/Monitoring.Api.dll
+
+Build succeeded.
+
+    0 Warning(s)
+    0 Error(s)
+
+
+Time Elapsed 00:00:02.81
+
+[dotnet] Monitoring — OK
+[dotnet] Building Task...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Task.Domain -> /home/runner/workspace/apps/services/task/Task.Domain/bin/Release/net8.0/Task.Domain.dll
+
+  Task.Application -> /home/runner/workspace/apps/services/task/Task.Application/bin/Release/net8.0/Task.Application.dll
+
+/home/runner/workspace/apps/services/task/Task.Infrastructure/Persistence/Repositories/TaskAnalyticsRepository.cs(216,49): warning CS8604: Possible null reference argument for parameter 'UserId' in 'UserStatusCountDto.UserStatusCountDto(string UserId, string Status, int Count)'. [/home/runner/workspace/apps/services/task/Task.Infrastructure/Task.Infrastructure.csproj]
+
+  Task.Infrastructure -> /home/runner/workspace/apps/services/task/Task.Infrastructure/bin/Release/net8.0/Task.Infrastructure.dll
+
+  Task.Api -> /home/runner/workspace/apps/services/task/Task.Api/bin/Release/net8.0/Task.Api.dll
+
+
+Build succeeded.
+
+/home/runner/workspace/apps/services/task/Task.Infrastructure/Persistence/Repositories/TaskAnalyticsRepository.cs(216,49): warning CS8604: Possible null reference argument for parameter 'UserId' in 'UserStatusCountDto.UserStatusCountDto(string UserId, string Status, int Count)'. [/home/runner/workspace/apps/services/task/Task.Infrastructure/Task.Infrastructure.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.58
+
+[dotnet] Task — OK
+
+[dotnet] Building Tenant...
+
+  Determining projects to restore...
+
+  All projects are up-to-date for restore.
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  Contracts -> /home/runner/workspace/shared/contracts/Contracts/bin/Release/net8.0/Contracts.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+  Tenant.Domain -> /home/runner/workspace/apps/services/tenant/Tenant.Domain/bin/Release/net8.0/Tenant.Domain.dll
+
+  Tenant.Application -> /home/runner/workspace/apps/services/tenant/Tenant.Application/bin/Release/net8.0/Tenant.Application.dll
+
+/home/runner/workspace/apps/services/tenant/Tenant.Infrastructure/Data/Migrations/TenantDbContextModelSnapshot.cs(222,38): warning CS8669: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. Auto-generated code requires an explicit '#nullable' directive in source. [/home/runner/workspace/apps/services/tenant/Tenant.Infrastructure/Tenant.Infrastructure.csproj]
+
+  Tenant.Infrastructure -> /home/runner/workspace/apps/services/tenant/Tenant.Infrastructure/bin/Release/net8.0/Tenant.Infrastructure.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Rele
+/bin/Release/net8.0/Tenant.Infrastructure.dll [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+
+  Tenant.Api -> /home/runner/workspace/apps/services/tenant/Tenant.Api/bin/Release/net8.0/Tenant.Api.dll
+
+
+Build succeeded.
+
+/home/runner/workspace/apps/services/tenant/Tenant.Infrastructure/Data/Migrations/TenantDbContextModelSnapshot.cs(222,38): warning CS8669: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. Auto-generated code requires an explicit '#nullable' directive in source. [/home/runner/workspace/apps/services/tenant/Tenant.Infrastructure/Tenant.Infrastructure.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.8/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/tenant/Tenant.Api/Tenant.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/wo
+[dotnet] Tenant — OK
+
+[dotnet] Building Support...
+
+  Determining projects to restore...
+
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8785-wc3w-h8q6
+
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g94r-2vxg-569j
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-37gx-xxp4-5rgx
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-w3x6-4m5h-cxqf
+
+  All projects are up-to-date for restore.
+
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8785-wc3w-h8q6
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g94r-2vxg-569j
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-37gx-xxp4-5rgx
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-w3x6-4m5h-cxqf
+
+  LegalSynq.AuditClient -> /home/runner/workspace/shared/audit-client/LegalSynq.AuditClient/bin/Release/net8.0/LegalSynq.AuditClient.dll
+
+  BuildingBlocks -> /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll
+
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.10.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.10.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.10.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.10/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.10/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.10/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll". [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.10/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on or have been unified to "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" []. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/build
+/home/runner/workspace/apps/services/support/Support.Api/Auth/TestAuthHandler.cs(24,9): warning CS0618: 'ISystemClock' is obsolete: 'Use TimeProvider instead.' [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/home/runner/workspace/apps/services/support/Support.Api/Auth/TestAuthHandler.cs(24,29): warning CS0618: 'AuthenticationHandler<AuthenticationSchemeOptions>.AuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions>, ILoggerFactory, UrlEncoder, ISystemClock)' is obsolete: 'ISystemClock is obsolete, use TimeProvider on AuthenticationSchemeOptions instead.' [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+
+  Support.Api -> /home/runner/workspace/apps/services/support/Support.Api/bin/Release/net8.0/Support.Api.dll
+
+Build succeeded.
+
+
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8785-wc3w-h8q6
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g94r-2vxg-569j
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-37gx-xxp4-5rgx
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-w3x6-4m5h-cxqf
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8785-wc3w-h8q6
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1902: Package 'OpenTelemetry.Api' 1.10.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g94r-2vxg-569j
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-37gx-xxp4-5rgx
+/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 8.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-w3x6-4m5h-cxqf
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: Found conflicts between different versions of "Microsoft.AspNetCore.Authentication.JwtBearer" that could not be resolved. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277: There was a conflict between "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.10.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60". [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.10.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was chosen because it was primary and "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.26.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" was not. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:     References which depend on "Microsoft.AspNetCore.Authentication.JwtBearer, Version=8.0.10.0, Culture=neutral, PublicKeyToken=adb9793829ddae60" [/home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.10/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll]. [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:         /home/runner/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.10/lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll [/home/runner/workspace/apps/services/support/Support.Api/Support.
+proj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:           Project file item includes which caused reference "/home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll". [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/nix/store/1d8g8d8xrrlxwfgbavgl4snymznfw5r7-dotnet-sdk-8.0.412/share/dotnet/sdk/8.0.412/Microsoft.Common.CurrentVersion.targets(2412,5): warning MSB3277:             /home/runner/workspace/shared/building-blocks/BuildingBlocks/bin/Release/net8.0/BuildingBlocks.dll [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/home/runner/workspace/apps/services/support/Support.Api/Auth/TestAuthHandler.cs(24,9): warning CS0618: 'ISystemClock' is obsolete: 'Use TimeProvider instead.' [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+/home/runner/workspace/apps/services/support/Support.Api/Auth/TestAuthHandler.cs(24,29): warning CS0618: 'AuthenticationHandler<AuthenticationSchemeOptions>.AuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions>, ILoggerFactory, UrlEncoder, ISystemClock)' is obsolete: 'ISystemClock is obsolete, use TimeProvider on AuthenticationSchemeOptions instead.' [/home/runner/workspace/apps/services/support/Support.Api/Support.Api.csproj]
+    11 Warning(s)
+    0 Error(s)
+
+
+Time Elapsed 00:00:02.12
+
+[dotnet] Support — OK
+[dotnet] All services built successfully
+
+====== Post-build cleanup to reduce image size ======
+[cleanup] Removing pnpm content-addressable store...
+

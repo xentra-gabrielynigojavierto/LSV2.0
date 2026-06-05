@@ -1,0 +1,367 @@
+You are executing the TENANT STABILIZATION & DE-RISK PLAN in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-STABILIZATION-report.md
+- This is a real stabilization task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake validations.
+- Validate against the current codebase before making changes.
+- Reuse Blocks B01–B12 structure and conventions already established.
+- Keep the implementation incremental, non-breaking, and rollback-safe.
+- DO NOT perform Identity physical cleanup in this task.
+- DO NOT drop DB columns, remove Identity endpoints, or remove fallback logic entirely.
+- This task is about clearing the B13 blockers and proving runtime safety.
+- This task must run in the current Replit environment.
+
+================================================================
+FEATURE
+TENANT-STABILIZATION — Post-Migration Stabilization & B13 Gate Clearance
+================================================================
+
+OBJECTIVE
+Clear the blockers identified in the B13 gate report so the platform can safely enter the validation window required before any Identity physical cleanup.
+
+This task must:
+1. eliminate known hardcoded Identity branding read paths,
+2. make Tenant the explicit default source for branding/logo runtime reads,
+3. add missing Tenant-side proxy/admin operations so Control Center no longer depends on Identity directly for remaining tenant-management operations,
+4. add explicit fallback/read-source usage metrics,
+5. preserve rollback capability,
+6. produce a clear stabilization readiness report and checklist for the 2–4 week runtime observation window.
+
+This task must NOT:
+- remove Identity fallback entirely,
+- remove Identity compatibility endpoints,
+- drop Identity fields/tables,
+- remove HybridFallback mode,
+- perform B13 destructive cleanup.
+
+================================================================
+CONTEXT
+================================================================
+
+The latest B13 gate report found the following blockers:
+
+1. Runtime duration too short (cannot solve in code today; must document and prepare)
+2. `apps/web/src/app/api/branding/logo/public/route.ts` defaults to `Identity`
+3. Hardcoded Identity branding reads still exist in:
+   - `apps/web/src/app/api/public/careconnect/[...path]/route.ts`
+   - `apps/web/src/lib/public-network-api.ts`
+   - related provider/bootstrap paths
+4. HybridFallback branches still exist and need instrumentation proving zero activations over time
+5. Control Center still calls Identity directly for:
+   - session settings
+   - provisioning retry
+   - verification retry
+6. No explicit fallback metrics proving Identity fallback usage = 0
+
+This task is to remove these blockers safely, except for the required time-based stability window, which must be documented and prepared for.
+
+================================================================
+SCOPE
+================================================================
+
+A) Fix branding/logo source defaults to Tenant
+
+1. Update `apps/web/src/app/api/branding/logo/public/route.ts`
+- Change the default read source from `Identity` to `Tenant`
+- Keep config/env override behavior intact
+- Preserve HybridFallback mode if configured
+- Preserve explicit Identity mode if configured for rollback
+
+2. Audit other branding/bootstrap routes and ensure default mode is Tenant unless explicitly overridden.
+
+3. Record all files changed in the report.
+
+Acceptance for this section:
+- no branding/logo route should silently default to Identity anymore
+- Identity mode must remain available by explicit config only
+
+----------------------------------------------------------------
+B) Remove hardcoded Identity branding reads from active web/public paths
+
+Audit and fix all active hardcoded branding reads identified in the gate report.
+
+At minimum inspect and remediate:
+- `apps/web/src/app/api/public/careconnect/[...path]/route.ts`
+- `apps/web/src/lib/public-network-api.ts`
+- `apps/web/src/providers/tenant-branding-provider.tsx`
+- any related helper used by these routes/providers
+
+Required behavior:
+- these paths should read branding from Tenant service by default
+- use the same centralized read-source logic where practical
+- if a shared helper makes sense, centralize the logic rather than duplicating it
+- preserve explicit fallback capability only through configured HybridFallback behavior, not hardcoded Identity calls
+
+Do NOT redesign UI behavior.
+Do NOT scatter source-selection logic across many files if it can be centralized.
+
+Acceptance for this section:
+- no active production-facing branding/bootstrap path should hardcode `/identity/api/tenants/current/branding`
+- Tenant is the default source for all branding/bootstrap routes
+
+----------------------------------------------------------------
+C) Add missing Tenant-side admin/proxy operations so Control Center can fully stop calling Identity directly for tenant-management operations
+
+Implement Tenant-side endpoints/adapters for the remaining Control Center operations still hitting Identity directly:
+
+1. Session settings proxy
+Add a Tenant admin endpoint, for example:
+- PATCH /api/v1/admin/tenants/{id}/session-settings
+
+Behavior:
+- Tenant remains the management entry point
+- endpoint delegates to Identity for session timeout enforcement updates
+- use a Tenant-side adapter (e.g. `IIdentityCompatAdapter` or a more specific admin/provisioning adapter)
+- no direct DB coupling
+- return a stable admin-friendly response
+
+2. Provisioning retry proxy
+Add a Tenant admin endpoint, for example:
+- POST /api/v1/admin/tenants/{id}/provisioning/retry
+
+Behavior:
+- delegates to Identity provisioning retry flow
+- returns result in a stable Tenant-admin-compatible shape
+
+3. Verification retry proxy
+Add a Tenant admin endpoint, for example:
+- POST /api/v1/admin/tenants/{id}/verification/retry
+
+Behavior:
+- delegates to Identity verification retry flow
+- stable response shape
+
+Then update the relevant Control Center BFF/server routes to target Tenant service instead of Identity for these operations.
+
+Rules:
+- Tenant becomes the control-plane entry point
+- Identity remains the implementation owner for auth/provisioning internals
+- keep client/UI unchanged where possible
+- centralize route target changes in BFF/server code
+
+Acceptance for this section:
+- Control Center should no longer call Identity directly for the three operations above
+- Identity may still do the downstream work, but Tenant is now the management API surface
+
+----------------------------------------------------------------
+D) Add explicit runtime fallback / read-source metrics
+
+Implement metrics/diagnostics sufficient to prove:
+- Tenant reads attempted
+- Tenant reads succeeded
+- Identity fallback triggered
+- fallback reason counts:
+  - timeout
+  - transport error
+  - 404/not_found
+  - incomplete_payload
+
+You may extend the existing runtime metrics mechanism.
+
+Requirements:
+- metrics must be admin/internal only
+- process-memory counters are acceptable
+- counters should be visible via a protected endpoint, e.g.:
+  - GET /api/v1/admin/runtime-metrics
+  or an enhanced equivalent
+- if metrics currently exist, extend them rather than creating redundant endpoints
+- add clear labeling so operators can tell:
+  - branding fallback count
+  - logo fallback count
+  - resolution fallback count if applicable
+
+Also add/retain structured logs so operators can correlate fallback events.
+
+Acceptance for this section:
+- operator can positively verify fallback usage, not merely infer it
+- counters clearly distinguish fallback events from normal reads
+
+----------------------------------------------------------------
+E) Preserve HybridFallback but make it measurable and temporary
+
+Do NOT remove HybridFallback in this task.
+
+Instead:
+- keep it available for controlled rollout safety
+- instrument it fully
+- document that B13 requires zero HybridFallback activations over a sustained period before cleanup
+
+If useful, add a warning log when HybridFallback is active in production-intended environments, but keep it lightweight and non-breaking.
+
+Acceptance for this section:
+- HybridFallback remains available
+- fallback activations are measurable
+- no silent fallback remains
+
+----------------------------------------------------------------
+F) Preserve rollback capability
+
+Rollback must remain config-driven.
+
+You must ensure:
+- Identity mode still works if explicitly configured
+- HybridFallback still works if explicitly configured
+- Tenant mode remains the default
+- none of the changes in this task remove rollback paths
+
+Document exact rollback settings in the report.
+
+----------------------------------------------------------------
+G) Optional but valuable: add a stabilization checklist endpoint/report enhancement
+
+If it fits naturally, enhance an existing admin endpoint such as:
+- GET /api/v1/admin/cutover-check
+
+to include:
+- current effective read-source modes
+- fallback counters
+- whether Control Center direct Identity dependencies for tenant management are now removed
+- whether branding defaults are Tenant
+- whether remaining blockers are only time-based
+
+Do this only if it fits naturally. Avoid duplication.
+
+================================================================
+NON-GOALS
+================================================================
+
+DO NOT:
+- remove Identity endpoints
+- remove HybridFallback
+- drop DB columns/tables
+- remove Identity compatibility fields
+- remove Identity fallback mode
+- perform physical cleanup
+- do unrelated refactors
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This task is complete only if all of the following are true:
+
+1. Branding/logo runtime defaults are Tenant, not Identity.
+2. Hardcoded Identity branding reads in active web/public paths are removed or centralized behind Tenant-first logic.
+3. Control Center no longer calls Identity directly for:
+   - session settings
+   - provisioning retry
+   - verification retry
+4. Explicit fallback metrics exist and are operator-visible.
+5. HybridFallback remains available but measurable.
+6. Rollback to Identity mode remains config-driven and functional.
+7. Existing Blocks B01–B12 functionality still works.
+8. The only remaining blocker for B13 is the required real-world stability window (and any clearly documented operational validation still pending).
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+You MUST verify and record results for:
+
+BUILD / STARTUP
+- solution/build success
+- Tenant service startup success
+- Identity service startup success
+- gateway startup success
+- web/control-center startup success
+
+BRANDING / LOGO
+- branding route defaults to Tenant
+- logo/public route defaults to Tenant
+- branding still works in:
+  - Tenant mode
+  - HybridFallback mode
+  - Identity mode (explicit rollback)
+
+HARDCODED READ REMOVAL
+- verify CareConnect/public network/provider paths no longer hardcode Identity branding endpoint
+- verify they resolve branding successfully through Tenant-first behavior
+
+CONTROL CENTER
+- session settings operation now goes through Tenant entry point
+- provisioning retry now goes through Tenant entry point
+- verification retry now goes through Tenant entry point
+
+METRICS
+- runtime metrics endpoint shows fallback counters
+- trigger/inspect at least one controlled fallback scenario if feasible
+- verify fallback counters increment correctly
+- verify normal Tenant reads do not increment fallback counters
+
+ROLLBACK
+- Identity mode still works when explicitly configured
+- HybridFallback still works when explicitly configured
+
+If any validation fails:
+- fix it if feasible in this task
+- if not fully fixable, document blocker and exact cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-STABILIZATION-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-STABILIZATION Report
+
+## 1. Objective
+
+## 2. B13 Blocker Remediation Map
+- list each blocker from B13
+- state how it was addressed or why it remains time-based only
+
+## 3. Branding / Logo Source Hardening
+- files changed
+- default source changes
+- hardcoded read removals
+
+## 4. Tenant Admin Proxy Completion
+- session settings proxy
+- provisioning retry proxy
+- verification retry proxy
+- BFF changes
+
+## 5. Runtime Metrics / Observability
+- counters added/extended
+- endpoint changes
+- fallback visibility
+
+## 6. Rollback / Compatibility
+- what rollback paths remain
+- how to switch modes
+- what was intentionally preserved
+
+## 7. Implementation Summary
+- files added
+- files modified
+- configs changed
+
+## 8. Validation Results
+- build/startup
+- branding/logo tests
+- control center operation tests
+- metrics tests
+- rollback mode tests
+
+## 9. Remaining Blockers
+- should ideally state that only the time-based stability window remains
+- if anything else remains, be explicit
+
+## 10. Final Assessment
+- is the system ready to enter the stabilization window?
+- what exact conditions unlock B13 later?
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Make small, reversible changes
+- Centralize logic where practical
+- Preserve rollback at all times
+- Keep scope tight to stabilization and de-risking
+
+Now execute the TENANT STABILIZATION & DE-RISK PLAN end-to-end and write the report as you go.

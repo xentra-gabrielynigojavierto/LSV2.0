@@ -1,0 +1,275 @@
+You are implementing feature MON-INT-02-004 — Clickable Banner Filtering.
+
+OBJECTIVE
+Enable the Status Summary Banner to act as an interactive control that filters the Component Status List based on status (Healthy, Degraded, Down, Alerts), improving operator speed in identifying affected components.
+
+This is a pure UX enhancement with NO backend changes.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Filtering must be done client-side only
+- Do NOT modify Monitoring Service
+- Do NOT modify gateway
+- Do NOT introduce new APIs
+- Do NOT recompute monitoring logic
+
+MANDATORY EXECUTION RULES
+- Create the report FIRST at: /analysis/MON-INT-02-004-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Prefer minimal, reversible changes
+- Keep existing layout intact
+- Maintain compatibility with both MONITORING_SOURCE=local and service
+- Do NOT break existing monitoring page behavior
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-02-004-report.md
+
+Initialize with:
+
+# MON-INT-02-004 — Clickable Banner Filtering
+
+## 1. Task Summary
+## 2. Existing Banner & List Analysis
+## 3. Interaction Design
+## 4. State Management Approach
+## 5. Implementation
+## 6. Validation
+## 7. Files Changed
+## 8. Known Gaps / Risks
+## 9. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING COMPONENTS
+
+Inspect:
+
+- apps/control-center/src/components/monitoring/status-summary-banner.tsx
+- apps/control-center/src/components/monitoring/component-status-list.tsx
+- apps/control-center/src/app/monitoring/page.tsx
+
+Identify:
+- how banner displays counts (Healthy, Degraded, Down, Alerts)
+- how ComponentStatusList currently filters internally (if any)
+- how integrations data is passed to ComponentStatusList
+- how alerts data is available on the page
+- whether filtering state already exists
+
+Document:
+- existing filter implementation (if present)
+- where filter state should live (must be shared)
+
+---
+
+STEP 3 — DEFINE INTERACTION DESIGN
+
+Make each banner segment clickable:
+
+Click targets:
+- Healthy count
+- Degraded count
+- Down count
+- Alerts count
+
+Behavior:
+
+| Click | Result |
+|------|--------|
+| Healthy | filter list → only Healthy |
+| Degraded | filter list → only Degraded |
+| Down | filter list → only Down |
+| Alerts | filter list → components with active alerts |
+| Clicking same active filter | reset to "All" |
+
+UX rules:
+- show active filter visually (highlight)
+- do NOT redesign banner
+- interaction must feel immediate (no loading)
+
+---
+
+STEP 4 — STATE MANAGEMENT
+
+Lift filter state to page level.
+
+In:
+apps/control-center/src/app/monitoring/page.tsx
+
+Create:
+
+type StatusFilter = 'all' | 'healthy' | 'degraded' | 'down' | 'alerts';
+
+const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+Pass props to:
+- StatusSummaryBanner
+- ComponentStatusList
+
+---
+
+STEP 5 — UPDATE STATUS SUMMARY BANNER
+
+Modify:
+apps/control-center/src/components/monitoring/status-summary-banner.tsx
+
+Add props:
+- statusFilter
+- onFilterChange
+
+For each metric block:
+
+onClick logic:
+
+- if current filter === clicked filter → set to 'all'
+- else set to clicked filter
+
+Example:
+
+onClick={() =>
+  onFilterChange(statusFilter === 'healthy' ? 'all' : 'healthy')
+}
+
+Add visual indicator:
+- active filter → highlighted (background / border / text emphasis)
+- reuse existing styles (Tailwind or tokens)
+
+---
+
+STEP 6 — UPDATE COMPONENT STATUS LIST
+
+Modify:
+apps/control-center/src/components/monitoring/component-status-list.tsx
+
+Accept:
+- statusFilter
+- alerts (if needed)
+
+Apply filtering BEFORE rendering:
+
+Filtering logic:
+
+- healthy → item.status === 'Healthy'
+- degraded → item.status === 'Degraded'
+- down → item.status === 'Down'
+- alerts → item matches an active alert
+- all → no filter
+
+For alerts filter:
+
+- derive from existing alerts list
+- match by entityName (same strategy used in incident detail)
+
+Example:
+
+const alertEntityNames = new Set(alerts.map(a => a.entityName));
+
+alerts filter:
+item.name in alertEntityNames
+
+IMPORTANT:
+- do NOT recompute status
+- do NOT call API
+- use existing data only
+
+---
+
+STEP 7 — PRESERVE SORTING
+
+After filtering:
+- keep existing sort order:
+  Down → Degraded → Healthy → alphabetical
+
+Do NOT modify sorting logic.
+
+---
+
+STEP 8 — EMPTY STATES
+
+Handle:
+
+A. Filter returns no results:
+- display: "No components match this filter"
+
+B. Alerts filter with none:
+- display: "No active alerts"
+
+C. Default:
+- normal rendering
+
+---
+
+STEP 9 — VALIDATION
+
+Validate:
+
+- clicking banner filters list instantly
+- clicking same filter resets to All
+- filter highlight updates correctly
+- list matches expected components
+- alerts filter works correctly
+- no API calls triggered
+- no UI regressions
+- works in both local and service modes
+
+Test scenarios:
+- all healthy
+- one degraded
+- one down
+- multiple alerts
+- no alerts
+
+---
+
+STEP 10 — FILES CHANGED
+
+List:
+
+- status-summary-banner.tsx (modified)
+- component-status-list.tsx (modified)
+- monitoring page.tsx (modified)
+
+---
+
+STEP 11 — KNOWN GAPS / RISKS
+
+Document:
+
+- single filter only (no multi-select)
+- filter state not persisted across refresh
+- alerts filter depends on current snapshot
+- no deep linking yet
+
+---
+
+STEP 12 — RECOMMEND NEXT STEP
+
+Recommend one:
+
+Option A:
+MON-INT-04-001 — Public Status Page
+
+Option B:
+Stabilization / production validation
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+
+- /analysis/MON-INT-02-004-report.md exists
+- banner is clickable
+- clicking filters component list correctly
+- active filter is visually indicated
+- clicking again resets filter
+- no backend changes made
+- no monitoring logic modified
+- UI remains stable

@@ -1,0 +1,322 @@
+```text
+You are implementing LS-COMMS-03-BLK-003 — Operational Timeline and System Activity Feed for SynqComm.
+
+OBJECTIVE:
+Extend SynqComm to provide a unified, chronological activity timeline per conversation that combines:
+- communication events (messages, emails)
+- operational events (assignment, queue changes, SLA events)
+- system-generated events (escalations, status changes)
+
+This timeline must serve as the **single source of truth for “what happened on this case”**, without breaking existing architecture boundaries.
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the system of record for all communication and operational events
+- Notifications remains the outbound delivery engine (not used directly here)
+- Documents remains the owner of binaries
+- SynqComm continues as an independent service under /apps/services/synqcomm with its own physically separate database
+- SynqComm must NOT piggyback on another service database
+- SynqComm must NOT use cross-database joins for core logic
+- This block must NOT introduce UI concerns
+- This block must NOT replace existing audit logs — it builds a **read-optimized timeline projection**
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-03-BLK-001 — Queues, Assignment, SLA
+- LS-COMMS-03-BLK-002 — SLA Notifications and Escalation Triggers
+- All prior communication/email functionality
+
+CURRENT FOUNDATION:
+- Messages and email threading exist
+- Assignment and SLA events exist
+- Audit events exist but are not user-facing
+- No unified timeline view exists yet
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-03-BLK-003-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-03-BLK-003-report.md
+
+Initialize:
+
+# LS-COMMS-03-BLK-003 — Operational Timeline and System Activity Feed Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Provide a unified timeline of communication and operational events per conversation.
+
+## Steps Completed
+- [ ] Step 1: Review event sources
+- [ ] Step 2: Design timeline model
+- [ ] Step 3: Implement timeline projection
+- [ ] Step 4: Integrate communication events
+- [ ] Step 5: Integrate operational/system events
+- [ ] Step 6: API implementation
+- [ ] Step 7: Tests
+- [ ] Step 8: Final review
+
+--------------------------------------------------
+STEP 2 — DESIGN TIMELINE MODEL
+--------------------------------------------------
+
+You must decide:
+
+### Option A (RECOMMENDED): Projection Table
+Create a **ConversationTimelineEntry** table
+
+### Option B: On-the-fly aggregation
+(Not recommended — will not scale)
+
+👉 Use **Option A**
+
+---
+
+### ConversationTimelineEntry Model
+
+Fields:
+- id
+- tenantId
+- conversationId
+- eventType
+- eventSubType
+- actorType (USER, SYSTEM)
+- actorId nullable
+- actorDisplayName nullable
+- occurredAtUtc
+- summary (short human-readable text)
+- metadataJson (structured details)
+- relatedMessageId nullable
+- relatedAssignmentId nullable
+- relatedSlaId nullable
+- visibility (INTERNAL_ONLY, SHARED_EXTERNAL_SAFE)
+- createdAtUtc
+
+---
+
+### Event Types
+
+COMMUNICATION:
+- MESSAGE_SENT
+- EMAIL_RECEIVED
+- EMAIL_SENT
+
+OPERATIONAL:
+- ASSIGNED
+- REASSIGNED
+- UNASSIGNED
+- PRIORITY_CHANGED
+- STATUS_CHANGED
+
+SLA:
+- SLA_STARTED
+- FIRST_RESPONSE_SATISFIED
+- FIRST_RESPONSE_WARNING
+- FIRST_RESPONSE_BREACH
+- RESOLUTION_WARNING
+- RESOLUTION_BREACH
+- RESOLVED
+
+SYSTEM:
+- ESCALATION_TRIGGERED
+
+---
+
+--------------------------------------------------
+STEP 3 — EVENT GENERATION STRATEGY
+--------------------------------------------------
+
+You must NOT scan audit logs dynamically.
+
+Instead:
+
+👉 Generate timeline entries **at the time events occur**
+
+Hook into:
+
+### Communication:
+- MessageService / EmailIntakeService / OutboundEmailService
+
+### Operational:
+- AssignmentService
+- QueueService
+- SLA service
+
+### SLA triggers:
+- SlaNotificationService
+
+---
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT TIMELINE SERVICE
+--------------------------------------------------
+
+Create:
+
+- IConversationTimelineService
+- ConversationTimelineService
+
+Methods:
+- AddEntry(...)
+- GetTimeline(conversationId, filters)
+
+Responsibilities:
+- normalize event data
+- generate summary text
+- enforce visibility rules
+
+---
+
+--------------------------------------------------
+STEP 5 — SUMMARY GENERATION (IMPORTANT)
+--------------------------------------------------
+
+Each event must produce a clean summary.
+
+Examples:
+
+- "John assigned the case to himself"
+- "Case reassigned to Mary"
+- "First response SLA breached"
+- "Email received from provider"
+- "Response sent to client"
+
+👉 Do NOT push raw metadata to UI layer — generate readable summaries here
+
+---
+
+--------------------------------------------------
+STEP 6 — VISIBILITY RULES
+--------------------------------------------------
+
+Critical:
+
+- INTERNAL_ONLY events stay internal
+- SHARED_EXTERNAL_SAFE events can be shown externally later
+
+Examples:
+
+INTERNAL_ONLY:
+- assignment changes
+- SLA breaches
+- escalation
+
+SHARED_EXTERNAL_SAFE:
+- emails
+- external messages
+
+---
+
+--------------------------------------------------
+STEP 7 — API DESIGN
+--------------------------------------------------
+
+Add:
+
+GET /api/synqcomm/conversations/{id}/timeline
+
+Query params:
+- fromDate
+- toDate
+- eventTypes[]
+- includeInternal (bool)
+
+Response:
+- ordered descending by occurredAtUtc
+
+---
+
+--------------------------------------------------
+STEP 8 — PERFORMANCE RULES
+--------------------------------------------------
+
+- Must support pagination (cursor or page/size)
+- Must index:
+  - tenantId + conversationId + occurredAtUtc
+- Must not join large tables dynamically
+- Must not load entire history unbounded
+
+---
+
+--------------------------------------------------
+STEP 9 — AUDIT VS TIMELINE (IMPORTANT DISTINCTION)
+--------------------------------------------------
+
+Audit:
+- compliance
+- full detail
+- immutable
+
+Timeline:
+- user-facing
+- summarized
+- readable
+
+👉 Timeline is NOT a replacement for audit
+
+---
+
+--------------------------------------------------
+STEP 10 — AUTOMATED TESTS
+--------------------------------------------------
+
+Minimum:
+
+1. Message creates timeline entry
+2. Assignment creates timeline entry
+3. SLA breach creates timeline entry
+4. Escalation creates timeline entry
+5. Visibility filtering works
+6. Ordering correct
+7. Pagination works
+8. Regression (existing flows unaffected)
+
+---
+
+--------------------------------------------------
+STEP 11 — FINAL REVIEW
+--------------------------------------------------
+
+Ensure:
+
+- All major events generate timeline entries
+- No duplicate entries
+- No missing critical events
+- Performance acceptable
+- No architecture violations
+
+---
+
+## Expected Outcome
+
+You now have:
+
+- full communication system
+- full workflow system
+- **full visibility layer**
+
+---
+
+## Next Step
+
+After this:
+
+👉 LS-COMMS-04-BLK-001 — Advanced Filtering & Operational Views
+
+---
+
+## REQUIRED FINAL OUTPUT
+
+Return:
+
+/analysis/LS-COMMS-03-BLK-003-report.md
+```

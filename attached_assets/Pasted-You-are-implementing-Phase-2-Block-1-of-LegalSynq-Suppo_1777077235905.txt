@@ -1,0 +1,223 @@
+You are implementing Phase 2 Block 1 of LegalSynq Support Service Operational Integrations.
+
+FEATURE ID:
+SUP-INT-05
+
+FEATURE NAME:
+Notifications + Audit Live Wiring
+
+Report file:
+ /analysis/SUP-INT-05-report.md
+
+PRIMARY OBJECTIVE:
+Wire the integrated Support Service to the real LegalSynq Notifications Service and Audit Service instead of NoOp mode, while preserving standalone deployability and existing Support domain behavior.
+
+IMPORTANT CONTEXT:
+Phase 1 is complete:
+- Gateway route exists: /support/api/{**catch-all}
+- Support is integrated into platform UI/navigation
+- Support runtime config is environment-driven
+- Support still supports standalone mode
+- Current integration modes default to NoOp:
+  - Support__Notifications__Mode=NoOp
+  - Support__Audit__Mode=NoOp
+  - Support__FileStorage__Mode=NoOp
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT change Support ticket/comment/attachment/queue domain models unless absolutely required.
+3. DO NOT change tenant isolation.
+4. DO NOT weaken JWT/RBAC.
+5. DO NOT inject X-Tenant-Id in production.
+6. Tenant must come from JWT claims.
+7. DO NOT store file bytes in Support DB.
+8. DO NOT add email reply / Comms features.
+9. DO NOT add SLA, Task, Monitoring, or product deep-link logic in this block.
+10. DO NOT hardcode service URLs.
+11. Preserve NoOp mode for standalone/local operation.
+12. Support must remain deployable standalone and integrated.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-INT-05-report.md
+
+Update this report incrementally after each major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Existing Support notification integration discovery
+3. Existing Support audit integration discovery
+4. Notifications Service contract discovery
+5. Audit Service contract discovery
+6. Config/env changes
+7. Files changed
+8. Event/payload mapping
+9. Tenant/auth propagation behavior
+10. Validation results
+11. Build/test results
+12. Known gaps/deferred items
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- Support notification dispatcher/provider abstractions
+- Support audit dispatcher/provider abstractions
+- Existing NoOp implementations
+- Current config keys under Support:Notifications and Support:Audit
+- Existing Notifications Service API/client patterns in other services
+- Existing Audit Service API/client patterns in other services
+- Gateway routes for notifications/audit services
+- Existing correlation ID/header propagation pattern
+- Existing service-to-service auth pattern, if any
+- Existing event taxonomy/template naming conventions
+
+Do not implement until this analysis is documented.
+
+STEP 3 — NOTIFICATIONS LIVE WIRING:
+Wire Support notification dispatch to the real Notifications Service using existing platform patterns.
+
+Required:
+- Preserve Support__Notifications__Mode=NoOp as default.
+- Add/confirm a live mode such as:
+  Support__Notifications__Mode=Http
+  or use the existing mode naming if already present.
+- Configure Notifications Service base URL through env/config only.
+- Do not hardcode hostnames.
+- Use gateway route if that is the existing service-to-service pattern.
+- Preserve correlation/request headers where supported.
+- Include tenant context only through validated JWT-derived/service context, not X-Tenant-Id injection.
+
+Required Support notification events to verify/map:
+- TicketCreated
+- TicketAssigned
+- TicketStatusChanged
+- TicketCommentAdded
+- TicketAttachmentAdded
+
+If the exact event names already exist, reuse them. Do not invent a parallel taxonomy.
+
+STEP 4 — AUDIT LIVE WIRING:
+Wire Support audit dispatch to the real Audit Service using existing platform patterns.
+
+Required:
+- Preserve Support__Audit__Mode=NoOp as default.
+- Add/confirm a live mode such as:
+  Support__Audit__Mode=Http
+  or use the existing mode naming if already present.
+- Configure Audit Service base URL through env/config only.
+- Do not hardcode hostnames.
+- Preserve correlation/request headers where supported.
+- Ensure audit records include:
+  - tenantId
+  - actor/user id when available
+  - action
+  - entity type
+  - entity id
+  - timestamp
+  - metadata
+  - correlation id if available
+
+Required Support audit events to verify/map:
+- TicketCreated
+- TicketUpdated
+- TicketAssigned
+- TicketStatusChanged
+- CommentAdded
+- AttachmentLinked
+- QueueChanged if supported
+
+STEP 5 — CONFIG / ENVIRONMENT:
+Add or confirm environment-driven config keys.
+
+Expected examples, adjusted to existing patterns:
+- Support__Notifications__Mode
+- Support__Notifications__BaseUrl
+- Support__Notifications__TimeoutSeconds
+- Support__Audit__Mode
+- Support__Audit__BaseUrl
+- Support__Audit__TimeoutSeconds
+
+If the platform uses gateway service URLs:
+- Notifications BaseUrl should point to gateway-relative or gateway service URL pattern.
+- Audit BaseUrl should point to gateway-relative or gateway service URL pattern.
+
+No production secrets should be committed.
+
+STEP 6 — FAILURE BEHAVIOR:
+Support must remain operational if Notifications or Audit are unavailable.
+
+Required:
+- Notification dispatch failure must not break core ticket creation/update unless existing platform policy requires fail-closed.
+- Audit dispatch behavior should follow existing platform policy.
+- If audit is mandatory in this platform, document whether failure is fail-open or fail-closed.
+- Log integration failures clearly.
+- Avoid duplicate sends on simple retry loops unless idempotency exists.
+
+STEP 7 — TENANT / AUTH PROPAGATION:
+Validate and document:
+- Tenant id used in notification/audit payloads comes from Support tenant context.
+- No X-Tenant-Id production injection is introduced.
+- Service-to-service auth follows existing platform pattern.
+- JWT/customer request token forwarding is not misused for internal service calls unless that is already the platform standard.
+
+STEP 8 — VALIDATION:
+Validate as much as the environment supports:
+
+1. NoOp mode still works:
+   - Support starts with Notifications=NoOp and Audit=NoOp.
+   - Ticket creation/update path does not require Notifications/Audit services.
+
+2. Live mode config loads:
+   - Support starts with live Notifications/Audit mode when BaseUrl is configured.
+
+3. Payload mapping:
+   - Confirm ticket lifecycle events produce expected notification/audit payloads.
+
+4. Failure behavior:
+   - Simulate Notifications unavailable.
+   - Simulate Audit unavailable.
+   - Confirm behavior matches documented policy.
+
+5. Gateway/platform path:
+   - Confirm configured URLs are not direct hardcoded localhost unless explicitly dev-only config.
+
+STEP 9 — BUILD / TEST:
+Run applicable checks:
+- dotnet build apps/services/support/Support.Api/Support.Api.csproj
+- dotnet build apps/services/support/Support.Tests/Support.Tests.csproj if present
+- dotnet build apps/gateway/Gateway.Api/Gateway.Api.csproj if gateway config was touched
+- dotnet build LegalSynq.sln if feasible
+- Run relevant tests if available
+
+STEP 10 — FINAL REPORT:
+Complete:
+
+# SUP-INT-05 Report
+
+## 1. Codebase Analysis
+## 2. Existing Notification Integration
+## 3. Existing Audit Integration
+## 4. Notifications Service Contract
+## 5. Audit Service Contract
+## 6. Configuration / Environment Changes
+## 7. Files Created / Changed
+## 8. Event / Payload Mapping
+## 9. Tenant / Auth Propagation
+## 10. Failure Behavior
+## 11. Validation Results
+## 12. Build / Test Results
+## 13. Known Gaps / Deferred Items
+## 14. Final Readiness Assessment
+
+DONE CRITERIA:
+- Support can run in NoOp mode unchanged.
+- Support can be configured for live Notifications Service dispatch.
+- Support can be configured for live Audit Service dispatch.
+- Notification and audit payloads are tenant-aware.
+- No X-Tenant-Id production injection is introduced.
+- No Support domain schema changes are introduced unless explicitly justified.
+- No production secrets are committed.
+- Integration failures are logged and handled safely.
+- Builds/tests are documented.
+- /analysis/SUP-INT-05-report.md is complete.
+
+If any validation fails, do not claim success. Document the blocker, root cause, and recommended iteration.

@@ -1,0 +1,399 @@
+You are implementing BLK-PERF-01 — Performance & Query Optimization for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-PERF-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block optimizes performance AFTER security, tenant isolation, observability, and governance are already established.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new product features
+   - redesign UX
+   - weaken tenant isolation
+   - weaken governance enforcement
+   - bypass audit/logging controls
+   - introduce cache behavior that leaks cross-tenant data
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Improve production performance and scalability for tenant-scoped LegalSynq flows.
+
+At the end of this block:
+
+- high-traffic tenant-scoped queries are indexed or optimized
+- pagination is enforced where needed
+- admin/reporting queries avoid unnecessary full scans
+- tenant-aware cache/query patterns are safe
+- no security, governance, or tenant-isolation regressions are introduced
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- query hotspot audit
+- database index review
+- pagination enforcement review
+- no-tracking read optimization
+- tenant-aware query-shape improvements
+- safe performance improvements for public/admin/tenant portal endpoints
+
+This block does NOT include:
+
+- new analytics products
+- UI redesign
+- broad schema redesign
+- replacing EF Core
+- distributed caching unless a safe existing pattern already exists
+
+--------------------------------------------------
+
+PART A — PERFORMANCE HOTSPOT AUDIT
+
+--------------------------------------------------
+
+Audit likely high-traffic or heavy endpoints across CareConnect first.
+
+At minimum inspect:
+
+1. Public routes
+   - public `/network`
+   - public network providers
+   - public provider markers
+   - public referral submission
+
+2. Tenant portal routes
+   - referral list/detail
+   - network list/detail
+   - provider map/list/search
+   - appointments
+   - notes
+
+3. Admin routes
+   - dashboard
+   - analytics funnel
+   - performance metrics
+   - blocked-provider logs
+   - activation queue
+   - admin referrals monitor
+
+4. Provider/common portal
+   - onboarding status
+   - provider dashboard/referral detail if present
+
+For each, document:
+- query shape
+- tenant filter presence
+- pagination status
+- potential full table scans
+- whether `AsNoTracking()` is appropriate
+- indexes likely needed
+
+--------------------------------------------------
+
+PART B — DATABASE INDEX REVIEW
+
+--------------------------------------------------
+
+Review EF Core entity configurations and migrations for critical tables.
+
+At minimum inspect tables/entities related to:
+
+- Referrals
+- Providers
+- Networks
+- NetworkProviders / join tables
+- ActivationRequests
+- BlockedProviderAccessLogs
+- Appointments
+- ReferralNotes
+- ProviderFacilities / Facilities if applicable
+
+Add or update indexes where justified.
+
+Priority index patterns:
+
+1. Tenant-scoped lookups
+   - `(TenantId, Id)` where applicable
+   - `(TenantId, CreatedAtUtc)`
+   - `(TenantId, Status)`
+   - `(TenantId, Status, CreatedAtUtc)`
+
+2. Public network/provider lookups
+   - `(TenantId, NetworkId)`
+   - provider marker/map queries
+   - active/accepting-referrals filters
+
+3. Admin dashboards / analytics
+   - rolling-window queries by created date
+   - status + tenant filters
+   - blocked logs by tenant/date/user/reason
+
+4. Provider/common portal
+   - `IdentityUserId`
+   - provider onboarding/status lookup
+   - pending tenant onboarding fields if queried
+
+Rules:
+- avoid adding redundant indexes
+- prefer composite indexes that match actual WHERE/order patterns
+- document why each new index exists
+- add EF migration if schema changes
+
+--------------------------------------------------
+
+PART C — PAGINATION ENFORCEMENT
+
+--------------------------------------------------
+
+Audit list endpoints for pagination.
+
+Requirements:
+
+- high-cardinality lists must be paginated
+- page size must be clamped
+- default page size must be safe
+- unbounded list endpoints must be justified or fixed
+
+Focus on:
+
+- referrals
+- providers
+- networks
+- activation requests
+- blocked-provider logs
+- notes/history/audit-style lists
+- admin monitor endpoints
+
+If an endpoint intentionally returns all rows, document why the cardinality is bounded.
+
+--------------------------------------------------
+
+PART D — QUERY SHAPE OPTIMIZATION
+
+--------------------------------------------------
+
+Improve query shapes where safe.
+
+Examples:
+
+- add `AsNoTracking()` to read-only queries
+- project only needed fields instead of loading full entities
+- avoid unnecessary `Include()` on list endpoints
+- avoid N+1 query patterns
+- apply tenant filters before grouping / aggregation
+- apply date/status filters before materialization
+- avoid post-fetch filtering when query-level filtering is possible
+
+Rules:
+- preserve response shapes
+- preserve tenant scoping
+- preserve governance checks
+- do not optimize by removing necessary authorization/ownership validation
+
+--------------------------------------------------
+
+PART E — PUBLIC ROUTE PERFORMANCE
+
+--------------------------------------------------
+
+Optimize public network/provider queries safely.
+
+Requirements:
+
+- public routes must remain trust-boundary validated from BLK-SEC-02-02
+- public queries must remain tenant-scoped
+- provider marker/list endpoints should avoid loading unnecessary large fields
+- public referral submission should not do unnecessary broad provider lookup
+
+No public endpoint may trust client-supplied tenant context.
+
+--------------------------------------------------
+
+PART F — ADMIN ANALYTICS / DASHBOARD PERFORMANCE
+
+--------------------------------------------------
+
+Review and optimize admin metrics added/secured in prior blocks:
+
+- `/api/admin/dashboard`
+- `/api/admin/analytics/funnel`
+- `/api/admin/performance`
+- `/api/admin/providers/blocked`
+- `/api/admin/referrals`
+- activation queue
+
+Ensure:
+
+- tenant filters are applied before aggregation
+- date filters are applied before aggregation
+- indexes support the filters
+- grouping queries are bounded where practical
+- PlatformAdmin platform-wide queries are acceptable or bounded
+
+--------------------------------------------------
+
+PART G — SAFE CACHING REVIEW
+
+--------------------------------------------------
+
+Review whether any safe caching already exists or is appropriate.
+
+Rules:
+
+- DO NOT introduce distributed caching unless already scaffolded
+- DO NOT cache tenant-scoped data without tenant-aware cache keys
+- DO NOT cache authorization decisions across users
+- DO NOT cache public trust-boundary validation results unless signed/tenant-specific
+
+If caching is not appropriate yet, document “no caching added” and why.
+
+--------------------------------------------------
+
+PART H — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. CareConnect builds successfully
+2. Tenant builds successfully if touched
+3. Identity builds successfully if touched
+4. Gateway builds successfully if touched
+5. EF migration generated if indexes added
+6. Existing tests pass where available
+7. Tenant isolation remains intact
+8. Public trust-boundary validation still works
+9. Admin governance checks still work
+10. Pagination behavior is correct for updated endpoints
+11. Response shapes are unchanged
+
+If feasible, add or update tests for:
+- pagination clamp behavior
+- tenant-scoped query behavior
+- optimized endpoint response shape
+
+--------------------------------------------------
+
+PART I — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-PERF-01-report.md
+
+# BLK-PERF-01 Report
+
+## 1. Summary
+
+## 2. Performance Hotspot Audit
+- endpoints reviewed
+- query risks found
+
+## 3. Index Review / Schema Changes
+- indexes added or confirmed
+- migration details
+
+## 4. Pagination Enforcement
+- endpoints fixed or confirmed bounded
+
+## 5. Query Shape Optimization
+- AsNoTracking / projection / filter improvements
+
+## 6. Public Route Performance
+- optimizations made without weakening trust boundary
+
+## 7. Admin Analytics / Dashboard Performance
+- aggregation/query improvements
+
+## 8. Caching Decision
+- caching added or explicitly deferred
+
+## 9. Validation Results
+
+## 10. Changed Files
+- full file paths
+
+## 11. Methods / Endpoints Updated
+
+## 12. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 13. Issues / Gaps
+
+--------------------------------------------------
+
+PART J — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-PERF-01-commit.diff.txt
+
+--------------------------------------------------
+
+PART J.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-PERF-01-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- indexes / migrations
+- pagination enforcement
+- query-shape optimizations
+- public/admin/tenant performance improvements
+
+--------------------------------------------------
+
+PART J.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 14. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-PERF-01-commit.diff.txt
+- Summary: /analysis/BLK-PERF-01-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- performance improvements are safe and tenant-aware
+- no security/governance/observability regressions
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

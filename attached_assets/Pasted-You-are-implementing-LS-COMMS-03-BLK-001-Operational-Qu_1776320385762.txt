@@ -1,0 +1,716 @@
+You are implementing LS-COMMS-03-BLK-001 — Operational Queues, Assignment, and SLA Tracking for SynqComm.
+
+OBJECTIVE:
+Extend SynqComm from a communication backbone into an operational communication workflow service by adding queue management, assignment, ownership, response-state tracking, and SLA timing foundations. This block must enable conversations to be worked like operational tickets without breaking the existing communication, email, document, and Notifications boundaries already established.
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the communication system of record for conversations, messages, participants, email threading metadata, recipient records, sender/template metadata, and delivery state.
+- Notifications remains the outbound delivery engine.
+- Documents remains the owner of binaries.
+- SynqComm continues as an independent service under /apps/services/synqcomm with its own physically separate database.
+- SynqComm must NOT piggyback on another service database.
+- SynqComm must NOT use cross-database joins for core logic.
+- This block adds operational workflow behavior to SynqComm itself; do not create a second ticketing service in this block.
+- This block must preserve all existing visibility, participant, tenant, and email-threading rules.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+- LS-COMMS-02-BLK-001 — Email Intake and Threading
+- LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status
+- LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion
+- LS-COMMS-02-BLK-004 — Tenant-Configurable Sender Addresses and Email Templates
+- LS-COMMS-02-BLK-005 — End-to-End Notifications Integration Testing
+
+CURRENT FOUNDATION ALREADY EXISTS:
+- Inbound and outbound email are fully implemented
+- Notifications integration is validated and hardened
+- Sender configs and templates are supported
+- CC/BCC and reply-all behavior are supported
+- Delivery callbacks are idempotent and secured
+- 102 total tests are already passing from prior blocks
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-03-BLK-001-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-03-BLK-001-report.md
+
+Initialize it with:
+
+# LS-COMMS-03-BLK-001 — Operational Queues, Assignment, and SLA Tracking Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support operational queues, assignment, ownership, response-state tracking, and SLA timing foundations while preserving SynqComm as the communication system of record.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- SynqComm remains the communication system of record
+- Notifications remains the outbound delivery engine
+- Documents remains owned by Documents service
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Review existing implementation and operational workflow gaps
+- [ ] Step 2: Design queue, assignment, and SLA model
+- [ ] Step 3: Add domain models and contracts
+- [ ] Step 4: Implement queue and assignment logic
+- [ ] Step 5: Implement SLA and response-state tracking
+- [ ] Step 6: Extend APIs and persistence
+- [ ] Step 7: Extend audit coverage
+- [ ] Step 8: Add/update migrations
+- [ ] Step 9: Add automated tests
+- [ ] Step 10: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND IDENTIFY OPERATIONAL GAPS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current conversation status model
+- current participant model and active participant rules
+- current read/unread tracking
+- current email intake and outbound behavior
+- current audit and delivery-state integration
+- current API route and permission conventions
+- whether any queue/assignment/shared-work patterns already exist elsewhere in the monorepo
+- whether any SLA/priority enums or timing utilities already exist in shared libraries
+- whether any user/team/group concepts are already modeled in accessible shared libraries or contracts
+
+Update the report with:
+- current operational workflow limitations
+- exact queue strategy selected
+- exact assignment strategy selected
+- exact SLA design selected
+- any assumptions required
+
+IMPORTANT:
+This block is for operational workflow foundations, not UI.
+Build incrementally on top of the current SynqComm service.
+
+--------------------------------------------------
+STEP 3 — DESIGN OPERATIONAL QUEUE, ASSIGNMENT, AND SLA MODEL
+--------------------------------------------------
+
+This block must add:
+- queue ownership for conversations
+- user assignment for conversations
+- operational state separate from communication content
+- response-state tracking
+- SLA timing foundations
+- queue/list filtering support for operational use
+
+Key design principles:
+- conversations remain the primary operational object
+- assignment must be tenant-scoped
+- queues must be tenant-scoped
+- assignment and SLA state must not break existing visibility/participant rules
+- email or message activity should be able to affect queue/SLA state when appropriate
+- keep the first block of operational workflow focused and deterministic
+- do not overbuild escalations, automation engines, or UI dashboards yet
+
+Update the report with the chosen design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent model(s) needed.
+
+Preferred models:
+
+A. ConversationQueue
+Purpose:
+Tenant-scoped operational queue definition.
+
+Minimum fields:
+- id
+- tenantId
+- name
+- code
+- description nullable
+- isDefault
+- isActive
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Rules:
+- queue code should be normalized and unique per tenant
+- one default queue per tenant if that model is chosen
+- inactive queues cannot receive new assignments
+
+B. ConversationAssignment
+Purpose:
+Current operational ownership of a conversation.
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- queueId nullable
+- assignedUserId nullable
+- assignedByUserId nullable
+- assignmentStatus
+- assignedAtUtc
+- lastAssignedAtUtc
+- acceptedAtUtc nullable
+- unassignedAtUtc nullable
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Recommended assignment statuses:
+- UNASSIGNED
+- QUEUED
+- ASSIGNED
+- ACCEPTED
+- REASSIGNED
+
+C. ConversationSlaState
+Purpose:
+Tracks response/resolution timing state.
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- priority
+- firstResponseDueAtUtc nullable
+- resolutionDueAtUtc nullable
+- firstResponseAtUtc nullable
+- resolvedAtUtc nullable
+- breachedFirstResponse
+- breachedResolution
+- lastEvaluatedAtUtc nullable
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Recommended priorities:
+- LOW
+- NORMAL
+- HIGH
+- URGENT
+
+D. Optional extension fields on Conversation if helpful:
+- operationalStatus
+- waitingOn
+- lastInboundAtUtc
+- lastOutboundAtUtc
+- lastCustomerVisibleAtUtc
+Only add these if they materially simplify the design and fit current conventions.
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUMS / RULE DEFINITIONS
+--------------------------------------------------
+
+Add or extend rules for operational workflow.
+
+Required rules:
+
+Queue rules:
+- every conversation may have zero or one current queue assignment in this block
+- new inbound external email may route to default queue if no queue exists and that is the chosen design
+- inactive queue cannot be assigned
+- tenant isolation must apply
+
+Assignment rules:
+- assignment is to a single user at a time in this block
+- assigned user must belong to the same tenant context as the conversation, if that validation is currently possible within service boundaries
+- reassignment preserves audit trail
+- unassigned conversations can still exist in queues
+- only authorized internal users can assign/reassign
+
+Operational status rules:
+Choose a clean operational status model, for example:
+- OPEN
+- PENDING_INTERNAL
+- PENDING_EXTERNAL
+- RESOLVED
+- CLOSED
+
+You may reuse existing conversation status if that is clean enough, or introduce a separate operational status only if necessary.
+Document the choice clearly.
+
+SLA rules:
+- priority determines due times
+- first response SLA should start when a conversation enters an active inbound/open state
+- resolution SLA should start when a conversation is created or when first actionable inbound message arrives, depending on chosen design
+- internal notes should not count as external response
+- outbound SHARED_EXTERNAL response may satisfy first response SLA
+- conversation resolution may satisfy resolution SLA
+- breached flags must update deterministically
+- exact SLA durations can be config constants for now if no shared config service exists
+
+Recommended default SLA durations:
+- LOW: first response 24h, resolution 120h
+- NORMAL: first response 8h, resolution 72h
+- HIGH: first response 4h, resolution 24h
+- URGENT: first response 1h, resolution 8h
+
+Use config/constants if possible rather than hardcoding in many places.
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required support:
+
+Queue management:
+1. CreateConversationQueueRequest
+2. UpdateConversationQueueRequest
+3. ConversationQueueResponse
+
+Assignment operations:
+4. AssignConversationRequest
+Fields may include:
+- queueId nullable
+- assignedUserId nullable
+- priority nullable
+- note nullable internal only if useful
+
+5. ReassignConversationRequest
+6. AcceptConversationAssignmentRequest if using acceptance flow
+7. UnassignConversationRequest
+8. ConversationAssignmentResponse
+
+SLA/operational state:
+9. UpdateConversationPriorityRequest
+10. ConversationSlaStateResponse
+11. ConversationOperationalSummaryResponse
+Include where appropriate:
+- queue
+- assigned user
+- assignment status
+- priority
+- first response due
+- resolution due
+- breach flags
+- waiting state
+
+List/query/filter:
+12. ConversationQueueListQuery or equivalent request params
+Support filtering by:
+- queueId
+- assignedUserId
+- assignmentStatus
+- priority
+- breachedFirstResponse
+- breachedResolution
+- operational status / conversation status
+- unread
+- hasExternalWaitingState if feasible
+
+Do not add UI-only DTOs.
+
+--------------------------------------------------
+STEP 7 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- queues
+- assignments
+- SLA state
+- operational listing/filtering
+
+Possible interfaces:
+- IConversationQueueRepository
+- IConversationAssignmentRepository
+- IConversationSlaStateRepository
+
+Required behaviors:
+- create/update/list queues
+- get default queue by tenant
+- get current assignment by conversation
+- assign/reassign/unassign
+- get SLA state by conversation
+- upsert SLA state
+- operational list queries with tenant-aware filters
+- prevent duplicate active assignment rows where appropriate
+
+Stay within SynqComm-owned database only.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT QUEUE AND ASSIGNMENT LOGIC
+--------------------------------------------------
+
+Implement service-layer logic for queue and assignment operations.
+
+Required behavior:
+- create/update/list queues
+- resolve default queue for tenant
+- assign conversation to queue and/or user
+- reassign conversation
+- unassign conversation
+- optionally accept assignment if acceptance flow is included
+- update operational metadata consistently
+- preserve audit trail
+
+Recommended behavior:
+- new externally originated conversations may auto-enter default queue if no queue exists and the design supports it
+- reassignment should update timestamps and assignment status
+- queue-only assignment (no user) should be supported
+- user-only assignment without queue is allowed only if consistent with chosen model; document it
+- if current assignment exists, reassign should supersede it cleanly rather than duplicating active assignment rows
+
+Do not implement team load balancing or automation rules yet.
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT SLA AND RESPONSE-STATE TRACKING
+--------------------------------------------------
+
+Implement service-layer logic for SLA timing and waiting state.
+
+Required behavior:
+- initialize SLA state when conversation becomes operationally active
+- calculate due dates from priority
+- mark first response satisfied when an authorized internal outbound SHARED_EXTERNAL response is sent
+- mark resolution satisfied when conversation is resolved/closed per chosen rule
+- update breached flags deterministically based on clock/time provider
+- support recalculation when priority changes
+- preserve prior timestamps where appropriate
+
+Recommended behavior:
+- inbound external email or externally visible message can move conversation to PENDING_INTERNAL / waiting on internal action
+- outbound SHARED_EXTERNAL response can move conversation to PENDING_EXTERNAL / waiting on external reply
+- internal-only notes do not satisfy first response SLA and do not move external waiting state
+- add a clean helper/service for evaluating waiting direction:
+  - WAITING_INTERNAL
+  - WAITING_EXTERNAL
+  - NONE
+If you implement this, keep it simple and documented.
+
+Use an injectable clock/time provider if project patterns support it; otherwise implement time handling consistently and keep tests deterministic.
+
+--------------------------------------------------
+STEP 10 — EXTEND EXISTING MESSAGE / EMAIL FLOWS AS NEEDED
+--------------------------------------------------
+
+Hook operational state into existing communication flows.
+
+Required integrations:
+- inbound external email can initialize queue/SLA state
+- outbound SHARED_EXTERNAL email/message can satisfy first response SLA
+- conversation close/reopen behavior remains consistent with prior blocks
+- operational status/waiting state updates must not break email threading, sender/template logic, or delivery tracking
+
+If needed, update:
+- EmailIntakeService
+- OutboundEmailService
+- ConversationService
+- related repositories/services
+
+Document exactly what communication events now affect operational state.
+
+--------------------------------------------------
+STEP 11 — EXTEND APIs
+--------------------------------------------------
+
+Add or extend APIs only as needed.
+
+Minimum required endpoints:
+
+Queue config:
+- POST /api/synqcomm/queues
+- GET /api/synqcomm/queues
+- GET /api/synqcomm/queues/{id}
+- PATCH /api/synqcomm/queues/{id}
+
+Assignment:
+- POST /api/synqcomm/conversations/{id}/assign
+- POST /api/synqcomm/conversations/{id}/reassign
+- POST /api/synqcomm/conversations/{id}/unassign
+- POST /api/synqcomm/conversations/{id}/accept (optional if acceptance flow implemented)
+
+SLA/priority:
+- PATCH /api/synqcomm/conversations/{id}/priority
+- GET /api/synqcomm/conversations/{id}/operational
+- GET /api/synqcomm/conversations/operations or similar list endpoint with filters
+
+You may enhance existing conversation list APIs instead of creating entirely separate ones if that is cleaner.
+Use existing permission and minimal API conventions.
+
+--------------------------------------------------
+STEP 12 — AUTHORIZATION, TENANT, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- only authorized internal users can manage queues
+- only authorized internal users can assign/reassign/unassign conversations
+- operational list queries must be tenant-scoped
+- external participants must not gain access to queue/assignment/SLA internals
+- INTERNAL_ONLY content rules remain intact
+- queue, assignment, and SLA state must never leak through external-visible APIs unless explicitly designed and safe
+- if user validation across tenant identity boundaries is limited by current service boundaries, use the cleanest existing pattern and document the exact limitation
+
+Do not weaken current authorization rules.
+
+--------------------------------------------------
+STEP 13 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for operational workflow events.
+
+Required audit events where feasible:
+- queue created
+- queue updated
+- conversation assigned
+- conversation reassigned
+- conversation unassigned
+- assignment accepted if implemented
+- priority changed
+- SLA initialized
+- first response SLA satisfied
+- resolution SLA satisfied
+- first response SLA breached
+- resolution SLA breached
+- operational waiting state changed
+
+If structured payloads are supported, include:
+- tenantId
+- conversationId
+- queueId
+- assignedUserId
+- oldPriority / newPriority
+- due timestamps
+- breach flags
+- waiting state
+- triggering message/email reference id where relevant
+
+Use the existing audit pattern.
+Do not invent a new audit subsystem.
+
+--------------------------------------------------
+STEP 14 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-001 of Epic 03.
+
+Expected changes may include:
+- new table for conversation queues
+- new table for conversation assignments
+- new table for conversation SLA state
+- supporting indexes for operational queries
+
+Possible indexes:
+- IX_Queues_TenantId_Code
+- IX_Queues_TenantId_IsDefault
+- IX_Assignments_TenantId_ConversationId
+- IX_Assignments_TenantId_AssignedUserId
+- IX_Assignments_TenantId_QueueId
+- IX_SlaState_TenantId_ConversationId
+- IX_SlaState_TenantId_BreachedFirstResponse
+- IX_SlaState_TenantId_BreachedResolution
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 15 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — Queue Creation and Default Resolution
+- create queue
+- set default
+- verify default queue resolution works
+
+Test 2 — Conversation Assignment
+- assign conversation to queue and user
+- verify current assignment stored correctly
+
+Test 3 — Reassignment
+- reassign to different user/queue
+- verify prior active assignment superseded cleanly
+
+Test 4 — Unassignment / Queue-Only Assignment
+- verify supported assignment states work as documented
+
+Test 5 — SLA Initialization on External Intake
+- inbound external conversation/email initializes SLA state and due dates
+
+Test 6 — First Response SLA Satisfaction
+- outbound SHARED_EXTERNAL response satisfies first response SLA
+- internal note does not
+
+Test 7 — Priority Change Recalculates SLA
+- update priority
+- verify due dates adjust correctly
+
+Test 8 — Breach Detection
+- use deterministic time progression
+- verify first response and/or resolution breach flags set correctly
+
+Test 9 — Waiting State Transitions
+- inbound external activity -> waiting internal
+- outbound external response -> waiting external
+- internal note -> no external waiting-state satisfaction
+
+Test 10 — Authorization / Visibility
+- external participant cannot access operational endpoints
+- unauthorized internal user cannot manage queue/assignment when applicable
+
+Test 11 — Operational List Filtering
+- filter by queue, assignedUserId, priority, breached flags, unread if implemented
+
+Test 12 — Prior Communication Regression
+- verify existing inbound/outbound email and threading behavior still works after adding operational state
+
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 16 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Notifications remains the outbound delivery engine
+- queues, assignments, and SLA state are tenant-scoped and internal-only
+- communication flows now correctly affect operational state where designed
+- current email, threading, sender/template, and delivery features still work
+- no unrelated UI features were added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves SynqComm, Notifications, and Documents boundaries.
+
+## Queue and Assignment Design
+Explain how queues, assignment, and reassignment work.
+
+## SLA and Waiting-State Design
+Explain how due dates, breach flags, and waiting states are calculated.
+
+## Communication Flow Integration
+Explain how inbound/outbound communication now affects operational state.
+
+## Audit Integration
+Explain which operational events are now captured.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-03-BLK-002 — Notifications, Escalation Triggers, and Reminder Automation
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST preserve Notifications as the outbound delivery engine
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit/logging pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on operational queues, assignment, and SLA tracking
+- MUST NOT add unrelated UI or broad workflow automation features
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- tenant-scoped operational queues
+- conversation assignment and reassignment
+- priority and SLA timing foundations
+- waiting-state and response-state tracking
+- operational list/query filtering
+- audit events for assignment and SLA lifecycle
+- automated tests proving the operational workflow behavior
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-03-BLK-001-report.md

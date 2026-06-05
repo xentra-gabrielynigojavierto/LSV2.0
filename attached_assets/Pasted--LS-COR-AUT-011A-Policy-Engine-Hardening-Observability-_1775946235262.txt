@@ -1,0 +1,452 @@
+# LS-COR-AUT-011A — Policy Engine Hardening + Observability
+
+## Objective
+
+Harden the new ABAC layer so it is **production-grade, observable, performant, and operationally explainable**.
+
+This feature must strengthen LS-COR-AUT-011 by adding:
+
+* structured policy decision logging
+* policy evaluation caching
+* explicit evaluation order / priority behavior
+* deny-override support
+* standardized resource context resolution
+* policy-change invalidation hooks
+
+At completion, the ABAC layer must be:
+
+* explainable
+* deterministic
+* efficient
+* safe to operate at scale
+
+---
+
+## Architectural Principles
+
+### Additive Hardening
+
+* Do NOT break LS-COR-AUT-011 policy behavior unless explicitly required for correctness
+* Existing permission-first flow must remain intact
+
+### Deterministic Decisions
+
+* Policy outcomes must be reproducible and ordered
+* Conflict resolution must be explicit, not emergent
+
+### Explainability by Default
+
+* Every deny or allow caused by policy evaluation must be diagnosable
+
+---
+
+## In Scope
+
+---
+
+## 1. Structured Policy Decision Logging
+
+### Problem
+
+LS-COR-AUT-011 introduced policy evaluation, but policy-level decisions are not yet operationally observable enough for production debugging.
+
+---
+
+### Required Implementation
+
+Add structured logging around policy evaluation.
+
+### Log Shape
+
+```json
+{
+  "event": "PolicyDecision",
+  "userId": "...",
+  "tenantId": "...",
+  "endpoint": "...",
+  "permission": "SYNQ_FUND.application:approve",
+  "policyCode": "SYNQ_FUND.approval.limit",
+  "policyId": "...",
+  "effect": "Allow|Deny",
+  "result": "ALLOW|DENY",
+  "ruleResults": [
+    {
+      "field": "amount",
+      "operator": "<",
+      "expected": "50000",
+      "actual": "42000",
+      "passed": true
+    }
+  ],
+  "resourceContextPresent": true,
+  "accessVersion": "...",
+  "evaluationElapsedMs": 12
+}
+```
+
+### Requirements
+
+* DENY logs at Warning
+* ALLOW logs at Information or Debug (configurable)
+* no sensitive raw payloads beyond fields needed for explainability
+* consistent JSON / structured logging format
+
+### Placement
+
+* `RequirePermissionFilter`
+* `PolicyEvaluationService`
+
+---
+
+## 2. Policy Evaluation Caching
+
+### Problem
+
+Policy evaluation may become expensive under repeated requests against the same user + permission + resource shape.
+
+---
+
+### Required Implementation
+
+Introduce a short-lived policy evaluation cache.
+
+### Cache Key (recommended shape)
+
+```text
+policy:{tenantId}:{userId}:{permission}:{accessVersion}:{resourceHash}
+```
+
+### Cache Value
+
+```json
+{
+  "allowed": true,
+  "matchedPolicies": [...],
+  "ruleResults": [...]
+}
+```
+
+### TTL
+
+* 30 seconds to 2 minutes
+* configurable
+
+### Rules
+
+* cache only deterministic evaluation results
+* avoid caching when required resource attributes are missing or incomplete if that could create ambiguity
+* preserve correctness over hit rate
+
+### Notes
+
+* in-memory cache is acceptable for first pass
+* design should remain extensible to distributed cache later
+
+---
+
+## 3. Priority + Evaluation Order Enforcement
+
+### Problem
+
+Policies have `Priority`, but the engine must explicitly honor and document ordering behavior.
+
+---
+
+### Required Implementation
+
+Define and enforce a deterministic policy execution order.
+
+### Required Rules
+
+* sort by `Priority` ascending or descending — choose one and document it
+* use stable tie-breaking, e.g.:
+
+  * `Priority`
+  * `PolicyCode`
+  * `Id`
+
+### Required Output
+
+Decision result must indicate evaluation order used.
+
+### Documentation
+
+* clearly document in code comments and report
+* ensure tests validate ordering
+
+---
+
+## 4. Deny-Override Support
+
+### Problem
+
+Current “all policies must pass” behavior is simple, but enterprise ABAC typically needs explicit effect handling.
+
+---
+
+### Required Implementation
+
+Extend `Policy` with:
+
+* `Effect` = `Allow` | `Deny`
+
+### Required Semantics
+
+Define and enforce:
+
+#### Recommended
+
+* any matched active `Deny` policy overrides `Allow`
+* if only `Allow` policies exist, all required allow conditions must pass
+* if no policies mapped, permission check behavior remains unchanged
+
+### Required Decision Model
+
+Return enough metadata to explain:
+
+* which deny policy caused the block
+* whether allow policies passed or failed
+
+### Backward Compatibility
+
+* existing policies may default to `Allow`
+* migration/defaulting must be safe
+
+---
+
+## 5. Resource Context Standardization
+
+### Problem
+
+`HttpContext.Items["PolicyResourceContext"]` is functional but too ad hoc for long-term maintainability.
+
+---
+
+### Required Implementation
+
+Create a standard abstraction such as:
+
+```csharp
+IPolicyResourceContextAccessor
+```
+
+or equivalent.
+
+### Responsibilities
+
+* set resource context in a consistent way
+* retrieve resource context in policy filters/services
+* avoid arbitrary string-key usage throughout the codebase
+
+### Requirements
+
+* remove or centralize magic-string `HttpContext.Items` access
+* update current policy consumers to use the abstraction
+
+---
+
+## 6. Policy Change Invalidation / Freshness
+
+### Problem
+
+Policy changes can alter authorization outcomes immediately, but current freshness mechanisms may not explicitly reflect policy mutations.
+
+---
+
+### Required Implementation
+
+On any of the following:
+
+* policy create/update/deactivate
+* policy rule add/remove/update
+* permission-policy mapping create/deactivate
+
+trigger an authorization freshness mechanism.
+
+### Preferred
+
+* increment a `PolicyVersion` or reuse/integrate with `AccessVersion` where appropriate
+
+### Goal
+
+* prevent stale authorization behavior after policy changes
+* keep implementation simple and safe
+
+### Important
+
+Document the chosen model clearly:
+
+* global policy version
+* tenant policy version
+* user access version integration
+* or another justified approach
+
+---
+
+## 7. Debug / Explainability Enhancements
+
+### Required Endpoint Enhancements
+
+Extend the admin debug surface so policy-level decisions are visible.
+
+Expected additions:
+
+* evaluated policies
+* evaluation order
+* matched / failed rules
+* final deny/allow cause
+* deny override indicator if applicable
+
+### Example Response Additions
+
+```json
+{
+  "policies": [
+    {
+      "policyCode": "SYNQ_FUND.approval.limit",
+      "effect": "Deny",
+      "result": "DENY",
+      "priority": 100,
+      "ruleResults": [...]
+    }
+  ],
+  "finalPolicyDecision": {
+    "result": "DENY",
+    "reason": "Matched deny policy SYNQ_FUND.approval.limit"
+  }
+}
+```
+
+---
+
+## 8. Admin UI — Policy Explainability
+
+### Policy Page Enhancements
+
+Add visibility for:
+
+* policy effect (`Allow` / `Deny`)
+* priority
+* mapped permissions
+* current active/inactive state
+
+### Access Debug / User View Enhancements
+
+Show:
+
+* policies that influenced access
+* rule pass/fail status
+* deny override reason
+* evaluation order summary
+
+Keep UX understandable for admins, not just engineers.
+
+---
+
+## 9. Validation Rules
+
+### Policy Validation
+
+* `Effect` required and valid
+* `Priority` within accepted range
+* deactivated policy must not be evaluated
+
+### Rule Validation
+
+* unsupported field/operator combinations rejected
+* deterministic data-type handling enforced
+
+### Caching Validation
+
+* only cache safe deterministic decisions
+* stale results must not survive version changes
+
+---
+
+## 10. Testing Requirements
+
+### Unit Tests
+
+* policy priority ordering
+* deny override behavior
+* allow-only behavior
+* default effect behavior for migrated policies
+* cache key generation
+* resource context accessor behavior
+
+### Integration Tests
+
+* permission + policy allow path
+* permission + deny policy block path
+* debug endpoint includes policy explainability
+* policy change invalidates previous decisions
+* logging emitted with expected fields
+
+### Performance Tests
+
+* repeated evaluation with cache hit
+* repeated evaluation with different resource hashes
+* verify caching improves repeated authorization checks
+
+### Security Tests
+
+* missing resource context handled safely
+* malformed policy data rejected
+* deny override cannot be bypassed by allow policy ordering
+
+---
+
+## Acceptance Criteria
+
+* policy decisions are logged in structured form
+* policy evaluation uses short-lived caching where safe
+* policy priority ordering is deterministic and documented
+* explicit `Allow` / `Deny` effect exists and is enforced
+* deny override behavior works correctly
+* resource context access is standardized
+* policy changes invalidate stale authorization behavior
+* debug/admin surfaces show policy decision explanations
+* system builds cleanly and tests pass
+
+---
+
+## Implementation Notes
+
+* prefer clarity over premature engine complexity
+* keep the first deny/allow conflict model simple and explicit
+* do not broaden into external policy engines yet
+* keep observability field names stable and machine-readable
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+`/analysis/LS-COR-AUT-011A-report.md`
+
+### Report must include:
+
+1. policy logging implementation
+2. caching approach and cache key design
+3. evaluation order / priority behavior
+4. deny-override semantics
+5. resource context standardization approach
+6. freshness / invalidation approach
+7. debug/UI explainability changes
+8. test results
+9. build status
+10. known limitations
+11. assumptions
+
+---
+
+## Final Goal
+
+After this feature, LS-COR-AUT ABAC must be:
+
+* **deterministic**
+* **observable**
+* **cache-aware**
+* **explainable**
+* **safe for enterprise production**

@@ -1,0 +1,156 @@
+You are working inside the LegalSynq monorepo.
+
+This is Step 21.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/analysis/step_21-backend-integration.md
+
+---
+
+Critical constraints:
+
+- Work ONLY inside:
+  apps/control-center
+
+- Maintain full independence
+
+- Do NOT import anything from:
+  apps/web
+
+- Use existing patterns:
+  - controlCenterServerApi
+  - BFF / API proxy routes
+  - server actions
+
+---
+
+Goal:
+
+Replace **mock data layer with real backend integration (Identity + Platform APIs)**
+
+---
+
+## 1. Introduce API Client
+
+Create:
+
+apps/control-center/src/lib/api-client.ts
+
+Add:
+
+apiFetch(path, options)
+
+Features:
+- base URL from env (e.g. CONTROL_CENTER_API_BASE)
+- includes cookies
+- handles JSON
+- error handling wrapper
+
+---
+
+## 2. Replace API Methods
+
+Update:
+
+apps/control-center/src/lib/control-center-api.ts
+
+Replace mock implementations with real calls:
+
+- tenants.list → GET /identity/api/admin/tenants
+- tenants.getById → GET /identity/api/admin/tenants/{id}
+
+- users.list → GET /identity/api/admin/users
+- users.getById → GET /identity/api/admin/users/{id}
+
+- roles.list → GET /identity/api/admin/roles
+- roles.getById → GET /identity/api/admin/roles/{id}
+
+- audit.list → GET /identity/api/admin/audit
+
+- support.*
+  → POST/GET /identity/api/admin/support
+
+- settings.*
+  → GET/POST /identity/api/admin/settings
+
+- monitoring.getSummary
+  → GET /platform/monitoring/summary
+
+---
+
+## 3. Preserve API Interface
+
+IMPORTANT:
+- DO NOT change function signatures
+- UI must remain untouched
+- Only replace internals
+
+---
+
+## 4. Add Error Handling
+
+- standard error object
+- handle 401 (redirect login)
+- handle 403 (unauthorized)
+
+---
+
+## 5. Add Loading/Failure States
+
+Update pages if needed:
+- show error banners
+- fallback UI
+
+---
+
+## 6. Environment Config
+
+Update:
+
+.env (or config)
+
+Add:
+
+CONTROL_CENTER_API_BASE
+
+---
+
+## 7. Remove Mock Stores
+
+- remove all MOCK_* datasets
+- keep fallback guards if needed
+
+---
+
+## 8. Backend readiness
+
+Add TODOs:
+
+// TODO: add retry/backoff
+// TODO: add request tracing
+// TODO: add API caching layer
+
+---
+
+## Output
+
+1. Show file-by-file implementation plan
+2. Generate code
+3. Produce report:
+
+# Step 21 – Backend Integration
+
+## Files Created
+## Files Updated
+## APIs Integrated
+## Error Handling Strategy
+## Removed Mock Logic
+## Remaining TODOs
+## Independence Validation
+## Any Issues or Assumptions
+
+4. Save report to:
+
+/analysis/step_21-backend-integration.md

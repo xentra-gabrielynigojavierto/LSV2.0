@@ -1,0 +1,307 @@
+You are implementing CC2-INT-B06-01 — Shared Provider Registry Alignment for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B06-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This is an ITERATION of CC2-INT-B06.
+   You are correcting domain behavior — NOT adding new features.
+
+5. Do NOT introduce new architecture.
+   You MUST align existing implementation to the correct model:
+   - Providers = shared global registry
+   - Networks = tenant-owned
+   - NetworkProvider = association only
+
+6. Preserve:
+   - Identity integration
+   - role-based access (CARECONNECT_NETWORK_MANAGER)
+   - existing API structure where possible
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Refactor network-provider management so that:
+
+- providers are stored in a **shared global provider registry**
+- networks only store **associations to providers**
+- adding providers follows:
+  - match existing → associate
+  - no match → create → associate
+
+At the end of this block:
+
+- no tenant-owned provider records exist
+- provider duplication is minimized
+- association model is correctly enforced
+- UX supports search → match → associate flow
+
+--------------------------------------------------
+
+PART A — DATA MODEL ALIGNMENT
+
+--------------------------------------------------
+
+A.1 Validate / Refactor Entities
+
+Ensure the following model exists:
+
+- ProviderMaster (global/shared)
+- ProviderNetwork (tenant-owned)
+- NetworkProvider (association)
+
+If current model is incorrect:
+- refactor to match this structure
+- migrate data if needed (minimal, safe)
+
+--------------------------------------------------
+
+A.2 Enforce Relationships
+
+- ProviderMaster:
+  - no tenantId ownership
+- ProviderNetwork:
+  - belongs to org/tenant
+- NetworkProvider:
+  - links ProviderMaster ↔ ProviderNetwork
+
+--------------------------------------------------
+
+PART B — BACKEND SERVICE LOGIC
+
+--------------------------------------------------
+
+B.1 Update Add Provider Flow
+
+Replace any direct "create provider under tenant" logic.
+
+New behavior:
+
+1. Search shared provider registry
+2. If match selected:
+   - associate existing provider to network
+3. If no match:
+   - create ProviderMaster record
+   - associate to network
+
+--------------------------------------------------
+
+B.2 Implement Matching Logic
+
+Implement pragmatic matching (document clearly):
+
+Priority:
+
+1. NPI exact match (if available)
+2. normalized phone + name match
+3. strong name + address match
+
+Do NOT over-engineer fuzzy matching.
+
+--------------------------------------------------
+
+B.3 Prevent Duplication
+
+- If match selected → do NOT create new provider
+- Ensure uniqueness where possible (NPI, normalized fields)
+
+--------------------------------------------------
+
+B.4 Remove Provider from Network
+
+Ensure:
+
+- DELETE removes only NetworkProvider association
+- ProviderMaster remains intact
+
+--------------------------------------------------
+
+PART C — API ALIGNMENT
+
+--------------------------------------------------
+
+You MUST expose or update APIs:
+
+1. Search Providers (shared)
+
+GET:
+`/api/networks/{id}/providers/search`
+
+- query params:
+  - name
+  - phone
+  - location
+
+Returns:
+- list of matching ProviderMaster records
+
+--------------------------------------------------
+
+2. Add Provider to Network
+
+POST:
+`/api/networks/{id}/providers`
+
+Payload supports:
+
+EITHER:
+- existingProviderId
+
+OR:
+- new provider details
+
+Behavior:
+- match → associate
+- no match → create → associate
+
+--------------------------------------------------
+
+3. Remove Provider
+
+DELETE:
+`/api/networks/{id}/providers/{providerId}`
+
+- removes association only
+
+--------------------------------------------------
+
+PART D — FRONTEND (TENANT PORTAL)
+
+--------------------------------------------------
+
+D.1 Network Detail Page
+
+Location:
+`/careconnect/networks/[id]`
+
+--------------------------------------------------
+
+D.2 Add Provider UX
+
+You MUST implement:
+
+1. Search box:
+   - queries shared registry
+
+2. Results list:
+   - show matching providers
+
+3. Select existing provider:
+   - associates to network
+
+4. “Create new provider” option:
+   - only if no acceptable match
+
+--------------------------------------------------
+
+D.3 Messaging
+
+UI must clearly indicate:
+
+- providers are shared across platform
+- adding to network does NOT mean ownership
+
+--------------------------------------------------
+
+D.4 Provider List
+
+- show providers associated to network only
+- remove action = remove association only
+
+--------------------------------------------------
+
+PART E — AUTHORIZATION
+
+--------------------------------------------------
+
+Enforce:
+
+- authenticated Identity user
+- CareConnect product access
+- role: CARECONNECT_NETWORK_MANAGER
+
+Do NOT:
+- use orgType restrictions
+
+--------------------------------------------------
+
+PART F — DATA INTEGRITY
+
+--------------------------------------------------
+
+Ensure:
+
+- no duplicate providers created unnecessarily
+- associations are tenant-scoped
+- provider remains usable across networks
+
+--------------------------------------------------
+
+PART G — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST test and document:
+
+1. Search returns shared providers
+2. Existing provider can be associated
+3. No duplicate created when selecting existing
+4. New provider created when no match
+5. New provider appears in global registry
+6. Removing provider removes only association
+7. Provider remains usable in other networks
+8. Cross-tenant leakage does NOT occur
+9. Role enforcement still works
+10. dotnet build succeeds
+11. Next.js build succeeds
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/CC2-INT-B06-01-report.md
+
+# CC2-INT-B06-01 Report
+
+## 1. Summary
+## 2. Data Model Changes
+## 3. Backend Logic Updates
+## 4. API Changes
+## 5. Frontend Changes
+## 6. Matching Logic
+## 7. Data Integrity
+## 8. Test Results
+## 9. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- create tenant-owned provider tables
+- duplicate provider records unnecessarily
+- break existing referral flows
+- bypass Identity
+- introduce new unrelated features
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- shared provider registry is in use
+- association model is correct
+- no duplication issues
+- UI supports match + associate + create flow
+- report saved at:
+  /analysis/CC2-INT-B06-01-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

@@ -1,0 +1,373 @@
+# LS-ID-TNT-003 — User Actions (Edit + Status Control)
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant user management feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Reuse existing components/services
+- Preserve all existing list/search/filter/add-user behavior
+- Respect tenant scoping (JWT/session-based)
+- Include explicit fallback behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+
+---
+
+## FEATURE OBJECTIVE
+
+Enable tenant admins to manage existing users from the Authorization → Users page by adding:
+- Edit User
+- Activate / Deactivate User
+
+This feature should make the current Users page operational for basic administration after creation.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Reset Password
+- Product assignment
+- Group assignment
+- Invite workflows
+- Bulk import
+- Audit dashboard/reporting UI
+- Any redesign of page layout
+- Any changes to Groups / Access / Simulator tabs
+
+ONLY IMPLEMENT:
+- Row actions menu
+- Edit User modal
+- Update user API integration
+- Role update during edit
+- Activate / Deactivate actions
+- Confirmation flow for status changes
+- Safe refresh of user list
+- Last-admin protection if supported or safely enforceable
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-003-report.md
+
+Initialize with:
+
+# LS-ID-TNT-003 — User Actions (Edit + Status Control)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Update User Contract
+## 4. Existing Status Change Contract
+## 5. Existing Role Source / Contract
+## 6. Last Admin Protection Analysis
+## 7. Files Changed
+## 8. UI Implementation
+## 9. Validation Logic
+## 10. API Integration
+## 11. Tenant Scope Handling
+## 12. Testing Results
+## 13. Known Issues / Gaps
+## 14. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect the current codebase and document:
+
+- Users page entry point
+- AuthUserTable component
+- AddUserModal implementation
+- Current user row action control (if any)
+- Existing update-user endpoint or service
+- Existing activate/deactivate or status update endpoint/contract
+- Existing role retrieval logic
+- Whether email is editable in backend
+- Whether last-admin protection already exists in backend
+- Whether inactive users are blocked from login in backend/auth flow
+
+DO NOT assume any API or behavior until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Update User Contract
+## 4. Existing Status Change Contract
+## 5. Existing Role Source / Contract
+## 6. Last Admin Protection Analysis
+
+---
+
+## STEP 2 — ADD ROW ACTIONS MENU
+
+Add a row-level actions control to each user row in the Users table.
+
+Requirements:
+- Replace or extend the current non-mutating action control
+- Must include:
+  - Edit User
+  - Deactivate User when active
+  - Activate User when inactive
+- Must be compact and consistent with current table UX
+- Must not break existing table layout, search, filter, pagination, or Add User flow
+
+Update report:
+## 8. UI Implementation
+
+---
+
+## STEP 3 — CREATE EDIT USER MODAL
+
+Build an Edit User modal using the existing modal pattern already used by Add User if possible.
+
+Requirements:
+- Prefill current user data
+- Use modal, not navigation
+- Fields:
+  - First Name
+  - Last Name
+  - Email (ONLY if editable by backend; otherwise show read-only or omit from editable inputs)
+  - Role
+  - Phone ONLY if actually supported by the backend update contract
+- Buttons:
+  - Cancel
+  - Save Changes
+
+Behavior:
+- Preserve form state on API failure
+- Close only on success or explicit cancel
+- Reuse existing styling and validation patterns where possible
+
+Update report:
+## 8. UI Implementation
+
+---
+
+## STEP 4 — ROLE UPDATE SUPPORT
+
+Reuse the existing role retrieval source if valid for editing.
+
+Requirements:
+- Do NOT hardcode roles
+- Validate whether the same roles endpoint used by Add User is appropriate here
+- If backend supports multiple roles but UI is currently single-select, keep single-select unless multi-select is clearly supported without risk
+- Role must be required
+
+If the endpoint returns broader platform roles than ideal, document that precisely in the report.
+
+Update report:
+## 5. Existing Role Source / Contract
+## 8. UI Implementation
+
+---
+
+## STEP 5 — EDIT FORM VALIDATION
+
+Implement client-side validation.
+
+Required:
+- First Name required
+- Last Name required
+- Email required and valid IF email is editable
+- Role required
+
+Behavior:
+- Inline field errors
+- Disable submit while request is in-flight
+- Preserve values on failure
+- Do not allow silent failure
+
+Update report:
+## 9. Validation Logic
+
+---
+
+## STEP 6 — UPDATE USER API INTEGRATION
+
+Integrate the Edit User modal with the actual existing backend update path discovered in Step 1.
+
+Rules:
+- Do NOT invent a new API unless absolutely necessary and justified
+- Reuse existing API client and patterns
+- Preserve tenant-safe behavior
+- Keep payload aligned to the real backend contract
+
+Handle:
+- success
+- validation failures
+- duplicate email if applicable
+- invalid role
+- unauthorized / forbidden
+- network/server failure
+
+On success:
+- show success feedback
+- close modal
+- refresh the users list safely
+
+Update report:
+## 10. API Integration
+
+---
+
+## STEP 7 — ACTIVATE / DEACTIVATE USER ACTIONS
+
+Implement status control from the row actions menu.
+
+Requirements:
+- Active users show Deactivate
+- Inactive users show Activate
+- Action must trigger confirmation UI before execution
+- Persist change through actual backend contract discovered in Step 1
+- Refresh list after success
+
+Confirmation examples:
+- “Deactivate this user? They will no longer be able to access the platform.”
+- “Activate this user? They will regain access based on their assigned role.”
+
+Do NOT assume auth blocking is already implemented; validate it and document findings.
+
+Update report:
+## 8. UI Implementation
+## 10. API Integration
+## 12. Testing Results
+
+---
+
+## STEP 8 — LAST ADMIN PROTECTION
+
+Determine whether backend already prevents deactivation of the last active tenant admin.
+
+Requirements:
+- If backend enforces it, surface the error clearly in UI
+- If backend does NOT enforce it and reliable data exists to guard in frontend, implement a safe frontend block
+- If safe enforcement is not possible without backend support, fail safely and document the gap explicitly
+
+Under no circumstance should the feature knowingly allow easy lockout of the last active tenant admin without documenting that behavior.
+
+Update report:
+## 6. Last Admin Protection Analysis
+## 10. API Integration
+## 13. Known Issues / Gaps
+
+---
+
+## STEP 9 — TENANT SAFETY
+
+Ensure:
+- No client-controlled tenant switching
+- No cross-tenant edit or status change path
+- Any tenant identifiers used are sourced from authenticated server/session context and/or validated by backend
+- Existing LS-ID-TNT-001 and LS-ID-TNT-002 tenant-safety guarantees are preserved
+
+Update report:
+## 11. Tenant Scope Handling
+
+---
+
+## STEP 10 — NULL SAFETY / REGRESSION COMPATIBILITY
+
+Ensure the new feature does NOT break:
+- LS-ID-TNT-001 null-safe list rendering
+- LS-ID-TNT-002 Add User flow
+- Search
+- Filters
+- Loading/empty/error states
+- Pagination, if present
+
+Do not reintroduce unsafe assumptions around firstName, lastName, email, roles, or status values.
+
+Update report:
+## 12. Testing Results
+
+---
+
+## STEP 11 — TESTING
+
+Test the following and document the result of each:
+
+### Happy Path
+- Open row actions
+- Open Edit User modal
+- Edit first name / last name / role
+- Save successfully
+- Deactivate an active user successfully
+- Reactivate an inactive user successfully
+
+### Validation
+- Missing first name
+- Missing last name
+- Invalid email IF editable
+- Missing role
+
+### Failure / Business Rule Cases
+- Duplicate email IF editable
+- Invalid role
+- Unauthorized / forbidden
+- Network/server error
+- Last admin deactivation attempt
+- Activate/deactivate backend failure
+
+### Regression
+- Users list still loads
+- Search still works
+- Filters still work
+- Add User still works
+- Null-safe rendering remains intact
+- Loading/empty/error states remain intact
+
+Update report:
+## 12. Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 13. Known Issues / Gaps
+## 14. Final Status = Complete
+
+Your final report must clearly state:
+- What update contract was found
+- What status-change contract was found
+- Whether email is editable
+- Whether last-admin protection is backend-enforced, frontend-enforced, or still a gap
+- Whether inactive-login enforcement is actually implemented or only assumed
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Each user row has actions  
+✔ Edit User modal opens and is prefilled  
+✔ Supported user fields can be updated successfully  
+✔ Role can be updated subject to backend rules  
+✔ Active users can be deactivated through confirmation  
+✔ Inactive users can be reactivated through confirmation  
+✔ Success refreshes the list safely  
+✔ Failure preserves context and shows useful errors  
+✔ Last active tenant admin cannot be easily deactivated without safe handling  
+✔ No regression to LS-ID-TNT-001 or LS-ID-TNT-002  
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working row actions + edit/status control
+2. Completed report:
+/analysis/LS-ID-TNT-003-report.md
+
+---
+
+END OF IMPLEMENTATION

@@ -1,0 +1,250 @@
+You are implementing feature MON-INT-02-002 — Status Summary Banner.
+
+OBJECTIVE
+Add a system-wide status summary banner in the Control Center that displays the overall health of the platform using real data from the Monitoring Service.
+
+This is the first user-facing monitoring feature and must be accurate, stable, and non-intrusive.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- All status data must come from Monitoring Service when MONITORING_SOURCE=service
+- No monitoring logic must be reintroduced into Control Center
+
+MANDATORY EXECUTION RULES
+- Create the report FIRST at: /analysis/MON-INT-02-002-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT modify Monitoring Service
+- Do NOT introduce fake or derived status logic
+- Prefer minimal UI changes (no redesign)
+- Must support both local and service modes
+- Must not break existing monitoring pages
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-02-002-report.md
+
+Initialize with:
+
+# MON-INT-02-002 — Status Summary Banner
+
+## 1. Task Summary
+## 2. Existing Monitoring UI Analysis
+## 3. Banner Design
+## 4. Implementation
+## 5. Data Flow Validation
+## 6. UI Validation
+## 7. Files Changed
+## 8. Known Gaps / Risks
+## 9. Recommended Next Feature
+
+Explicitly state report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING MONITORING UI
+
+Inspect:
+
+- apps/control-center/src/app/monitoring/page.tsx
+- apps/control-center/src/components/monitoring/*
+- existing summary rendering logic
+
+Identify:
+- where summary data is currently displayed
+- where the banner can be injected (top of page)
+- how MonitoringSummary type is structured
+
+Document findings.
+
+---
+
+STEP 3 — DEFINE BANNER DESIGN (NO GUESSING)
+
+Banner must display:
+
+### A. Overall System Status
+Derived from:
+- summary.system.status
+
+Values:
+- Healthy → Green
+- Degraded → Yellow
+- Down → Red
+
+### B. Quick Stats
+- Total services
+- Healthy count
+- Degraded count
+- Down count
+- Active alerts count
+
+### C. Last Checked Timestamp
+- summary.system.lastCheckedAtUtc
+
+---
+
+### UI Rules
+
+- Must be a horizontal banner at top of monitoring page
+- Must be visually clear but not oversized
+- Must NOT redesign entire page
+- Must NOT introduce new layout system
+
+---
+
+STEP 4 — IMPLEMENT STATUS COMPUTATION (CONTROL CENTER ONLY)
+
+Modify:
+
+apps/control-center/src/app/monitoring/page.tsx
+
+Add logic to compute:
+
+- total = integrations.length
+- healthy = count(status === 'Healthy')
+- degraded = count(status === 'Degraded')
+- down = count(status === 'Down')
+- alerts = alerts.length
+
+IMPORTANT:
+- Use ONLY MonitoringSummary response
+- Do NOT recompute system status
+- Do NOT add business logic beyond counting
+
+---
+
+STEP 5 — CREATE BANNER COMPONENT
+
+Create:
+
+apps/control-center/src/components/monitoring/status-summary-banner.tsx
+
+Component must:
+
+Accept props:
+- systemStatus
+- total
+- healthy
+- degraded
+- down
+- alerts
+- lastCheckedAt
+
+Render:
+- colored status indicator
+- counts
+- timestamp
+
+---
+
+STEP 6 — STATUS COLOR MAPPING
+
+Implement mapping:
+
+- Healthy → green
+- Degraded → yellow
+- Down → red
+
+Use existing Tailwind or UI tokens already in project.
+
+DO NOT invent new theme system.
+
+---
+
+STEP 7 — INTEGRATE BANNER INTO PAGE
+
+Inject banner at top of monitoring page:
+
+apps/control-center/src/app/monitoring/page.tsx
+
+Rules:
+- must render above existing content
+- must not break layout
+- must handle loading state gracefully
+
+---
+
+STEP 8 — HANDLE LOADING / ERROR STATES
+
+If summary not loaded:
+- show skeleton or minimal loading state
+
+If error:
+- show fallback banner with:
+  - "Monitoring unavailable"
+  - no crash
+
+---
+
+STEP 9 — SUPPORT BOTH MODES
+
+Ensure banner works for:
+
+A. MONITORING_SOURCE=local
+B. MONITORING_SOURCE=service
+
+Do NOT assume service mode only.
+
+---
+
+STEP 10 — VALIDATION
+
+Validate:
+
+- Monitoring page loads
+- Banner renders correctly
+- Counts match actual data
+- Colors match status
+- No UI regression
+- Works in both modes
+
+Test scenarios:
+- All healthy
+- One service down
+- Multiple alerts
+
+---
+
+STEP 11 — FILES CHANGED
+
+List:
+- new component file
+- modified page.tsx
+- any styling updates
+
+---
+
+STEP 12 — KNOWN GAPS / RISKS
+
+Document:
+
+- no real-time updates (polling only)
+- potential stale data between checks
+- UI not yet clickable (future enhancement)
+
+---
+
+STEP 13 — RECOMMEND NEXT FEATURE
+
+Recommend:
+
+MON-INT-02-003 — Component Status List
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+
+- /analysis/MON-INT-02-002-report.md exists
+- banner renders at top of monitoring page
+- status is derived from Monitoring Service summary
+- counts are correct
+- UI remains stable
+- both local and service modes work
+- no fake logic introduced

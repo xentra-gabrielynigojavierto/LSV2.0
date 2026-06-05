@@ -1,0 +1,326 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "fPGct6SogEpvz4yKcwn7v"
+uri = "file://exports/identity_core_schema_design.md"
+type = "text"
+title = "Identity / Core Schema Design — Multi-Org Product Role Platform"
+
+[[outputs]]
+id = "aKn3DeHDkYOuJqMnZ2yfn"
+uri = "file://exports/identity_efcore_implementation_plan.md"
+type = "text"
+title = "EF Core Implementation & Migration Plan — Identity / Core Schema"
+
+[[outputs]]
+id = "U0KQ4VM_03DtogxGDS1Y_"
+uri = "file://exports/identity_auth_capability_implementation.md"
+type = "text"
+title = "Authentication, JWT Generation & Capability Authorization — Implementation Reference"
+
+[[outputs]]
+id = "PtUO00MVwiSpNsa4FyZKN"
+uri = "file://exports/careconnect_party_model_refactor.md"
+type = "text"
+title = "CareConnect — Party Model & Multi-Org Workflow Refactor (Design & Implementation)"
+
+[[outputs]]
+id = "KF2qXysjBokhPHCBMKrmK"
+uri = "file://exports/synqfund_data_model_design.md"
+type = "text"
+title = "SynqFund — Multi-Organization, Multi-Party Data Model Design"
+
+[[outputs]]
+id = "4EyoRiyE8klr0R_zDDwUg"
+uri = "file://exports/synqlien_data_model_design.md"
+type = "text"
+title = "SynqLien — Multi-Organization, Multi-Party Data Model Design"
+
+[[outputs]]
+id = "sjikBHWrW0qZOo9fb6xbt"
+uri = "file://exports/gateway_request_context_design.md"
+type = "text"
+title = "Gateway & Request-Context Propagation Model"
+
+[[outputs]]
+id = "NMZkcXaUv97bmcPgoKsto"
+uri = "file://exports/frontend_architecture_design.md"
+type = "text"
+title = "Frontend Architecture Design — LegalSynq Platform (Next.js)"
+
+[[outputs]]
+id = "6mG0t-JJbtSCq95sKnXAA"
+uri = "file://legalsynq-source.tar.gz"
+type = "unspecified"
+title = "LegalSynq Source Code (tar.gz)"
+
+[[outputs]]
+id = "LxNoFrFeOZDESzwUx5bBG"
+uri = "file://analysis/LSCC-003-01.md"
+type = "text"
+title = "LSCC-003-01 — Workflow Completion UX Polish"
+
+[[outputs]]
+id = "UKIR6jc5Pnb-ASOfBVGbw"
+uri = "file://analysis/LSCC-005-report.md"
+type = "text"
+title = "LSCC-005 Implementation Report"
+
+[[outputs]]
+id = "YcTlK4cGUhorQlHbtIwH7"
+uri = "file://analysis/careconnect/LSCC-009-report.md"
+type = "text"
+title = "LSCC-009 Admin Activation Queue — Implementation Report"
+
+[[outputs]]
+id = "hIYINgO6H6G_MHmol5yTH"
+uri = "file://analysis/notifications/notifications-merge-audit-report.md"
+type = "text"
+title = "Notifications Merge — Audit Report (11 issues)"
+
+[[outputs]]
+id = "Elb6HtIwC8qk-2y7nrRgI"
+uri = "file://analysis/notifications/notifications-merge-fix-report.md"
+type = "text"
+title = "Notifications Merge — Fix Report (3 fixes applied)"
+
+[[outputs]]
+id = "XYOhKdu0jXc9geLjg0jjd"
+uri = "file://analysis/notifications/NOTIF-UI-001-report.md"
+type = "text"
+title = "NOTIF-UI-001 — Post-Implementation Report (14 sections)"
+
+[[outputs]]
+id = "Z9TNtXQUarj2E3ZiCRsq_"
+uri = "file://analysis/notifications/NOTIF-UI-002-report.md"
+type = "text"
+title = "NOTIF-UI-002 — Notifications Mutation Flows (Post-Implementation Report)"
+
+[[outputs]]
+id = "v9yo-JzM9MXJSGG2kxIIz"
+uri = "file://analysis/NOTIF-UI-003-report.md"
+type = "text"
+title = "NOTIF-UI-003 — Extended Config & Admin (Post-Implementation Report)"
+
+[[outputs]]
+id = "bftlsXRKvyCwx871YqFoj"
+uri = "file://docs/UIX-001-Access-Account-Management.md"
+type = "text"
+title = "UIX-001 — Access & Account Management Report"
+
+[[outputs]]
+id = "S4_wroSH2ZI6Iz6rG85Hm"
+uri = "file://analysis/UIX-001-01.md"
+type = "text"
+title = "UIX-001-01 — Revised Access & Account Management Report"
+
+[[outputs]]
+id = "l3EHHhZTiJRcpAc2GNgw-"
+uri = "file://analysis/UIX-002-01-report.md"
+type = "text"
+title = "UIX-002-01 Hardening Pass — Delivery Report"
+
+[[outputs]]
+id = "n9WYEXqwv1Y_EH4a8rEGb"
+uri = "file://UIX-002-01-AdminNavigationExposure.md"
+type = "text"
+title = "UIX-002-01 — Admin Navigation Exposure Report"
+
+[[outputs]]
+id = "hMNeuWk-d-3VCNyuuqNU_"
+uri = "file://exports/legalsynq-source.tar.gz"
+type = "unspecified"
+title = "LegalSynq source (tar.gz, 4.2 MB)"
+
+[[outputs]]
+id = "C6F4ylIiluOOk8Xkvng_F"
+uri = "file://analysis/NOTIF-UI-010-report.md"
+type = "text"
+title = "NOTIF-UI-010 — Delivery Controls Report"
+
+[[outputs]]
+id = "ZY4BpKY0Tz-ewVLh-Tmj5"
+uri = "file://legalsynq-source-codes-20260408.zip"
+type = "unspecified"
+title = "LegalSynq Source Codes (2026-04-08)"
+
+[[outputs]]
+id = "ZHLgIm8qWjW2WTSDi4Z0a"
+uri = "file://analysis/LSCC-01-006-report.md"
+type = "text"
+title = "LSCC-01-006 Report — Tenant Logo Display on Login"
+
+[[outputs]]
+id = "BRimKA1N4Froggm56pgDp"
+uri = "file://analysis/LS-COR-PRD-001-report.md"
+type = "text"
+title = "LS-COR-PRD-001 Product Provisioning Engine Report"
+
+[[outputs]]
+id = "DFtiUUOWQ65AgdOwSlnke"
+uri = "file://LS-COR-AUT-004-report.md"
+type = "text"
+title = "LS-COR-AUT-004 — Groups + Inherited Access Report"
+
+[[outputs]]
+id = "J36Ifqawltp8GhfMbN4Z9"
+uri = "file://analysis/LS-COR-AUT-005-report.md"
+type = "text"
+title = "LS-COR-AUT-005 Report — Admin UI Access Management Layer"
+
+[[outputs]]
+id = "F9_4oWT95_NUQIzVYzLYD"
+uri = "file://analysis/core-rebuild/LS-COR-AUT-010A-report.md"
+type = "text"
+title = "LS-COR-AUT-010A — Permission Model Alignment Report"
+
+[[outputs]]
+id = "j3lTyjGWlSRDwh3_-4vPU"
+uri = "file://analysis/LS-COR-AUT-010A-report.md"
+type = "text"
+title = "LS-COR-AUT-010A — Permission Model Alignment Report"
+
+[[outputs]]
+id = "iB0AZjCHNVvW_UwwSzydC"
+uri = "file://analysis/LS-COR-AUT-011A-report.md"
+type = "text"
+title = "LS-COR-AUT-011A — Policy Engine Hardening Report"
+
+[[outputs]]
+id = "rCN9DlcAHElCqmC159aDO"
+uri = "file://downloads/legalsynq-source.tar.gz"
+type = "unspecified"
+title = "LegalSynq Source Code (tar.gz)"
+
+[[outputs]]
+id = "gx4xlWV71X2YTIY94eXMK"
+uri = "file://analysis/LS-LIENS-01-001-report.md"
+type = "text"
+title = "LS-LIENS-01-001 Scaffolding Report"
+
+[[outputs]]
+id = "C_fA2oy8SmS74K1Mu12lj"
+uri = "file://analysis/LS-LIENS-01-001-01-report.md"
+type = "text"
+title = "LS-LIENS-01-001-01 Hardening Iteration Report"
+
+[[outputs]]
+id = "D4sgXTv9QxjC2TFIhg-YB"
+uri = "file://analysis/LS-CORE-AUTH-001-report.md"
+type = "text"
+title = "LS-CORE-AUTH-001 — TenantAdmin Auto-Grant Report"
+
+[[outputs]]
+id = "TXLMD8E-hVAV14R0CCwUD"
+uri = "file://analysis/LS-SESSION-2026-04-13-report.md"
+type = "text"
+title = "Session Report — April 13, 2026"
+
+[[outputs]]
+id = "0wcwcrsXJI5poJYeo0CyH"
+uri = "file://analysis/LS-LIENS-02-002-report.md"
+type = "text"
+title = "LS-LIENS-02-002 — Liens Product Capability Model Report"
+
+[[outputs]]
+id = "-iBdD2q7Iospb_tKMNn14"
+uri = "file://analysis/LS-LIENS-02-002-01-report.md"
+type = "text"
+title = "LS-LIENS-02-002-01 — Liens Capability Abstraction Layer Report"
+
+[[outputs]]
+id = "KyPp_BYbGdZkp3tQzVY-1"
+uri = "file://analysis/LS-LIENS-03-005-report.md"
+type = "text"
+title = "LS-LIENS-03-005 — v1 SynqLiens → v2 Liens Migration Matrix"
+
+[[outputs]]
+id = "cquRXeBA8H4iA0nmPeMH7"
+uri = "file://README.md"
+type = "text"
+title = "LegalSynq README"
+
+[[outputs]]
+id = "mjHcNPE_TSKV_4farL5Wo"
+uri = "file://analysis/LS-LIENS-05-001-report.md"
+type = "text"
+title = "LS-LIENS-05-001 Report — Core Repository Interfaces & EF Core Implementations"
+
+[[outputs]]
+id = "EPKZAskgH_dRy3PzeRS19"
+uri = "file://analysis/LS-LIENS-07-003-report.md"
+type = "text"
+title = "LS-LIENS-07-003 — Liens Audit Service Integration Report"
+
+[[outputs]]
+id = "N1msYHTTsdB_iVRJQ7MiJ"
+uri = "file://analysis/LS-LIENS-UI-003-report.md"
+type = "text"
+title = "LS-LIENS-UI-003 Report: Liens UI → Real API Integration"
+
+[[outputs]]
+id = "-DpVTjYj7pL3OKE3FCiEz"
+uri = "file://analysis/LS-LIENS-UI-005-report.md"
+type = "text"
+title = "LS-LIENS-UI-005 Report: Documents Integration"
+
+[[outputs]]
+id = "xFuwna7Qo37CR4kHiEW9G"
+uri = "file://analysis/LS-LIENS-UI-006-report.md"
+type = "text"
+title = "LS-LIENS-UI-006 Report — Contacts & Participants Integration"
+
+[[outputs]]
+id = "4lILri0fR4UG9sh3TNIS2"
+uri = "file://analysis/LS-LIENS-UI-007-report.md"
+type = "text"
+title = "LS-LIENS-UI-007 Report — Bill of Sale & Settlement Flow"
+
+[[outputs]]
+id = "OMYnrRpx-jaXjDbxY_rbY"
+uri = "file://analysis/LS-LIENS-UI-009-report.md"
+type = "text"
+title = "LS-LIENS-UI-009: Notifications Integration Report"
+
+[[outputs]]
+id = "Q-Wz9Ko7WeG8iwGZbjbMK"
+uri = "file://analysis/latest-updates-report.md"
+type = "text"
+title = "LegalSynq Latest Updates Report — April 15, 2026"
+
+[[outputs]]
+id = "KuzQJd2knza2wKMHXG9gj"
+uri = "file://exports/legalsynq-source.zip"
+type = "unspecified"
+title = "LegalSynq full source (2,922 files, 5.3 MB)"
+
+[[outputs]]
+id = "La8Ms2dh9IrNB4rOc97Eg"
+uri = "file://analysis/TASK-B04-analysis.md"
+type = "text"
+title = "TASK-B04 Analysis — Liens Consumer Cutover & Data Migration"
+
+[[outputs]]
+id = "JKDc8LOQICISeYaTxIZme"
+uri = "file://analysis/Flow/TASK-FLOW-01-report.md"
+type = "text"
+title = "TASK-FLOW-01 Report"
+
+[[outputs]]
+id = "hBjqix6cNT8PFq8nUtIzb"
+uri = "file://analysis/code-review-remediation-report-2026-04-21.md"
+type = "text"
+title = "Code Review Remediation Report — April 21, 2026"
+
+[[outputs]]
+id = "vIEXlItXKUwGY-XxYQyQV"
+uri = "file://legalsynq-source-2026-04-23_16-54-42.tar.gz"
+type = "unspecified"
+title = "LegalSynq Source Code — 2026-04-23 16:54:42 UTC"
+
+[[outputs]]
+id = "HC2z7rePfUPOCmQL2c3Mw"
+uri = "file://analysis/BLK-TS-01-report.md"
+type = "text"
+title = "BLK-TS-01 Report — Tenant Core Foundation"

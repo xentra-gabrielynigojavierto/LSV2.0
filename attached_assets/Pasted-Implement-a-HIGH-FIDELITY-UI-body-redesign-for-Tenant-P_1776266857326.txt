@@ -1,0 +1,419 @@
+Implement a HIGH-FIDELITY UI body redesign for:
+
+Tenant Portal → Synq Liens → Liens → Lien Detail page
+
+Use the provided screenshots as the exact layout reference.
+
+--------------------------------------------------
+CRITICAL CONTEXT (MUST FOLLOW)
+--------------------------------------------------
+
+This implementation is for:
+
+- Tenant Portal
+- Product: Synq Liens
+- Section: Liens
+- Page: Lien Detail
+
+The layout must follow the same header structure and visual rhythm shown in the Case reference, but applied to the Lien Detail page.
+
+Important header rule:
+- The top panel/header must follow the SAME visual container treatment as the other panels:
+  - rounded corners
+  - matching inner padding
+  - same clean card/container style
+
+--------------------------------------------------
+STRICT SCOPE (DO NOT VIOLATE)
+--------------------------------------------------
+
+- ONLY modify the BODY content area of the Lien Detail page
+- DO NOT modify:
+  - top navigation
+  - side navigation
+  - fonts
+  - colors
+  - routing
+  - services
+  - APIs
+  - role-access logic
+  - provider-mode logic
+  - sell/manage behavior
+  - business workflows
+
+This is a STRUCTURAL + LAYOUT + SPACING + COMPONENT ORGANIZATION update only.
+
+--------------------------------------------------
+CRITICAL DESIGN DIRECTION
+--------------------------------------------------
+
+Use this structure:
+
+1. TOP HEADER PANEL
+2. TABS ROW
+3. TWO-COLUMN BODY
+   - LEFT = lien record content
+   - RIGHT = status + communications panel
+4. EXPAND/COLLAPSE BUTTONS BETWEEN THE TWO MIDDLE PANELS
+
+Important:
+- KEEP the contents inside the panels
+- REORGANIZE their layout and visual grouping only
+- DO NOT replace the underlying business content
+- DO NOT invent new fields unless only needed for temporary visual fallback
+- The right side panel is focused on:
+  - status
+  - workflow/progression
+  - dates/deadlines
+  - communications
+  - communication contacts
+
+--------------------------------------------------
+HEADER PANEL (MATCH THE CASE HEADER STYLE)
+--------------------------------------------------
+
+The top area must be a rounded card/panel like the other panels, not a flat strip.
+
+Structure:
+
+LEFT SIDE:
+- breadcrumb row above or within the header area
+- person name / claimant name as the primary title
+  - IMPORTANT: if the current lien header shows lien number as the primary title, update the layout so the PERSON NAME is the main title when available
+  - Example from reference: "Maj Test" is the person name
+- lien/case identifier as secondary metadata under the title
+- optional status badge inline if already supported
+
+RIGHT SIDE:
+Inline metadata grid, matching the Case header pattern:
+- Case Type or Lien Type
+- Case Status or Lien Status
+- Date of Loss
+- Date of Birth
+- State of Incident or equivalent context field
+- Law Firm
+- Case Manager / Liaison / representative field if applicable
+- Actions button on far right
+
+Rules:
+- Follow the same layout pattern as the Case header reference
+- Use the same field ordering style where possible
+- Keep existing real fields if they exist
+- Do not redesign shell-level breadcrumbs
+
+--------------------------------------------------
+TABS ROW
+--------------------------------------------------
+
+Tabs directly under the header panel:
+- Details
+- Documents (with badge if applicable)
+- Servicing
+- Notes
+- History
+- Tasks
+
+Rules:
+- underline active tab
+- compact spacing
+- preserve current behavior and routing
+- keep the row aligned with the body panel edges
+
+--------------------------------------------------
+MAIN BODY LAYOUT
+--------------------------------------------------
+
+Implement a two-column body layout:
+
+LEFT COLUMN ≈ 65–70%
+RIGHT COLUMN ≈ 30–35%
+
+The two middle panels must:
+- align to the same horizontal padding rhythm as the top header panel
+- visually feel like they belong to the same page grid
+- have the divider controls in between
+
+--------------------------------------------------
+EXPAND / COLLAPSE BEHAVIOR (REQUIRED)
+--------------------------------------------------
+
+Keep the expand/collapse buttons between the two middle panels.
+
+Behavior:
+- Default: both middle panels visible
+- Expand LEFT:
+  - left main panel becomes dominant/full available width
+  - right panel hidden
+- Expand RIGHT:
+  - right panel becomes dominant/full available width
+  - left panel hidden
+- Restore to split mode
+
+Rules:
+- keep the controls subtle
+- place them centered vertically between the two middle columns
+- preserve existing panel content
+- no backend logic changes
+- local UI state only
+- no global store required
+
+Important:
+- The user explicitly likes the expand/collapse buttons in between the two middle panels
+- Keep this interaction
+
+--------------------------------------------------
+LEFT COLUMN CONTENT
+--------------------------------------------------
+
+The left side should contain the main lien record content.
+
+Organize and visually group the existing content into stacked cards/sections such as:
+
+1. Lien Information
+- preserve existing fields
+- use compact label/value grid
+- preserve edit button if already present
+
+2. Treatment Summary
+- preserve existing table/list
+- compact headers
+- clean row density
+
+3. Notes
+- preserve current note content / empty state
+- preserve add note action if already present
+
+If other existing sections are part of the current Lien Detail page, keep them on the left unless they are clearly status/communications-oriented.
+
+Rules:
+- keep the current contents inside the panels
+- change structure and styling only
+- do not remove valid business fields
+
+--------------------------------------------------
+RIGHT COLUMN CONTENT — STATUS + COMMUNICATIONS FOCUS
+--------------------------------------------------
+
+The right panel must focus on:
+
+1. Status Summary
+- current lien status
+- related financial/status summary values if already supported
+- concise summary blocks
+
+2. Important Dates / Workflow Dates
+- service date
+- lien received
+- notice sent
+- response due
+- limitation/statute dates
+- or equivalent
+
+3. Communications
+This is important:
+- the right panel should emphasize communications
+- include communication-oriented cards/sections such as:
+  - contacts
+  - email / compose / outreach actions if applicable
+  - communication summary
+  - outreach-related widgets
+  - recent communication-related items if available
+
+If the current screen has contacts but no dedicated communications card, reorganize the right panel so the contacts/communication-related sections clearly support the communication purpose.
+
+Rules:
+- right panel is NOT just generic summary cards
+- it should feel operationally focused on status and communications
+
+--------------------------------------------------
+VISUAL ALIGNMENT RULES
+--------------------------------------------------
+
+1. Top panel
+- must have rounded corners
+- must match the visual language of lower panels
+- must not look like a flat strip
+
+2. Middle panels
+- must expand to the same outer padding rhythm as the top panel
+- consistent left and right page gutters
+- divider buttons centered between them
+
+3. Cards
+- white background
+- light border
+- subtle radius
+- compact professional padding
+
+4. Typography
+- KEEP current font family
+- KEEP current color scheme
+- do not introduce new visual tokens
+
+--------------------------------------------------
+TEMPORARY MOCK DISPLAY DATA (VISUAL ONLY)
+--------------------------------------------------
+
+Add temporary mock display data ONLY if needed for visual completeness.
+
+Rules:
+- do NOT override real API data
+- use only when fields are empty
+- must be removable
+- scope only to the Lien Detail page
+- do not use mock data for workflow logic or actions
+
+Important:
+- If the person name is not present in current data, allow a temporary display fallback so the header can be visually reviewed with a human name as the primary title
+- but prefer real mapped person/claimant/patient/client name if available
+
+Add code comment:
+"// TEMP: UI mock data for visual review only"
+
+Document all temporary fallback usage in the report.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create:
+     /analysis/LS-LIENS-UI-DESIGN-002-report.md
+
+2. Initialize with:
+   - Objective
+   - Exact scope (Tenant Portal → Synq Liens → Liens → Lien Detail)
+   - Design interpretation
+   - Header alignment plan
+   - Right panel status + communications plan
+   - Expand/collapse interaction plan
+   - Confirmation that top nav, side nav, fonts, and colors remain unchanged
+
+3. DURING implementation:
+   - Update report after EACH major step
+   - Include:
+     - step id
+     - files modified
+     - UI decisions
+     - compromises due to real data structure
+     - temporary mock display fallback usage
+
+4. FINAL:
+   - Final summary
+   - validation results
+   - files changed
+   - remaining UI differences
+   - where communication-focused right-panel grouping was applied
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze Existing Lien Detail Page
+- inspect current Lien Detail page
+- identify:
+  - current header fields
+  - current main content sections
+  - current right-side panel sections
+  - which fields map to person name and secondary identifiers
+  - communication-related content already present
+- log findings in report
+
+T002 — Rebuild Top Header Panel
+- convert header into a rounded card matching lower panel styling
+- align fields to the Case-style header pattern
+- use person name as the primary title when available
+- move identifier to secondary line
+- keep actions button aligned at far right
+
+T003 — Align Tabs Row
+- place tabs directly under the header panel
+- match width and spacing with the new body layout
+
+T004 — Rebuild Two-Column Middle Layout
+- left = main content
+- right = status + communications
+- ensure same page gutter/padding rhythm as header panel
+- insert expand/collapse buttons between columns
+
+T005 — Keep and Reorganize Left Panel Content
+- preserve existing panel contents
+- reorganize into clean stacked sections/cards
+- keep edit buttons where appropriate
+- no business logic changes
+
+T006 — Reorganize Right Panel for Status + Communications
+- prioritize:
+  - status summary
+  - important dates
+  - communications/contacts
+- preserve real content but regroup it to support this purpose
+
+T007 — Implement Middle Panel Expand/Collapse
+- keep the in-between buttons
+- support:
+  - split
+  - left expanded
+  - right expanded
+- ensure smooth layout and no broken overflow
+
+T008 — Add Temporary Visual Fallback Data (If Needed)
+- only for missing display fields
+- do not override real logic
+- document in report
+
+T009 — Visual Consistency Pass
+- align:
+  - header padding
+  - middle panel padding
+  - card radius
+  - section spacing
+  - table density
+  - button placement
+
+T010 — Final Validation
+- verify:
+  - header follows Case-style layout
+  - top panel rounded corners match other panels
+  - right panel is status/communications focused
+  - middle panels align to same outer padding as top panel
+  - expand/collapse works
+  - fonts/colors unchanged
+  - nav unchanged
+  - real logic intact
+
+--------------------------------------------------
+DO NOT
+--------------------------------------------------
+
+- do not redesign top nav
+- do not redesign side nav
+- do not change fonts
+- do not change colors
+- do not change services/APIs
+- do not change routing
+- do not break role access
+- do not break provider mode
+- do not replace panel contents with invented content
+- do not remove valid business sections
+- do not use mock data as primary truth
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Lien Detail matches the requested layout direction
+- Header follows the Case-style layout and field pattern
+- Person name is used as the primary title when available
+- Top panel has rounded corners like the other panels
+- Middle panels align to the same outer padding rhythm as the top panel
+- Expand/collapse buttons remain between the middle panels
+- Right panel clearly focuses on status and communications
+- Existing panel contents remain intact
+- Fonts, colors, and nav remain unchanged
+- Report is complete and traceable
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT change top nav or side nav.
+Do NOT change fonts or colors.

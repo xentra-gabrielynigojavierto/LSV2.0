@@ -1,0 +1,212 @@
+You are implementing BLK-COMP-03 — Advanced Audit Integrity & Tamper Resistance for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-COMP-03-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block builds on:
+   - BLK-COMP-01 (Audit Coverage)
+   - BLK-COMP-02 (Data Governance / PII Control)
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - introduce external infrastructure (no Kafka, no external audit store)
+   - redesign audit service
+   - block business operations if audit fails
+   - log sensitive data
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Strengthen audit reliability and defensibility by ensuring:
+
+- audit events are consistent and complete
+- audit events are difficult to tamper with or bypass
+- audit gaps are detectable
+- audit trails are internally trustworthy
+
+--------------------------------------------------
+
+PART A — AUDIT CONSISTENCY ENFORCEMENT
+
+--------------------------------------------------
+
+Ensure all audit events consistently include:
+
+- EventType
+- Timestamp (UTC)
+- CorrelationId
+- Actor.Id
+- TenantId (if applicable)
+- Outcome
+
+Audit codebase for:
+- missing fields
+- inconsistent naming
+- null/empty fields
+
+Fix inconsistencies using existing audit model.
+
+--------------------------------------------------
+
+PART B — AUDIT EMISSION GUARANTEES
+
+--------------------------------------------------
+
+Review all audit emit points:
+
+- confirm no silent failures
+- confirm try/catch is present
+- confirm failures do NOT break business logic
+
+Add:
+
+- structured log on audit failure (non-PII)
+- include correlationId
+
+Goal:
+- audit failure is visible
+- but never blocks execution
+
+--------------------------------------------------
+
+PART C — GAP DETECTION (LIGHTWEIGHT)
+
+--------------------------------------------------
+
+Implement minimal detection for suspicious patterns:
+
+Examples:
+- missing correlationId
+- missing tenantId on tenant-scoped events
+- invalid timestamps
+
+Log warning if detected:
+- DO NOT block
+
+--------------------------------------------------
+
+PART D — EVENT CHAIN TRACEABILITY
+
+--------------------------------------------------
+
+Ensure events can be linked:
+
+- correlationId must exist on all audit events
+- align with request tracing
+
+Validate:
+- request → logs → audit linkage works
+
+--------------------------------------------------
+
+PART E — AUDIT RETENTION AWARENESS
+
+--------------------------------------------------
+
+Do NOT implement deletion.
+
+Ensure:
+- audit timestamps are consistent
+- document retention expectations
+- confirm audit DB is append-only (logical level)
+
+--------------------------------------------------
+
+PART F — TAMPER RESISTANCE (LOGICAL)
+
+--------------------------------------------------
+
+You are NOT implementing cryptographic signing.
+
+Instead ensure:
+
+- no code path allows overwrite of existing audit entries
+- audit writes are append-only (application level)
+- audit client only supports “ingest”, not update/delete
+
+Document:
+- why this is sufficient at current stage
+
+--------------------------------------------------
+
+PART G — VALIDATION
+
+--------------------------------------------------
+
+Validate:
+
+1. All audit events contain required fields
+2. Audit failures are logged (non-blocking)
+3. CorrelationId always present
+4. No PII introduced
+5. No regression in audit coverage
+6. Build succeeds across services
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT
+
+/analysis/BLK-COMP-03-report.md
+
+# BLK-COMP-03 Report
+
+## 1. Summary
+
+## 2. Audit Consistency
+- validation of fields
+
+## 3. Audit Reliability
+- failure handling
+
+## 4. Gap Detection
+- issues identified
+
+## 5. Event Traceability
+- correlation linking
+
+## 6. Retention Awareness
+- policy confirmation
+
+## 7. Tamper Resistance
+- logical guarantees
+
+## 8. Validation Results
+
+## 9. Changed Files
+
+## 10. Commits
+
+## 11. Issues / Gaps
+
+--------------------------------------------------
+
+PART I — GITHUB DIFF
+
+git show <commit-id> > /analysis/BLK-COMP-03-commit.diff.txt
+
+--------------------------------------------------
+
+PART I.1 — SUMMARY FILE
+
+/analysis/BLK-COMP-03-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+- audit is consistent
+- audit is traceable
+- audit cannot be silently bypassed
+
+BEGIN IMPLEMENTATION

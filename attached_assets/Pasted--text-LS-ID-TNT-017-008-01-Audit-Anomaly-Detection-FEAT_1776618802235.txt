@@ -1,0 +1,462 @@
+```text
+# LS-ID-TNT-017-008-01 — Audit Anomaly Detection
+
+## FEATURE OBJECTIVE
+
+Implement a practical **Audit Anomaly Detection** layer that derives anomaly signals from the existing audit analytics and event store, so the platform can identify unusual audit activity patterns without requiring machine learning or external tooling.
+
+This feature should detect and surface anomalies such as:
+- denial spikes
+- unusual actor activity spikes
+- unusual tenant activity spikes
+- abnormal governance activity bursts
+- unusually high audit export/query activity
+- unusual event-type concentration over a recent time window
+
+This is a **rule-based anomaly detection feature**, not predictive analytics and not a full alerting/notification engine.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- audit capture is complete
+- audit viewer is complete
+- audit correlation is complete
+- audit analytics is complete
+
+What is missing:
+- operators can see counts and trends
+- but the system does not yet identify when something is statistically or operationally unusual
+
+Right now, anomaly recognition is still manual.
+
+This feature converts the platform from:
+- **audit insight**
+into:
+- **proactive audit intelligence**
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- machine learning models
+- predictive analytics
+- external alerting integrations
+- email/SMS/Slack notifications
+- SIEM connectors
+- user-configurable rule builder
+- broad incident management workflows
+- speculative anomaly rules not grounded in existing analytics fields
+- full risk scoring engine
+
+ONLY IMPLEMENT:
+- deterministic anomaly detection rules over existing audit analytics/event data
+- backend anomaly query support
+- Control Center anomaly view or anomaly section in SYNQAUDIT
+- severity / reason explanation for each anomaly
+- report-first implementation and honest documentation of supported anomaly rules
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental audit intelligence feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-002 — User Access Audit
+- LS-ID-TNT-017-002-01 — Selective Successful Access Audit
+- LS-ID-TNT-017-003 — Governance Mutation Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-017-006 — Audit Correlation Engine
+- LS-ID-TNT-017-008 — Audit Analytics
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing audit ingestion, viewer, correlation, and analytics behavior
+- validate the actual audit schema and analytics service before choosing anomaly rules
+- reuse existing query/authorization architecture where possible
+- keep tenant isolation intact
+- preserve performance by using bounded windows and practical aggregations
+- NOT introduce placeholder logic
+- document exact anomaly rules supported
+- prefer a small, trustworthy v1 rule set over an overbuilt pseudo-intelligence system
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-008-01-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-008-01 — Audit Anomaly Detection
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Analytics / Query Capability Analysis
+## 4. Anomaly Use Case Inventory
+## 5. Anomaly Rule Design
+## 6. Query / API Strategy
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Frontend / UI Implementation
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL ANALYTICS AND EVENT MODEL
+
+Inspect the real audit analytics and event/query code.
+
+You must identify and document:
+- what summary/aggregation capabilities already exist from LS-ID-TNT-017-008
+- what event fields are reliable for anomaly rules:
+  - eventType
+  - category
+  - severity
+  - actorId
+  - tenantId
+  - occurredAtUtc
+  - tags if usable
+- what time-window aggregation is practical today
+- whether current analytics service can be extended or whether a dedicated anomaly service is better
+- what baseline periods are feasible without performance problems
+- whether existing investigation links can be reused for drill-down
+
+Do NOT assume anomaly math until you inspect the actual analytics implementation.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Analytics / Query Capability Analysis
+
+---
+
+## STEP 2 — DEFINE THE REAL ANOMALY USE CASES
+
+Identify practical anomaly questions the system should answer in v1.
+
+At minimum validate whether the current data can support:
+- unusual spike in denied access events
+- unusual spike in events from one actor
+- unusual spike in events for one tenant
+- unusual governance activity burst
+- unusual audit export volume
+- unusual concentration of one event type in a short period
+- repeated permission denials by the same actor in a short period
+
+For each use case:
+- define the operator question
+- define the signal
+- define the comparison baseline or threshold
+- define whether current data supports it
+- prioritize which ones belong in v1
+
+Update report:
+## 4. Anomaly Use Case Inventory
+
+---
+
+## STEP 3 — DESIGN A SMALL, DETERMINISTIC V1 RULE SET
+
+Create a rule-based anomaly model.
+
+Possible rule types (choose based on actual fit):
+- fixed threshold rule
+- ratio/spike rule (current window vs prior baseline window)
+- concentration rule (one actor/event type exceeds a percentage of all activity)
+- repeated-denial rule
+- governance-egress rule
+
+Requirements:
+- rules must be deterministic and explainable
+- each anomaly must say WHY it fired
+- avoid fake statistical sophistication
+- use bounded recent windows and baseline windows
+- keep thresholds configurable in code/constants if helpful, but do not build a full admin rule editor
+
+For each rule define:
+- rule key/name
+- description
+- detection logic
+- severity
+- output fields
+- recommended drill-down path
+
+Update report:
+## 5. Anomaly Rule Design
+
+---
+
+## STEP 4 — CHOOSE THE ANOMALY QUERY / COMPUTE STRATEGY
+
+Determine the best-fit computation approach.
+
+Possible approaches:
+- compute on demand from recent audit data
+- reuse analytics summary queries and extend them
+- dedicated anomaly aggregation service using grouped SQL
+- small in-memory post-processing after bounded backend queries
+
+Preferred:
+- bounded backend aggregation + small deterministic evaluation
+- no full-history scans
+- no background job required unless clearly justified
+
+Requirements:
+- enforce explicit or default date windows
+- preserve tenant scoping
+- avoid expensive repeated scans
+- keep the v1 strategy maintainable and understandable
+
+Update report:
+## 5. Anomaly Rule Design
+## 6. Query / API Strategy
+
+---
+
+## STEP 5 — IMPLEMENT BACKEND ANOMALY SUPPORT
+
+Add the minimal backend support needed.
+
+Possible endpoint shapes:
+- `GET /audit/analytics/anomalies`
+- `GET /audit/analytics/anomalies/summary`
+- or integrate into existing analytics endpoint if that is cleaner
+
+Requirements:
+- return anomaly DTOs, not raw events
+- include:
+  - anomaly type
+  - severity
+  - title/description
+  - metric values
+  - current window
+  - baseline/threshold
+  - affected actor / tenant / event type where applicable
+  - drill-down hints/filters if useful
+- reuse existing authorization/query-authorizer model
+- platform admins may view cross-tenant anomalies
+- tenant-scoped callers only see their own tenant anomalies
+
+Update report:
+## 6. Query / API Strategy
+## 8. Backend Implementation
+
+---
+
+## STEP 6 — DEFINE THE V1 FILTER / WINDOW MODEL
+
+Anomalies need sensible windows.
+
+At minimum define/support:
+- default recent window (for example last 24h or 7d, based on actual fit)
+- comparison baseline window if needed (for example prior 7d/30d)
+- tenant scoping
+- category/event-family focus if useful
+
+Requirements:
+- keep filters simple
+- do not expose filters that do nothing
+- document defaults clearly
+- keep the logic explainable to operators
+
+Update report:
+## 6. Query / API Strategy
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 7 — BUILD THE ANOMALY UI IN CONTROL CENTER
+
+Add a practical anomaly view in SYNQAUDIT.
+
+Possible placement:
+- dedicated page `/synqaudit/anomalies`
+- or anomaly section within `/synqaudit/analytics`
+
+UI should include:
+- anomaly summary cards
+- anomaly list/table
+- severity badges
+- clear descriptions of why each anomaly fired
+- links into investigation views for drill-down
+
+Requirements:
+- loading / empty / error states
+- platform-admin appropriate access
+- tenant-context aware
+- readable and action-oriented
+- no visual clutter
+- use existing design system
+
+Update report:
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 8 — ENSURE INVESTIGATION INTEGRATION
+
+Every anomaly should lead somewhere useful.
+
+Requirements:
+- anomaly rows/cards should link into:
+  - investigation view
+  - filtered audit viewer
+  - related-event correlation chain
+where applicable
+- drill-down links should preserve the anomaly context (actor, tenant, event type, time window) as much as practical
+- do not redesign the existing investigation UI
+
+Examples:
+- denied spike anomaly → `/synqaudit/investigation?eventType=security.permission.denied&actorId=X`
+- audit export anomaly → investigation filtered to `audit.log.exported`
+- governance burst anomaly → filtered governance event view
+
+Update report:
+## 9. Frontend / UI Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — PRESERVE TENANT ISOLATION AND AUTHORIZATION
+
+Requirements:
+- anomaly results must respect the same tenant/platform visibility rules as analytics
+- platform admins can view cross-tenant anomaly summaries
+- tenant-scoped callers only see tenant-scoped anomalies
+- no aggregate endpoint may leak cross-tenant activity to unauthorized callers
+
+Document how authorization is reused.
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 10 — PRESERVE PERFORMANCE AND BACKWARD COMPATIBILITY
+
+Requirements:
+- existing audit query endpoints must continue to work
+- existing analytics endpoint must continue to work
+- existing correlation/viewer behavior must continue to work
+- anomaly computation must use bounded windows and practical limits
+- no service startup/build/runtime regressions
+- no obvious heavy scan regressions
+
+Document:
+- default windows
+- thresholds
+- any result limits
+- performance caveats
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Backend
+- anomaly endpoint returns expected anomaly DTOs
+- recent window / baseline logic works
+- tenant scoping works
+- platform-admin cross-tenant view works
+
+### Frontend
+- anomaly page/section loads correctly
+- empty state behaves correctly
+- severity labels and descriptions are clear
+- filter/window changes refresh anomalies correctly if supported
+
+### Integration
+- anomaly drill-down links into investigation/audit flows work
+- existing analytics/viewer/correlation pages still work
+
+### Regression
+- no new build/runtime errors
+- no audit ingestion regressions
+- no authorization regressions
+- performance remains acceptable
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what anomaly rules are now supported
+- what computation strategy was used
+- what windows/thresholds are used
+- what UI was added
+- how tenant isolation is preserved
+- what remains deferred (e.g. alerting, ML scoring)
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Real anomaly use cases were analyzed from the audit and analytics model
+✔ A practical v1 anomaly rule set was implemented
+✔ Backend anomaly query support now exists for the validated scope
+✔ A usable anomaly UI exists in Control Center
+✔ Anomalies respect tenant/platform authorization boundaries
+✔ Existing analytics/viewer/correlation behavior does not regress
+✔ Performance and coverage limitations are documented honestly
+✔ The audit platform now surfaces proactive anomaly signals, not just passive analytics
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working anomaly detection backend/query capability for the validated scope
+2. Working Control Center anomaly UI
+3. Reuse of the existing audit analytics/query/authorization architecture
+4. Completed report:
+/analysis/LS-ID-TNT-017-008-01-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

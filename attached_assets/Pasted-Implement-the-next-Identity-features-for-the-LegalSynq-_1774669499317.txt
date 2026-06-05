@@ -1,0 +1,229 @@
+Implement the next Identity features for the LegalSynq .NET monorepo using the existing Identity service that is already connected to AWS RDS MySQL and seeded.
+
+Existing state:
+- .NET 8
+- EF Core + Pomelo MySQL
+- Identity service has:
+  - Tenants
+  - Users
+  - Roles
+  - UserRoles
+  - Products
+  - TenantProducts
+- Existing endpoints include:
+  - GET /health
+  - GET /info
+  - GET /api/tenants
+  - GET /api/products
+- Identity service is already running against AWS RDS
+- Keep architecture clean:
+  - Identity.Api
+  - Identity.Application
+  - Identity.Domain
+  - Identity.Infrastructure
+
+Goal:
+Add password hashing, user creation, user queries, login, and JWT issuance.
+
+Requirements
+
+1. Add required NuGet packages
+Add only the packages needed for:
+- BCrypt password hashing
+- JWT token generation/auth support
+
+Use current stable packages compatible with .NET 8, such as:
+- BCrypt.Net-Next
+- Microsoft.AspNetCore.Authentication.JwtBearer
+- System.IdentityModel.Tokens.Jwt
+
+Only add packages where needed.
+
+2. Add application abstractions and services
+Create clean interfaces and services for:
+- password hashing
+- JWT token generation
+- user creation
+- login/authentication
+- user query/listing
+
+Suggested interfaces:
+- IPasswordHasher
+- IJwtTokenService
+- IUserService
+- IAuthService
+
+3. Add DTOs
+Create DTOs for:
+- CreateUserRequest
+- UserResponse
+- LoginRequest
+- LoginResponse
+
+Use these shapes:
+
+CreateUserRequest
+- TenantId : Guid
+- Email : string
+- Password : string
+- FirstName : string
+- LastName : string
+- RoleIds : List<Guid> optional
+
+UserResponse
+- Id : Guid
+- TenantId : Guid
+- Email : string
+- FirstName : string
+- LastName : string
+- IsActive : bool
+- Roles : List<string>
+
+LoginRequest
+- TenantCode : string
+- Email : string
+- Password : string
+
+LoginResponse
+- AccessToken : string
+- ExpiresAtUtc : DateTime
+- User : UserResponse
+
+4. Password hashing
+Implement password hashing with BCrypt.
+Do not store plain text passwords.
+Do not use MD5, SHA1, SHA256-only, or custom hashing.
+
+5. Add user creation
+Implement:
+- POST /api/users
+
+Behavior:
+- validate tenant exists
+- enforce email uniqueness within tenant
+- hash password before saving
+- create user as active by default
+- assign roles if RoleIds are supplied
+- if RoleIds are empty, allow user creation without roles for now
+- return UserResponse without password hash
+
+6. Add user query endpoints
+Implement:
+- GET /api/users
+- GET /api/users/{id}
+
+Behavior:
+- GET /api/users returns all users with roles
+- GET /api/users/{id} returns one user with roles
+- do not return password hash
+
+7. Add login endpoint
+Implement:
+- POST /api/auth/login
+
+Behavior:
+- resolve tenant by TenantCode
+- find active user by TenantId + Email
+- verify password against PasswordHash
+- load user roles
+- return JWT access token and user details
+- return appropriate 400/401 responses for invalid login
+- do not leak sensitive information in error messages
+
+8. JWT configuration
+Add JWT configuration to appsettings.json and appsettings.Development.json:
+
+Section:
+- Jwt
+  - Issuer
+  - Audience
+  - SigningKey
+  - ExpiryMinutes
+
+Use placeholder values in appsettings and allow environment override.
+
+JWT claims must include:
+- sub = user id
+- email
+- tenant_id
+- tenant_code
+- roles (one claim per role or equivalent standard approach)
+
+Use UTC expiry.
+
+9. Keep startup clean
+Register:
+- password hasher
+- JWT token service
+- application services
+
+Do not add full authorization policies yet.
+Do not protect endpoints yet unless required for framework setup.
+This step is about issuing JWTs, not enforcing them yet.
+
+10. Response consistency
+Keep endpoints clean and production-minded.
+Use DTOs and consistent JSON.
+Do not return EF entities directly.
+
+11. Do NOT add yet
+Do not implement:
+- refresh tokens
+- forgot password
+- password reset
+- account lockout
+- MFA
+- permissions matrix
+- external identity providers
+- full authorization policies
+- gateway auth yet
+
+12. Update project references only if needed
+Keep clean architecture boundaries intact.
+
+13. Testing output
+After implementation, output:
+- files created/updated
+- package commands used
+- endpoints added
+- sample request/response payloads
+- how to test create user
+- how to test login
+- how to decode/inspect JWT claims
+
+Implementation details and expectations
+
+Create user endpoint example request:
+POST /api/users
+{
+  "tenantId": "20000000-0000-0000-0000-000000000001",
+  "email": "admin@legalsynq.com",
+  "password": "ChangeMe123!",
+  "firstName": "Platform",
+  "lastName": "Admin",
+  "roleIds": []
+}
+
+Login request example:
+POST /api/auth/login
+{
+  "tenantCode": "LEGALSYNQ",
+  "email": "admin@legalsynq.com",
+  "password": "ChangeMe123!"
+}
+
+User query behavior:
+- return roles as role names, not role IDs
+
+Code quality expectations:
+- clean namespaces
+- minimal boilerplate
+- production-minded structure
+- async database access
+- proper validation and error handling
+- UTC timestamps everywhere
+
+Important:
+- keep the existing schema compatible
+- do not break current working endpoints
+- build on top of the existing Identity foundation

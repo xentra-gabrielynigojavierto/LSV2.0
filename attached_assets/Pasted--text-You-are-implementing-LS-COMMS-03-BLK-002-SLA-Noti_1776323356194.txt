@@ -1,0 +1,706 @@
+```text
+You are implementing LS-COMMS-03-BLK-002 — SLA Notifications and Escalation Triggers for SynqComm.
+
+OBJECTIVE:
+Extend SynqComm to support SLA warning notifications, breach notifications, and basic escalation triggers for operational conversations. This block must build on the queue, assignment, and SLA foundation already implemented, while preserving the established platform boundaries:
+- SynqComm remains the communication system of record and operational state owner
+- Notifications remains the outbound notification delivery engine
+- Documents remains the owner of binaries
+
+This block is about:
+- detecting upcoming SLA deadlines and SLA breaches
+- triggering Notifications for warning and breach events
+- applying simple escalation targeting rules
+- recording notification/escalation state to prevent duplicate firing
+- preserving tenant, participant, queue, and assignment boundaries
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains an independent service under /apps/services/synqcomm with its own physically separate database
+- SynqComm must NOT piggyback on another service database
+- SynqComm must NOT use cross-database joins for core logic
+- Notifications remains the outbound notification engine
+- SynqComm must NOT implement email/SMS provider logic directly
+- This block must NOT introduce a general workflow/rules engine yet
+- This block must NOT add UI work
+- This block must preserve all existing visibility, participant, email, sender/template, delivery, queue, assignment, and SLA behaviors
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+- LS-COMMS-02-BLK-001 — Email Intake and Threading
+- LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status
+- LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion
+- LS-COMMS-02-BLK-004 — Tenant-Configurable Sender Addresses and Email Templates
+- LS-COMMS-02-BLK-005 — End-to-End Notifications Integration Testing
+- LS-COMMS-03-BLK-001 — Operational Queues, Assignment, and SLA Tracking
+
+CURRENT FOUNDATION ALREADY EXISTS:
+- Queues, assignment, waiting state, and SLA state are implemented
+- Inbound/outbound communication already updates operational state
+- Notifications integration already exists and is hardened for outbound email
+- 118 tests are already passing from prior blocks
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-03-BLK-002-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-03-BLK-002-report.md
+
+Initialize it with:
+
+# LS-COMMS-03-BLK-002 — SLA Notifications and Escalation Triggers Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support SLA warning notifications, breach notifications, and basic escalation triggers while preserving SynqComm as the communication and operational system of record and Notifications as the delivery engine.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- SynqComm owns SLA state, escalation state, and trigger decisions
+- Notifications remains the outbound notification engine
+- Documents remains owned by Documents service
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Review existing SLA/assignment implementation and escalation gaps
+- [ ] Step 2: Design SLA warning, breach, and escalation trigger model
+- [ ] Step 3: Add domain models and contracts
+- [ ] Step 4: Implement escalation target resolution
+- [ ] Step 5: Implement SLA trigger evaluation and deduplication
+- [ ] Step 6: Extend Notifications integration for operational alerts
+- [ ] Step 7: Extend APIs and persistence
+- [ ] Step 8: Extend audit coverage
+- [ ] Step 9: Add/update migrations
+- [ ] Step 10: Add automated tests
+- [ ] Step 11: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND IDENTIFY ESCALATION GAPS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current queue/assignment model
+- current SLA state model and breach flags
+- current waiting-state model
+- current Notifications client pattern
+- current audit integration pattern
+- whether there is already any background job/scheduler pattern in the monorepo
+- whether any internal cron/worker/process framework already exists
+- whether queue ownership or assigned user resolution is sufficient for basic escalation targeting
+- whether sender/template infrastructure from prior blocks can be reused for escalation messaging if needed
+- whether internal-only notification patterns already exist in Notifications or shared libraries
+
+Update the report with:
+- current SLA lifecycle findings
+- exact trigger strategy selected
+- exact escalation-target strategy selected
+- exact deduplication/idempotency strategy selected
+- whether evaluation will be on-demand, scheduled, or both
+- any assumptions required
+
+IMPORTANT:
+Do not build a broad automation engine in this block.
+Keep triggers simple, deterministic, and auditable.
+
+--------------------------------------------------
+STEP 3 — DESIGN SLA WARNING / BREACH / ESCALATION MODEL
+--------------------------------------------------
+
+This block must add:
+- first-response warning trigger
+- first-response breach trigger
+- resolution warning trigger
+- resolution breach trigger
+- basic escalation targeting
+- deduplication so the same warning/breach is not sent repeatedly unless explicitly allowed
+- operational visibility into what was triggered and when
+
+Key design principles:
+- SLA evaluation belongs to SynqComm because SynqComm owns SLA state
+- notification delivery belongs to Notifications
+- trigger decisions must be deterministic and idempotent
+- warning and breach events must be recorded
+- escalation in this block should be simple and rules-based, not a general engine
+
+Recommended minimum trigger set:
+- first-response warning
+- first-response breached
+- resolution warning
+- resolution breached
+
+Recommended warning thresholds:
+- first-response warning at 50% of remaining SLA or a fixed threshold before due time
+- resolution warning at a fixed threshold before due time
+Choose one clear deterministic model and document it
+
+Recommended initial targeting rules:
+1. if assignedUserId exists → notify assigned user
+2. else if queue exists → notify queue-level fallback recipient if configured
+3. else notify tenant default operational fallback if configured
+If queue/tenant fallback configuration is not yet available, implement assigned-user-first and document the gap clearly.
+
+Update the report with the chosen model before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent model(s) needed.
+
+Preferred model:
+ConversationSlaTriggerState
+
+Purpose:
+Records whether warning/breach notifications have already fired for a conversation SLA lifecycle.
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- firstResponseWarningSentAtUtc nullable
+- firstResponseBreachSentAtUtc nullable
+- resolutionWarningSentAtUtc nullable
+- resolutionBreachSentAtUtc nullable
+- lastEvaluatedAtUtc nullable
+- lastEscalatedToUserId nullable
+- lastEscalatedQueueId nullable
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Optional additions if useful:
+- warningThresholdSnapshotMinutes nullable
+- evaluationVersion nullable
+
+You may also add a lightweight configuration model if needed:
+
+Optional model:
+QueueEscalationConfig
+Purpose:
+Queue-level fallback notification target for breached/unassigned work.
+
+Minimum fields:
+- id
+- tenantId
+- queueId
+- fallbackUserId nullable
+- isActive
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Only add this if it materially improves the first usable escalation path.
+If user/team ownership for queue fallback cannot be cleanly validated in this block, document the gap and keep escalation target simple.
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUMS / RULE DEFINITIONS
+--------------------------------------------------
+
+Add or extend rules for trigger evaluation.
+
+Required rules:
+
+Trigger categories:
+- FIRST_RESPONSE_WARNING
+- FIRST_RESPONSE_BREACH
+- RESOLUTION_WARNING
+- RESOLUTION_BREACH
+
+Trigger eligibility:
+- first-response triggers only apply if first response not yet satisfied
+- resolution triggers only apply if resolution not yet satisfied
+- closed/resolved conversations should not continue to generate irrelevant warnings
+- INTERNAL_ONLY activity must not satisfy external-response SLA
+- external waiting state may still count as unresolved unless pause/resume exists; do not add pause/resume in this block unless necessary
+
+Deduplication:
+- each trigger type should fire once per conversation per SLA cycle
+- if priority is changed and due dates change, warning/breach state should remain logically consistent
+- do not refire already-sent warnings unless the SLA cycle is reset in a clearly documented way
+
+Escalation targeting:
+- assigned user is the primary target
+- queue fallback is secondary if configured
+- no broad routing logic beyond that
+- escalation target must remain tenant-scoped
+
+Document warning threshold rules clearly.
+A recommended simple model:
+- first-response warning when <= 25% remaining or <= 1 hour remaining, whichever comes first
+- resolution warning when <= 4 hours remaining for long SLAs, or <= 25% remaining for shorter SLAs
+You may choose a cleaner config/constants-based model; document it clearly.
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required support:
+
+Trigger evaluation:
+1. EvaluateSlaTriggersRequest if a manual/internal evaluation endpoint is used
+2. SlaTriggerEvaluationResponse
+Include:
+- evaluatedConversationCount
+- warningsTriggered
+- breachesTriggered
+- skippedCount
+- timestamp
+
+Trigger state:
+3. ConversationSlaTriggerStateResponse
+Include:
+- warning/breach timestamps
+- lastEvaluatedAtUtc
+- escalation target info if available
+
+Queue fallback config if implemented:
+4. CreateQueueEscalationConfigRequest
+5. UpdateQueueEscalationConfigRequest
+6. QueueEscalationConfigResponse
+
+Operational summary enhancements:
+7. Extend ConversationOperationalSummaryResponse
+Optionally include:
+- trigger state
+- next due event
+- escalation target summary
+
+List/query filtering:
+8. Extend operational list query support for:
+- breachedFirstResponse
+- breachedResolution
+- firstResponseWarningSent
+- resolutionWarningSent
+- assignedUserId
+- queueId
+- priority
+
+Do not add UI-only DTOs.
+
+--------------------------------------------------
+STEP 7 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- SLA trigger state
+- optional queue escalation config
+- operational query support for trigger-aware filtering
+
+Possible interfaces:
+- IConversationSlaTriggerStateRepository
+- IQueueEscalationConfigRepository (optional)
+
+Required behaviors:
+- get/upsert trigger state by conversation
+- record trigger timestamps safely
+- tenant-aware retrieval
+- support bulk evaluation queries where feasible
+- list conversations eligible for trigger evaluation
+- list breached/warning-ready conversations for filtered operational views if useful
+
+Stay within SynqComm-owned database only.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT ESCALATION TARGET RESOLUTION
+--------------------------------------------------
+
+Implement service-layer logic to determine who should receive a warning/breach notification.
+
+Required behavior:
+- resolve assigned user if present
+- if no assigned user, optionally resolve queue fallback user if implemented
+- if neither exists, either skip notification with audit/log entry or use documented tenant fallback if available
+- escalation target must belong to the same tenant context
+- target resolution must be deterministic and auditable
+
+Do not implement team-wide fanout, round-robin, or load balancing in this block.
+
+Preferred service:
+- IEscalationTargetResolver or equivalent helper/service
+
+Document exact fallback order in the report.
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT SLA TRIGGER EVALUATION AND DEDUPLICATION
+--------------------------------------------------
+
+Implement service-layer logic to evaluate conversations for warning/breach notifications.
+
+Required behavior:
+- inspect SLA state and due dates
+- determine which trigger(s) are now eligible
+- check trigger state to prevent duplicate firing
+- emit Notifications request(s) through the Notifications client abstraction
+- update trigger state only after successful trigger submission, or document alternative behavior clearly
+- preserve idempotency if the same evaluation runs multiple times
+- support evaluation for:
+  - first response warning
+  - first response breach
+  - resolution warning
+  - resolution breach
+
+Recommended service:
+- ISlaNotificationService or equivalent
+
+Evaluation entry points may include:
+- explicit internal API endpoint for manual/system-triggered evaluation
+- reusable service method for future scheduled job integration
+
+This block does NOT need a full scheduler if one does not already exist.
+A clean manual/internal evaluation endpoint is acceptable and recommended for now.
+
+--------------------------------------------------
+STEP 10 — EXTEND NOTIFICATIONS INTEGRATION FOR OPERATIONAL ALERTS
+--------------------------------------------------
+
+Extend the Notifications integration seam only as needed.
+
+Requirements:
+- send operational alert notifications through Notifications
+- payload should include:
+  - target user or recipient identity
+  - conversation id
+  - queue id if relevant
+  - priority
+  - due timestamp
+  - trigger type
+  - optional summary/context fields
+- use template-driven or typed notification payloads if Notifications already supports them
+- if Notifications supports internal app/email notifications differently, choose the cleanest existing pattern and document it
+
+Do not add provider-specific logic to SynqComm.
+Do not create a parallel notifications mechanism.
+
+Recommended notification types:
+- synqcomm_first_response_warning
+- synqcomm_first_response_breach
+- synqcomm_resolution_warning
+- synqcomm_resolution_breach
+
+If template/type registration must happen in Notifications later, document it as a dependency, but still complete the SynqComm side cleanly.
+
+--------------------------------------------------
+STEP 11 — EXTEND COMMUNICATION / OPERATIONAL FLOW INTEGRATION AS NEEDED
+--------------------------------------------------
+
+Integrate trigger evaluation with the current operational lifecycle without overcomplicating it.
+
+Required considerations:
+- SLA initialization from inbound external activity already exists
+- first-response satisfaction from outbound SHARED_EXTERNAL already exists
+- resolution satisfaction from resolved/closed status already exists
+
+Add only what is necessary so that:
+- trigger evaluation reads correct up-to-date state
+- priority changes and reassignment do not corrupt trigger logic
+- waiting-state changes remain separate from trigger decisions
+- communication flows do not directly embed Notifications trigger logic unless clearly necessary
+
+Keep trigger evaluation centralized rather than scattering it through many services.
+
+--------------------------------------------------
+STEP 12 — EXTEND APIs
+--------------------------------------------------
+
+Add or extend APIs only as needed.
+
+Minimum required endpoints:
+
+Internal/manual trigger evaluation:
+- POST /api/synqcomm/internal/sla/evaluate
+  - internal/system endpoint for evaluating SLA triggers
+  - protected with internal/service auth pattern consistent with prior integration hardening
+
+Trigger state / operational visibility:
+- GET /api/synqcomm/operational/conversations/{id}/sla-triggers
+  - view trigger state for a conversation
+  - internal authorized users only
+
+Optional queue fallback config endpoints if implemented:
+- POST /api/synqcomm/queues/{id}/escalation-config
+- PATCH /api/synqcomm/queues/{id}/escalation-config
+- GET /api/synqcomm/queues/{id}/escalation-config
+
+You may also extend:
+- GET /api/synqcomm/operational/conversations
+to expose breach/warning-related fields for internal filtering
+
+Do not add UI-specific endpoints.
+
+--------------------------------------------------
+STEP 13 — AUTHORIZATION, TENANT, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- internal/system-only evaluation endpoint
+- only authorized internal users can view internal trigger state
+- external participants must not access queue/SLA/escalation internals
+- escalation target resolution must remain tenant-scoped
+- trigger notifications must not expose INTERNAL_ONLY content externally
+- operational notification payloads should contain only the information necessary for the assigned internal operator
+
+If a stronger service-to-service auth pattern already exists, reuse it.
+Do not weaken authorization for convenience.
+
+--------------------------------------------------
+STEP 14 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for SLA notification and escalation events.
+
+Required audit events where feasible:
+- FirstResponseWarningTriggered
+- FirstResponseBreached
+- ResolutionWarningTriggered
+- ResolutionBreached
+- SlaTriggerEvaluationRun
+- SlaTriggerSkippedAlreadySent
+- SlaTriggerSkippedNoTarget
+- EscalationTargetResolved
+- EscalationTargetMissing
+- QueueEscalationConfigCreated/Updated if implemented
+
+If structured payloads are supported, include:
+- tenantId
+- conversationId
+- queueId
+- assignedUserId
+- priority
+- due timestamps
+- trigger type
+- trigger timestamp
+- evaluation timestamp
+- trigger target
+- notification request id if available
+
+Use the existing audit pattern.
+Do not invent a new audit subsystem.
+
+--------------------------------------------------
+STEP 15 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-002 of Epic 03.
+
+Expected changes may include:
+- new table for SLA trigger state
+- optional queue escalation config table
+- supporting indexes for trigger-aware operational queries
+
+Possible indexes:
+- IX_SlaTriggerState_TenantId_ConversationId
+- IX_SlaTriggerState_TenantId_FirstResponseBreachSentAtUtc
+- IX_SlaTriggerState_TenantId_ResolutionBreachSentAtUtc
+- IX_QueueEscalationConfig_TenantId_QueueId (if implemented)
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 16 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — First Response Warning Trigger
+- SLA nearing due
+- trigger fires once
+- Notifications client receives correct payload
+
+Test 2 — First Response Breach Trigger
+- SLA passes due without response
+- breach trigger fires once
+
+Test 3 — Resolution Warning Trigger
+- resolution due approaches
+- warning trigger fires once
+
+Test 4 — Resolution Breach Trigger
+- resolution SLA breached
+- breach trigger fires once
+
+Test 5 — Duplicate Evaluation Idempotency
+- same evaluation run multiple times
+- already-sent warning/breach does not resend
+
+Test 6 — Escalation Target Resolution
+- assigned user present -> notify assigned user
+- no assigned user -> queue fallback or documented skip path
+
+Test 7 — No Target Handling
+- no valid escalation target
+- trigger skipped safely with audit/log evidence
+
+Test 8 — Priority Change Interaction
+- priority changes due time
+- evaluation remains logically correct
+
+Test 9 — Internal Endpoint Security
+- unauthorized caller cannot evaluate triggers
+- authorized internal path succeeds
+
+Test 10 — Prior Operational Regression
+- existing queue/assignment/SLA behaviors still work after trigger additions
+
+Test 11 — Prior Communication Regression
+- existing inbound/outbound email behavior still works after this block
+
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 17 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Notifications remains the outbound notification engine
+- warning and breach triggers are deterministic and deduplicated
+- escalation target resolution is tenant-scoped and safe
+- internal/system evaluation endpoint is protected
+- current communication, email, sender/template, assignment, and SLA features still work
+- no unrelated UI or automation-engine features were added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves SynqComm, Notifications, and Documents boundaries.
+
+## Trigger Design
+Explain how warnings, breaches, and deduplication work.
+
+## Escalation Target Resolution
+Explain how targets are selected and what happens when none exist.
+
+## Notifications Integration
+Explain how operational alerts are sent through Notifications.
+
+## Internal Evaluation Security
+Explain how the evaluation endpoint is protected.
+
+## Audit Integration
+Explain which trigger/escalation events are now captured.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-03-BLK-003 — Operational Timeline and System Activity Feed
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST preserve Notifications as the outbound notification engine
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit/logging pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on SLA notifications and escalation triggers
+- MUST NOT add a broad rules engine, scheduler platform, or UI features
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- deterministic SLA warning and breach triggers
+- basic escalation target resolution
+- duplicate-safe trigger evaluation
+- internal/system-triggered SLA evaluation
+- Notifications-driven operational alerts
+- audit events for warning/breach/escalation lifecycle
+- automated tests proving the trigger behavior
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-03-BLK-002-report.md
+```

@@ -1,0 +1,623 @@
+Feature ID: LS-NOTIF-SMS-023
+
+Title:
+Per-Tenant Governance Rule Pack Scoping and True Tenant-Isolated Enforcement
+
+Objective:
+Introduce true tenant-scoped governance enforcement by enabling tenant-isolated rule-pack activation, tenant-specific governance overlays, scoped governance resolution, segmented rollout enforcement, tenant-aware governance execution, and tenant-specific rollback semantics within the SMS governance engine.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- tenant-scoped governance rule activation
+- tenant-to-rule-pack assignment
+- tenant governance overlays
+- tenant-aware governance resolution
+- effective governance graph calculation
+- rollout-cohort enforcement isolation
+- tenant-specific governance rollback
+- tenant governance APIs
+
+Control Center must only consume Notification Service APIs and render/administer tenant governance visibility. Do not duplicate tenant governance resolution, overlay merging, assignment activation, or enforcement logic in Control Center.
+
+Requirements:
+- Implement tenant-scoped governance enforcement inside Notification Service.
+- Preserve LS-NOTIF-SMS-017 governance policies.
+- Preserve LS-NOTIF-SMS-018 template governance.
+- Preserve LS-NOTIF-SMS-019 dynamic rules.
+- Preserve LS-NOTIF-SMS-020 versioning, rollback, import/export, and analytics.
+- Preserve LS-NOTIF-SMS-021 release management.
+- Preserve LS-NOTIF-SMS-021-HARDENING activation locking, approval, audit, retry/backoff, and integrity behavior.
+- Preserve LS-NOTIF-SMS-022 rollout orchestration.
+- Tenant-aware governance must extend, not replace, existing global governance behavior.
+- Existing global-only tenants must behave exactly as before.
+- Tenant-specific activation/rollback must not affect unrelated tenants.
+- Governance resolution must remain fast, safe, and fail-open where configured.
+- Do not store raw phone numbers in tenant governance assignment/overlay tables.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-022 behavior.
+
+Implementation Requirements:
+1. Add tenant rule-pack assignment persistence.
+2. Add tenant governance overlay persistence.
+3. Add tenant-aware governance resolution service.
+4. Add tenant assignment orchestration service.
+5. Add tenant isolation validation service.
+6. Extend dynamic rule resolver from LS-NOTIF-SMS-019 to resolve effective rules by tenant.
+7. Extend rollout behavior from LS-NOTIF-SMS-022 so canary/staged cohorts can activate governance for targeted tenants only.
+8. Add tenant-specific rollback/deactivation semantics.
+9. Add effective governance graph APIs.
+10. Add tenant assignment/overlay admin APIs.
+11. Add Control Center tenant governance assignment UI if feasible.
+12. Ensure tenant-aware resolution remains backward compatible with existing global behavior.
+13. Ensure all failures degrade safely.
+
+Critical Constraints:
+- Reuse existing SmsGovernanceRulePack, SmsGovernanceRule, SmsComplianceProfile, SmsComplianceProfileAssignment, SmsGovernanceRuleResolver, SmsGovernanceRuleEngine, SmsGovernanceSimulationService, SmsGovernanceReleasePackage, SmsGovernanceReleaseItem, SmsGovernanceRolloutPlan, SmsGovernanceTenantCohort, SmsGovernanceRolloutService, SmsGovernanceVersioningService, SmsGovernanceRuleMatchMetric, admin endpoint, EF/migration, audit/logging, worker, and Control Center governance UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite the dynamic rule engine unless required to introduce tenant-aware resolution.
+- Do NOT replace LS-017 governance.
+- Do NOT replace LS-018 template governance.
+- Do NOT replace LS-019 dynamic rules.
+- Do NOT replace LS-020 versioning/rollback behavior.
+- Do NOT replace LS-021 release-management behavior.
+- Do NOT bypass LS-021-HARDENING activation locking.
+- Do NOT replace LS-022 rollout orchestration.
+- Do NOT implement AI/ML governance recommendation.
+- Do NOT call external deployment, workflow, compliance, moderation, telecom, or fraud APIs.
+- Do NOT persist raw phone numbers in tenant governance tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-023-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-019 dynamic rule resolver findings
+3. Existing LS-020 versioning/rollback findings
+4. Existing LS-021 release-management findings
+5. Existing LS-022 rollout/cohort findings
+6. Existing tenant/profile assignment findings
+7. Existing Control Center governance UI findings
+8. Files added
+9. Files modified
+10. Database/schema/config changes
+11. API/interface changes
+12. UI/route changes, if implemented
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Tenant and Governance Resolution Architecture
+- Identify:
+  - SmsGovernanceRulePack tenant fields and current scoping behavior
+  - SmsGovernanceRuleResolver current global/tenant behavior
+  - SmsComplianceProfile and SmsComplianceProfileAssignment behavior
+  - SmsGovernanceRuleEngine tenantId usage
+  - SmsGovernanceSimulationService tenant handling
+  - SmsGovernanceRolloutPlan and SmsGovernanceTenantCohort behavior
+  - LS-022 rollout limitation around global enforcement
+  - release activation behavior for rule packs/rules
+  - versioning/rollback semantics
+  - Control Center dynamic rules and rollout UI patterns
+  - existing tenant identifier patterns
+- Document findings in the report before implementation.
+
+STEP 2 — Define Tenant Rule-Pack Assignment Entity
+Add tenant-to-rule-pack assignment persistence.
+
+Suggested entity:
+SmsGovernanceTenantRulePackAssignment
+
+Suggested fields:
+- Id Guid
+- TenantId Guid
+- RulePackId Guid
+- AssignmentState string
+- AssignmentMode string
+- Priority int
+- EffectiveFrom DateTime? nullable
+- EffectiveTo DateTime? nullable
+- RolloutPlanId Guid? nullable
+- RolloutStageId Guid? nullable
+- ReleasePackageId Guid? nullable
+- AssignedBy string? nullable
+- ActivatedAt DateTime? nullable
+- DeactivatedAt DateTime? nullable
+- SupersededAt DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+
+Suggested AssignmentState values:
+- draft
+- scheduled
+- active
+- inactive
+- superseded
+- expired
+- rolled_back
+
+Suggested AssignmentMode values:
+- inherited
+- isolated
+- overlay
+- rollout_canary
+- rollout_stage
+
+Requirements:
+- TenantId is required.
+- RulePackId is required.
+- Active assignment applies only to that tenant.
+- EffectiveFrom/EffectiveTo support scheduled activation/expiration.
+- RolloutPlanId/StageId support rollout-specific assignment.
+- ReleasePackageId supports release traceability.
+- Use EF/migration conventions.
+- Add indexes:
+  - TenantId, AssignmentState, Priority
+  - TenantId, RulePackId
+  - RulePackId, AssignmentState
+  - RolloutPlanId, AssignmentState
+  - EffectiveFrom, EffectiveTo
+
+STEP 3 — Define Tenant Governance Overlay Entity
+Add tenant-specific overlay support.
+
+Suggested entity:
+SmsGovernanceTenantOverlay
+
+Suggested fields:
+- Id Guid
+- TenantId Guid
+- RulePackId Guid? nullable
+- RuleId Guid? nullable
+- OverlayType string
+- OverlayState string
+- OverrideJson string? nullable
+- Priority int
+- Enabled bool
+- EffectiveFrom DateTime? nullable
+- EffectiveTo DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested OverlayType values:
+- add_rule
+- disable_rule
+- override_severity
+- override_pattern
+- override_metadata
+- override_classification
+- suppress_rule
+
+Suggested OverlayState values:
+- draft
+- active
+- inactive
+- expired
+- superseded
+
+Requirements:
+- Overlay applies only to TenantId.
+- Overlay can target a rule pack, rule, or add tenant-specific rule metadata.
+- OverrideJson must be safe JSON.
+- Overlay must not store secrets.
+- Add indexes:
+  - TenantId, Enabled, Priority
+  - TenantId, RulePackId
+  - TenantId, RuleId
+  - OverlayType, Enabled
+
+STEP 4 — Define Tenant Governance Assignment Audit Entity
+Add assignment audit if existing audit tables are insufficient.
+
+Suggested entity:
+SmsGovernanceTenantAssignmentAuditEvent
+
+Suggested fields:
+- Id Guid
+- TenantId Guid
+- AssignmentId Guid? nullable
+- OverlayId Guid? nullable
+- EventType string
+- PreviousState string? nullable
+- NewState string? nullable
+- Actor string? nullable
+- Reason string? nullable
+- MetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested EventType values:
+- assignment_created
+- assignment_activated
+- assignment_deactivated
+- assignment_superseded
+- assignment_rolled_back
+- overlay_created
+- overlay_activated
+- overlay_disabled
+- resolution_evaluated
+- isolation_validation_failed
+
+Requirements:
+- Audit events append-only.
+- Metadata must be safe.
+- No raw phones, credentials, message bodies, or provider payloads.
+- Add indexes:
+  - TenantId, CreatedAt
+  - AssignmentId, CreatedAt
+  - OverlayId, CreatedAt
+  - EventType, CreatedAt
+
+STEP 5 — Define Tenant Governance Configuration
+Add tenant governance resolution options.
+
+Suggested config:
+SmsGovernanceTenantScoping:
+- Enabled bool default true
+- ResolutionMode string default tenant_inherited
+- FailOpenOnResolutionError bool default true
+- EnableTenantOverlays bool default true
+- EnableRolloutAssignments bool default true
+- MaxAssignmentsPerTenant int default 50
+- MaxOverlaysPerTenant int default 100
+- CacheResolvedRules bool default false
+- ResolutionCacheSeconds int default 60
+
+Suggested ResolutionMode values:
+- global_only
+- tenant_inherited
+- tenant_isolated
+- rollout_canary
+
+Requirements:
+- Safe defaults.
+- Existing tenants without assignments should use existing global behavior.
+- Fail-open behavior must be documented.
+- No secrets in config.
+
+STEP 6 — Add Tenant Governance Resolution Service
+Add runtime effective governance graph resolution.
+
+Suggested interface:
+ISmsGovernanceTenantResolutionService
+
+Suggested methods:
+- ResolveEffectiveRulePacksAsync(Guid? tenantId, GovernanceResolutionContext context, CancellationToken ct)
+- ResolveEffectiveRulesAsync(Guid? tenantId, GovernanceResolutionContext context, CancellationToken ct)
+- GetEffectiveGovernanceGraphAsync(Guid tenantId, CancellationToken ct)
+- ExplainResolutionAsync(Guid tenantId, CancellationToken ct)
+
+Suggested resolution context:
+- notificationId nullable
+- templateId nullable
+- rolloutPlanId nullable
+- releasePackageId nullable
+- evaluationContext string? nullable
+- nowUtc
+
+Suggested effective graph:
+- tenantId
+- resolutionMode
+- inheritedGlobalPacks
+- tenantAssignedPacks
+- rolloutAssignedPacks
+- overlaysApplied
+- disabledRules
+- finalRuleCount
+- warnings
+
+Resolution order:
+1. Tenant active assignments
+2. Rollout-specific assignments
+3. Tenant overlays
+4. Global active packs when inherited mode applies
+5. Default platform governance
+
+Requirements:
+- If tenantId is null, preserve global behavior.
+- If no tenant assignments exist, preserve current global behavior.
+- AssignmentState and EffectiveFrom/To must be respected.
+- Overlays must apply only to tenant.
+- Disabled/expired assignments ignored.
+- Resolution failures fail open according to config.
+- Use bounded queries.
+- Do not call external APIs.
+
+STEP 7 — Extend Existing Rule Resolver
+Extend `ISmsGovernanceRuleResolver` implementation.
+
+Current behavior:
+- Resolves active dynamic rule packs/rules.
+
+Required behavior:
+- Use tenant resolution service when tenant scoping is enabled.
+- Preserve existing global resolution when:
+  - tenant scoping disabled,
+  - tenantId absent,
+  - tenant has no assignment,
+  - resolution mode = global_only.
+- Apply overlay logic before returning effective rules.
+
+Requirements:
+- Existing LS-019 behavior remains unchanged for global-only tenants.
+- Dynamic rule engine does not need to know assignment internals.
+- Rule engine should receive final effective rules.
+- Simulation should be able to specify tenantId and receive tenant-specific evaluation.
+- Analytics should still record tenantId.
+
+STEP 8 — Implement Tenant Overlay Logic
+Apply overlays during resolution.
+
+Suggested overlay behaviors:
+- disable_rule: remove target rule from effective set.
+- override_severity: clone effective rule DTO with tenant-specific severity.
+- override_pattern: clone effective rule DTO with tenant-specific pattern.
+- override_metadata: merge/replace metadata safely.
+- add_rule: synthesize tenant-specific effective rule from overlay JSON.
+- suppress_rule: alias of disable_rule where appropriate.
+- override_classification: adjust classification metadata where supported.
+
+Requirements:
+- Do not mutate base rules.
+- Overlay application must be deterministic.
+- Overlay metadata must be validated.
+- Invalid overlays ignored or reported according to config.
+- Effective graph must explain overlay application.
+- No secrets in overlay JSON.
+
+STEP 9 — Add Tenant Assignment Service
+Add orchestration service.
+
+Suggested interface:
+ISmsGovernanceTenantAssignmentService
+
+Suggested methods:
+- AssignRulePackAsync(AssignRulePackRequest request, CancellationToken ct)
+- ActivateAssignmentAsync(Guid assignmentId, string requestedBy, CancellationToken ct)
+- DeactivateAssignmentAsync(Guid assignmentId, string requestedBy, string? reason, CancellationToken ct)
+- RollbackAssignmentAsync(Guid assignmentId, string requestedBy, string? reason, CancellationToken ct)
+- ListAssignmentsAsync(TenantAssignmentQuery query, CancellationToken ct)
+- CreateOverlayAsync(CreateTenantOverlayRequest request, CancellationToken ct)
+- DisableOverlayAsync(Guid overlayId, string requestedBy, string? reason, CancellationToken ct)
+- ListOverlaysAsync(TenantOverlayQuery query, CancellationToken ct)
+
+Requirements:
+- Validate tenant/rule-pack relationships.
+- Prevent duplicate active assignment conflicts where appropriate.
+- Respect MaxAssignmentsPerTenant and MaxOverlaysPerTenant.
+- Assignment changes auditable.
+- Tenant rollback/deactivation affects only that tenant.
+- No release/global mutation unless explicitly requested.
+
+STEP 10 — Add Tenant Isolation Validator
+Add validation service.
+
+Suggested interface:
+ISmsGovernanceTenantIsolationValidator
+
+Suggested methods:
+- ValidateTenantIsolationAsync(Guid tenantId, CancellationToken ct)
+- ValidateAssignmentAsync(AssignRulePackRequest request, CancellationToken ct)
+- ValidateOverlayAsync(CreateTenantOverlayRequest request, CancellationToken ct)
+
+Suggested checks:
+- tenant assignment does not affect unrelated tenants.
+- overlay references valid pack/rule.
+- cross-tenant assignment conflict avoided.
+- assignment effective windows valid.
+- isolated mode does not accidentally inherit global packs.
+- global fallback preserved where expected.
+
+Requirements:
+- Read-only validation where possible.
+- Return safe diagnostics.
+- No secrets/raw phones.
+
+STEP 11 — Integrate With Rollout Orchestration
+Extend LS-022 rollout service.
+
+Required behavior:
+- Starting canary/staged rollout creates tenant rule-pack assignments for cohort tenants.
+- Advancing stage activates assignments for next-stage tenants.
+- Pausing rollout prevents new tenant assignment activation.
+- Rolling back rollout deactivates/rolls back rollout-created assignments only.
+- Completing rollout marks assignments active/completed as appropriate.
+
+Requirements:
+- Do not bypass LS-021 release approval.
+- Do not bypass LS-021-HARDENING activation locks for full activation path.
+- Tenant assignment activation must be auditable.
+- Rollout rollback must not affect unrelated tenant assignments.
+- If release items reference global packs, rollout assignment should map those packs to cohort tenants.
+
+STEP 12 — Add Tenant-Scoped Rollback Semantics
+Implement scoped rollback/deactivation.
+
+Behavior:
+- Tenant assignment rollback changes that tenant only.
+- Rollout rollback deactivates assignments created by that rollout only.
+- Global rollback from LS-020 remains separate.
+- Release rollback from LS-021 remains separate.
+
+Requirements:
+- Do not mutate base rule packs/rules.
+- Do not affect other tenants.
+- Audit all rollback/deactivation events.
+- Preserve version history.
+
+STEP 13 — Add Tenant Governance APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/tenant-assignments
+- POST /v1/admin/sms/governance/tenant-assignments
+- POST /v1/admin/sms/governance/tenant-assignments/{id}/activate
+- POST /v1/admin/sms/governance/tenant-assignments/{id}/deactivate
+- POST /v1/admin/sms/governance/tenant-assignments/{id}/rollback
+- GET /v1/admin/sms/governance/tenant-overlays
+- POST /v1/admin/sms/governance/tenant-overlays
+- POST /v1/admin/sms/governance/tenant-overlays/{id}/disable
+- GET /v1/admin/sms/governance/tenant-resolution/{tenantId}
+- GET /v1/admin/sms/governance/tenant-resolution/{tenantId}/explain
+- GET /v1/admin/sms/governance/tenant-isolation/{tenantId}
+- GET /v1/admin/sms/governance/tenant-assignment-audit
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Use pagination where appropriate.
+- Validate assignment/overlay inputs.
+- Return safe DTOs.
+- Do not expose secrets, raw phones, message bodies, or provider payloads.
+
+STEP 14 — Extend Control Center UI If Feasible
+Add tenant governance UI.
+
+Suggested route:
+- /notifications/sms-governance/tenant-scoping
+
+Suggested sections:
+- tenant assignment table
+- assignment create/activate/deactivate controls
+- tenant overlay table/editor
+- effective governance graph viewer
+- inheritance visualization
+- rollout isolation view
+- tenant assignment audit timeline
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate resolution logic.
+- No raw phones, message bodies, credentials, webhook URLs, or provider payloads.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 15 — Documentation
+Update documentation/report notes for:
+- tenant resolution order
+- assignment states
+- assignment modes
+- overlay types
+- effective governance graph
+- rollout assignment behavior
+- tenant rollback semantics
+- global fallback behavior
+- limitations
+- Control Center UI if implemented
+
+Documentation must explain:
+- tenant scoping extends global governance.
+- tenants without assignments retain prior behavior.
+- rollout canary activation becomes true tenant-isolated enforcement.
+- overlays never mutate base rules.
+- rollback/deactivation is tenant-scoped.
+
+STEP 16 — Validation
+Perform validation/testing for:
+
+Assignments:
+- create assignment.
+- activate assignment.
+- deactivate assignment.
+- rollback assignment.
+- duplicate active conflicts handled.
+- effective windows respected.
+- max assignment limit enforced.
+
+Resolution:
+- tenant with assignment resolves tenant-specific pack.
+- tenant without assignment resolves global packs.
+- isolated mode excludes global packs.
+- inherited mode includes global + tenant packs.
+- rollout_canary assignment resolves only for targeted tenant.
+- tenantId null preserves global behavior.
+
+Overlays:
+- disable_rule removes rule for tenant only.
+- override_severity changes tenant effective rule only.
+- override_pattern changes tenant effective rule only.
+- add_rule adds tenant-only rule.
+- invalid overlay ignored/reported safely.
+- base rules unchanged.
+
+Rollout integration:
+- canary start creates assignments for cohort tenants.
+- stage advance activates assignments for next cohort/stage.
+- pause prevents new assignment activation.
+- rollback deactivates rollout-created assignments only.
+- unrelated tenants unaffected.
+
+APIs:
+- PlatformAdmin authorization enforced.
+- pagination works.
+- validation errors returned safely.
+- no raw phones/message bodies/credentials exposed.
+
+Control Center UI if implemented:
+- assignment table renders.
+- overlay editor renders.
+- effective graph renders.
+- rollout isolation view renders.
+- no sensitive data displayed.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-022 behavior preserved.
+- global governance behavior unchanged.
+- dynamic rule evaluation unchanged except tenant scoping.
+- template governance preserved.
+- release management preserved.
+- rollout orchestration preserved.
+- delivery pipeline unchanged.
+
+Security:
+- no raw phones stored.
+- no raw message bodies stored.
+- no credentials exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsGovernanceTenantRulePackAssignment entity/table
+- SmsGovernanceTenantOverlay entity/table
+- Optional SmsGovernanceTenantAssignmentAuditEvent entity/table
+- Tenant governance configuration
+- Tenant resolution service
+- Tenant assignment service
+- Tenant isolation validator
+- Extended dynamic rule resolver
+- Rollout integration for tenant assignments
+- Tenant-scoped rollback/deactivation
+- Tenant governance APIs
+- Optional Control Center tenant governance UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist raw message content
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external policy engines
+- Call external deployment/workflow systems
+- Call external compliance/moderation APIs
+- Implement AI/ML governance recommendation
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Replace LS-019 dynamic rule engine
+- Replace LS-020 versioning/rollback behavior
+- Replace LS-021 release-management behavior
+- Bypass LS-021-HARDENING activation locking
+- Replace LS-022 rollout orchestration
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-022 behavior

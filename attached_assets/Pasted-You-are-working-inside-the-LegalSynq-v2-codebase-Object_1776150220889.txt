@@ -1,0 +1,239 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the sale finalization HTTP endpoint that exposes the existing `ILienSaleService` workflow through the Liens API so sellers can accept an offer and complete the core transaction flow:
+
+- accept target offer
+- create BillOfSale
+- mark lien as sold
+- reject competing offers
+
+This feature should expose the already-built workflow safely and cleanly. It is NOT for rewriting the workflow logic.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Keep authorization in the API/filter layer
+- Keep business logic in the application layer
+- Keep persistence logic in repositories
+- Do NOT introduce cross-service DB joins
+- Do NOT trust client-supplied tenant/org identifiers when request context already provides them
+- Do NOT duplicate sale workflow logic in the endpoint
+
+--------------------------------------------------
+STEP 1 — INSPECT CURRENT LIENS API + SALE SERVICE PATTERNS
+--------------------------------------------------
+
+Inspect:
+- current Liens endpoint pattern from Case/Lien/LienOffer/BillOfSale APIs
+- `ILienSaleService` / `LienSaleService` from LS-LIENS-05-002
+- current error handling / exception middleware
+- current request-context helper pattern
+- current auth filter usage (`RequireProductAccess`, `RequirePermission`)
+
+Follow the established Liens API pattern exactly.
+Do NOT invent a different endpoint style for workflow exposure.
+
+--------------------------------------------------
+STEP 2 — CHOOSE THE WORKFLOW ROUTE
+--------------------------------------------------
+
+Expose a seller-side workflow endpoint for accepting an offer and finalizing the sale.
+
+Preferred route:
+- `POST /api/liens/offers/{offerId}/accept`
+
+If there is a strong, existing route convention that suggests a slightly different path, use it only if it remains clearly seller-side and workflow-specific.
+
+This endpoint should be:
+- bodyless unless a very small request model is truly needed
+- explicit that it is invoking a workflow, not a generic update
+
+--------------------------------------------------
+STEP 3 — IMPLEMENT A THIN ENDPOINT HANDLER
+--------------------------------------------------
+
+Add the endpoint in the correct Liens endpoint file/location following existing patterns.
+
+The handler must:
+1. extract `tenantId` from `ICurrentRequestContext`
+2. extract `userId` from `ICurrentRequestContext`
+3. extract `orgId` if needed by current conventions
+4. validate the route parameter (`offerId`)
+5. call `ILienSaleService.AcceptOfferAsync(tenantId, offerId, actingUserId, ct)`
+6. return the structured workflow result
+
+Do NOT:
+- load repositories directly here
+- recreate workflow validations here
+- manually create BillOfSale here
+- manually reject offers here
+- manually update lien state here
+
+All business workflow logic must remain in the application service.
+
+--------------------------------------------------
+STEP 4 — RETURN A CLEAN API RESPONSE
+--------------------------------------------------
+
+Use the existing `SaleFinalizationResult` if it is already API-safe, or wrap/map it consistently with the current API style.
+
+The response should include at minimum:
+- `acceptedOfferId`
+- `acceptedOfferStatus`
+- `lienId`
+- `finalLienStatus`
+- `billOfSaleId`
+- `billOfSaleNumber`
+- `billOfSaleStatus`
+- `purchaseAmount`
+- `originalLienAmount`
+- `discountPercent`
+- `competingOffersRejected`
+- `finalizedAtUtc`
+
+Do NOT return EF entities directly.
+
+--------------------------------------------------
+STEP 5 — APPLY AUTHORIZATION USING EXISTING FILTERS
+--------------------------------------------------
+
+Protect the endpoint using the existing auth model:
+- `RequireAuthorization(Policies.AuthenticatedUser)`
+- `RequireProductAccess(LiensPermissions.ProductCode)`
+- `RequirePermission(...)`
+
+Do NOT invent a new auth mechanism.
+
+Use the closest correct current seller-side permission for offer acceptance / sale finalization.
+If the permission catalog does not yet contain a perfect dedicated permission, use the closest aligned existing permission and document the gap clearly in the report.
+
+This endpoint must NOT be generally accessible to browse-only users.
+
+--------------------------------------------------
+STEP 6 — USE REQUEST CONTEXT CORRECTLY
+--------------------------------------------------
+
+Use `ICurrentRequestContext` (or the current platform equivalent) to get:
+- tenant id
+- acting user id
+- org id if the endpoint or logging pattern needs it
+
+Do NOT accept any of these from the client.
+
+The endpoint should rely entirely on the authenticated request context for tenant/user/org scoping.
+
+--------------------------------------------------
+STEP 7 — PRESERVE IDEMPOTENT-SAFE BEHAVIOR
+--------------------------------------------------
+
+The endpoint must preserve the behavior already implemented in `LienSaleService`.
+
+That means:
+- if the service safely returns an existing result for a repeat call, the endpoint must return that result cleanly
+- if the service throws a conflict/not-found/validation error, allow the existing middleware/error mapping to handle it consistently
+
+Do NOT add ad hoc duplicate-handling logic in the endpoint.
+
+--------------------------------------------------
+STEP 8 — KEEP CROSS-CUTTING CONCERNS DEFERRED
+--------------------------------------------------
+
+Do NOT implement yet:
+- document generation
+- BOS PDF creation
+- notifications
+- audit event publishing
+- cross-service enrichment
+- generic offer accept/reject APIs
+- BillOfSale mutation APIs
+
+This feature is only:
+- workflow endpoint exposure
+- request context extraction
+- auth application
+- service invocation
+- response return
+
+--------------------------------------------------
+STEP 9 — VALIDATE REAL EXECUTION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. endpoint compiles and resolves
+4. auth filters remain applied
+5. endpoint calls `ILienSaleService` correctly
+6. success path returns the expected result shape
+7. idempotent repeat call behavior remains intact
+8. no regression to Case/Lien/LienOffer/BillOfSale APIs
+
+If you add a lightweight validation path or smoke-test support, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 10 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- rewrite `LienSaleService`
+- add generic offer accept/reject endpoints
+- add BOS create/update/execute endpoints
+- add document generation
+- add audit/notification integrations
+- add frontend work
+- add ETL scripts
+- add unrelated APIs
+
+This feature is only for exposing the existing sale finalization workflow through HTTP.
+
+--------------------------------------------------
+STEP 11 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-06-005-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing Liens/v2 API pattern identified and followed
+3. Exact files created/changed
+4. Endpoint route added
+5. Request-context usage
+6. Authorization approach used
+7. How `ILienSaleService` is invoked
+8. Response model returned
+9. Idempotent behavior preservation notes
+10. Validation performed
+11. Confirmation:
+    - no workflow logic duplicated in endpoint
+    - no cross-service joins introduced
+    - no unrelated workflow endpoints added
+12. Build results:
+    - Liens
+    - relevant solution/workspace
+13. Any permission-model gaps or deferred items
+14. Risks / assumptions
+15. Final readiness statement:
+    - Is the sale finalization workflow now exposed via API?
+    - Is the system ready for post-sale integrations or remaining domain gaps next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Expose the core seller-side sale finalization workflow through a safe, authorized API endpoint by reusing the existing `LienSaleService` without duplicating business logic.
+
+Proceed.

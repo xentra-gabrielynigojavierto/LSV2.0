@@ -1,0 +1,582 @@
+You are implementing **LS-REPORTS-05-001 — Scheduled Report Execution & Delivery** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story introduces scheduled report execution and delivery so tenants can define recurring report jobs that execute automatically and deliver outputs through configured channels.
+
+This is an automation-layer story. Do NOT redesign unrelated services or build UI.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create:
+
+- `/analysis/LS-REPORTS-05-001-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step, update with:
+- files created/modified
+- implementation notes
+- schema/migration notes
+- validation results
+- issues
+- decisions
+- build/run status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- advanced cron designer UI
+- cloud file storage
+- webhook delivery
+- SMS/push notifications
+- complex retry orchestration framework
+- advanced scheduling analytics
+- multi-step workflow builder
+
+## 4. Preserve architecture
+- API → Service → Repository / Execution Service / Export Service / Delivery Adapter
+- DO NOT bypass execution or export services
+- DO NOT leak EF entities through API
+- keep delivery abstraction clean
+- background worker execution must remain modular
+
+## 5. Preserve current functionality
+Do not break:
+- template APIs
+- versioning/publishing
+- assignment APIs
+- override APIs
+- execution APIs
+- export APIs
+- audit integration
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-05-001 — Scheduled Report Execution & Delivery**
+
+---
+
+# OBJECTIVE
+Enable tenants to create routine scheduled report jobs that:
+- execute a report on a defined cycle
+- export it in a chosen format
+- deliver it through a configured channel
+- persist run history and status
+
+This story must establish:
+- scheduling model
+- delivery model
+- background execution flow
+- run tracking
+- operational guardrails
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Scheduling Domain / Persistence Model
+
+Add persistence for scheduled report jobs and run history.
+
+### 1. ReportSchedule
+Suggested fields:
+- `Id`
+- `TenantId`
+- `ReportTemplateId`
+- `ProductCode`
+- `OrganizationType`
+- `Name`
+- `Description`
+- `IsActive`
+- `FrequencyType` (`Daily`, `Weekly`, `Monthly`)
+- `FrequencyConfigJson` (for day-of-week/day-of-month/time)
+- `Timezone`
+- `NextRunAtUtc`
+- `LastRunAtUtc` (nullable)
+- `UseOverride` (bool)
+- `ExportFormat` (`CSV`, `XLSX`, `PDF`)
+- `DeliveryMethod` (`OnScreen`, `Email`, `SFTP`)
+- `DeliveryConfigJson`
+- `ParametersJson` (nullable)
+- `RequiredFeatureCode` (nullable)
+- `MinimumTierCode` (nullable)
+- `CreatedAtUtc`
+- `CreatedByUserId`
+- `UpdatedAtUtc`
+- `UpdatedByUserId`
+
+### 2. ReportScheduleRun
+Suggested fields:
+- `Id`
+- `ReportScheduleId`
+- `ExecutionId` (nullable until created)
+- `ExportId` (nullable until created)
+- `Status` (`Pending`, `Running`, `Completed`, `Failed`, `Delivered`, `DeliveryFailed`)
+- `ScheduledForUtc`
+- `StartedAtUtc` (nullable)
+- `CompletedAtUtc` (nullable)
+- `DeliveredAtUtc` (nullable)
+- `FailureReason` (nullable)
+- `DeliveryResultJson` (nullable)
+- `GeneratedFileName` (nullable)
+- `GeneratedFileSize` (nullable)
+- `CreatedAtUtc`
+
+### Rules
+- schedules are tenant-scoped
+- schedules are product-scoped
+- schedules must point to a valid template
+- schedules may reference tenant overrides implicitly through `UseOverride=true`
+
+---
+
+## B. EF Core Configuration
+
+Create fluent configuration classes for:
+- `ReportSchedule`
+- `ReportScheduleRun`
+
+### Expected tables
+- `rpt_ReportSchedules`
+- `rpt_ReportScheduleRuns`
+
+### Requirements
+- define keys
+- define relationships
+- add indexes on:
+  - `TenantId`
+  - `IsActive`
+  - `NextRunAtUtc`
+  - `ReportScheduleId`
+  - `Status`
+- use platform-consistent naming
+- enforce lengths/required fields appropriately
+
+---
+
+## C. Migration
+
+Create and apply a migration for the new scheduling tables.
+
+Suggested migration name:
+- `AddReportScheduling`
+
+Apply the migration if DB is available.
+Document:
+- migration files
+- schema changes
+- apply result
+- any environment changes required
+
+---
+
+## D. Delivery Abstraction
+
+Create a delivery abstraction.
+
+### Interface
+- `IReportDeliveryAdapter`
+
+### Responsibilities
+- deliver generated export through configured channel
+- return structured delivery result
+
+### First implementations
+1. `OnScreenReportDeliveryAdapter`
+   - stores the generated file content in-memory only for the run response or marks it as available through existing export response metadata
+   - for this story, acceptable behavior is to treat on-screen as “generated and ready” without external delivery
+
+2. `EmailReportDeliveryAdapter`
+   - initial implementation can use the existing notification adapter pathway or a mock email delivery adapter if the real email path is not ready
+   - must accept recipients, subject, body template if provided in config
+
+3. `SftpReportDeliveryAdapter`
+   - initial implementation can be stub/mock-safe if real SFTP is not yet available
+   - must keep contract real and delivery result structured
+
+### Important
+Keep delivery behind adapter abstraction.
+Do NOT hardcode delivery logic into the schedule service.
+
+---
+
+## E. Schedule Service Layer
+
+Create:
+- `IReportScheduleService`
+- `ReportScheduleService`
+
+### Responsibilities
+- validate schedule creation/update
+- enforce schedule eligibility
+- create/update/deactivate schedules
+- calculate next run time
+- list schedules
+- get schedule by id
+- trigger manual run if included
+- create run records
+- orchestrate execution → export → delivery
+- update run status
+- emit audit events
+
+The API layer must not call repositories or adapters directly.
+
+---
+
+## F. Scheduler / Worker Processing
+
+Implement a background processing path using the existing worker foundation.
+
+### Requirements
+- periodically scan active schedules due for execution
+- create/update `ReportScheduleRun`
+- invoke execution service
+- invoke export service
+- invoke delivery adapter
+- update schedule next-run time
+- persist success/failure state
+
+### First-pass acceptable model
+- polling background worker every N seconds
+- claim due schedules carefully
+- no elaborate distributed lock manager required yet, but avoid obvious double-processing
+
+### Guardrails
+- max schedules processed per poll (document chosen cap)
+- safe error handling per schedule
+- one failed schedule must not stop the worker
+
+---
+
+## G. Frequency Model
+
+Support at minimum:
+- `Daily`
+- `Weekly`
+- `Monthly`
+
+### FrequencyConfigJson examples
+- Daily: `{ "hour": 9, "minute": 0 }`
+- Weekly: `{ "dayOfWeek": "Monday", "hour": 9, "minute": 0 }`
+- Monthly: `{ "dayOfMonth": 1, "hour": 9, "minute": 0 }`
+
+### Rules
+- use timezone-aware calculation
+- persist `NextRunAtUtc`
+- recompute after successful or failed attempt
+
+Do NOT implement complex cron parsing in this story.
+
+---
+
+## H. API Surface
+
+Add endpoints such as:
+
+### Schedule management
+- `POST /api/v1/report-schedules`
+- `PUT /api/v1/report-schedules/{scheduleId}`
+- `GET /api/v1/report-schedules/{scheduleId}`
+- `GET /api/v1/report-schedules?tenantId={tenantId}&productCode={code}`
+- `DELETE /api/v1/report-schedules/{scheduleId}` (soft deactivate)
+
+### Run history
+- `GET /api/v1/report-schedules/{scheduleId}/runs`
+- `GET /api/v1/report-schedules/runs/{runId}`
+
+### Optional if clean
+- `POST /api/v1/report-schedules/{scheduleId}/run-now`
+
+---
+
+## I. Request DTOs
+
+Create DTOs for:
+
+### CreateReportScheduleRequest
+- `TenantId`
+- `ReportTemplateId`
+- `ProductCode`
+- `OrganizationType`
+- `Name`
+- `Description`
+- `IsActive`
+- `FrequencyType`
+- `FrequencyConfigJson`
+- `Timezone`
+- `UseOverride`
+- `ExportFormat`
+- `DeliveryMethod`
+- `DeliveryConfigJson`
+- `ParametersJson`
+- `CreatedByUserId`
+- optional:
+  - `RequiredFeatureCode`
+  - `MinimumTierCode`
+
+### UpdateReportScheduleRequest
+- same editable fields as above
+- `UpdatedByUserId`
+
+### ReportScheduleResponse
+Include:
+- schedule metadata
+- next run
+- last run
+- export format
+- delivery method
+- active flag
+
+### ReportScheduleRunResponse
+Include:
+- run id
+- schedule id
+- execution id
+- export id
+- status
+- timestamps
+- failure reason
+- delivery result summary
+- generated file metadata
+
+---
+
+## J. Validation Rules
+
+At minimum enforce:
+
+### Schedule creation
+- `TenantId` required
+- `ReportTemplateId` required
+- `ProductCode` required
+- `OrganizationType` required
+- `Name` required
+- `FrequencyType` required and supported
+- `Timezone` required
+- `ExportFormat` required and supported
+- `DeliveryMethod` required and supported
+- `CreatedByUserId` required
+
+### Eligibility
+- template must exist
+- template must be assigned to tenant
+- published version must exist
+- product code must align with template
+- if `UseOverride=true`, override path must remain valid if one exists
+
+### Delivery validation
+- Email requires recipient config
+- SFTP requires minimum connection/path config
+- OnScreen requires no external config
+
+### Conflict / safety
+- reject unsupported combinations
+- reject invalid frequency config
+- reject inactive/unassigned template scheduling
+
+---
+
+## K. Audit Events
+
+Emit:
+- `report.schedule.created`
+- `report.schedule.updated`
+- `report.schedule.deactivated`
+- `report.schedule.run.started`
+- `report.schedule.run.completed`
+- `report.schedule.run.failed`
+- `report.schedule.delivery.completed`
+- `report.schedule.delivery.failed`
+
+Use the same standardized audit integration approach already implemented.
+
+---
+
+## L. Guardrails
+
+Implement at minimum:
+- maximum due schedules processed per worker cycle (document cap)
+- execution/export row and file-size guardrails reused
+- schedule remains marked failed with clear reason on execution or delivery failure
+- worker continues after individual failures
+- avoid duplicate active schedules with identical tenant/template/frequency if easily enforceable, or document if deferred
+
+---
+
+## M. Health & Readiness Compatibility
+
+Preserve:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+If the worker has a health/readiness signal worth exposing, add carefully without breaking existing checks.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. schedule persistence entities exist
+2. EF configuration exists for schedules and runs
+3. migration exists for scheduling tables
+4. schedule service layer exists
+5. delivery adapter abstraction exists
+6. schedule management APIs exist
+7. run history APIs exist
+8. background worker processes due schedules
+9. execution + export + delivery pipeline runs through services, not duplicated logic
+10. next run time is calculated and persisted
+11. run status is persisted and updated correctly
+12. audit events are emitted for scheduling lifecycle
+13. service builds successfully
+14. service starts successfully
+15. `/api/v1/health` works
+16. `/api/v1/ready` works
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report file FIRST
+Create:
+- `/analysis/LS-REPORTS-05-001-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Worker Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Add schedule entities and EF configurations
+Create domain entities and persistence configurations.
+Update the report.
+
+## Step 3 — Create and apply migration
+Generate migration for scheduling tables and apply it if DB is available.
+Update the report.
+
+## Step 4 — Add repository support
+Add repositories or extend existing ones appropriately for schedules and runs.
+Update the report.
+
+## Step 5 — Add delivery abstraction
+Create `IReportDeliveryAdapter` and first implementations for OnScreen, Email, and SFTP (real or mock-safe where needed).
+Update the report.
+
+## Step 6 — Add schedule service layer
+Create `IReportScheduleService` and `ReportScheduleService`.
+Implement validation, schedule CRUD, next-run calculation, run orchestration, and audit calls.
+Update the report.
+
+## Step 7 — Implement worker processing
+Use the worker/background service to process due schedules.
+Add due-schedule polling, execution, export, delivery, run status updates, and next-run updates.
+Update the report.
+
+## Step 8 — Add API endpoints
+Implement schedule management and run-history endpoints.
+Optionally add run-now if clean.
+Update the report.
+
+## Step 9 — Add validation and guardrails
+Enforce frequency validation, delivery config validation, template eligibility, and worker safety limits.
+Update the report.
+
+## Step 10 — Validate
+Run build/startup validation and exercise at minimum:
+- create schedule
+- update schedule
+- get schedule
+- list schedules
+- deactivate schedule
+- worker processes due schedule
+- run history recorded
+- successful on-screen delivery
+- failure path captured
+- health/ready still pass
+
+Update the report.
+
+## Step 11 — Finalize report
+Complete `/analysis/LS-REPORTS-05-001-report.md` with:
+- schema summary
+- migration summary
+- endpoint summary
+- worker behavior summary
+- delivery adapter summary
+- validation results
+- build/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Worker Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- scheduled execution foundation exists
+- schedules can be created and processed
+- execution/export/delivery pipeline runs automatically
+- run history is persisted
+- audit is integrated
+- architecture remains clean
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-05-001** exactly as described.

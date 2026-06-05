@@ -1,0 +1,272 @@
+You are implementing feature MON-INT-03-003 — Incident Timeline / History View.
+
+OBJECTIVE
+Add an Incident Timeline / History View to the Control Center so operators can see the historical sequence of alerts and state changes for a component, including when alerts were triggered and resolved.
+
+This introduces traceability and completes the incident lifecycle experience.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Timeline data must come from Monitoring Service
+- Do NOT fabricate history in Control Center
+- Do NOT bypass Monitoring Service
+- Do NOT break existing read endpoints
+
+MANDATORY EXECUTION RULES
+- Create the report FIRST at: /analysis/MON-INT-03-003-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Prefer minimal, reversible changes
+- Do NOT redesign the monitoring page
+- Maintain compatibility with MONITORING_SOURCE=local and service
+- If local mode cannot support timeline, degrade gracefully
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-03-003-report.md
+
+Initialize with:
+
+# MON-INT-03-003 — Incident Timeline / History View
+
+## 1. Task Summary
+## 2. Existing Data Model Analysis
+## 3. Timeline API Design
+## 4. Backend Implementation
+## 5. Control Center Integration
+## 6. Validation
+## 7. Files Changed
+## 8. Known Gaps / Risks
+## 9. Recommended Next Feature
+
+Explicitly state the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING DATA MODEL
+
+Inspect Monitoring Service:
+
+- MonitoringAlert table
+- fields:
+  - Id
+  - MonitoredEntityId
+  - EntityName
+  - IsActive
+  - TriggeredAtUtc
+  - ResolvedAtUtc
+  - CreatedAtUtc
+  - UpdatedAtUtc
+
+Determine:
+- whether historical alerts are retained (they should be)
+- how to query historical alerts per entity
+- whether additional fields are needed (DO NOT add unless necessary)
+
+Document:
+- how timeline can be constructed using existing data
+- confirm no schema change needed
+
+---
+
+STEP 3 — DESIGN TIMELINE API
+
+Create a read endpoint:
+
+GET /monitoring/alerts/history
+
+Query params:
+- entityName OR entityId (prefer entityId if available)
+- limit (default 10, max 50)
+
+Behavior:
+- return most recent alerts for that entity
+- include both active and resolved alerts
+- order by TriggeredAtUtc DESC
+
+Response model:
+
+[
+  {
+    alertId,
+    entityName,
+    severity,
+    message,
+    triggeredAtUtc,
+    resolvedAtUtc,
+    isActive
+  }
+]
+
+Rules:
+- do NOT change existing endpoints
+- do NOT break summary/status endpoints
+- must be read-only
+- must support service mode consumption
+
+---
+
+STEP 4 — IMPLEMENT BACKEND (MONITORING SERVICE)
+
+Add new endpoint in Monitoring.Api:
+
+File:
+Monitoring.Api/Endpoints/MonitoringAlertHistoryEndpoints.cs
+
+Implementation:
+
+- route: /monitoring/alerts/history
+- filter by entity
+- order by TriggeredAtUtc DESC
+- apply limit
+- map domain entity → response DTO
+
+Use:
+- existing DbContext
+- no new migrations
+- no domain changes
+
+Register endpoint in Program.cs
+
+---
+
+STEP 5 — GATEWAY UPDATE
+
+Update gateway config if needed:
+
+- ensure /monitoring/alerts/history is reachable
+- follow same routing pattern as existing monitoring endpoints
+
+---
+
+STEP 6 — CONTROL CENTER INTEGRATION
+
+Enhance Incident Detail Panel:
+
+File:
+apps/control-center/src/components/monitoring/incident-detail-panel.tsx
+
+Add:
+
+### Timeline Section
+
+Below existing detail content:
+
+- section title: "Incident History"
+- list of historical alerts for the same entity
+
+Behavior:
+
+- on panel open → fetch timeline via:
+  /api/monitoring/alerts/history?entityName=...
+
+- use existing BFF pattern if present
+- do NOT call Monitoring Service directly from browser with secrets
+
+Display:
+
+For each timeline item:
+- severity badge
+- message
+- triggered time
+- resolved time (or "Active")
+
+Order:
+- newest first
+
+Limit:
+- 10 items
+
+---
+
+STEP 7 — HANDLE STATES
+
+A. Loading:
+- show skeleton or "Loading history..."
+
+B. No history:
+- show "No historical alerts for this component"
+
+C. Error:
+- show "Unable to load history"
+
+D. Local mode:
+- if no backend support:
+  - show "History not available in local mode"
+
+---
+
+STEP 8 — VALIDATION
+
+Validate:
+
+A. Monitoring Service builds
+B. New endpoint returns correct data
+C. Query filtering works
+D. Limit works
+E. Timeline shows correct alerts
+F. Resolved vs active states correct
+G. Control Center renders timeline
+H. No UI regression
+
+Test scenarios:
+- component with multiple alerts
+- component with no alerts
+- active + resolved mix
+
+---
+
+STEP 9 — FILES CHANGED
+
+List:
+- new endpoint file
+- modified Program.cs
+- gateway config changes
+- incident-detail-panel updates
+- any BFF additions
+
+---
+
+STEP 10 — KNOWN GAPS / RISKS
+
+Document:
+
+- no pagination beyond limit
+- no cross-entity timeline
+- no correlation with status history
+- no incident grouping
+- local mode limitations
+
+---
+
+STEP 11 — RECOMMEND NEXT FEATURE
+
+Recommend:
+
+MON-INT-03-004 — Incident Acknowledge (if desired later)
+
+OR
+
+MON-INT-02-004 — Clickable Banner Filtering
+
+OR
+
+Production stabilization phase
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+
+- /analysis/MON-INT-03-003-report.md exists
+- new timeline endpoint works
+- incident detail panel shows history
+- data is real and from Monitoring Service
+- no schema changes unless justified
+- no fake data introduced
+- system remains stable

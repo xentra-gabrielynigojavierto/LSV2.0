@@ -1,0 +1,350 @@
+You are implementing CC2-INT-B03 — Documents + Notifications Integration for CareConnect inside the main LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B03-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This work MUST build on:
+   - CC2-INT-B01 (service replacement)
+   - CC2-INT-B02 (gateway + audit + monitoring wiring)
+
+5. Do NOT create any standalone implementations.
+   You MUST use existing LegalSynq shared services:
+   - Documents service
+   - Notifications service
+
+6. Do NOT introduce duplicate logic.
+   Replace all mock/fake/log-only behavior with platform integrations.
+
+7. Preserve architecture rules:
+   - Common Portal remains separate
+   - Tenant Portal remains separate
+   - Identity remains shared
+   - CareConnect remains canonical service
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Replace all mock implementations in CareConnect related to:
+
+- document storage / access
+- notification delivery
+
+with real integrations to:
+
+- Documents service (S3-backed)
+- Notifications service (SendGrid-backed)
+
+At the end of this block:
+- CareConnect must no longer rely on mock document storage
+- CareConnect must no longer rely on fake/log-only notifications
+- All document and notification flows must go through platform services
+
+--------------------------------------------------
+
+CONTEXT FROM PREVIOUS BLOCKS
+
+From B01:
+- CareConnect is already the correct service (no structural replacement needed)
+
+From B02:
+- Gateway routing is correct
+- Audit is aligned
+- Monitoring is production-ready
+- Internal service auth is standardized (ServiceToken)
+
+👉 Therefore:
+This block is a **pure infrastructure convergence step**
+
+--------------------------------------------------
+
+PART A — DOCUMENTS SERVICE INTEGRATION
+
+--------------------------------------------------
+
+A.1 Identify Current Document Handling
+
+You MUST locate all areas where CareConnect:
+
+- accepts file uploads
+- stores file metadata
+- generates file URLs
+- handles shared vs provider-specific documents
+
+Common areas:
+- referral submission (shared docs)
+- provider-specific uploads
+- document retrieval endpoints
+
+--------------------------------------------------
+
+A.2 Remove Mock / Local Storage
+
+You MUST remove or replace:
+
+- local file storage logic
+- temp file paths
+- direct file system writes
+- fake URLs
+- in-memory file handling
+
+Do NOT leave dual paths (mock + real)
+
+--------------------------------------------------
+
+A.3 Integrate Documents Service
+
+Use LegalSynq Documents service:
+
+Expected behavior:
+
+1. Upload flow:
+   - CareConnect sends file to Documents service
+   - Documents service stores in S3
+   - returns documentId + metadata
+
+2. Storage:
+   - CareConnect stores only:
+     - documentId
+     - metadata (type, scope, providerId, etc.)
+
+3. Retrieval:
+   - CareConnect requests access URL (signed URL) from Documents service
+   - returns URL to client
+
+--------------------------------------------------
+
+A.4 Required Implementation
+
+You MUST:
+
+- inject Documents client/service abstraction
+- replace all upload paths with Documents service calls
+- replace file URL generation with signed URL retrieval
+- maintain document scoping:
+  - shared documents
+  - provider-specific documents
+
+--------------------------------------------------
+
+A.5 Security Rules
+
+- Do NOT expose raw S3 URLs
+- Always use signed URLs
+- Enforce scope:
+  - shared docs visible to all providers in referral
+  - provider docs visible only to that provider + law firm + tenant
+
+--------------------------------------------------
+
+PART B — NOTIFICATIONS SERVICE INTEGRATION
+
+--------------------------------------------------
+
+B.1 Identify Current Notification Behavior
+
+Locate:
+
+- email sending logic
+- notification triggers:
+  - referral submission
+  - provider notification
+  - token link generation
+- any "log-only" or fake notification logic
+
+--------------------------------------------------
+
+B.2 Remove Fake / LogOnly Mode
+
+You MUST remove:
+
+- console/log-based email simulation
+- fake notification flags
+- dev-only email flows (except config toggles)
+
+--------------------------------------------------
+
+B.3 Integrate Notifications Service
+
+Use LegalSynq Notifications service:
+
+Pattern:
+
+- CareConnect emits notification event
+- Notifications service handles:
+  - template rendering
+  - email delivery (SendGrid)
+
+--------------------------------------------------
+
+B.4 Required Implementation
+
+You MUST:
+
+- replace direct email logic with Notifications service client
+- emit structured notification events
+
+Each event should include:
+- event type (e.g., REFERRAL_CREATED, PROVIDER_ASSIGNED)
+- recipient(s)
+- template data payload
+- correlation/request id
+
+--------------------------------------------------
+
+B.5 Template Alignment
+
+Ensure:
+
+- templates align with platform format
+- payload structure is consistent
+- dynamic fields are properly passed
+
+Do NOT hardcode email templates inside CareConnect
+
+--------------------------------------------------
+
+PART C — EVENT-DRIVEN BEHAVIOR
+
+--------------------------------------------------
+
+Ensure notification triggers occur at correct points:
+
+Examples:
+
+1. Referral created:
+   → notify providers
+
+2. Provider assigned:
+   → notify provider
+
+3. Token generated:
+   → notify law firm/provider
+
+4. Provider accepted:
+   → notify law firm
+
+You MUST verify triggers exist and correctly fire after integration.
+
+--------------------------------------------------
+
+PART D — CONFIGURATION
+
+--------------------------------------------------
+
+You MUST verify and update:
+
+Documents:
+- service base URL
+- auth configuration
+
+Notifications:
+- service base URL
+- event configuration
+- SendGrid integration handled by platform
+
+Remove:
+- mock flags
+- dev-only shortcuts
+
+--------------------------------------------------
+
+PART E — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST test and document:
+
+DOCUMENTS
+
+1. Upload file → stored via Documents service
+2. Returned documentId is persisted
+3. Retrieval returns signed URL
+4. Shared vs provider-specific visibility works
+5. Invalid file handling still enforced (from E11)
+
+NOTIFICATIONS
+
+6. Referral creation triggers notification event
+7. Provider receives notification
+8. Token-based notification works
+9. Notifications contain correct data
+10. No log-only/fake path remains
+
+INTEGRATION
+
+11. Documents service reachable from CareConnect
+12. Notifications service reachable
+13. No regression in referral flow
+14. No blocking failures due to service errors
+
+SYSTEM
+
+15. dotnet build succeeds
+16. CareConnect service runs successfully
+17. Gateway routing still works
+18. /health endpoint still valid
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B03-report.md
+
+Use this exact structure:
+
+# CC2-INT-B03 Report
+
+## 1. Summary
+What was implemented
+
+## 2. Documents Integration
+Upload flow, storage, retrieval, security
+
+## 3. Notifications Integration
+Events, templates, delivery
+
+## 4. Event Triggers
+What events fire and when
+
+## 5. Configuration Changes
+New settings, removed mocks
+
+## 6. Test Results
+Pass/fail with notes
+
+## 7. Issues / Gaps
+Anything incomplete or deferred
+
+--------------------------------------------------
+
+DO NOT:
+
+- reintroduce mock implementations
+- hardcode S3 or SendGrid logic
+- bypass Documents/Notifications services
+- merge Common Portal into Tenant Portal
+- introduce new product features
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+- report is complete
+- saved at /analysis/CC2-INT-B03-report.md
+- all mock logic removed
+- platform services fully integrated
+- system builds and runs
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

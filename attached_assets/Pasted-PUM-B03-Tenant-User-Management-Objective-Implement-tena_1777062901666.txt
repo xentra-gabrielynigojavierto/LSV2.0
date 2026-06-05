@@ -1,0 +1,255 @@
+PUM-B03 — Tenant User Management
+
+Objective:
+Implement tenant-scoped user management in the LegalSynq Identity service.
+
+This block connects users to tenants operationally and enables tenant-scoped role assignment using the role/permission foundation from PUM-B02.
+
+IMPORTANT:
+Create the report file FIRST before making code changes:
+
+/analysis/PUM-B03-report.md
+
+Update this report incrementally after each major step.
+
+Required report sections:
+1. Codebase Analysis
+2. Existing Tenant/User Relationship Findings
+3. Database / Migration Changes
+4. Domain / Application Changes
+5. API Changes
+6. Files Changed
+7. Validation Results
+8. Known Gaps / Deferred Items
+9. Final Assessment
+
+Scope:
+Implement backend tenant user management only.
+
+In Scope:
+- Inspect existing tenant-user structures
+- Reuse existing `TenantId`, memberships, scoped roles, and user assignment models where possible
+- Support listing users for a tenant
+- Support assigning an existing user to a tenant
+- Support removing/deactivating a user from a tenant
+- Support tenant-scoped role assignment
+- Replace hardcoded tenant role guards with `Role.Scope == Tenant`
+- Support multi-tenant user membership where compatible with the current architecture
+- Preserve existing authentication behavior
+- Preserve existing admin user endpoints
+- Add safe additive migration only if required
+
+Out of Scope:
+- Product access assignment
+- Commerce integration
+- Support integration
+- Invitation email flow
+- Notifications integration
+- Audit integration
+- Portal UI
+- Customer/external user access layer
+- Full JWT enforcement middleware
+
+Core Design Rule:
+Tenant user management must use the Identity role system from PUM-B02.
+
+Do not hardcode tenant role names.
+
+Use:
+- Role.Scope == "Tenant"
+- tenant-scoped role assignments
+- existing Identity tenant/user patterns
+
+Do not create a duplicate tenant user model unless no reusable structure exists.
+
+Functional Requirements:
+
+PUM-B03-R01:
+Identity must support listing users assigned to a tenant.
+
+Suggested endpoint:
+GET /identity/api/admin/tenants/{tenantId}/users
+
+Adjust route to match existing project conventions if needed.
+
+PUM-B03-R02:
+Tenant user list must include:
+- userId
+- email
+- firstName / lastName / displayName where available
+- userType
+- isActive
+- tenantId
+- tenant role(s)
+- createdAtUtc
+- updatedAtUtc
+- lastLoginAtUtc
+
+PUM-B03-R03:
+Identity must support assigning an existing user to a tenant.
+
+Suggested endpoint:
+POST /identity/api/admin/tenants/{tenantId}/users
+
+Request body:
+{
+  "userId": "guid",
+  "roleId": "guid optional",
+  "roleKey": "string optional"
+}
+
+Rules:
+- tenantId must exist
+- userId must exist
+- role must be Tenant-scoped if supplied
+- duplicate active assignment must not create duplicate rows
+- if user is already assigned to the tenant, return existing state or a safe no-op response
+
+PUM-B03-R04:
+Identity must support removing or deactivating a user from a tenant.
+
+Suggested endpoint:
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}
+
+Rules:
+- Prefer soft deactivate/removal if existing architecture uses soft-delete patterns
+- Do not delete the user account globally
+- Do not remove unrelated tenant or platform role assignments
+- If the user is not assigned to the tenant, return 404 or safe no-op based on existing conventions
+
+PUM-B03-R05:
+Identity must support assigning tenant-scoped roles to a user within a tenant context.
+
+Suggested endpoint:
+POST /identity/api/admin/tenants/{tenantId}/users/{userId}/roles
+
+Request body:
+{
+  "roleId": "guid optional",
+  "roleKey": "string optional"
+}
+
+Rules:
+- roleId has precedence over roleKey if both are supplied
+- role must exist
+- role.Scope must equal Tenant
+- duplicate active role assignment must not create duplicates
+
+PUM-B03-R06:
+Identity must support removing/deactivating a tenant-scoped role assignment.
+
+Suggested endpoint:
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}/roles/{assignmentId}
+
+Rules:
+- Only remove assignment within the specified tenant context
+- Do not affect platform roles
+- Do not affect product roles
+
+PUM-B03-R07:
+Replace the existing hardcoded tenant assignable role guard.
+
+Current known issue from PUM-B02:
+tenantAssignableSystemRoles is hard-coded to something like:
+- TenantAdmin
+- TenantUser
+
+Required:
+- Replace this with a check based on `Role.Scope == RoleScopes.Tenant`
+- Ensure TenantManager, TenantStaff, TenantViewer, and StandardUser behave consistently as Tenant-scoped roles
+
+PUM-B03-R08:
+Tenant user APIs must preserve tenant isolation.
+
+Rules:
+- PlatformAdmin can access all tenants
+- TenantAdmin should only manage users in their own tenant if that pattern already exists
+- If the current authorization layer cannot fully enforce this yet, keep existing secured endpoint behavior and document the deferred hardening clearly in the report
+
+PUM-B03-R09:
+The implementation must support future multi-tenant users.
+
+Rules:
+- A user may be associated with more than one tenant if current schema supports it
+- If current schema has a single `User.TenantId`, do not perform a risky rewrite
+- Instead, document the limitation and use the safest compatible approach
+- If a membership/scoped-role table already supports multi-tenancy, use it
+
+PUM-B03-R10:
+Database changes must be additive and safe.
+
+PUM-B03-R11:
+Existing authentication and login behavior must not be broken.
+
+PUM-B03-R12:
+Backend build must complete with zero errors.
+
+Implementation Guidance:
+1. Inspect Identity domain, infrastructure, and admin endpoints first.
+2. Review current usage of:
+   - User.TenantId
+   - ScopedRoleAssignment
+   - UserRoleAssignment
+   - Tenant entity
+   - AdminEndpoints tenant filtering
+3. Determine whether tenant membership is currently represented by:
+   - User.TenantId only
+   - ScopedRoleAssignment
+   - another membership table
+   - combination of the above
+4. Prefer extending the existing pattern rather than adding a new table.
+5. If `User.TenantId` is the only tenant relationship, do not rewrite it into many-to-many in this block unless already supported by the schema.
+6. If `ScopedRoleAssignments` supports tenant scope, use it as the operational tenant role assignment layer.
+7. Make tenant role assignment idempotent.
+8. Ensure only roles with `Scope == Tenant` can be assigned through tenant-specific APIs.
+9. Do not seed product roles in this block.
+10. Do not modify Commerce or Support.
+11. Do not add UI.
+12. Update /analysis/PUM-B03-report.md after each major implementation step.
+
+Suggested API Routes:
+Use these only if they fit existing conventions:
+
+GET    /identity/api/admin/tenants/{tenantId}/users
+POST   /identity/api/admin/tenants/{tenantId}/users
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}
+POST   /identity/api/admin/tenants/{tenantId}/users/{userId}/roles
+DELETE /identity/api/admin/tenants/{tenantId}/users/{userId}/roles/{assignmentId}
+
+API Behavior:
+- Invalid tenantId returns 404
+- Invalid userId returns 404
+- Invalid roleId or roleKey returns 404 or 400 based on existing conventions
+- Non-Tenant role assignment through tenant endpoint returns 400
+- Duplicate assignment returns existing assignment or safe no-op
+- Removing a tenant assignment must not delete the global user
+
+Validation:
+Run the appropriate validation commands for this repository, including:
+- dotnet build
+- relevant Identity tests if available
+- migration validation if applicable
+- endpoint compilation validation
+
+Required Report Content:
+In /analysis/PUM-B03-report.md, include:
+- Existing tenant-user relationship model found
+- Whether `User.TenantId`, scoped roles, or another model is used
+- Any database changes or confirmation that none were needed
+- API endpoints added/changed
+- Explanation of how tenant-scoped roles are assigned
+- Confirmation that hardcoded tenant role guard was replaced
+- Validation commands and results
+- Known gaps, especially any multi-tenant membership limitations
+- Final requirement-by-requirement assessment
+
+Do not stop at partial implementation unless blocked by existing codebase constraints.
+If blocked, implement the safest compatible version and document the blocker clearly in /analysis/PUM-B03-report.md.
+
+Final output:
+After implementation, provide only:
+1. Summary of what was implemented
+2. Validation results
+3. Files changed
+4. Known gaps
+5. Confirmation that /analysis/PUM-B03-report.md was created and updated

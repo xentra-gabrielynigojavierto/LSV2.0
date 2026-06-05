@@ -1,0 +1,303 @@
+Project: E12.2
+Title: Notification Execution — Event Producers & Delivery Integration
+
+You are implementing the execution layer for notifications using the standardized contract and templates from E12.1.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E12.2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around existing outbox behavior, notification adapter integration, supported channels (email/in-app), and how events map to templates.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - event producers added
+   - template usage mapping
+   - delivery flow (outbox → adapter)
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for production or needs iteration
+
+REPORT FORMAT
+
+# E12.2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Event Producer Notes
+## Template Mapping Notes
+## Delivery Flow Notes
+## Channel Support Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Activate the notification system by wiring real platform events (workflow, task, SLA, admin) to the notification contract and templates defined in E12.1, and delivering them through the existing notification adapter using the outbox pattern.
+
+This phase turns notifications from a design into a working system.
+
+SCOPE INCLUDES
+
+- event producers for key lifecycle events
+- mapping events → template keys
+- creation of notification messages using the canonical contract
+- enqueueing notifications via outbox
+- adapter delivery integration
+- minimal channel support (email, optional in-app placeholder)
+- documentation/reporting
+
+DO NOT BUILD
+
+- notification UI/inbox
+- user notification preferences
+- full recipient resolution engine (keep simple)
+- advanced scheduling or batching
+- multi-channel orchestration logic
+- external provider integrations beyond what already exists
+- redesign of outbox or workflow engine
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use the E12.1 notification contract and templates (do not invent new shapes)
+- integrate via the existing outbox pattern (no direct send from business logic)
+- keep producers decoupled from delivery
+- ensure idempotency and avoid duplicate sends
+- maintain tenant isolation
+- avoid breaking existing workflow, task, SLA, or admin behavior
+
+CURRENT CONTEXT
+
+Available events:
+- workflow start / completion
+- workflow admin retry / cancel
+- SLA dueSoon / overdue (from timer engine)
+- task created (E11.2)
+- task completed (E11.7)
+
+Available infrastructure:
+- outbox (E10.2)
+- workflow engine
+- SLA engine
+- task system
+- notification contract + templates (E12.1)
+
+This phase wires them together.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. EVENT PRODUCERS
+
+Add notification-producing hooks at appropriate points:
+
+Minimum required events:
+- workflow.completed
+- workflow.admin.retry
+- workflow.admin.cancel
+- workflow.sla.dueSoon
+- workflow.sla.overdue
+- task.created
+- task.completed
+
+Requirements:
+- producers must be placed close to where the event occurs (engine, SLA evaluator, task service)
+- do NOT scatter notification logic across controllers
+- keep producers thin: construct contract + enqueue
+
+---
+
+2. TEMPLATE MAPPING
+
+For each event, map to a template key from E12.1.
+
+Example:
+
+- workflow.completed → template: workflow.completed
+- task.created → template: task.assigned
+- task.completed → template: task.completed
+
+Requirements:
+- mapping must be explicit and documented
+- do not hardcode message strings in producers
+- all content must come from templates
+
+---
+
+3. CONTRACT CONSTRUCTION
+
+Build notification payload using canonical contract.
+
+Include:
+- templateKey
+- tenantId
+- entityType (workflow, task)
+- entityId
+- recipient(s)
+- variables (for template rendering)
+- severity/category if applicable
+- correlationId (if available)
+
+Requirements:
+- populate all required fields
+- pass structured variables, not pre-rendered strings
+- tolerate optional fields cleanly
+
+---
+
+4. RECIPIENT RESOLUTION (SIMPLE)
+
+For this phase:
+
+- task.created → AssignedUserId
+- task.completed → optional (assigned user or none)
+- workflow events → initiating user or system (document choice)
+- SLA events → assigned user if task exists, otherwise skip or log
+
+Requirements:
+- keep resolution simple and deterministic
+- document clearly which recipient is used for each event
+- do not build full role/org resolution yet
+
+---
+
+5. OUTBOX INTEGRATION
+
+All notifications must be enqueued via outbox.
+
+Requirements:
+- create outbox message using existing pattern
+- include notification contract payload
+- ensure idempotency (no duplicate enqueue for same event)
+- do NOT send notifications directly in business logic
+
+---
+
+6. DELIVERY FLOW
+
+Ensure outbox consumer/worker:
+
+- reads notification messages
+- invokes notification adapter
+- adapter renders template and sends
+
+Requirements:
+- reuse existing worker if available
+- if extension needed, keep minimal
+- do not block workflow execution on notification delivery
+
+---
+
+7. TEMPLATE RENDERING
+
+Use E12.1 template system:
+
+- resolve template by key
+- apply variables
+- generate subject/body
+
+Requirements:
+- handle missing variables safely
+- fail clearly if template missing
+- avoid silent malformed notifications
+
+---
+
+8. CHANNEL SUPPORT
+
+Minimum:
+- email
+
+Optional:
+- in-app placeholder (no UI required)
+
+Requirements:
+- do not assume only one channel in contract
+- document supported channels
+
+---
+
+9. FAILURE HANDLING
+
+Requirements:
+- failed delivery should not break workflow
+- rely on outbox retry behavior
+- log failures clearly
+- ensure no duplicate sends on retry
+
+---
+
+10. NON-INTERFERENCE
+
+You MUST confirm:
+- workflow engine unchanged
+- task system unchanged
+- SLA evaluator unchanged
+- admin actions unchanged
+- no regression in APIs
+- outbox behavior preserved
+
+---
+
+VALIDATION REQUIREMENTS
+
+Functional:
+- events trigger notifications correctly
+- correct template used per event
+- correct recipient receives notification
+
+Delivery:
+- messages appear in outbox
+- worker processes messages
+- adapter sends notifications
+
+Safety:
+- no duplicate notifications for same event
+- failures do not break workflows
+- tenant isolation preserved
+
+Build:
+- backend builds successfully
+- no runtime errors in worker
+
+Documentation:
+- event → template mapping documented
+- recipient rules documented
+- delivery flow documented
+
+---
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E12.2-report.md
+2. Review E12.1 contract/templates
+3. Add event producers (workflow, task, SLA, admin)
+4. Implement template mapping
+5. Construct notification payloads
+6. Integrate with outbox
+7. Verify worker delivery path
+8. Validate runtime behavior
+9. Finalize report
+
+---
+
+SUCCESS CONDITION
+
+- notifications are triggered for key events
+- templates are used consistently
+- delivery flows through outbox
+- system remains stable and decoupled
+- no regression in core platform behavior
+
+---
+
+FAILURE CONDITION
+
+- notifications bypass outbox
+- templates are not used consistently
+- duplicate notifications occur
+- delivery breaks workflow execution
+- system becomes tightly coupled

@@ -1,0 +1,248 @@
+You are implementing Phase 3 Block 2 of LegalSynq Support Service.
+
+FEATURE ID:
+SUP-TNT-02
+
+FEATURE NAME:
+Ticket Ownership + Visibility
+
+Report file:
+ /analysis/SUP-TNT-02-report.md
+
+PRIMARY OBJECTIVE:
+Extend Support tickets so they can be associated with tenant-scoped external customers while preserving all existing internal/agent ticket flows.
+
+This block introduces ticket ownership and visibility foundations for tenant → client support.
+
+IMPORTANT CONTEXT:
+SUP-TNT-01 is complete:
+- ExternalCustomer entity exists
+- ExternalCustomerRepository exists
+- ExternalCustomerService exists
+- Unique index exists on TenantId + Email
+- No API exposure was added
+- Existing ticket behavior was not changed
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT break existing ticket creation.
+3. DO NOT break existing agent/internal workflows.
+4. DO NOT integrate with Identity Service.
+5. DO NOT add customer login/authentication yet.
+6. DO NOT add customer portal UI yet.
+7. DO NOT expose public customer APIs yet.
+8. DO NOT weaken JWT/RBAC.
+9. DO NOT weaken tenant isolation.
+10. DO NOT inject X-Tenant-Id in production.
+11. DO NOT store file bytes in Support DB.
+12. DO NOT add Comms/email reply/SLA/Task logic.
+13. Preserve standalone Support deployability.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-TNT-02-report.md
+
+Update the report incrementally after each major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Current ticket ownership/requester model
+3. Proposed ticket ownership model
+4. Schema changes
+5. Service changes
+6. DTO/API compatibility analysis
+7. Visibility/query behavior
+8. Tenant isolation validation
+9. Backward compatibility validation
+10. Files changed
+11. Build/test results
+12. Known gaps/deferred items
+13. Final readiness assessment
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- SupportTicket entity
+- TicketService.CreateAsync
+- TicketService query/list/detail methods
+- Ticket DTOs/request/response models
+- Existing requester fields:
+  - RequesterUserId
+  - RequesterName
+  - RequesterEmail
+  - CreatedByUserId
+- Existing tenant scoping logic
+- Existing authorization policies
+- Existing audit/notification events for ticket creation
+- ExternalCustomer model/service from SUP-TNT-01
+- Current database migration pattern
+
+Do not implement until analysis is documented.
+
+STEP 3 — OWNERSHIP MODEL:
+Add a backward-compatible ticket ownership model.
+
+Introduce enum:
+TicketRequesterType:
+- InternalUser
+- ExternalCustomer
+
+Add fields to SupportTicket:
+- RequesterType
+- ExternalCustomerId nullable
+- VisibilityScope
+
+Introduce enum:
+TicketVisibilityScope:
+- Internal
+- CustomerVisible
+
+Rules:
+- Existing tickets default to:
+  - RequesterType = InternalUser
+  - VisibilityScope = Internal
+  - ExternalCustomerId = null
+
+- Internal/agent-created tickets must continue working exactly as before.
+
+- External customer-created tickets, when supported later, will use:
+  - RequesterType = ExternalCustomer
+  - ExternalCustomerId = resolved customer id
+  - RequesterEmail = customer email
+  - RequesterName = customer name
+  - VisibilityScope = CustomerVisible
+
+IMPORTANT:
+This block establishes model/service behavior only.
+Do not add public unauthenticated endpoints yet.
+
+STEP 4 — SCHEMA MIGRATION:
+Create migration adding fields to Support tickets table.
+
+Required:
+- requester_type
+- external_customer_id nullable
+- visibility_scope
+
+Recommended indexes:
+- tenant_id + external_customer_id
+- tenant_id + requester_type
+- tenant_id + visibility_scope
+
+Do NOT:
+- create foreign key to Identity
+- require ExternalCustomerId for existing tickets
+- break existing rows
+
+Foreign key to ExternalCustomer is optional. Prefer no hard FK if current Support model uses soft references, but document your decision.
+
+STEP 5 — DTO/API BACKWARD COMPATIBILITY:
+Update response DTOs to include ownership fields if appropriate:
+- requesterType
+- externalCustomerId
+- visibilityScope
+
+Do NOT require clients to send these fields in existing ticket create request.
+
+Existing ticket create payloads must remain valid.
+
+If adding optional create fields:
+- make them nullable/optional
+- preserve current defaults
+
+STEP 6 — SERVICE LOGIC:
+Update ticket creation logic safely.
+
+Rules:
+1. Default create path remains InternalUser.
+2. Existing create calls without customer info create InternalUser tickets.
+3. If optional external customer input is introduced:
+   - resolve customer using ExternalCustomerService
+   - set ExternalCustomerId
+   - set RequesterType = ExternalCustomer
+   - set VisibilityScope = CustomerVisible
+4. If external customer fields are incomplete:
+   - fail validation clearly
+   - do not create partial customer-linked tickets
+
+Do NOT change assignment logic.
+
+Do NOT change queue behavior.
+
+STEP 7 — QUERY / VISIBILITY BEHAVIOR:
+Prepare visibility-safe query methods.
+
+Required:
+- Existing agent/internal list/detail behavior unchanged.
+- Add internal service/repository method to list tickets for an ExternalCustomer within tenant:
+  - tenantId + externalCustomerId
+- Add internal service/repository method or filter support for CustomerVisible tickets.
+- Do not expose these through public customer API yet.
+
+This is preparation for SUP-TNT-03 and customer portal.
+
+STEP 8 — AUDIT / NOTIFICATION ALIGNMENT:
+Ensure audit/notification metadata includes ownership fields where useful:
+- requesterType
+- externalCustomerId
+- visibilityScope
+
+Do not change event taxonomy unless necessary.
+
+Do not introduce email reply behavior.
+
+STEP 9 — VALIDATION:
+Validate:
+
+1. Existing internal ticket creation still works.
+2. Existing ticket list/detail still works for agents/admins.
+3. Existing tickets migrate successfully with defaults.
+4. Same email external customers across different tenants remain isolated.
+5. Customer-linked ticket can be created internally if optional path is implemented.
+6. Customer-specific query returns only tickets for that externalCustomerId within same tenant.
+7. No cross-tenant query leakage.
+8. Existing audit/notification flows do not fail.
+
+STEP 10 — BUILD / TEST:
+Run:
+- dotnet build apps/services/support/Support.Api/Support.Api.csproj
+- dotnet build apps/services/support/Support.Tests/Support.Tests.csproj
+- relevant tests if available
+- migration generation/validation
+
+STEP 11 — FINAL REPORT:
+Complete:
+
+# SUP-TNT-02 Report
+
+## 1. Codebase Analysis
+## 2. Current Ticket Ownership Model
+## 3. New Ticket Ownership / Visibility Model
+## 4. Schema Changes
+## 5. DTO / API Compatibility
+## 6. Service Logic Changes
+## 7. Query / Visibility Behavior
+## 8. Audit / Notification Alignment
+## 9. Tenant Isolation Validation
+## 10. Backward Compatibility Validation
+## 11. Files Created / Changed
+## 12. Build / Test Results
+## 13. Known Gaps / Deferred Items
+## 14. Final Readiness Assessment
+
+DONE CRITERIA:
+- Ticket ownership fields are added safely
+- Existing tickets default to InternalUser/Internal
+- Existing create/list/detail flows still work
+- ExternalCustomerId can be associated with tickets without breaking current APIs
+- Customer-specific internal query support exists
+- Tenant isolation is preserved
+- No public customer APIs are added yet
+- No customer UI is added yet
+- No Identity dependency is introduced
+- No Comms/email/SLA/Task logic is introduced
+- Build/tests pass
+- /analysis/SUP-TNT-02-report.md is complete
+
+If any validation fails:
+- do not claim success
+- document blocker, root cause, and recommended iteration.

@@ -1,0 +1,265 @@
+Project: E11.7
+Title: Task Completion → Workflow Progression Binding
+
+You are implementing the critical task-to-workflow binding phase for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.7-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current workflow engine transition behavior, task lifecycle service behavior, step/task correspondence rules, duplicate progression protection, and any limitations in binding task completion to workflow advancement.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - workflow/task binding changes
+   - API/behavior changes
+   - concurrency/consistency handling
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for My Work UI or needs iteration
+
+REPORT FORMAT
+
+# E11.7 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Binding Logic Notes
+## API / Lifecycle Changes
+## Concurrency / Consistency Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Bind task completion to governed workflow progression so that completing the correct active task can move the owning workflow forward through the Flow engine, without turning tasks into execution authority and without bypassing workflow transition rules.
+
+This phase is the final core step that makes the task system operational for end users.
+
+SCOPE INCLUDES
+
+- binding logic between WorkflowTask completion and WorkflowInstance progression
+- safe orchestration between task lifecycle service and workflow engine
+- duplicate progression protection
+- consistency/concurrency handling
+- documentation/reporting
+
+DO NOT BUILD
+
+- My Work UI
+- task assignment engine
+- notification fan-out for task completion
+- task reassignment
+- broad workflow redesign
+- new workflow designer features
+- direct DB mutation of WorkflowInstance from task UI/controller logic
+- admin bulk task actions
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve WorkflowInstance / WorkflowEngine as the sole execution authority
+- ensure completing a task does not bypass workflow transition rules
+- bind only the correct task to the correct current workflow step
+- prevent duplicate or repeated task completions from advancing the workflow twice
+- keep tenant isolation intact
+- avoid regressing existing workflow execution, outbox, SLA, or admin behaviors
+- keep the implementation deterministic and auditable
+
+CURRENT CONTEXT
+
+Already completed:
+- E11.1 Task entity
+- E11.2 Task creation from workflow transitions
+- E11.4 Task lifecycle
+- E11.5 My Tasks API
+- workflow engine / outbox / SLA / admin actions fully in place
+
+Current gap:
+- tasks can be completed, but workflow progression is not yet bound to task completion
+
+This phase should close that gap safely.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. BINDING RULE
+
+Define the governing rule for when task completion advances a workflow.
+
+Recommended rule:
+- when a task is transitioned from InProgress → Completed
+- and the task belongs to the workflow's current active step
+- and the workflow is still in an actionable active state
+- then the workflow should advance via the existing workflow engine path
+
+Requirements:
+- the binding must verify the task corresponds to the workflow's current step
+- task completion on an out-of-date task must not advance the workflow
+- task completion must not directly mutate WorkflowInstance outside the engine
+
+2. SOURCE OF AUTHORITY
+
+Workflow progression must happen through the existing workflow engine/service, not by setting WorkflowInstance fields directly.
+
+Requirements:
+- use existing engine advance/progression mechanisms wherever possible
+- if a thin orchestration service is needed, create one
+- do not duplicate transition logic in the task service
+- do not make WorkflowTask the execution authority
+
+3. COMPLETION FLOW
+
+Implement the end-to-end flow for task completion.
+
+Recommended orchestration:
+1. load task
+2. validate it is eligible for completion
+3. validate it matches the workflow's current step/state
+4. transition task to Completed
+5. invoke workflow progression through the engine
+6. ensure the resulting state is consistent
+
+Requirements:
+- clearly document ordering
+- if task completion and workflow advancement share a transaction, describe that
+- if not, describe exactly how consistency is protected
+
+Strong recommendation:
+- keep consistency as tight as possible
+- avoid "task completed but workflow did not move" unless explicitly handled and documented
+
+4. OUT-OF-DATE / STALE TASK PROTECTION
+
+This is critical.
+
+Requirements:
+- if a task is no longer aligned with the workflow's current step, completion must fail safely or complete without progression according to a documented rule
+- document the chosen behavior clearly
+
+Recommended:
+- stale task completion should be rejected with a clear error rather than silently completing and not advancing
+
+Examples of stale conditions:
+- workflow already advanced to another step
+- workflow already completed/cancelled
+- another task already progressed the workflow
+
+5. DUPLICATE PROGRESSION PROTECTION
+
+Requirements:
+- repeated completion requests for the same task must not advance the workflow twice
+- concurrent completion requests from two callers must not advance the workflow twice
+- use existing concurrency mechanisms and/or task state checks
+- document how duplicate progression is prevented
+
+Recommended:
+- rely on task lifecycle concurrency + workflow engine concurrency
+- if one caller wins and advances the workflow, the other should get a safe concurrency/state error
+
+6. TASK / WORKFLOW STATE MATRIX
+
+Document the allowed task→workflow interaction matrix.
+
+At minimum:
+- `InProgress → Completed` on current active step → eligible to progress workflow
+- `Open → Completed` should not be allowed unless lifecycle already permits it (if lifecycle does not, keep it rejected)
+- completing a task when workflow is terminal → reject or no-op according to documented rule
+- completing a stale/older task → reject
+
+Requirements:
+- keep the matrix deterministic
+- do not add hidden heuristics
+
+7. API / SURFACE CHANGES
+
+If the existing task completion endpoint is reused, document the new behavior clearly.
+If a separate endpoint is required, justify it.
+
+Recommended:
+- reuse the existing task completion API surface and make completion invoke the binding internally
+- keep the external API shape stable if possible
+
+Requirements:
+- preserve tenant/user auth behavior
+- avoid introducing a second "complete and advance" endpoint unless absolutely necessary
+
+8. CONSISTENCY / TRANSACTION HANDLING
+
+Requirements:
+- document whether task completion and workflow advancement are:
+  - single transaction
+  - coordinated sequential operations
+- if they are not fully atomic, document failure handling and recovery clearly
+- prevent silent divergence as much as possible
+
+Recommended:
+- prefer single unit-of-work when feasible
+- if engine uses its own concurrency/persistence path, integrate carefully and document the resulting guarantees
+
+9. OUTBOX / SLA / ADMIN NON-INTERFERENCE
+
+You MUST confirm:
+- workflow outbox behavior continues to work
+- SLA evaluator continues to work
+- admin actions continue to work
+- task creation logic continues to work
+- existing workflow UI does not regress
+
+This phase should bind task completion to workflow progression, not redesign the platform.
+
+10. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional:
+- completing the correct active task advances the workflow
+- completing a stale task is handled as documented
+- duplicate completion does not advance workflow twice
+- tasks for non-current steps do not move the workflow
+
+Concurrency / Consistency:
+- concurrent completions behave safely
+- task state and workflow state remain consistent
+- no orphan progression occurs
+
+Platform Stability:
+- workflow engine still builds/runs
+- outbox still works
+- SLA evaluator still works
+- task API still works
+- no regression in admin/control-center surfaces
+
+Documentation:
+- binding rule documented
+- stale-task behavior documented
+- duplicate-progression protection documented
+- transaction/consistency model documented
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E11.7-report.md
+2. Inspect E11.4 task completion path and workflow engine advance path
+3. Design thin orchestration/binding layer
+4. Implement current-step validation
+5. Bind task completion to workflow progression
+6. Add duplicate/stale protection
+7. Validate build/runtime and functional behavior
+8. Finalize report
+
+SUCCESS CONDITION
+
+- completing the right task progresses the workflow through the engine
+- stale or duplicate completions do not corrupt progression
+- workflow remains the execution authority
+- task system becomes operationally meaningful
+- no platform regression is introduced
+
+FAILURE CONDITION
+
+- task completion bypasses workflow engine logic
+- stale/duplicate completions can advance workflow incorrectly
+- task and workflow state diverge silently
+- existing workflow/platform behavior regresses

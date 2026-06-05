@@ -1,0 +1,85 @@
+Run CareConnect Step 31: apply the provider geolocation migration and test geo-aware provider search end to end.
+
+Goal:
+Verify that the CareConnect geo-discovery foundation works in practice:
+- migration applies cleanly
+- providers can store coordinates
+- provider search supports latitude/longitude/radius
+- geo search combines correctly with existing filters
+- tenant isolation remains intact
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect v1 baseline and scheduling model are already working
+- Provider geo-discovery code has already been generated and reviewed
+- Migration should already exist and be safe to apply
+- This step is for applying and testing, not adding new features
+
+Tasks
+
+1. Apply the CareConnect migration for provider geolocation.
+Expected migration name:
+- AddProviderGeoLocation
+
+2. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+3. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+4. Confirm at least one Provider already exists in the tenant.
+If no provider exists, identify that before search tests continue.
+
+5. Create or update providers with coordinates.
+Use realistic sample coordinates for at least 2 providers, for example in Ohio, with one provider clearly inside the search radius and another outside it.
+
+6. Verify provider create/update with geolocation fields:
+- Latitude
+- Longitude
+- GeoPointSource
+- GeoUpdatedAtUtc if handled automatically
+
+7. Test geo-aware provider search using:
+- GET /careconnect/api/providers?latitude=...&longitude=...&radiusMiles=...
+
+Verify:
+- providers inside radius are returned
+- providers outside radius are excluded
+- providers without coordinates are excluded when geo params are used
+
+8. Test combined search filters:
+- geo + city
+- geo + state
+- geo + categoryCode
+- geo + acceptingReferrals
+- geo + isActive
+- geo + paging
+
+9. Validate error handling:
+- invalid latitude => 400
+- invalid longitude => 400
+- missing longitude when latitude is supplied => 400
+- radiusMiles <= 0 => 400
+- excessive radius => 400 if max rule is enforced
+
+10. Verify tenant isolation:
+- geo search remains tenant-scoped
+- cross-tenant providers would not appear
+
+11. Output:
+- migration command used
+- whether migration succeeded
+- sample provider update/create requests used
+- sample geo search requests used
+- whether geo filtering behaved correctly
+- whether combined filters behaved correctly
+- whether validation failures were handled correctly
+
+Important:
+Do not add map UI, map SDK, geocoding services, or route calculations in this step.
+This step is only to validate the backend geo-discovery foundation end to end.

@@ -1,0 +1,183 @@
+Implement LS-LIENS-UI-010 — Unified Activity Feed.
+
+Goal:
+Combine real audit and notification events into one unified activity experience using the same architecture pattern as prior modules.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-010-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Initial analysis plan
+   - Known activity UI surfaces
+   - Expected audit and notification endpoints
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g., T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Follow same architecture as:
+  Cases, Liens, Servicing, Documents, Contacts, Bill of Sale, Audit, Notifications
+
+- Enforce:
+  API → Service → Mapper → UI
+
+- No direct HTTP in components
+- No mock data
+- Preserve UI layout
+- Use service layer only
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Initial Analysis
+- Analyze audit endpoints and notifications endpoints already used in the app
+- Identify current timeline surfaces and notification surfaces
+- Identify the best unified activity UI surface with minimal disruption
+- Log findings in report
+
+T002 — Create Types Layer
+Create:
+- unified-activity.types.ts
+
+Include:
+- source DTO references
+- unified activity item model
+- source enum
+- actor/recipient/entity reference models
+- query/filter models
+
+Update report after completion
+
+T003 — Create API Layer
+Create:
+- unified-activity.api.ts
+
+Implement raw source calls for available audit and notification endpoints only.
+
+NO UI logic
+
+Update report after completion
+
+T004 — Create Mapper Layer
+Create:
+- unified-activity.mapper.ts
+
+Map:
+- audit event → unified activity item
+- notification event → unified activity item
+- source badge/model
+- title/description normalization
+- timestamps
+- entity references
+
+NO duplication
+NO mapping in components
+
+Update report after completion
+
+T005 — Create Service Layer
+Create:
+- unified-activity.service.ts
+
+Expose:
+- getUnifiedActivity()
+- getRecentUnifiedActivity()
+- getUnifiedActivityForEntity() if useful
+
+Service = ONLY data access layer
+
+Document merge/sort logic explicitly in the report.
+
+Update report after completion
+
+T006 — Unified Activity UI Surface
+- Implement the chosen unified activity UI surface with minimal layout disruption
+- Add loading/error/empty states
+- Render source-aware activity items
+- Preserve shell/layout
+
+Update report after completion
+
+T007 — Dashboard / Summary Integration
+- Replace any remaining mock or single-source cross-entity activity summary with unified activity where useful
+- Keep summary view clearly a subset of the full feed
+
+Update report after completion
+
+T008 — Entity Navigation
+- Route activity clicks to real entity pages where metadata supports it
+- Handle unsupported or invalid targets safely
+
+Update report after completion
+
+T009 — Source-Aware Filtering
+- Implement only filters safely supported by source data and merge strategy
+- Hide/defer unsupported global filters
+
+Update report after completion
+
+T010 — Remove Mock Data
+- Remove static/placeholder cross-entity activity usage from production flows
+
+Update report after completion
+
+T011 — Unsupported Features
+- Disable/hide unsupported behaviors such as fake global unread state, fake deduplication, or misleading global pagination if not safely supportable
+- Document all gaps clearly
+
+Update report after completion
+
+T012 — Final Validation
+- Verify build
+- Verify audit + notification integration
+- Verify UI stability
+- Finalize report with:
+  - executive summary
+  - before/after data flow
+  - endpoints used
+  - architecture validation
+  - risks/blockers
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Report created FIRST and updated incrementally
+- Unified activity uses real audit + notification data
+- No mock cross-entity activity remains
+- Users can view a real combined feed
+- Items are sorted by real timestamps
+- Source types are clearly distinguished
+- Activity clicks route to real entity targets where supported
+- Service-layer pattern enforced
+- Shell layout unchanged
+- Report is complete and traceable
+
+Execute FULL implementation.
+DO NOT stop at analysis.
+DO NOT delay report creation.

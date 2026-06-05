@@ -1,0 +1,164 @@
+Continue the LegalSynq platform activation work from the current post-Phases A–F state.
+
+The platform foundation is now mostly wired into runtime behavior:
+- OrganizationType is operational
+- AuthService prefers DB-backed org type rules
+- ScopedRoleAssignment GLOBAL roles are merged into login roles
+- CareConnect supports OrganizationRelationshipId on Referral and Appointment
+- IOrganizationRelationshipResolver exists
+- control-center has API/types support for new catalog endpoints
+
+However, the system still does not perform live cross-service organization relationship resolution, and some legacy architecture paths are still primary or partially active.
+
+Your goal is to complete the next integration stage safely.
+
+## Primary goal
+
+Implement live relationship resolution and finish the next layer of platform activation:
+
+1. implement HttpOrganizationRelationshipResolver for CareConnect
+2. wire CareConnect referrals to resolve active org relationships from Identity in real runtime
+3. extend platform context/auth to understand org_type_id and prepare for relationship-aware access
+4. align Facility with canonical Organization identity just like Provider
+5. reduce legacy dependency further without breaking existing flows
+6. generate a report
+
+## Required report output
+
+Create and save:
+ /analysis/step3_live-relationship-integration.md
+
+Use this exact structure:
+
+# LegalSynq Live Relationship Integration
+## 1. Starting State
+## 2. Runtime Relationship Resolution Changes
+## 3. Identity / Auth Context Changes
+## 4. CareConnect Identity Alignment Changes
+## 5. Legacy Dependency Reduction
+## 6. Files Changed
+## 7. Build / Verification Results
+## 8. Remaining Gaps
+
+## Phase 1 — Implement live HTTP relationship resolver
+
+Current state:
+- CareConnect uses OrganizationRelationshipNullResolver
+- referrals can accept referring/receiving org IDs
+- relationship id remains null unless another resolver is introduced
+
+Tasks:
+- inspect Identity admin endpoints for organization relationship lookup
+- implement HttpOrganizationRelationshipResolver in CareConnect.Infrastructure
+- use typed HTTP client / resilient client pattern already used in the repo if available
+- add timeout, cancellation token support, and safe failure behavior
+- resolver should:
+  - accept referringOrganizationId and receivingOrganizationId
+  - query Identity for active relationships
+  - return the best matching OrganizationRelationshipId or null
+- preserve fail-safe behavior:
+  - if Identity is unavailable or no active relationship exists, return null and do not break referral creation
+
+Important:
+- do not make relationship resolution mandatory
+- null must remain acceptable
+- prefer isolated implementation so DI can swap resolvers cleanly
+
+## Phase 2 — Replace null resolver registration
+
+Tasks:
+- update CareConnect.Infrastructure/DependencyInjection.cs
+- register HttpOrganizationRelationshipResolver as the default implementation
+- optionally keep NullResolver available as fallback/test implementation
+- make the resolver configurable via settings/environment values:
+  - Identity base URL
+  - request timeout
+  - optional auth/header configuration if the repo uses service-to-service auth
+
+## Phase 3 — Add org_type_id support to request context/auth helpers
+
+Current state:
+- JWT now emits org_type_id
+- current request/context logic still relies mainly on org_type string
+
+Tasks:
+- inspect shared/building-blocks/BuildingBlocks/Context/CurrentRequestContext.cs
+- add reading/parsing support for org_type_id
+- keep org_type string behavior intact
+- expose both where useful
+- inspect any auth/authorization helpers or policies that can safely prefer org_type_id while preserving legacy fallback
+
+Do not break any existing middleware or policy checks.
+
+## Phase 4 — Facility identity alignment
+
+Current state:
+- Facility has OrganizationId and LinkOrganization method
+- facility DTO/service wiring was not completed
+
+Tasks:
+- inspect facility DTOs, service layer, repository usage, and create/update handlers
+- add optional OrganizationId to facility create/update request models
+- wire service logic to call facility.LinkOrganization when OrganizationId is supplied
+- preserve existing API compatibility
+
+## Phase 5 — Relationship-aware enrichment for referrals and appointments
+
+Tasks:
+- verify ReferralService now sends referring/receiving org IDs to the resolver
+- verify AppointmentService denormalizes OrganizationRelationshipId from Referral
+- add any missing DTO response mappings if the app should expose OrganizationRelationshipId
+- if low-risk, enrich internal reporting/query paths to filter by OrganizationRelationshipId
+
+Keep external API breakage at zero unless clearly safe.
+
+## Phase 6 — Reduce remaining legacy dependency
+
+Tasks:
+- inspect all live reads of ProductRole.EligibleOrgType
+- inspect all live reads/writes of UserRoleAssignment
+- move any obviously safe runtime reads to the new models first
+- keep fallbacks for compatibility
+- add targeted comments/TODOs where retirement is intentionally deferred
+
+## Files to inspect first
+
+### CareConnect
+- apps/services/careconnect/CareConnect.Application/Interfaces/IOrganizationRelationshipResolver.cs
+- apps/services/careconnect/CareConnect.Infrastructure/Services/OrganizationRelationshipNullResolver.cs
+- apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+- apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
+- apps/services/careconnect/CareConnect.Infrastructure/DependencyInjection.cs
+- apps/services/careconnect/CareConnect.Application/DTOs/CreateReferralRequest.cs
+- apps/services/careconnect/CareConnect.Application/DTOs/*Facility*
+- apps/services/careconnect/CareConnect.Application/Services/*Facility*
+- apps/services/careconnect/CareConnect.Domain/Facility.cs
+
+### Identity / shared
+- apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+- apps/services/identity/Identity.Infrastructure/Services/JwtTokenService.cs
+- shared/building-blocks/BuildingBlocks/Context/CurrentRequestContext.cs
+- any authorization helper/policy classes that use org_type claims
+
+## Implementation guidance
+
+- prefer safe integration over broad redesign
+- do not require new DB migrations unless absolutely necessary
+- do not break current CareConnect flows
+- preserve null-safe behavior for relationship resolution
+- use existing coding conventions, DI patterns, and HTTP client abstractions in the repo
+- document exact resolution behavior in the report
+
+## Verification expectations
+
+At the end:
+- build Identity.Api
+- build CareConnect.Api
+- run TypeScript checks if any frontend/shared TS files changed
+- include exact build results in the report
+
+## Final instruction
+
+Do the work now.
+Activate live cross-service relationship resolution and complete the next integration layer without destabilizing current functionality.
+Then generate /analysis/step3_live-relationship-integration.md.

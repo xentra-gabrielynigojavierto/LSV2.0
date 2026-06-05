@@ -1,0 +1,310 @@
+You are implementing LS-LIENS-UI-002 for the LegalSynq Liens v2 migration.
+
+Feature ID: LS-LIENS-UI-002
+Feature Title: Wire Cases UI to Real APIs with Enforced API Service Layer Pattern
+
+Objective:
+Wire the SynqLiens Cases UI to real backend APIs and enforce a strict frontend API service layer pattern. This feature must preserve the existing UI baseline established in LS-LIENS-UI-01 while replacing mock/store-driven backend data behavior with real API-backed integration. This is the reference implementation pattern for later Liens modules.
+
+Critical architecture rules:
+1. Preserve the existing v2 top nav and side nav.
+2. Preserve the current Cases UI layout and screen flow unless a minimal change is required for real integration.
+3. Use a strict layered frontend data-access pattern:
+   - API client layer
+   - Cases service layer
+   - DTO-to-UI mapper/adapter layer
+   - UI state layer
+   - Presentation layer
+4. No direct backend HTTP calls in page or presentation components.
+5. No significant response mapping logic inside page/components.
+6. No production mock/static/local fake repository behavior may remain in the Cases production flow.
+7. If Zustand or an equivalent store is used, restrict it to UI state only unless an existing platform-standard async state pattern requires a small exception. Document any exception explicitly.
+8. Reuse existing v2 auth, interceptor, routing, shell, and platform conventions.
+9. Preserve donor SynqLiens behavior and API contracts as much as practical.
+10. Do not invent backend APIs that do not already exist. If an expected endpoint is missing, document the gap and complete the rest.
+
+Mandatory frontend layering pattern:
+
+Layer 1 — API client layer
+- raw HTTP only
+- endpoint paths
+- query param serialization if consistent with repo pattern
+- typed request/response DTOs
+- no UI model shaping
+- no page logic
+
+Layer 2 — Cases service layer
+- the only approved data-access entry point for Cases UI
+- exposes business-facing methods such as:
+  - getCases(query)
+  - getCase(caseId)
+  - getCaseSummary() if supported
+  - getCaseFiltersMetadata() if supported
+  - updateCaseStatus(...) only if backend already supports it
+  - other case actions only if already supported
+- isolates backend contract peculiarities from components
+
+Layer 3 — Mapper / adapter layer
+- converts backend DTOs to UI-facing typed models
+- normalizes null/optional fields
+- maps statuses/enums/display strings where appropriate
+- no JSX/template mapping duplication
+
+Layer 4 — UI state layer
+- only UI state, such as:
+  - search text
+  - filters
+  - current page
+  - sort state
+  - selected case id
+  - drawer open state
+  - loading/error flags
+- must not act as the persistent source of truth for backend data
+
+Layer 5 — Presentation layer
+- receives typed UI models
+- renders only
+- no direct HTTP
+- no ad hoc response parsing
+
+Implementation scope:
+- inspect the current Cases UI implementation
+- identify all mock/static/store-driven data behavior in Cases list and Cases detail pages
+- inspect the backend/API surface already available for Cases
+- wire Cases list page to real APIs
+- wire Cases detail page to real APIs
+- implement a dedicated Cases API client layer
+- implement a dedicated Cases service layer
+- implement a dedicated Cases mapper/adapter layer
+- define typed DTOs, query models, and UI models
+- preserve the existing Cases layout, routing, and interaction flow
+- wire search/filter/sort/pagination through typed query models
+- implement loading/error/empty/not-found/unauthorized states
+- disable, hide, or explicitly mark unsupported actions that do not yet have real API support
+- document the reusable pattern for future Liens modules
+
+Detailed requirements:
+
+A. Analyze the current Cases frontend
+- Inspect the current Cases list page
+- Inspect the current Cases detail page
+- Identify all places where data is coming from:
+  - Zustand store
+  - static arrays
+  - mock repositories
+  - placeholder service functions
+  - local transformations in components
+- Identify all UI actions currently shown in the Cases module
+- Determine which are already backed by real APIs and which are not
+
+B. Analyze backend/API availability
+- Inspect the backend routes/endpoints/contracts already available for Cases
+- Reuse existing preserved SynqLiens APIs where possible
+- Determine exact endpoints available for:
+  - list retrieval
+  - case detail retrieval
+  - search/filter/sort/pagination
+  - summary metadata if available
+  - case actions if available
+- Do not invent missing backend capabilities
+- If an expected API is absent, document it clearly and complete the rest of the feature
+
+C. Implement the API client layer
+Create or refine a Cases-specific raw API layer, following repo conventions.
+Responsibilities:
+- raw HTTP calls only
+- endpoint path definitions
+- typed request/response handling
+- use existing auth/interceptors/base URL patterns
+- no UI shaping
+
+Expected examples:
+- fetchCases(queryDto)
+- fetchCaseById(caseId)
+- fetchCaseSummary() if supported
+- fetchCaseFiltersMetadata() if supported
+- updateCaseStatus(...) only if supported
+
+D. Implement the Cases service layer
+Create a dedicated Cases service that becomes the only approved data-access path for Cases UI.
+Responsibilities:
+- expose business-facing methods for the UI
+- call the API client layer
+- coordinate mapper usage
+- isolate backend peculiarities
+- keep components/pages clean
+
+Expected examples:
+- getCases(queryModel)
+- getCase(caseId)
+- getCaseSummary()
+- getCaseFilterOptions()
+- updateCaseStatus(...) if supported
+
+E. Implement DTO and UI model typing
+Define or refine typed models for:
+- backend DTOs
+- query/request models
+- pagination metadata if applicable
+- UI-facing case row model
+- UI-facing case detail model
+- status/progress display model
+- any other stable display models needed by current Cases pages
+
+F. Implement mapper / adapter layer
+Create centralized mappers for:
+- case list item DTO -> UI row model
+- case detail DTO -> UI detail model
+- status/history/summary substructures as needed
+- nullable/optional field normalization
+- display-safe fallbacks
+
+Rules:
+- avoid inline mapping in JSX/templates
+- avoid duplicating mapping in both list and detail pages
+- keep mapper functions reusable for future modules
+
+G. Enforce state boundary
+Restrict existing Zustand/store usage to UI state only.
+Allowed:
+- search text
+- current filters
+- current page
+- sort direction
+- selected case id
+- drawer state
+- loading/error flags if consistent with current architecture
+
+Not allowed:
+- mock case repository as source of truth
+- hidden production fallback to static data
+- raw response blobs mutated directly in page components
+
+If a small exception is required because of an existing platform-standard pattern, keep it minimal and document it in the report.
+
+H. Wire Cases list page
+The Cases list page must use the service layer for real backend data.
+Must support:
+- initial load
+- refresh
+- search
+- filters
+- sorting
+- pagination
+- row selection/open detail
+- empty state
+- server error state
+- unauthorized state where relevant
+
+Preserve:
+- current layout
+- current page composition
+- current toolbar/table/drawer patterns from UI-01
+
+I. Wire Cases detail page
+The Cases detail page must use the service layer for real backend data.
+Must support:
+- route-based case loading
+- direct navigation to /cases/[id]
+- refresh on page reload
+- header/detail sections from real data
+- not found state
+- unauthorized state
+- graceful missing-field handling
+
+Preserve:
+- current detail layout
+- current section grouping
+- current user flow
+
+J. Search/filter/sort/pagination contract discipline
+Create a typed query model for list retrieval, such as CasesQuery.
+Requirements:
+- centralize search/filter/sort/page parameters
+- avoid ad hoc query-string building in components
+- keep serialization predictable
+- align to backend contract exactly
+
+K. Unsupported actions handling
+If current Cases UI includes actions not supported by real APIs:
+- do not leave them falsely interactive
+- disable them, hide them, or label them unavailable
+- document which actions were deferred and why
+
+L. Error/loading/empty/not-found states
+Implement production-safe state handling:
+- initial loading
+- refetch loading
+- no results
+- general API/server error
+- unauthorized/forbidden
+- not found for invalid case detail route
+
+No blank broken states.
+
+M. Reuse and future-proofing
+Implement the structure so it can become the template for:
+- Liens
+- Servicing
+- Task Manager
+- Documents
+- Bill of Sales
+- Contacts
+and other SynqLiens modules later
+
+Preferred responsibility split
+Use the repo’s existing naming conventions where possible, but enforce equivalent separation of responsibilities such as:
+- cases.api.ts
+- cases.service.ts
+- cases.mapper.ts
+- cases.types.ts
+- page/component files for rendering only
+
+Exact filenames may differ if the repo uses a different convention, but the responsibility separation is mandatory.
+
+Technical expectations:
+- Inspect the codebase carefully before changing structure
+- Reuse existing v2 frontend conventions
+- Reuse current shell/layout patterns
+- Keep changes maintainable and incremental
+- Do not break other products or shared platform behavior
+- Keep the Cases module clean enough to serve as the standard for future UI integrations
+
+Files and reporting:
+1. Make the required code changes in the appropriate frontend/backend integration files
+2. Create a report at exactly:
+   /analysis/LS-LIENS-UI-002-report.md
+
+The report must include:
+- Executive summary
+- Current Cases data flow before changes
+- New Cases data flow after changes
+- Backend endpoints used
+- API client layer created/refined
+- Cases service layer created/refined
+- Mapper/adapters created
+- Typed models/query models created
+- Zustand/store changes made
+- Unsupported actions found and how handled
+- API contract mismatches or gaps
+- Files changed
+- Risks/issues/blockers
+- Recommended next SynqLiens module to wire using the same pattern
+
+Execution instructions:
+- Do the implementation, not just analysis
+- Make best-effort practical code changes in the repository
+- If some API capabilities are missing, still complete as much of the feature as possible using real endpoints where available and document the rest
+- Do not stop at planning only
+- Save the final report in /analysis before finishing
+
+Success criteria:
+- Cases list uses real APIs
+- Cases detail uses real APIs
+- no page component performs direct HTTP calls
+- service layer is the only approved data-access path for Cases UI
+- mapping is centralized
+- store usage is limited to UI state only or explicitly justified
+- current Cases layout/flow remains intact
+- unsupported fake actions are not misleadingly interactive
+- report is complete and precise

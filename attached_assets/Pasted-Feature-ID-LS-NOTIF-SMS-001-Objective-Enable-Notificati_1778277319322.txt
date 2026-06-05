@@ -1,0 +1,209 @@
+Feature ID: LS-NOTIF-SMS-001
+
+Objective:
+Enable Notification Service to support pluggable SMS delivery providers, starting with Twilio, while keeping all provider-specific SMS implementation independent and encapsulated inside the Notification Service boundary within the monorepo.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all SMS provider integration work must remain isolated within the Notification Service boundary.
+
+Requirements:
+- Do not add SMS provider logic to unrelated services.
+- Do not create shared cross-service SMS abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - SmsProvider interface
+  - SmsProvider registry/factory
+  - Twilio provider implementation
+  - SMS config loading/validation
+  - SMS send orchestration
+  - SMS logging/audit integration
+- Other services should continue interacting with Notification Service through existing notification APIs/events/contracts where possible.
+- Preserve Notification Service as the only delivery execution boundary for SMS.
+
+Implementation Requirements:
+1. Introduce a provider abstraction layer for SMS delivery.
+2. Implement Twilio provider integration.
+3. Add provider registry/factory selection by configuration.
+4. Support sms as a notification delivery channel.
+5. Add structured logging/audit behavior.
+6. Ensure safe failure handling and resiliency.
+7. Preserve compatibility with existing Notification Service architecture and shared LegalSynq v2 patterns.
+
+Critical Constraints:
+- Reuse existing shared services and architecture patterns already present in LegalSynq.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT hardcode Twilio logic into business workflows.
+- All secrets/configuration must come from environment/config providers.
+- Preserve existing notification APIs wherever possible.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-001-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing notification architecture findings
+3. Existing provider/service patterns discovered
+4. Files added
+5. Files modified
+6. Database/schema/config changes
+7. Environment variables added
+8. API/interface changes
+9. Validation/testing performed
+10. Known gaps/issues
+11. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Architecture
+- Identify:
+  - Existing notification service flow
+  - Existing channel abstractions
+  - Existing provider patterns
+  - Existing queue/retry/logging mechanisms
+  - Existing audit/event models
+- Document findings in the report before implementation.
+
+STEP 2 — Create SMS Domain Models
+Add appropriate domain models/types/interfaces such as:
+
+- SmsSendRequest
+- SmsSendResult
+- SmsProviderConfig
+- SmsDeliveryStatus
+- SmsProviderType
+
+Requirements:
+- Normalize provider responses.
+- Include structured failure metadata.
+- Include provider identifiers.
+- Include correlation/tracing support if architecture already supports it.
+
+STEP 3 — Create SMS Provider Abstraction
+Create a provider contract/interface similar to:
+
+interface SmsProvider {
+  send(request: SmsSendRequest): Promise<SmsSendResult>;
+  healthCheck?(): Promise<any>;
+}
+
+Requirements:
+- No provider-specific logic in higher-level workflows.
+- Support future providers without changing orchestration logic.
+- Keep all abstractions local to Notification Service unless an existing internal notification abstraction already exists.
+
+STEP 4 — Implement Provider Registry/Factory
+Implement provider resolution using configuration.
+
+Requirements:
+- Active provider selected from config/env.
+- Unsupported providers fail gracefully.
+- Registry pattern preferred.
+- Avoid switch statements spread across the codebase.
+
+Example target behavior:
+SMS_PROVIDER=twilio
+
+Future-ready for:
+- vonage
+- plivo
+- telnyx
+- aws-sns
+- azure-communication-services
+
+STEP 5 — Implement Twilio Provider
+Add Twilio SDK integration.
+
+Requirements:
+- Use environment/config values only.
+- Add validation for missing config.
+- Normalize Twilio responses into SmsSendResult.
+- Capture:
+  - providerMessageId
+  - delivery status
+  - failure reason
+  - timestamps where available
+
+Expected environment variables:
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+
+Do NOT expose secrets in logs.
+
+STEP 6 — Integrate SMS into Notification Flow
+Extend notification orchestration to support:
+- channel = sms
+
+Requirements:
+- Reuse existing notification pipeline patterns.
+- Preserve existing email/in-app/etc behavior.
+- Avoid duplication.
+- Support async processing if current architecture already supports queues/workers.
+- Keep SMS execution orchestration inside Notification Service only.
+
+STEP 7 — Logging and Audit Integration
+Integrate SMS delivery activity into existing monitoring/audit/logging patterns.
+
+Log fields should include:
+- provider
+- notification id
+- recipient
+- status
+- error reason
+- correlation id
+- timestamps
+
+Requirements:
+- No secret leakage
+- Structured logs only
+- Preserve existing audit conventions
+
+STEP 8 — Resiliency and Failure Handling
+Implement safe failure behavior.
+
+Requirements:
+- Provider failure must not crash service.
+- Return structured failures.
+- Preserve retry compatibility if retry system exists.
+- Add defensive timeout/error handling around provider calls.
+
+STEP 9 — Configuration and Documentation
+Add/update:
+- env examples
+- config registration
+- provider configuration docs
+- setup instructions
+
+STEP 10 — Validation
+Perform validation/testing for:
+- successful SMS send flow
+- invalid config handling
+- unsupported provider handling
+- provider error handling
+- notification pipeline compatibility
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SMS provider abstraction
+- Twilio provider implementation
+- SMS channel integration
+- Provider registry/factory
+- Config/env integration
+- Logging/audit integration
+- Updated documentation
+- Completed analysis report
+
+Do NOT:
+- Introduce placeholder implementations
+- Break existing notification flows
+- Hardcode Twilio dependencies into orchestration logic
+- Add unnecessary architectural rewrites
+- Expose credentials or secrets
+- Move SMS provider logic outside Notification Service

@@ -1,0 +1,423 @@
+LSCC-003 — CareConnect Workflow UI Completion
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-003
+
+Initial implementation report:
+- /analysis/LSCC-003-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-003-XX.md
+
+Examples:
+- /analysis/LSCC-003-report.md
+- /analysis/LSCC-003-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement the full CareConnect user workflow UI on top of the stabilized backend (LSCC-001, LSCC-002, LSCC-002-01).
+
+Enable end-to-end usage:
+Provider discovery → Referral → Acceptance → Appointment booking → Tracking
+
+Do NOT redesign backend logic.
+Do NOT introduce new domain models.
+Do NOT bypass API contracts.
+
+This is a UI + integration layer implementation.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are implementing:
+
+A. Dashboard (role-aware)
+B. Provider discovery (map + list integration)
+C. Provider detail (decision-ready)
+D. Referral creation flow
+E. Referral detail + timeline
+F. Provider referral inbox (accept/decline)
+G. Appointment booking flow
+H. Appointment detail view
+
+Do NOT:
+- add analytics
+- add messaging/chat
+- add billing/lien integrations
+- redesign backend APIs
+- create new core entities
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. MUST use existing API contracts (LSCC-001/002)
+2. MUST respect backend authorization and scoping
+3. Separate:
+   - UI components
+   - API service layer
+   - state management
+4. No hardcoded statuses — use backend enums
+5. All flows must handle:
+   - loading states
+   - empty states
+   - error states
+6. Do NOT duplicate business logic in frontend
+7. Prefer reusable UI components
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Backend is COMPLETE and provides:
+
+- Provider search APIs
+- Referral APIs (scoped + secured)
+- Appointment APIs (scoped + secured)
+- Provider availability endpoint:
+  GET /api/providers/{id}/availability
+- Capability-based authorization
+- Org-scoped data access
+
+Frontend already has partial components:
+- provider pages
+- referral pages
+- appointment components
+- map components
+
+These must be reused and completed — not rewritten from scratch.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. DASHBOARD (ROLE-AWARE)
+--------------------------------------------------
+
+Create dashboard page:
+
+/careconnect/dashboard
+
+Behavior:
+
+Law Firm (Referrer):
+- active referrals list
+- upcoming appointments
+- quick link: Find Providers
+
+Provider (Receiver):
+- incoming referrals (pending)
+- today’s appointments
+- quick link: Referral Inbox
+
+Requirements:
+- role detection based on capabilities or role flags
+- minimal but functional UI
+- must not be blank
+
+Fallback:
+- empty state messaging for no data
+
+--------------------------------------------------
+B. PROVIDER DISCOVERY (MAP + LIST)
+--------------------------------------------------
+
+Enhance provider discovery:
+
+/careconnect/providers
+
+Requirements:
+1. Map + list must use SAME query source
+2. Filters:
+   - name
+   - location
+   - specialty (if available)
+3. Map interaction:
+   - clicking marker selects provider
+   - sync selection with list
+
+Behavior:
+- selection persists across UI interaction
+- avoid duplicate fetches
+
+--------------------------------------------------
+C. PROVIDER DETAIL
+--------------------------------------------------
+
+Route:
+/careconnect/providers/{id}
+
+Must include:
+
+- name
+- specialties/services
+- locations
+- availability preview (using API)
+
+Availability preview:
+- call availability endpoint
+- show limited upcoming slots (e.g., next 5)
+
+Primary CTA:
+- "Refer Patient"
+
+Fallback:
+- no availability → show empty state (not error)
+
+--------------------------------------------------
+D. REFERRAL CREATION
+--------------------------------------------------
+
+Entry:
+- from provider detail
+
+UI:
+- modal or dedicated page
+
+Fields:
+- patient name
+- basic info (minimal required)
+- notes
+
+Behavior:
+- POST /api/referrals
+- on success → redirect to referral detail
+
+Fallback:
+- validation errors inline
+- API failure handled gracefully
+
+--------------------------------------------------
+E. REFERRAL DETAIL + TIMELINE
+--------------------------------------------------
+
+Route:
+/careconnect/referrals/{id}
+
+Sections:
+
+1. Header
+- patient
+- provider
+- status
+
+2. Timeline (required)
+- status changes
+- existing notes (read-only for now)
+
+3. Actions (role-based)
+
+Referrer:
+- "Book Appointment"
+
+Provider:
+- Accept
+- Decline
+
+Requirements:
+- reflect real backend status
+- no frontend state overrides
+
+Fallback:
+- 404 → redirect or show access error
+
+--------------------------------------------------
+F. PROVIDER REFERRAL INBOX
+--------------------------------------------------
+
+Route:
+/careconnect/referrals (provider view)
+
+Requirements:
+- list incoming referrals
+- show:
+  - patient
+  - referring org
+  - status
+
+Actions:
+- Accept
+- Decline
+
+Behavior:
+- PATCH /api/referrals/{id}/status
+
+UI updates immediately after action
+
+Fallback:
+- API failure → revert UI state
+
+--------------------------------------------------
+G. APPOINTMENT BOOKING FLOW
+--------------------------------------------------
+
+Entry:
+- from referral detail
+
+Steps:
+
+1. Fetch availability:
+   GET /api/providers/{id}/availability
+
+2. Display slots
+
+3. Select slot
+
+4. Confirm booking
+
+Behavior:
+- POST /api/appointments
+- update referral status → Scheduled
+
+Fallback:
+- slot unavailable → refetch + retry
+- no slots → show empty state
+
+--------------------------------------------------
+H. APPOINTMENT DETAIL
+--------------------------------------------------
+
+Route:
+/careconnect/appointments/{id}
+
+Display:
+- date/time
+- provider/location
+- status
+
+Actions:
+- cancel
+- reschedule (if endpoint exists)
+
+Requirements:
+- use backend status
+- reflect real-time updates
+
+--------------------------------------------------
+STATE MANAGEMENT RULES
+--------------------------------------------------
+
+- Use centralized API service layer
+- Avoid duplicating fetch logic across components
+- Cache where reasonable, but do NOT override backend truth
+
+--------------------------------------------------
+ERROR HANDLING
+--------------------------------------------------
+
+Every page must handle:
+
+1. Loading
+2. Empty state
+3. Error state
+
+Examples:
+- no referrals → "No referrals yet"
+- no slots → "No available appointments"
+- API error → retry option
+
+--------------------------------------------------
+ROUTING
+--------------------------------------------------
+
+Ensure routes exist:
+
+- /careconnect/dashboard
+- /careconnect/providers
+- /careconnect/providers/{id}
+- /careconnect/referrals
+- /careconnect/referrals/{id}
+- /careconnect/appointments
+- /careconnect/appointments/{id}
+
+--------------------------------------------------
+TESTING (MINIMUM)
+--------------------------------------------------
+
+Add basic UI or integration-level tests for:
+
+1. Referral creation flow triggers API call
+2. Provider accept/decline triggers correct endpoint
+3. Booking flow creates appointment
+4. Unauthorized access handled correctly (404)
+
+If UI testing framework is limited:
+- test API integration layer
+
+--------------------------------------------------
+REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-003-report.md
+
+Report must include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Pages implemented
+
+3. API integrations
+- endpoints used per flow
+
+4. Role-based behavior
+- how referrer vs provider differs
+
+5. Booking flow details
+
+6. Known limitations
+
+7. UI gaps or follow-ups
+
+8. Recommended LSCC-003-01 improvements
+
+==================================================
+IMPLEMENTATION SEQUENCE
+==================================================
+
+Follow this order:
+
+1. Dashboard
+2. Provider discovery improvements
+3. Provider detail
+4. Referral creation
+5. Referral detail + timeline
+6. Provider inbox
+7. Booking flow
+8. Appointment detail
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+LSCC-003 is complete ONLY if:
+
+1. Full workflow works end-to-end:
+   provider → referral → acceptance → booking
+2. UI reflects backend data correctly
+3. No broken navigation paths
+4. All required routes implemented
+5. Errors handled properly
+6. Report exists:
+/analysis/LSCC-003-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Reuse existing components where possible.
+Do not rebuild unnecessarily.
+Focus on completing workflows, not visual perfection.
+Ensure everything works end-to-end with real API calls.

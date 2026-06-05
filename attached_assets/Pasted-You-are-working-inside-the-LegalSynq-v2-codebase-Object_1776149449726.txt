@@ -1,0 +1,319 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the BillOfSale HTTP APIs so the `liens` service can expose the legal and financial transfer record layer of SynqLiens through the existing v2 gateway, authorization model, and application-service architecture.
+
+This feature should expose retrieval and listing APIs for BillOfSale records while keeping sale-finalization and document-generation workflows separate.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Keep authorization in the API/filter layer
+- Keep business logic in the application layer
+- Keep persistence logic in repositories
+- Do NOT introduce cross-service DB joins
+- Do NOT trust client-supplied tenant/org identifiers when request context already provides them
+- Do NOT expose BillOfSale workflow mutation in this feature
+
+--------------------------------------------------
+STEP 1 — INSPECT CURRENT LIENS API + APPLICATION PATTERNS
+--------------------------------------------------
+
+Inspect:
+- Case API implementation from LS-LIENS-06-001
+- Lien API implementation from LS-LIENS-06-002
+- LienOffer API implementation from LS-LIENS-06-003
+- current `BillOfSale` domain entity and repository
+
+Understand:
+- DTO placement
+- application service interface/implementation pattern
+- endpoint structure
+- request context usage
+- auth filter usage
+- response shape conventions
+- pagination pattern
+- error handling pattern
+
+Follow the established Liens pattern from Case/Lien/LienOffer APIs as closely as possible.
+Do NOT invent a different API style for BillOfSale.
+
+--------------------------------------------------
+STEP 2 — IMPLEMENT BILLOFSALE DTOs
+--------------------------------------------------
+
+Create response DTOs for BillOfSale operations.
+
+At minimum support:
+
+### Response DTO
+Fields should cover practical BOS UI needs such as:
+- `id`
+- `billOfSaleNumber`
+- `externalReference`
+- `status`
+- `lienId`
+- `lienOfferId`
+- `sellerOrgId`
+- `buyerOrgId`
+- `purchaseAmount`
+- `originalLienAmount`
+- `discountPercent`
+- `sellerContactName`
+- `buyerContactName`
+- `terms`
+- `notes`
+- `documentId`
+- `issuedAtUtc`
+- `executedAtUtc`
+- `effectiveAtUtc`
+- `cancelledAtUtc`
+- `createdAtUtc`
+- `updatedAtUtc`
+
+### List/Search response
+Use the existing paginated result pattern already established in Case/Lien/LienOffer APIs.
+
+No create/update request DTOs are needed for this feature.
+This feature is read-oriented for BillOfSale records.
+
+--------------------------------------------------
+STEP 3 — ADD APPLICATION SERVICE FOR BILLOFSALE OPERATIONS
+--------------------------------------------------
+
+Implement the application-layer orchestration needed for:
+
+- get BOS by id
+- get BOS by bill-of-sale number
+- list/search BOS records
+- list BOS records by lien id
+
+Use the existing repository layer:
+- `IBillOfSaleRepository`
+- related repositories only if actually needed
+
+Keep endpoint handlers thin.
+Do NOT put repository orchestration directly in endpoint methods if the established Liens pattern uses application services.
+
+Expected behaviors:
+
+### GetByIdAsync
+- tenant-scoped retrieval
+- return DTO only
+
+### GetByBillOfSaleNumberAsync
+- tenant-scoped retrieval by business key
+- if the repository does not already support this method, extend it cleanly following the same repository pattern already used for Case and Lien
+
+### SearchAsync
+Support filters such as:
+- `status`
+- `lienId`
+- `sellerOrgId`
+- `buyerOrgId`
+- `search` (for BOS number if appropriate)
+- `page`
+- `pageSize`
+
+### GetByLienIdAsync
+- tenant-scoped retrieval of all BOS records for a lien
+- useful for lien detail / transfer history UI
+
+Do NOT add mutation methods in this service for this feature.
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT REAL BILLOFSALE ENDPOINTS
+--------------------------------------------------
+
+Add the Liens BillOfSale endpoints so they expose real database-backed behavior.
+
+Expected routes:
+- `GET /api/liens/bill-of-sales`
+- `GET /api/liens/bill-of-sales/{id}`
+- `GET /api/liens/bill-of-sales/by-number/{billOfSaleNumber}`
+- `GET /api/liens/liens/{lienId}/bill-of-sales`   (preferred convenience route)
+
+For list/search, support query parameters such as:
+- `search`
+- `status`
+- `lienId`
+- `sellerOrgId`
+- `buyerOrgId`
+- `page`
+- `pageSize`
+
+If the repository/application layer supports BOS number lookup directly, prefer the dedicated by-number route.
+If the current code style suggests folding this into the general search endpoint instead, document the choice clearly in the report.
+
+--------------------------------------------------
+STEP 5 — APPLY AUTHORIZATION USING EXISTING FILTERS
+--------------------------------------------------
+
+Protect the endpoints using the existing auth model:
+- `RequireProductAccess`
+- `RequirePermission`
+
+Do NOT invent a new auth mechanism.
+
+Use the closest correct current Liens permissions.
+If the permission catalog does not yet include perfect BillOfSale-specific granularity, use the closest aligned current permissions and document the gap clearly in the report.
+
+Do NOT expose BOS execution/cancel/update endpoints in this feature.
+
+--------------------------------------------------
+STEP 6 — USE REQUEST CONTEXT CORRECTLY
+--------------------------------------------------
+
+Use `ICurrentRequestContext` (or the current platform equivalent) to get:
+- tenant id
+- acting user id if needed for logging context
+- org id if helpful for seller/buyer views later
+
+Do NOT trust client-supplied:
+- tenant id
+- acting user id
+
+For search/list:
+- ensure all queries are tenant-scoped
+- if seller/buyer filters are supported, they should still operate within tenant scope
+
+--------------------------------------------------
+STEP 7 — SUPPORT BUYER/SELLER/LIEN-SCOPED BOS VIEWS WITHOUT CROSS-SERVICE ENRICHMENT
+--------------------------------------------------
+
+The implementation should support future UI needs for:
+- BOS records for a lien
+- BOS records by seller org
+- BOS records by buyer org
+- BOS records by status
+
+But do NOT join to Identity or other services to enrich org/user names.
+Return scalar IDs only:
+- `sellerOrgId`
+- `buyerOrgId`
+- `lienId`
+- `lienOfferId`
+- `documentId`
+
+Cross-service enrichment belongs later.
+
+--------------------------------------------------
+STEP 8 — KEEP BILLOFSALE WORKFLOW BOUNDARIES CLEAN
+--------------------------------------------------
+
+This feature should expose BillOfSale retrieval only.
+
+Do NOT:
+- create BOS here
+- execute BOS here
+- cancel BOS here
+- generate or attach documents here
+- call the sale finalization service from these endpoints
+- mutate lien state here
+
+Those belong to separate workflow/integration features.
+
+--------------------------------------------------
+STEP 9 — KEEP API / APP / PERSISTENCE BOUNDARIES CLEAN
+--------------------------------------------------
+
+Do NOT:
+- return EF entities directly
+- put repository logic directly in endpoint handlers if the application-service pattern is preferred
+- join to Identity/Documents/Audit tables
+- add sale-finalization endpoint exposure
+- add unrelated APIs in this feature
+
+This feature is only for BillOfSale APIs.
+
+--------------------------------------------------
+STEP 10 — VALIDATE REAL EXECUTION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. endpoints compile and resolve
+4. get-by-id works
+5. get-by-bill-of-sale-number works
+6. get-by-lien works
+7. list/search works with intended filters
+8. auth filters remain applied
+9. no regression to Case/Lien/LienOffer APIs
+10. no regression to sale finalization service
+
+If you add a lightweight validation path or smoke-test support, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 11 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add sale finalization endpoint exposure
+- add BOS create/update/execute/cancel endpoints
+- add ServicingTask APIs
+- add CaseNote APIs
+- add cross-service enrichment for org/user/document names
+- add audit/notifications/documents integration
+- add frontend work
+- add ETL scripts
+
+This feature is only:
+- BillOfSale DTOs
+- BillOfSale application logic
+- BillOfSale endpoints
+- validation
+
+--------------------------------------------------
+STEP 12 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-06-004-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing Liens/v2 API pattern identified and followed
+3. Exact files created/changed
+4. DTOs added
+5. Application services/handlers added
+6. Endpoint list and routes
+7. Repository interactions
+8. Authorization approach used
+9. Request-context usage
+10. Donor API compatibility notes
+11. How buyer/seller/lien-scoped BOS views are supported
+12. Validation performed
+13. Confirmation:
+    - no EF entities returned directly
+    - no cross-service joins introduced
+    - no unrelated APIs added
+    - no BOS workflow mutation exposed here
+14. Build results:
+    - Liens
+    - relevant solution/workspace
+15. Any permission-model gaps or deferred items
+16. Risks / assumptions
+17. Final readiness statement:
+    - Are real BillOfSale APIs established?
+    - Is the system ready for sale workflow endpoint exposure or remaining domain gaps next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Expose the legal and financial transfer-record API surface by implementing authorized, database-backed BillOfSale APIs that fit the current v2 architecture cleanly and preserve donor behavior as much as practical.
+
+Proceed.

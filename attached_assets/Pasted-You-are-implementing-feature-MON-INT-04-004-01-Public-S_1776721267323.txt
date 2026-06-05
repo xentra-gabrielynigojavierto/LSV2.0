@@ -1,0 +1,322 @@
+You are implementing feature MON-INT-04-004-01 — Public Status Page Response Time Charts.
+
+OBJECTIVE
+Add public-safe response time (latency) charts to the `/status` page so external users can see recent response-time trends per component alongside availability bars, using real Monitoring uptime/history data.
+
+This is a presentation-layer enhancement. It must reuse the existing Monitoring → BFF → Public UI pipeline and must NOT introduce unsafe data exposure or fake metrics.
+
+---
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Public page uses ONLY BFF routes (no direct browser → service calls)
+- Use real uptime/history data (`avgLatencyMs`)
+- Do NOT fabricate latency values
+- Do NOT expose:
+  - entity IDs
+  - alert IDs
+  - raw check counts
+  - internal URLs
+- Keep `/status` public-safe and read-only
+
+---
+
+MANDATORY EXECUTION RULES
+
+- Create the report file FIRST at:
+  /analysis/MON-INT-04-004-01-report.md
+- Update the report incrementally during implementation
+- Do NOT wait until the end to write the report
+- Prefer minimal, reversible changes
+- Do NOT redesign the entire `/status` page
+- Do NOT introduce heavy chart libraries unless absolutely necessary
+
+---
+
+CURRENT CONTEXT
+
+Already implemented:
+- Public `/status` page
+- Availability bars (24h / 7d / 30d)
+- Window selector
+- Public-safe BFF uptime route
+- Monitoring uptime/history aggregation
+
+Missing:
+- Public-facing latency visualization
+
+---
+
+GOAL OF THIS FEATURE
+
+By the end:
+- `/status` shows response-time trends per component
+- charts align with selected window
+- charts use real `avgLatencyMs`
+- no unsafe data exposure
+- UI remains clean and readable
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+
+/analysis/MON-INT-04-004-01-report.md
+
+Initialize with:
+
+# MON-INT-04-004-01 — Public Status Page Response Time Charts
+
+## 1. Task Summary
+## 2. Existing Data Analysis
+## 3. Data Exposure Decision
+## 4. BFF Design
+## 5. Chart Design
+## 6. Implementation
+## 7. Public Safety Review
+## 8. Validation
+## 9. Files Changed
+## 10. Known Gaps / Risks
+## 11. Recommended Next Feature
+
+Explicitly state the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING LATENCY DATA
+
+Inspect:
+
+- Monitoring uptime/history responses
+- Current BFF `/api/monitoring/uptime`
+- Fields available in history buckets
+
+Confirm:
+
+- `avgLatencyMs` exists
+- bucket resolution (hourly / daily)
+- window support (24h / 7d / 30d)
+
+Document:
+
+- exact fields available
+- whether current BFF strips latency (likely yes)
+- whether latency must be added to BFF output
+
+---
+
+STEP 3 — PUBLIC DATA EXPOSURE DECISION
+
+Decide if latency is safe to expose publicly.
+
+Rules:
+- OK: aggregated latency trends (avg per bucket)
+- NOT OK: raw check counts, detailed metrics, internal IDs
+
+Decision:
+- expose ONLY `avgLatencyMs`
+- keep values aggregated and trend-based
+- do NOT expose `entityId`
+
+Document reasoning clearly.
+
+---
+
+STEP 4 — EXTEND OR CREATE BFF ROUTE
+
+Preferred:
+
+Extend existing:
+
+/api/monitoring/uptime
+
+
+Add (if safe):
+- `avgLatencyMs` to each bucket
+
+OR
+
+If separation is cleaner:
+Create:
+
+/api/monitoring/public-latency
+
+
+Requirements:
+- accept `window` param
+- default to `24h`
+- sanitize all data
+- return:
+  - component name
+  - buckets with:
+    - bucketStartUtc
+    - avgLatencyMs
+
+NO UUIDs.
+
+---
+
+STEP 5 — DEFINE CHART DESIGN
+
+Design a minimal chart:
+
+Type:
+- SVG sparkline
+
+Size:
+- height: ~30–40px
+- width: flexible
+
+Data:
+- one point per bucket
+- line = avg latency
+
+Rules:
+- no axes
+- no heavy legend
+- readable without hover
+
+Fallbacks:
+- no data → "No response time history"
+- partial data → render available points
+
+---
+
+STEP 6 — UI PLACEMENT
+
+Modify:
+
+
+public-component-list.tsx
+
+
+Add chart:
+
+Option A (recommended):
+- BELOW availability bars
+
+Option B:
+- RIGHT side compact sparkline
+
+Example layout:
+
+Component Row:
+
+[ Name ]   [ Status ]
+
+[ Availability Bars ]
+
+[ Latency Sparkline ]
+
+Keep spacing clean.
+
+---
+
+STEP 7 — IMPLEMENT COMPONENT
+
+Create:
+
+
+latency-sparkline.tsx
+
+
+Requirements:
+- pure functional component
+- receives:
+  - buckets[]
+- maps values → SVG path
+- skips null values
+- handles empty state
+
+Do NOT import heavy chart libraries.
+
+---
+
+STEP 8 — HANDLE STATES
+
+Handle:
+
+A. No latency data
+→ show fallback text
+
+B. Partial data
+→ render partial line
+
+C. API failure
+→ show "Latency unavailable"
+
+D. Local mode
+→ likely empty → fallback
+
+---
+
+STEP 9 — VALIDATION
+
+Verify:
+
+A. `/status` loads
+B. bars still render
+C. charts render for components with data
+D. charts respect window selector
+E. `/api/monitoring/uptime` includes latency data
+F. no UUIDs in response
+G. no admin controls exposed
+H. TypeScript build clean
+
+Capture:
+- sample API output
+- sample UI behavior
+- runtime vs code validation
+
+---
+
+STEP 10 — FILES CHANGED
+
+List:
+
+- modified BFF route
+- new chart component
+- modified public component list
+- any helper utilities
+
+---
+
+STEP 11 — KNOWN GAPS
+
+Document:
+
+- 24h / 7d / 30d only
+- avg latency only (no percentile)
+- no tooltips (unless added later)
+- sparse data limitations
+
+---
+
+STEP 12 — RECOMMENDED NEXT STEP
+
+Recommend one:
+
+Option A:
+Stabilization / production validation (RECOMMENDED)
+
+Option B:
+MON-INT-05-002 — Public Incident Drill-Down
+
+Option C:
+MON-INT-05-003 — Public Incident History (Resolved)
+
+---
+
+DONE CONDITION
+
+Complete when:
+
+- report exists and was created FIRST
+- `/status` shows latency charts
+- charts use real Monitoring data
+- window selection works
+- no unsafe data exposed
+- page remains stable

@@ -1,0 +1,295 @@
+You are implementing Phase 3 Block 5 of LegalSynq Support Service.
+
+FEATURE ID:
+SUP-TNT-04
+
+FEATURE NAME:
+Multi-Mode Support
+
+Report file:
+ /analysis/SUP-TNT-04-report.md
+
+PRIMARY OBJECTIVE:
+Introduce tenant-level Support mode configuration so each tenant can operate Support in one or both supported modes:
+1. Internal/platform support only
+2. Tenant-to-client customer support
+
+This must allow customer-facing Support capabilities to be enabled or disabled per tenant without breaking existing internal/admin/agent Support workflows.
+
+IMPORTANT CONTEXT:
+Completed:
+- SUP-TNT-01 — External Customer model
+- SUP-TNT-02 — Ticket ownership + visibility
+- SUP-TNT-02-01 — migration default correction
+- SUP-TNT-03 — Customer RBAC Layer
+- SUP-INT-07 — Customer Support Portal UI
+
+Current customer support capability:
+- Customer-safe endpoints exist:
+  - GET  /support/api/customer/tickets
+  - GET  /support/api/customer/tickets/{id}
+  - POST /support/api/customer/tickets/{id}/comments
+- Customer UI exists but fails closed until customer token issuance/login exists.
+- Customer access requires JWT role ExternalCustomer, tenant_id, and external_customer_id.
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT break existing internal/admin/agent ticket flows.
+3. DO NOT weaken JWT/RBAC.
+4. DO NOT weaken tenant isolation.
+5. DO NOT inject X-Tenant-Id in production.
+6. DO NOT add customer login/token issuance in this block.
+7. DO NOT add Comms/email reply/SLA/Task logic.
+8. DO NOT add queue/assignment/status controls to customer UI.
+9. DO NOT store file bytes in Support DB.
+10. Preserve standalone deployability.
+11. Support mode must be tenant-scoped.
+12. Customer-facing endpoints must fail closed when tenant support mode is disabled.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-TNT-04-report.md
+
+Update it incrementally after each major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Existing tenant/config model discovery
+3. Proposed support mode model
+4. Schema/config changes
+5. Service behavior changes
+6. Endpoint enforcement
+7. UI behavior changes if any
+8. Tenant isolation validation
+9. Backward compatibility validation
+10. Files changed
+11. Build/test results
+12. Known gaps/deferred items
+13. Final readiness assessment
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- Existing Support tenant-scoped config/settings patterns, if any
+- Existing Support database schema and tenant-bound tables
+- Existing tenant context resolution
+- Customer endpoints from SUP-TNT-03
+- Customer portal UI from SUP-INT-07
+- Existing options/config pattern under Support:*
+- Whether there is already a tenant settings service/table in platform shared services
+- Existing migration patterns
+
+Do not implement until documented.
+
+STEP 3 — SUPPORT MODE MODEL:
+Introduce tenant-level support mode.
+
+Preferred simple enum:
+SupportTenantMode:
+- InternalOnly
+- TenantCustomerSupport
+
+Meaning:
+- InternalOnly:
+  - Internal/admin/agent Support works
+  - Customer endpoints disabled for that tenant
+  - Customer UI should show unavailable/access denied
+- TenantCustomerSupport:
+  - Internal/admin/agent Support works
+  - Customer endpoints enabled for that tenant
+  - Customer-visible ticket access allowed through customer RBAC
+
+Important:
+- This must be tenant-scoped.
+- Default must be InternalOnly for safety.
+- Do not enable customer support globally by default.
+
+STEP 4 — STORAGE STRATEGY:
+Implement the smallest safe storage model.
+
+Preferred option:
+Create a tenant-scoped table:
+
+support_tenant_settings
+
+Fields:
+- tenant_id string PK or unique
+- support_mode string required default 'InternalOnly'
+- customer_portal_enabled bool required default false
+- created_at datetime UTC
+- updated_at datetime UTC nullable
+
+Rules:
+- tenant_id is the isolation boundary
+- no relation to Identity tenant table required
+- no cross-service FK
+- one row per tenant
+- if no row exists, effective mode = InternalOnly
+
+Alternative:
+If an existing tenant settings/config table exists in Support, extend it instead. Do not create duplicate settings tables.
+
+STEP 5 — SETTINGS SERVICE:
+Create service:
+
+ISupportTenantSettingsService
+
+Required methods:
+- GetEffectiveSettingsAsync(tenantId)
+  - if no row exists, return default InternalOnly/customerPortalEnabled=false
+- SetSupportModeAsync(tenantId, mode, customerPortalEnabled, actorUserId)
+  - internal/admin use only
+- IsCustomerSupportEnabledAsync(tenantId)
+  - true only if mode = TenantCustomerSupport AND customerPortalEnabled = true
+
+Do not expose public customer mutation access.
+
+STEP 6 — ADMIN/INTERNAL ENDPOINTS:
+Add internal/admin endpoints only if consistent with current Support API style.
+
+Suggested routes:
+- GET /support/api/admin/tenant-settings
+- PUT /support/api/admin/tenant-settings
+
+Authorization:
+- SupportManage or SupportInternal, depending on existing policy conventions
+- ExternalCustomer must not access these endpoints
+
+Request:
+{
+  "supportMode": "InternalOnly" | "TenantCustomerSupport",
+  "customerPortalEnabled": true | false
+}
+
+Response:
+{
+  "tenantId": "...",
+  "supportMode": "...",
+  "customerPortalEnabled": true,
+  "effectiveCustomerSupportEnabled": true
+}
+
+Rules:
+- Tenant comes from JWT context
+- Do not accept tenantId from request body in production
+- If dev/test fallback exists, keep it consistent with existing tenant resolution only
+
+STEP 7 — CUSTOMER ENDPOINT ENFORCEMENT:
+Update customer endpoints so they check tenant support mode before serving data.
+
+For all:
+- GET /support/api/customer/tickets
+- GET /support/api/customer/tickets/{id}
+- POST /support/api/customer/tickets/{id}/comments
+
+Required behavior:
+- If customer support mode disabled:
+  - return 403 or 404 consistently
+  - prefer 403 if authenticated customer but tenant feature disabled
+  - do not leak ticket existence
+- If enabled:
+  - proceed with existing customer RBAC:
+    tenantId + externalCustomerId + CustomerVisible
+
+Do not alter internal/admin endpoints.
+
+STEP 8 — TICKET CREATION / OWNERSHIP BEHAVIOR:
+If existing internal ticket creation supports ExternalCustomerEmail:
+- Decide whether this path requires TenantCustomerSupport mode.
+Recommended:
+- Internal/admin can still create/link ExternalCustomer tickets even in InternalOnly mode for prep/back-office use, but CustomerVisible/customer access remains disabled until mode enabled.
+- Document decision clearly.
+
+Do not block internal workflows unless explicitly necessary.
+
+STEP 9 — UI BEHAVIOR:
+Minimal UI changes only.
+
+Customer portal:
+- If customer endpoint returns 403 due to tenant support mode disabled, show:
+  "Customer support portal is not enabled for this tenant."
+- Keep existing fail-closed behavior for missing customer token.
+
+Admin/agent UI:
+- Optional: display settings endpoint is not required unless quick and aligned.
+- Do not build a full settings admin UI unless already pattern exists and minimal.
+
+STEP 10 — AUDIT:
+Changing support mode should emit audit event if audit publisher exists.
+
+Audit metadata should include:
+- tenantId
+- old supportMode
+- new supportMode
+- old customerPortalEnabled
+- new customerPortalEnabled
+- actorUserId
+- correlationId if available
+
+Do not add new Notifications behavior unless already standard.
+
+STEP 11 — VALIDATION:
+Validate:
+
+1. No settings row → effective InternalOnly.
+2. Internal/admin Support endpoints still work in InternalOnly.
+3. Customer endpoints return 403/closed when InternalOnly.
+4. Customer endpoints still require CustomerAccess policy.
+5. TenantCustomerSupport + portal enabled allows customer endpoints to proceed to existing customer ownership checks.
+6. ExternalCustomer cannot call admin settings endpoints.
+7. Tenant A settings do not affect Tenant B.
+8. No tenantId from request body overrides JWT tenant.
+9. Existing admin/agent UI remains unchanged.
+10. Customer portal handles disabled mode safely.
+
+STEP 12 — BUILD / TEST:
+Run:
+- dotnet build apps/services/support/Support.Api/Support.Api.csproj
+- dotnet build apps/services/support/Support.Tests/Support.Tests.csproj
+- frontend typecheck/build only if UI was touched
+- Add focused tests if infrastructure allows:
+  - default InternalOnly
+  - mode enabled
+  - customer endpoint blocked when disabled
+  - customer endpoint allowed to continue when enabled
+  - admin settings endpoint authorization
+  - tenant isolation for settings
+
+STEP 13 — FINAL REPORT:
+Complete:
+
+# SUP-TNT-04 Report
+
+## 1. Codebase Analysis
+## 2. Existing Settings / Config Discovery
+## 3. Support Mode Model
+## 4. Storage / Schema Changes
+## 5. Settings Service
+## 6. Admin Endpoint Changes
+## 7. Customer Endpoint Enforcement
+## 8. Ticket Creation Behavior
+## 9. UI Behavior
+## 10. Audit Alignment
+## 11. Tenant Isolation Validation
+## 12. Backward Compatibility Validation
+## 13. Files Created / Changed
+## 14. Build / Test Results
+## 15. Known Gaps / Deferred Items
+## 16. Final Readiness Assessment
+
+DONE CRITERIA:
+- Tenant-scoped support mode exists.
+- Default effective mode is InternalOnly.
+- Customer portal access is disabled unless explicitly enabled for tenant.
+- Internal/admin/agent workflows remain unchanged.
+- Customer endpoints fail closed when mode disabled.
+- Customer endpoints continue to enforce CustomerAccess + externalCustomerId + CustomerVisible when enabled.
+- ExternalCustomer cannot manage tenant settings.
+- Tenant settings are isolated by tenantId.
+- No customer login/token issuance is introduced.
+- No Comms/email/SLA/Task logic is introduced.
+- Build/tests pass.
+- /analysis/SUP-TNT-04-report.md is complete.
+
+If any validation fails:
+- do not claim success
+- document blocker, root cause, and recommended iteration.

@@ -1,0 +1,293 @@
+You are working in the LegalSynq monorepo.
+
+Your task is to execute:
+
+# Step 27 — Canonical Stabilization, Validation, and Legacy Decommission
+
+The system is already operating in canonical mode.
+
+This step is NOT rollout.
+
+This step ensures:
+
+* completeness
+* correctness
+* security
+* integrity
+* safe legacy decommission
+
+Do NOT redesign architecture.
+Do NOT remove legacy immediately.
+Do NOT introduce new infrastructure.
+
+---
+
+# PRIMARY OBJECTIVE
+
+Validate that the canonical audit system is:
+
+* complete (no missing events)
+* correct (no inconsistencies)
+* secure (proper auth + isolation)
+* traceable (correlation works end-to-end)
+* reliable (no integrity issues)
+
+Then safely freeze and prepare removal of the legacy audit system.
+
+---
+
+# PHASE A — PARITY VALIDATION (MANDATORY)
+
+## A1. Compare legacy vs canonical
+
+Compare:
+
+* AuditEvents (legacy)
+* AuditEventRecords (canonical)
+
+Validate:
+
+* total event counts
+* event types
+* category distribution
+* per-service coverage:
+
+  * identity
+  * careconnect
+  * admin
+
+Detect:
+
+* missing events
+* mismatched event types
+* time inconsistencies
+
+---
+
+## A2. Generate parity report
+
+Save:
+
+/analysis/step27_parity_report.md
+
+Include:
+
+* % parity
+* gaps by category
+* gaps by service
+* critical missing events
+
+---
+
+## A3. Fix gaps BEFORE proceeding
+
+If gaps exist:
+
+* add missing producer events
+* patch event emission
+* re-run validation
+
+DO NOT continue until parity is acceptable.
+
+---
+
+# PHASE B — COMPLETE MISSING EVENTS
+
+## B1. Implement missing lifecycle events
+
+Required:
+
+* identity.user.deactivated
+
+If endpoint does not exist:
+
+* add minimal endpoint or hook
+* emit event on status change
+
+---
+
+## B2. Validate event coverage completeness
+
+Ensure:
+
+* all identity lifecycle events exist
+* all CareConnect lifecycle events exist
+* all admin actions covered
+
+---
+
+# PHASE C — SECURITY VALIDATION (REAL)
+
+## C1. JWT enforcement tests
+
+Verify:
+
+* no token → 401
+* invalid token → 401
+* cross-tenant → 403
+* tenant-scoped → allowed
+* platform admin → allowed
+
+---
+
+## C2. UI security validation
+
+Verify:
+
+* Control Center uses Bearer auth
+* Tenant portal uses Bearer auth
+* no unauthorized data visible
+
+---
+
+# PHASE D — TRACE VALIDATION (END-TO-END)
+
+## D1. Correlation test
+
+Simulate flow:
+
+login → referral → appointment
+
+Verify:
+
+* same correlationId across all events
+* visible in UI
+* matches logs
+
+---
+
+## D2. Missing correlation fallback
+
+Verify:
+
+* system generates correlationId if missing
+* logs warning
+
+---
+
+# PHASE E — INTEGRITY VALIDATION
+
+## E1. Hash chain validation
+
+Test:
+
+* sequential ingest
+* concurrent ingest
+
+Verify:
+
+* no forks
+* correct PreviousHash linkage
+
+---
+
+## E2. Verification behavior
+
+Ensure:
+
+* mismatches logged
+* queries do not break
+
+---
+
+# PHASE F — LOAD & STABILITY
+
+Simulate:
+
+* high ingest volume
+* concurrent producers
+
+Verify:
+
+* no data loss
+* acceptable latency
+* stable system
+
+---
+
+# PHASE G — AUDIT-OF-AUDIT VALIDATION
+
+Ensure:
+
+* audit.log.accessed events exist
+* no recursion
+* visible in system
+
+---
+
+# PHASE H — LEGACY FREEZE
+
+## H1. Disable legacy writes
+
+* stop writing to AuditEvents
+* ensure all producers use canonical only
+
+---
+
+## H2. Mark legacy read-only
+
+* no mutations allowed
+* only historical queries
+
+---
+
+## H3. Document removal plan
+
+Do NOT delete yet.
+
+Document:
+
+* removal timeline
+* archive plan
+* rollback strategy
+
+---
+
+# PHASE I — FINAL VALIDATION
+
+Confirm:
+
+* no missing events
+* no fallback logic needed
+* no security gaps
+* no integrity issues
+
+---
+
+# REQUIRED OUTPUT
+
+/analysis/step27_stabilization_report.md
+
+---
+
+# REPORT FORMAT
+
+# Step 27 — Canonical Stabilization Report
+
+## 1. Parity Results
+
+## 2. Missing Events Fixed
+
+## 3. Security Validation
+
+## 4. Trace Validation
+
+## 5. Integrity Validation
+
+## 6. Load Test Results
+
+## 7. Legacy Freeze Status
+
+## 8. Remaining Risks
+
+## 9. Production Readiness
+
+---
+
+# FINAL INSTRUCTION
+
+Do the work now.
+
+DO NOT proceed to legacy removal until parity is proven.
+
+DO NOT leave unverified assumptions.

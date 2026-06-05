@@ -1,0 +1,245 @@
+Feature ID: UIX-003-01
+Feature Title: TenantAdmin Enablement for Access Control Management
+
+Implement UIX-003-01 for the LegalSynq Control Center.
+
+Context:
+- UIX-003 is already implemented
+- Current state:
+  - access control management works
+  - role assignment, membership management, and group membership management are operational
+  - BUT all Control Center mutation BFF routes currently require `requirePlatformAdmin()`
+  - therefore TenantAdmin cannot manage users/access inside their own tenant yet
+- Goal of this feature:
+  - enable TenantAdmin to use the existing access control system safely
+  - preserve tenant isolation
+  - preserve PlatformAdmin cross-tenant capabilities
+- This must be a focused authorization/scope-enablement pass
+- Do NOT redesign the current UI
+- Do NOT rewrite the identity/session model
+
+Objective:
+Replace platform-only access management with correctly scoped admin access management so:
+
+- `PlatformAdmin` can continue to manage users/access across tenants
+- `TenantAdmin` can manage users/access only within their own tenant
+- non-admins remain blocked
+- tenant isolation is enforced in both BFF and backend
+
+========================================
+CORE RULES
+========================================
+
+1. Replace `requirePlatformAdmin()` with `requireAdmin()` where appropriate
+2. TenantAdmin must never gain cross-tenant visibility or mutation power
+3. PlatformAdmin must retain broader visibility/mutation power where intended
+4. Backend must not rely only on BFF for authorization safety
+5. This is a hardening + enablement pass, not a redesign
+
+========================================
+MVP SCOPE FOR UIX-003-01
+========================================
+
+Implement TenantAdmin support for existing access-control flows:
+
+1. User detail access control panels
+- role assignment / revocation
+- organization membership add / remove / set-primary
+- group add / remove
+
+2. User list and detail access
+- TenantAdmin can open `/tenant-users`
+- TenantAdmin can open `/tenant-users/[id]`
+- data visible only for users in their own tenant
+
+3. Supporting selectors / reference data
+- available organizations
+- available groups
+- available roles (if tenant-safe to expose)
+
+4. BFF authorization update
+- all relevant BFF routes should accept either PlatformAdmin or TenantAdmin
+- tenant scope must still be preserved
+
+========================================
+DO NOT IMPLEMENT IN THIS ITERATION
+========================================
+
+Do NOT implement unless trivially required:
+- new pages
+- custom roles
+- permission editor
+- scoped role assignment UI redesign
+- MFA/security work
+- product-role assignment
+- tenant selector for PlatformAdmin if not already present
+- cross-tenant browsing redesign
+
+========================================
+CONTROL CENTER — FRONTEND / BFF
+========================================
+
+1. Auth Guards
+Implement or verify:
+- `requireAdmin()` allows either:
+  - PlatformAdmin
+  - TenantAdmin
+
+Use it on:
+- `/tenant-users`
+- `/tenant-users/[id]`
+- `/tenant-users/invite`
+- related BFF routes used by UIX-003 panels
+
+2. BFF Route Updates
+Update all mutation BFF handlers used by UIX-003 so they no longer require PlatformAdmin exclusively.
+
+This includes routes for:
+- assign role
+- revoke role
+- assign membership
+- remove membership
+- set primary membership
+- add group member
+- remove group member
+- invite / resend invite if already part of this access flow
+
+Requirements:
+- allow TenantAdmin through `requireAdmin()`
+- preserve existing request validation
+- preserve correlation/error handling
+
+3. Tenant-Safe UI Behavior
+Ensure the UI shown to TenantAdmin is tenant-safe:
+- organization dropdowns only show orgs in current tenant
+- group dropdowns only show groups in current tenant
+- user list remains tenant-scoped
+- no cross-tenant selection affordances appear
+
+If PlatformAdmin currently still operates in tenant-context mode, document that clearly instead of inventing new cross-tenant UI.
+
+========================================
+IDENTITY SERVICE — BACKEND HARDENING
+========================================
+
+This is critical:
+Do NOT rely only on the BFF.
+
+Update backend mutation handlers so they enforce correct admin scope.
+
+1. Role Assignment / Revocation
+For:
+- POST /api/admin/users/{id}/roles
+- DELETE /api/admin/users/{id}/roles/{roleId}
+
+Enforce:
+- PlatformAdmin: allowed broadly
+- TenantAdmin: only if target user belongs to caller’s tenant
+- reject cross-tenant mutation attempts
+
+2. Membership Mutations
+For:
+- POST /api/admin/users/{id}/memberships
+- DELETE /api/admin/users/{id}/memberships/{membershipId}
+- POST /api/admin/users/{id}/memberships/{membershipId}/set-primary
+
+Enforce:
+- target user must be in caller’s tenant for TenantAdmin
+- target organization must be in caller’s tenant for TenantAdmin
+- preserve existing safety rules:
+  - cannot remove last membership
+  - cannot remove primary incorrectly
+
+3. Group Membership Mutations
+For:
+- POST /api/admin/groups/{id}/members
+- DELETE /api/admin/groups/{id}/members/{userId}
+
+Enforce:
+- target group must be in caller’s tenant for TenantAdmin
+- target user must be in caller’s tenant for TenantAdmin
+- preserve existing same-tenant validation
+
+4. Invite / User Activation Flows
+If TenantAdmin is intended to invite/manage users:
+- enforce that TenantAdmin can only invite users into their own tenant
+- enforce that activate/deactivate/resend-invite actions are tenant-scoped
+
+5. Query Endpoints
+Verify/support tenant-safe query behavior for:
+- user detail
+- groups list
+- organizations list
+- roles list if applicable
+
+If any query is not tenant-safe yet, fix it.
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation:
+
+TenantAdmin should be able to:
+1. load `/tenant-users`
+2. open a user in their tenant
+3. assign/revoke roles for that user
+4. add/remove org membership for that user
+5. set primary org for that user
+6. add/remove group membership for that user
+7. invite a user into their own tenant
+
+TenantAdmin must NOT be able to:
+1. access users from another tenant
+2. assign memberships to orgs from another tenant
+3. add users to groups from another tenant
+4. mutate roles/groups/memberships across tenant boundaries
+
+PlatformAdmin should still be able to perform the same operations with broader scope where the current UI/API already supports it.
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-003-01-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Frontend Guard Changes
+6. BFF Route Changes
+7. Backend Authorization / Scope Changes
+8. TenantAdmin Behavior Enabled
+9. PlatformAdmin Behavior Preserved
+10. Tenant Boundary Enforcement
+11. Known Issues / Remaining Scope Limits
+12. Manual Test Results
+13. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- requireAdmin used where needed
+- TenantAdmin can access tenant-users pages
+- TenantAdmin can mutate users in own tenant
+- TenantAdmin blocked from cross-tenant mutations
+- PlatformAdmin still works
+- user list remains tenant-scoped for TenantAdmin
+- org dropdowns tenant-scoped
+- group dropdowns tenant-scoped
+- backend no longer trusts BFF alone
+- existing membership safety rules preserved
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend existing UIX-003 implementation; do not rewrite it
+- this is an authorization/scope enablement pass
+- preserve existing UX wherever possible
+- if a limitation remains, document it clearly instead of faking support
+- save the report to /analysis/UIX-003-01-report.md

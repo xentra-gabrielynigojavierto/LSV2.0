@@ -1,0 +1,294 @@
+You are implementing Phase 3 Block 6 (FINAL BLOCK) of LegalSynq Support Service.
+
+FEATURE ID:
+SUP-TNT-05
+
+FEATURE NAME:
+API Hardening
+
+Report file:
+ /analysis/SUP-TNT-05-report.md
+
+PRIMARY OBJECTIVE:
+Harden all externally reachable Support APIs—especially customer-facing endpoints—to ensure they are safe for real-world exposure (internet-facing), resilient to abuse, and aligned with enterprise-grade security practices.
+
+IMPORTANT CONTEXT:
+Completed:
+- SUP-TNT-01 — ExternalCustomer model
+- SUP-TNT-02 — Ticket ownership + visibility
+- SUP-TNT-02-01 — migration fix
+- SUP-TNT-03 — Customer RBAC
+- SUP-INT-07 — Customer Portal UI
+- SUP-TNT-04 — Multi-Mode Support
+
+Current exposure:
+- Customer endpoints exist:
+  - GET  /support/api/customer/tickets
+  - GET  /support/api/customer/tickets/{id}
+  - POST /support/api/customer/tickets/{id}/comments
+- Multi-mode gating exists (tenant-level enablement)
+- RBAC exists (ExternalCustomer role + ownership enforcement)
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT break existing APIs.
+3. DO NOT weaken JWT/RBAC.
+4. DO NOT introduce X-Tenant-Id injection.
+5. DO NOT add customer login/token issuance.
+6. DO NOT add Comms/email/SLA/Task logic.
+7. DO NOT introduce breaking API contract changes.
+8. Preserve standalone + integrated deployability.
+9. All hardening must be additive and non-breaking.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-TNT-05-report.md
+
+Update incrementally.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Attack surface assessment
+3. Input validation improvements
+4. Rate limiting / abuse protection
+5. Header security / transport security
+6. Logging / observability changes
+7. Error handling standardization
+8. Endpoint exposure audit
+9. Files changed
+10. Build/test results
+11. Known gaps
+12. Final readiness assessment
+
+---
+
+# STEP 2 — ATTACK SURFACE ANALYSIS
+
+Identify and document:
+- All publicly reachable endpoints:
+  - /support/api/customer/*
+  - /support/api/*
+- Input vectors:
+  - query params
+  - request body
+  - headers
+- Existing protections:
+  - JWT auth
+  - tenant resolution
+  - RBAC
+- Missing protections:
+  - rate limiting
+  - payload size constraints
+  - standardized error responses
+  - abuse prevention
+
+Do not implement until documented.
+
+---
+
+# STEP 3 — INPUT VALIDATION HARDENING
+
+Ensure all externally reachable endpoints enforce:
+
+### Ticket endpoints
+- page ≥ 1
+- pageSize capped (e.g., max 100)
+- id must be valid GUID
+- search fields sanitized (length limits)
+
+### Comment endpoint
+- body required
+- body max length enforced (align with backend validator)
+- reject empty/whitespace-only payload
+
+### General
+- reject invalid enum values cleanly
+- reject malformed GUIDs
+- reject unexpected payload fields if strict validation pattern exists
+
+Do NOT rely solely on frontend validation.
+
+---
+
+# STEP 4 — RATE LIMITING / ABUSE PROTECTION
+
+Introduce rate limiting for:
+
+### Customer endpoints ONLY (critical)
+- /support/api/customer/*
+
+Recommended policy:
+- 60 requests per minute per user (JWT subject)
+- burst allowed but bounded
+
+If infrastructure supports:
+- Use ASP.NET rate limiting middleware (fixed window or sliding window)
+- Key by:
+  - external_customer_id (preferred)
+  - fallback: user identifier / IP
+
+Do NOT apply aggressive rate limiting to internal/admin endpoints.
+
+---
+
+# STEP 5 — PAYLOAD SIZE LIMITS
+
+Enforce:
+- Max request body size for comment endpoint (e.g., 8KB or align with validator)
+- Max query length limits
+
+Use:
+- ASP.NET request size limits or middleware
+
+---
+
+# STEP 6 — ERROR HANDLING STANDARDIZATION
+
+Ensure all endpoints return safe, consistent responses:
+
+### Requirements
+- No stack traces
+- No internal exception messages
+- No SQL errors exposed
+
+### Standard format (if not already implemented):
+{
+  "error": {
+    "code": "string",
+    "message": "safe user-facing message",
+    "correlationId": "optional"
+  }
+}
+
+### Behavior:
+- 400 → validation errors
+- 401 → auth required
+- 403 → access denied / feature disabled
+- 404 → not found (do not leak ownership)
+- 500 → generic error
+
+Ensure:
+- customer endpoints do not leak whether a ticket exists outside their scope
+
+---
+
+# STEP 7 — SECURITY HEADERS
+
+Ensure API responses include (if not already handled globally):
+
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- X-XSS-Protection: 0 or appropriate modern config
+- Strict-Transport-Security (if HTTPS enforced)
+- Content-Security-Policy (if applicable at gateway level)
+
+If headers are already enforced at gateway, document instead of duplicating.
+
+---
+
+# STEP 8 — LOGGING / OBSERVABILITY
+
+Improve logging for:
+
+### Security-relevant events
+- repeated 403 attempts
+- rate limit violations
+- malformed payload attempts
+
+### Include:
+- tenantId
+- externalCustomerId (if present)
+- correlationId
+
+Ensure logs do NOT include:
+- sensitive payload data
+- PII beyond what is already allowed
+
+---
+
+# STEP 9 — ENDPOINT EXPOSURE AUDIT
+
+Verify:
+
+### Customer endpoints:
+- properly protected by:
+  - JWT
+  - CustomerAccess policy
+  - tenant mode check
+  - ownership enforcement
+
+### Internal endpoints:
+- not accidentally exposed without proper policies
+
+### Ensure:
+- no debug/test endpoints exposed
+- no dev-only shortcuts active in production
+
+---
+
+# STEP 10 — VALIDATION
+
+Validate:
+
+1. Customer endpoints reject excessive requests (rate limiting)
+2. Invalid payloads return 400 (not 500)
+3. Unauthorized access returns 401/403
+4. Cross-customer access still blocked
+5. Disabled tenant mode still blocks customer endpoints
+6. Internal endpoints unaffected
+7. No sensitive data leaked in errors
+8. Logging captures abuse attempts
+9. Existing functionality unchanged
+
+---
+
+# STEP 11 — BUILD / TEST
+
+Run:
+- dotnet build Support.Api
+- dotnet build Support.Tests
+
+If possible, add tests for:
+- rate limiting behavior (or simulate)
+- validation errors
+- error response format
+
+---
+
+# STEP 12 — FINAL REPORT
+
+# SUP-TNT-05 Report
+
+## 1. Codebase Analysis
+## 2. Attack Surface Assessment
+## 3. Input Validation Hardening
+## 4. Rate Limiting Strategy
+## 5. Payload Constraints
+## 6. Error Handling Standardization
+## 7. Security Headers
+## 8. Logging / Observability
+## 9. Endpoint Exposure Audit
+## 10. Validation Results
+## 11. Build / Test Results
+## 12. Known Gaps / Deferred Items
+## 13. Final Readiness Assessment
+
+---
+
+# DONE CRITERIA:
+
+- Customer endpoints protected against abuse (rate limiting)
+- Input validation enforced server-side
+- Payload sizes constrained
+- Error responses standardized and safe
+- No internal errors leaked
+- Logging captures suspicious behavior
+- Security headers applied or documented
+- Internal/admin endpoints unaffected
+- No breaking API changes introduced
+- Build/tests pass
+- /analysis/SUP-TNT-05-report.md complete
+
+If any validation fails:
+- do not claim success
+- document root cause and required fix

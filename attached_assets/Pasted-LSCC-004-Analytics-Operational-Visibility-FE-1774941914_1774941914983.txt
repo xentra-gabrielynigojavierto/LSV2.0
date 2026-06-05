@@ -1,0 +1,429 @@
+LSCC-004 — Analytics & Operational Visibility
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-004
+
+Initial implementation report:
+- /analysis/LSCC-004-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-004-XX.md
+
+Examples:
+- /analysis/LSCC-004-report.md
+- /analysis/LSCC-004-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Add analytics and operational visibility to CareConnect so users can understand referral performance, provider responsiveness, and scheduling outcomes.
+
+This implementation should make the dashboard useful for decision-making, not just workflow entry.
+
+Do NOT redesign the entire dashboard.
+Do NOT introduce heavy BI tooling.
+Do NOT add predictive analytics or exports.
+
+This is a focused analytics layer on top of the existing CareConnect product.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are implementing:
+
+A. Referral funnel metrics
+B. Appointment performance metrics
+C. Basic provider performance metrics
+D. Date range filtering
+E. Dashboard analytics panels
+F. Basic drilldowns from metrics to filtered lists
+G. Report
+
+Do NOT:
+- add CSV/PDF export
+- add AI recommendations
+- add cross-product analytics
+- redesign unrelated pages
+- introduce heavy charting libraries unless already present and lightweight to integrate
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing backend APIs where possible
+2. Prefer frontend aggregation first unless existing APIs are clearly insufficient
+3. Keep metric definitions canonical and explicit
+4. Separate:
+   - data fetching
+   - metric computation
+   - presentation components
+5. Avoid duplicate metric logic across components
+6. Handle empty/partial data explicitly
+7. Do NOT break existing dashboard flows
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+CareConnect already has:
+
+- Stable backend authorization and scoping
+- Completed workflow UI
+- Role-aware dashboard
+- Referral, appointment, and provider APIs
+- Existing dashboard cards and lists
+
+Current gap:
+Users can perform workflows, but cannot measure performance.
+
+This feature should expand the dashboard into a lightweight analytics surface without turning it into a full BI product.
+
+==================================================
+METRIC DEFINITIONS (SOURCE OF TRUTH)
+==================================================
+
+Use these definitions exactly unless existing backend data model requires a well-documented adaptation.
+
+--------------------------------------------------
+A. REFERRAL FUNNEL METRICS
+--------------------------------------------------
+
+For a selected date range:
+
+- Total Referrals = referrals created in range
+- Accepted = referrals with status = Accepted
+- Declined = referrals with status = Declined
+- Scheduled = referrals with status = Scheduled
+- Completed = referrals with status = Completed
+
+Derived metrics:
+- Acceptance Rate = Accepted / Total Referrals
+- Scheduling Rate = Scheduled / Accepted
+- Completion Rate = Completed / Scheduled
+
+Rules:
+- If denominator is 0, show 0%, not NaN or blank
+- Use clear labels and tooltips or helper text where helpful
+
+--------------------------------------------------
+B. TIME-BASED METRICS
+--------------------------------------------------
+
+If timestamps/history are available, compute:
+
+- Avg Time to Accept = AcceptedAt - CreatedAt
+- Avg Time to Schedule = ScheduledAt - CreatedAt
+- Avg Time to Complete = CompletedAt - CreatedAt
+
+If exact timestamps for a status transition are not directly available:
+- derive from history where practical
+- if unavailable, omit the metric or show "—"
+- document the limitation in the report
+
+Do NOT invent timestamps.
+
+--------------------------------------------------
+C. APPOINTMENT METRICS
+--------------------------------------------------
+
+For a selected date range:
+
+- Total Appointments
+- Completed Appointments
+- Cancelled Appointments
+- NoShow Appointments
+
+Derived:
+- Appointment Completion Rate = Completed / Total Appointments
+- NoShow Rate = NoShow / Total Appointments
+
+Same zero-denominator rule applies.
+
+--------------------------------------------------
+D. PROVIDER PERFORMANCE (BASIC)
+--------------------------------------------------
+
+For providers visible to the current user scope:
+
+- Referrals Received
+- Acceptance Rate
+- Avg Time to Accept
+- Appointments Completed
+
+Rules:
+- Keep this basic
+- Avoid overloading the UI with too many columns
+- If a metric cannot be computed reliably, show "—"
+
+==================================================
+ROLE-BASED VISIBILITY
+==================================================
+
+Referrer:
+- sees only their org-scoped analytics
+
+Receiver:
+- sees only received/inbound analytics
+
+TenantAdmin:
+- sees tenant-wide analytics, consistent with current dashboard/access conventions
+
+Do NOT widen visibility beyond what backend access already allows.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. DASHBOARD ANALYTICS SECTION
+--------------------------------------------------
+
+Enhance:
+
+/careconnect/dashboard
+
+Add a new section such as:
+- Performance Overview
+
+This section must include:
+1. Referral funnel summary
+2. Appointment performance summary
+3. Key metric cards
+4. Basic provider performance table or summary list
+
+Keep the existing operational dashboard content intact.
+This is an expansion, not a replacement.
+
+--------------------------------------------------
+B. DATE RANGE FILTERING
+--------------------------------------------------
+
+Add date range filtering for analytics.
+
+Minimum options:
+- Last 7 days
+- Last 30 days
+- Custom range
+
+Behavior:
+- all analytics panels update together
+- invalid range falls back to Last 30 days
+- if custom range is incomplete, do not crash; use safe defaults or disable apply
+
+Persisting the selected range in the URL is preferred if it fits existing routing patterns.
+If not, local state is acceptable.
+
+--------------------------------------------------
+C. REFERRAL FUNNEL VISUALIZATION
+--------------------------------------------------
+
+Add a simple visual representation of the referral funnel.
+
+Acceptable options:
+- stacked bar
+- step/funnel card layout
+- simple chart if already available in repo conventions
+
+Requirements:
+- counts must be visible
+- rates must be understandable
+- no heavy, over-designed visualization needed
+
+Do NOT sacrifice clarity for style.
+
+--------------------------------------------------
+D. APPOINTMENT PERFORMANCE VISUALIZATION
+--------------------------------------------------
+
+Show:
+- Total
+- Completed
+- Cancelled
+- NoShow
+- Completion Rate
+- NoShow Rate
+
+Simple metric cards or compact summary section is sufficient.
+
+--------------------------------------------------
+E. PROVIDER PERFORMANCE VIEW
+--------------------------------------------------
+
+Add a basic provider performance section.
+
+Minimum display:
+- Provider name
+- Referrals Received
+- Acceptance Rate
+- Appointments Completed
+- Avg Time to Accept (if computable)
+
+Requirements:
+- limit to a manageable number of rows if needed
+- sort by most relevant default (e.g. referrals received desc)
+- empty state if no provider data exists
+
+--------------------------------------------------
+F. DRILLDOWNS
+--------------------------------------------------
+
+Allow basic drilldowns from analytics to existing filtered pages.
+
+Examples:
+- click Declined → /careconnect/referrals?status=Declined
+- click Completed Appointments → /careconnect/appointments?status=Completed
+
+Requirements:
+- keep drilldowns simple
+- use existing pages and query params where practical
+- if some filter params do not yet exist in UI, add only what is needed for the drilldown to land meaningfully
+
+--------------------------------------------------
+G. DATA FETCHING STRATEGY
+--------------------------------------------------
+
+Preferred approach:
+- use existing search/list APIs
+- aggregate in frontend or dashboard server layer
+
+If existing APIs are insufficient for reasonable performance or accuracy:
+- introduce a lightweight backend summary endpoint
+- keep it narrow in scope
+- document why it was necessary
+
+Do NOT add broad analytics infrastructure unless clearly required.
+
+--------------------------------------------------
+H. EMPTY / PARTIAL DATA HANDLING
+--------------------------------------------------
+
+Required behaviors:
+- no data for range → show clear empty state
+- missing timestamps for timing metrics → show "—"
+- denominator 0 → show 0%
+- partial failure of one panel should not blank the whole dashboard
+
+Use resilient fetching patterns where appropriate.
+
+--------------------------------------------------
+I. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add tests for:
+
+1. Metric calculation correctness
+   - referral rates
+   - appointment rates
+   - zero-denominator handling
+
+2. Date range filtering behavior
+   - last 7 / last 30 / custom range logic
+
+3. Provider performance aggregation
+   - counts and rate calculations
+
+4. Drilldown link generation
+   - correct target URLs
+
+5. Empty/partial data states
+   - no data
+   - missing timestamps
+
+If UI testing is limited:
+- test metric computation utilities and any integration layer used by the dashboard
+
+--------------------------------------------------
+J. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-004-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Dashboard analytics features added
+- sections/components added
+
+3. Metric definitions implemented
+- any deviations from spec and why
+
+4. Data fetching strategy
+- existing APIs used
+- any new endpoint added and why
+
+5. Date range behavior
+- supported presets/custom handling
+
+6. Drilldowns
+- what metrics link where
+
+7. Provider performance implementation
+- fields shown
+- sorting/limits used
+
+8. Tests
+- what was added
+- what remains uncovered
+
+9. Known limitations
+- timestamp gaps
+- approximation rules
+- performance considerations
+
+10. Recommended next step
+- suggest LSCC-004-01 improvements or next major feature
+
+==================================================
+IMPLEMENTATION STRATEGY
+==================================================
+
+Follow this order:
+
+1. Inspect current dashboard implementation
+2. Identify existing APIs sufficient for analytics
+3. Add metric computation utilities
+4. Add date range selector
+5. Add referral funnel section
+6. Add appointment performance section
+7. Add provider performance section
+8. Add drilldowns
+9. Add tests
+10. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-004 is complete ONLY if:
+
+1. Dashboard shows real analytics data
+2. Date range filtering updates analytics correctly
+3. Referral funnel metrics are accurate and clearly displayed
+4. Appointment performance metrics are accurate and clearly displayed
+5. Provider performance is shown in a usable way
+6. Drilldowns navigate meaningfully to existing pages
+7. Empty/partial data is handled gracefully
+8. Report exists at:
+/analysis/LSCC-004-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Be disciplined about metric definitions.
+Prefer clarity over flashy UI.
+Reuse existing APIs and dashboard structure where practical.
+Do not overbuild a BI system.
+Make the dashboard meaningfully useful for operational decisions.

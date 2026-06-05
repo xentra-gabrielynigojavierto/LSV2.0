@@ -1,0 +1,311 @@
+# LS-COR-AUT-006 — Legacy Cleanup + Model Unification
+
+## Objective
+
+Consolidate LS-COR-AUT into a **single, unified access control model** by removing legacy role/group systems and aligning all authorization behavior to:
+
+* LS-COR-AUT-002 (source-of-truth)
+* LS-COR-AUT-003 (effective access + JWT)
+* LS-COR-AUT-004 (groups + inheritance)
+
+This feature eliminates:
+
+* duplicate role systems
+* legacy group APIs
+* inconsistent claim formats
+
+At completion:
+
+* there must be **one role system**
+* **one group system**
+* **one claim format**
+* **one access resolution path**
+
+---
+
+## Architectural Constraints
+
+### Identity
+
+* JWT issuance remains in Identity
+* Modify claim generation logic ONLY as required for unification
+* Do NOT change authentication flow
+
+### Synq Audit
+
+* Continue using existing audit integration
+* Do NOT remove audit coverage
+* Ensure audit still triggers on all mutations
+
+### Compatibility
+
+* This feature WILL remove legacy paths
+* Backward compatibility is NOT required for deprecated APIs
+* Ensure all current UI (LS-COR-AUT-005) continues to function
+
+---
+
+## In Scope
+
+### 1. Remove Legacy Role System
+
+#### Remove:
+
+* `ScopedRoleAssignment`
+* `ProductRoleResolutionService`
+* any legacy role mapping logic used in LS-COR-AUT-001
+
+#### Replace with:
+
+* `UserRoleAssignment`
+* `GroupRoleAssignment`
+* `IEffectiveAccessService` (single source of truth)
+
+---
+
+### 2. Remove Legacy Group System
+
+#### Remove:
+
+* `/identity/api/admin/groups`
+* legacy group entities and services
+* any UI fallback paths using legacy groups
+
+#### Ensure:
+
+* all UI uses `/api/tenants/{tenantId}/groups`
+* no references to legacy group endpoints remain
+
+---
+
+### 3. Unify JWT Claim Format
+
+#### Current (temporary dual format):
+
+```text
+PRODUCT:Role
+RoleCode
+```
+
+#### Final required format:
+
+```text
+product_roles:
+[
+  "SYNQ_CARECONNECT:CareCoordinator",
+  "SYNQ_FUND:FundManager"
+]
+```
+
+#### Actions:
+
+* Remove legacy role-only claims
+* Remove merge logic
+* Ensure all filters and services use product-scoped roles
+
+---
+
+### 4. Update LS-COR-AUT-001 Filters
+
+Modify:
+
+* `RequireProductAccessFilter`
+* `RequireProductRoleFilter`
+
+#### Ensure:
+
+* filters read `product_roles` in unified format
+* role checks include product context
+* no dependency on legacy role resolution
+
+---
+
+### 5. Clean Effective Access Service
+
+Ensure `IEffectiveAccessService` is:
+
+* the ONLY source for:
+
+  * products
+  * roles
+  * claim generation
+
+Remove:
+
+* any fallback logic
+* any legacy merging
+
+---
+
+### 6. Remove Dual Data Dependencies
+
+Ensure:
+
+* no code references:
+
+  * legacy role tables
+  * legacy group tables
+
+* no mixed queries combining:
+
+  * new + old models
+
+---
+
+### 7. Data Migration / Cleanup
+
+If legacy data exists:
+
+* migrate active assignments to new tables
+* or explicitly mark legacy data as deprecated
+
+Ensure:
+
+* no orphaned references
+* no runtime dependency on legacy data
+
+---
+
+### 8. AccessVersion Integrity
+
+Ensure:
+
+* all mutations (direct + group) still trigger AccessVersion updates
+* removal of legacy paths does NOT break versioning
+
+---
+
+## Out of Scope
+
+Do NOT implement:
+
+* UI enhancements
+* new access features
+* permission/capability expansion
+* performance optimizations beyond necessity
+* audit viewer UI
+
+---
+
+## Required Code Changes
+
+### Backend
+
+* remove legacy role services
+* remove legacy group services
+* update filters
+* update JWT generation
+* remove merge logic
+
+### Frontend
+
+* remove any fallback to legacy endpoints
+* ensure all calls use LS-COR-AUT endpoints
+
+---
+
+## Validation Requirements
+
+### Role validation
+
+* all roles must come from new role assignments
+* product-role consistency enforced
+
+### Group validation
+
+* only AccessGroup system is used
+
+### Claim validation
+
+* JWT contains ONLY unified `product_roles`
+* no legacy role claims present
+
+---
+
+## Testing Requirements
+
+### Unit Tests
+
+* role resolution uses only new system
+* group inheritance still works
+* no legacy services invoked
+
+### Integration Tests
+
+* login produces correct claims
+* API enforcement works with new claims
+* UI flows still work end-to-end
+
+### Regression Tests
+
+* LS-COR-AUT-001 filters still enforce correctly
+* LS-COR-AUT-005 UI fully functional
+* no broken endpoints
+
+---
+
+## Acceptance Criteria
+
+* legacy role system fully removed
+* legacy group system fully removed
+* JWT claim format unified
+* filters updated to new format
+* no duplicate access logic exists
+* UI works with new system only
+* system builds and runs cleanly
+* no references to legacy endpoints or models remain
+
+---
+
+## Implementation Notes
+
+* Perform removal in controlled steps (feature flags optional)
+* Verify each removal step does not break runtime behavior
+* Keep codebase clean and explicit—no hidden fallbacks
+* Ensure logs clearly indicate use of new system only
+
+---
+
+## Output Report (REQUIRED)
+
+Create the following file:
+
+/analysis/LS-COR-AUT-006-report.md
+
+### Report must include:
+
+1. Summary of cleanup performed
+2. List of removed components:
+
+   * services
+   * endpoints
+   * tables/entities
+3. Updated JWT claim format details
+4. Filter changes made
+5. Effective access service final structure
+6. Data migration steps (if any)
+7. Validation results
+8. Test results:
+
+   * unit
+   * integration
+   * regression
+9. Build status
+10. Known gaps or follow-ups
+11. Assumptions made
+
+---
+
+## Final Goal
+
+After this feature:
+
+The system must have:
+
+* **One access model**
+* **One group system**
+* **One role system**
+* **One claim format**
+* **One enforcement path**
+
+No duplication. No fallback. No ambiguity.

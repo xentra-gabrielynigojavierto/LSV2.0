@@ -1,0 +1,348 @@
+# LS-ID-TNT-005 — Backend Security Hardening
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental hardening feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing frontend behavior unless changes are required to align with backend truth
+- Move critical protections into backend-enforced controls
+- Reuse existing services/endpoints/patterns where possible
+- Include explicit fallback behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Keep backend, API, and UI concerns clearly separated
+- Prefer authoritative server-side enforcement over frontend heuristics
+
+---
+
+## FEATURE OBJECTIVE
+
+Move critical tenant user protections from frontend-only safeguards into backend-enforced security controls, and close the password reset delivery gap so tenant safety does not depend on the current UI path or server-log inspection.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Invite-based onboarding
+- First-login password reset enforcement unless it already exists and is trivially exposable
+- Product assignment
+- Group assignment
+- Tenant-scoped role redesign
+- Audit dashboard UI
+- Full user profile update API
+- Broad auth architecture rewrite
+- Page redesign
+- Changes to Groups / Access / Simulator tabs
+
+ONLY IMPLEMENT:
+- Backend last-admin protection
+- Enforcement in all relevant backend paths:
+  - deactivate user
+  - revoke TenantAdmin role
+  - any replace/downgrade path that can remove the final active tenant admin path
+- Clear backend error responses for blocked actions
+- Password reset delivery hardening
+- Safe non-production reset fallback if email infrastructure is unavailable
+- Minimal frontend alignment only where needed to reflect actual backend behavior
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-005-report.md
+
+Initialize with:
+
+# LS-ID-TNT-005 — Backend Security Hardening
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Deactivate Contract
+## 4. Existing Role Revoke / Assign Contract
+## 5. Existing Password Reset Contract
+## 6. Existing Email / Delivery Infrastructure Analysis
+## 7. Last Admin Protection Design
+## 8. Environment-Gated Reset Strategy
+## 9. Files Changed
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 12. Frontend Compatibility Adjustments
+## 13. Audit Behavior
+## 14. Testing Results
+## 15. Known Issues / Gaps
+## 16. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### User admin backend
+- deactivate user endpoint and handler
+- activate user endpoint and handler
+- role assign endpoint and handler
+- role revoke endpoint and handler
+- any replace/update flow that can remove TenantAdmin access indirectly
+- user service methods used by those handlers
+- how tenant scoping is enforced
+
+### Password reset backend
+- admin reset-password endpoint and handler
+- reset token generation/storage
+- token expiry handling
+- where raw tokens are currently logged or surfaced
+- whether email delivery infrastructure exists
+- how environments are identified (dev/staging/prod)
+- whether there is an existing notification/email abstraction to reuse
+
+### Frontend compatibility
+- current reset-password UI behavior
+- current frontend last-admin protection behavior
+- where backend error messages are surfaced today
+
+DO NOT assume any contract or behavior until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Deactivate Contract
+## 4. Existing Role Revoke / Assign Contract
+## 5. Existing Password Reset Contract
+## 6. Existing Email / Delivery Infrastructure Analysis
+
+---
+
+## STEP 2 — DESIGN BACKEND LAST ADMIN PROTECTION
+
+Design server-side enforcement for the last active tenant admin using authoritative backend data.
+
+Requirements:
+- Determine tenant from authenticated caller and/or target user
+- Determine whether the target user currently holds TenantAdmin
+- Count active TenantAdmin users for that same tenant using backend data
+- Block actions that would leave the tenant with zero active TenantAdmin users
+
+Minimum protected paths:
+1. Deactivate last active TenantAdmin
+2. Revoke TenantAdmin from last active TenantAdmin
+3. Any replacement/downgrade flow that removes the final active TenantAdmin path if such flow exists
+
+Requirements:
+- Protection must apply for:
+  - tenant portal UI calls
+  - platform admin tools
+  - direct API calls
+  - self-targeted actions
+- Protection must be authoritative and not depend on frontend-provided role state
+
+Update report:
+## 7. Last Admin Protection Design
+
+---
+
+## STEP 3 — IMPLEMENT BACKEND LAST ADMIN PROTECTION
+
+Implement the protection in the relevant backend handlers/services.
+
+Requirements:
+- Reuse shared logic/helper/service if helpful
+- Avoid duplicating fragile counting logic in multiple endpoints
+- Ensure blocked operations do NOT emit misleading success audit events
+- Keep tenant access checks intact
+- Prefer fail-safe behavior
+
+Blocked-action response requirements:
+- Return a clear non-2xx status
+- Return a stable, useful message, e.g.:
+  "This action is not allowed because the user is the last active tenant administrator."
+
+Do NOT return generic 500s for this case.
+
+Update report:
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 13. Audit Behavior
+
+---
+
+## STEP 4 — ANALYZE PASSWORD RESET DELIVERY OPTIONS
+
+Validate:
+- whether real email delivery already exists
+- whether a notification or email service can be reused
+- whether the current admin reset-password flow can dispatch email now
+- whether the reset link/token can be exposed safely in non-production only
+- whether environment-gating already exists in configuration
+
+Based on actual findings, choose the safest viable implementation pattern:
+
+### Preferred
+- Production: real email delivery through existing infrastructure
+- Non-production: either same delivery path OR controlled fallback for testing
+
+### Acceptable fallback
+- Production: no raw token exposure
+- Non-production: explicit, environment-gated response containing reset link/token or test-only retrieval path
+
+Do NOT expose raw tokens in production.
+Do NOT leave "check server logs" as the only workable dev/staging path if a safer explicit mechanism can be implemented.
+
+Update report:
+## 6. Existing Email / Delivery Infrastructure Analysis
+## 8. Environment-Gated Reset Strategy
+
+---
+
+## STEP 5 — IMPLEMENT PASSWORD RESET DELIVERY HARDENING
+
+Implement the chosen reset strategy based on validated codebase findings.
+
+Requirements:
+- Preserve secure production behavior
+- If email delivery is available, use it
+- If non-production fallback is needed, gate it by environment and document it clearly
+- Ensure frontend/admin UX can reflect the actual backend result truthfully
+
+Examples of acceptable outcomes:
+- Production response: `{ message: "Password reset email sent." }`
+- Non-production response: `{ message: "...", resetLink: "..." }` only if explicitly gated and safe
+- Alternate test-only endpoint or flag if already consistent with architecture
+
+Do NOT claim an email was sent if it was not.
+Do NOT expose raw tokens to normal production callers.
+
+Update report:
+## 10. Backend Implementation
+## 11. API / Error Contract Changes
+## 12. Frontend Compatibility Adjustments
+## 13. Audit Behavior
+
+---
+
+## STEP 6 — ALIGN FRONTEND WITH BACKEND TRUTH (MINIMAL CHANGES ONLY)
+
+Update the existing frontend only as needed to reflect the new backend-enforced behavior.
+
+Requirements:
+- Existing frontend last-admin guard may remain, but backend is now source of truth
+- Frontend must surface backend blocked-action responses cleanly
+- If reset response shape changes, update reset-password UI/toast/confirm result handling accordingly
+- Keep UI changes minimal
+- No redesign
+
+Potential updates:
+- better blocked-action toast/message if backend returns structured error
+- reset-password result modal/toast if a dev-only reset link is returned
+- preserving existing flows without regression
+
+Update report:
+## 12. Frontend Compatibility Adjustments
+
+---
+
+## STEP 7 — TENANT SAFETY AND AUDIT INTEGRITY
+
+Validate and ensure:
+- no cross-tenant last-admin counting
+- no cross-tenant reset-delivery leakage
+- no dependence on client-passed tenant identity where backend claims already exist
+- blocked last-admin actions do not emit success audit events
+- successful actions continue to emit correct audit events as appropriate
+
+Update report:
+## 13. Audit Behavior
+## 14. Testing Results
+
+---
+
+## STEP 8 — TESTING
+
+Test and document each scenario.
+
+### Backend last-admin protection
+- Deactivate last active tenant admin via tenant UI path
+- Deactivate last active tenant admin via direct backend/API path
+- Self-deactivate as last active tenant admin
+- Revoke TenantAdmin from last active tenant admin
+- Self-role-downgrade as last active tenant admin if supported
+- Deactivate one admin when another active tenant admin still exists
+- Revoke TenantAdmin when another active tenant admin still exists
+
+### Password reset
+- Reset password in environment with real email path if available
+- Reset password in non-production without email delivery if fallback is implemented
+- Verify response/message matches actual behavior
+- Verify no raw token is exposed in production response
+- Verify non-production fallback only works in allowed environments
+
+### Regression
+- Users list still loads
+- Search/filter still work
+- Add User still works
+- Edit User still works
+- Activate/Deactivate still works for allowed cases
+- Frontend last-admin guard still behaves safely
+- Frontend reset-password flow still works
+- Null-safe rendering remains intact
+
+Update report:
+## 14. Testing Results
+
+---
+
+## STEP 9 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 15. Known Issues / Gaps
+## 16. Final Status = Complete
+
+Your final report must clearly state:
+- Which backend endpoints were hardened
+- How last-admin protection is enforced server-side
+- Whether frontend guard remains as defense-in-depth
+- What the reset-password response now looks like by environment
+- Whether real email delivery exists or a non-production fallback was implemented
+- Whether any remaining bypass risk still exists
+- Whether any remaining delivery/infrastructure gaps still exist
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Backend blocks deactivation of the last active tenant admin
+✔ Backend blocks removal/downgrade of the last active tenant admin path
+✔ Blocked actions return clear non-2xx responses with meaningful messages
+✔ Existing frontend flows surface backend blocked-action responses cleanly
+✔ Password reset no longer depends on reading raw server logs as the only workable non-production path
+✔ Production reset behavior does not expose raw reset tokens to normal API callers
+✔ Non-production reset fallback, if implemented, is environment-gated and explicit
+✔ No misleading success audit events are emitted for blocked actions
+✔ No regression to LS-ID-TNT-001 through LS-ID-TNT-004
+✔ Tenant safety remains fully enforced server-side
+
+---
+
+## FINAL DELIVERABLES
+
+1. Hardened backend security for tenant user administration
+2. Compatible frontend handling for new backend truth
+3. Completed report:
+/analysis/LS-ID-TNT-005-report.md
+
+---
+
+END OF IMPLEMENTATION

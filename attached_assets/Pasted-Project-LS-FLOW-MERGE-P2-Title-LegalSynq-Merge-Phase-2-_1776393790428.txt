@@ -1,0 +1,285 @@
+Project: LS-FLOW-MERGE-P2
+Title: LegalSynq Merge Phase 2 — Platform Integration Layer
+
+You are implementing Phase 2 of the Flow-to-LegalSynq merge plan.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-MERGE-P2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around Identity reuse, tenant resolution, gateway patterns, adapter implementation choices, and anything you could not safely automate.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - security changes
+   - gateway changes
+   - auth/tenant changes
+   - audit/notification integration changes
+   - build/run notes
+   - validation/build/test/runtime results
+   - known gaps/issues
+   - recommendation: ready for next phase or needs iteration
+
+REPORT FORMAT
+
+# LS-FLOW-MERGE-P2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Identity Integration Notes
+## Tenant Resolution Notes
+## Security / CORS Notes
+## Gateway Integration Notes
+## Audit Integration Notes
+## Notifications Integration Notes
+## Frontend Integration Notes
+## Documentation Changes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Integrate the structurally merged Flow service into the LegalSynq platform as a first-class shared service by introducing Identity, strict tenant enforcement, controlled gateway exposure, and foundational platform adapters for Audit and Notifications, while preserving Flow's independent service boundary and DB ownership.
+
+This phase is platform integration, not product workflow implementation.
+
+SCOPE INCLUDES
+
+- Identity v2 integration for Flow API
+- strict tenant resolution and propagation
+- removal of unsafe tenant fallback behavior
+- environment-safe CORS/platform exposure hardening
+- gateway exposure for Flow endpoints
+- foundational Audit adapter integration
+- foundational Notifications adapter integration
+- local/dev run alignment as needed
+- minimal frontend updates required for secured/platform-routed access
+- fixing the known frontend prerender issue if required for stable validation
+
+DO NOT BUILD
+
+- SynqLien-specific workflow mappings
+- CareConnect-specific workflow mappings
+- SynqFund-specific workflow mappings
+- shared database merge
+- direct DB access from other services into Flow
+- full event bus implementation
+- broad UI redesign
+- workflow engine redesign
+- broad API redesign unrelated to platform integration
+- major frontend workspace consolidation unless trivial and clearly safe
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve Flow as a bounded service under /apps/services/flow
+- keep Flow API-first and DB-isolated
+- integrate with LegalSynq Identity patterns rather than inventing a parallel auth model
+- remove unsafe default tenant fallback behavior
+- harden CORS enough for controlled platform exposure
+- expose Flow through gateway only after auth and tenant enforcement are correctly wired
+- add clean adapter seams for Audit and Notifications
+- avoid product-specific logic injection
+- keep the result ready for Phase 3 product consumption work
+
+CURRENT CONTEXT FROM PHASE 1
+
+Flow already exists under:
+- /apps/services/flow/backend
+- /apps/services/flow/frontend
+- /apps/services/flow/docs
+
+Known Phase 1 findings to address in this phase:
+- permissive CORS/dev-only middleware patterns in Flow backend
+- unsafe default tenant fallback behavior
+- no gateway routing for Flow
+- Flow not yet platform-auth integrated
+- frontend `/tasks` prerender issue involving `useSearchParams()` and Suspense
+- frontend remains isolated from main workspace unless safe to align further
+
+IMPLEMENTATION REQUIREMENTS
+
+1. IDENTITY INTEGRATION
+
+Integrate Flow API with LegalSynq Identity v2/shared auth conventions already used by platform services where feasible.
+
+Requirements:
+- add JWT/authentication wiring to Flow API
+- validate authenticated user identity on protected endpoints
+- make user context available in Flow backend
+- make tenant context derivable from authenticated claims/platform conventions
+- reuse existing LegalSynq auth patterns if available
+- do not redesign Identity itself
+
+2. STRICT TENANT RESOLUTION
+
+Replace unsafe tenant fallback behavior.
+
+Requirements:
+- remove any fallback that silently assigns a default tenant when tenant context is missing
+- derive tenant context from authenticated identity/platform-approved request context
+- reject invalid/missing tenant context where appropriate
+- ensure tenant context is available consistently for workflow/task operations and integration events
+- do not introduce product-specific tenant rules
+
+3. SECURITY / CORS HARDENING
+
+Requirements:
+- replace permissive CORS settings with environment-driven allowed origins
+- remove unsafe wildcard-equivalent credential behavior
+- preserve explicit local dev viability through config
+- ensure middleware ordering is correct for auth, tenant resolution, and authorization
+
+4. INTERNAL EVENT ABSTRACTION
+
+Requirements:
+- introduce a lightweight internal event abstraction for Flow actions
+- support event types sufficient for audit and notification fan-out:
+  - workflow created/started
+  - workflow updated/state changed
+  - task assigned
+  - task completed
+  - workflow completed
+- keep this local and lightweight
+- do not implement a platform-wide event bus
+
+5. AUDIT INTEGRATION
+
+Requirements:
+- add an Audit adapter/client seam
+- emit audit events for core workflow/task actions
+- include entity/action/user/tenant context where available
+- use platform-friendly patterns
+- avoid direct DB coupling to Audit service
+- if full real wiring is unsafe, create the seam and implement the maximum safe subset, documenting any remaining gaps
+
+6. NOTIFICATIONS INTEGRATION
+
+Requirements:
+- add a Notifications adapter/client seam
+- support initial triggers such as task assignment, approval request, workflow completion
+- keep this to system notifications only
+- do not build threaded/two-way communications
+- if full real wiring is unsafe, implement the maximum safe subset and document the remainder
+
+7. GATEWAY INTEGRATION
+
+Requirements:
+- add gateway routing for Flow
+- support at minimum:
+  - /flow/health
+  - /flow/info if applicable
+  - /flow/{**catch-all} or equivalent
+- preserve auth header/bearer token flow through gateway according to platform conventions
+- avoid route collisions
+- do not expose insecure anonymous routes unintentionally
+
+8. DEV / RUN ALIGNMENT
+
+Requirements:
+- update local run/dev scripts only as needed so Flow can be started consistently with the platform
+- document startup commands and dependencies clearly
+- adding Flow to LegalSynq.sln is optional and only allowed if clearly low-risk and beneficial
+- if not added, document the explicit independent build/start commands
+
+9. FRONTEND ALIGNMENT
+
+Requirements:
+- update frontend API configuration as needed for secured/platform-routed backend access
+- preserve frontend isolation unless deeper consolidation is trivial and safe
+- ensure authenticated requests compile/work structurally
+- fix the known `/tasks` prerender issue if needed for stable validation/build success
+- do not perform broad UI redesign/refactor work
+
+10. DOCUMENTATION
+
+Update docs under /apps/services/flow/docs to cover:
+- service purpose
+- authentication model
+- tenant model
+- gateway model
+- audit model
+- notifications model
+- local run instructions
+- explicit Phase 3+ deferrals
+
+Suggested files:
+- README.md
+- architecture.md
+- merge-phase-2-notes.md
+
+11. EXPLICIT DEFERRALS
+
+Document that these remain deferred:
+- product-specific workflow templates/mappings
+- DB consolidation
+- full event bus
+- major UI redesign
+- workflow engine redesign
+- broad workspace consolidation unless trivial
+- advanced authorization redesign beyond current platform Identity patterns
+
+VALIDATION
+
+You MUST confirm and record in the report:
+
+Repository / Architecture
+- Flow remains under /apps/services/flow
+- backend/frontend/docs remain separated
+- service boundary preserved
+
+Backend
+- builds successfully
+- auth/identity wiring compiles
+- tenant fallback removed
+- secure tenant enforcement works structurally
+- CORS is environment-driven and no longer permissive for platform exposure
+- audit integration compiles
+- notifications integration compiles
+
+Gateway
+- route configuration added
+- authenticated request path works structurally through gateway
+- no route conflicts introduced
+
+Frontend
+- installs/builds from current location
+- API config resolves
+- secured request flow is aligned structurally
+- prerender issue fixed if necessary, otherwise documented precisely
+
+Platform Integrity
+- existing LegalSynq services remain operational
+- platform startup/build behavior is not broken
+
+Documentation
+- docs updated
+- phase boundaries and remaining deferrals documented
+
+EXECUTION ORDER
+
+1. Inspect current Flow Phase 1 structure and existing LegalSynq auth/gateway patterns.
+2. Create /analysis/LS-FLOW-MERGE-P2-report.md immediately and begin logging actions/assumptions.
+3. Integrate Identity/authentication into Flow API.
+4. Replace unsafe tenant fallback with strict tenant resolution.
+5. Harden CORS and middleware ordering.
+6. Introduce the internal event abstraction.
+7. Add Audit adapter integration.
+8. Add Notifications adapter integration.
+9. Add gateway routing for Flow.
+10. Update run/dev alignment as needed.
+11. Update frontend API/auth behavior.
+12. Fix the known frontend prerender issue if needed for stable validation.
+13. Update docs.
+14. Validate builds/routes/startup behavior and finalize the report.
+
+SUCCESS CONDITION
+
+Flow is securely accessible as a LegalSynq platform service, authenticated user and tenant context are enforced, unsafe fallback behavior is removed, gateway exposure is controlled, audit/notifications seams are established, and Flow remains independently bounded and ready for later product-consumption phases.
+
+FAILURE CONDITION
+
+The work tightly couples Flow to product modules, leaves tenant handling permissive, exposes Flow insecurely, breaks existing LegalSynq services, or drifts into product-specific workflow implementation.

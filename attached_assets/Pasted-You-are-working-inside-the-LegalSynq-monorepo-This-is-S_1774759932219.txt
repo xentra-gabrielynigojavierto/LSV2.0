@@ -1,0 +1,152 @@
+You are working inside the LegalSynq monorepo.
+
+This is Step 18.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/analysis/step_18-context-ui.md
+
+---
+
+Critical constraints:
+
+- Work ONLY inside:
+  apps/control-center
+
+- Maintain full independence
+
+- Do NOT import anything from:
+  apps/web
+
+- Use:
+  - Next.js App Router
+  - TypeScript
+  - Tailwind CSS
+
+- Use existing helpers:
+  - getTenantContext()
+  - setTenantContext()
+  - clearTenantContext()
+
+---
+
+Goal:
+
+Implement **Tenant Context UI + Switching Actions**
+
+---
+
+## 1. Create Server Actions
+
+Create:
+
+apps/control-center/src/app/actions/tenant-context.ts
+
+Add:
+
+switchTenantContextAction(tenant)
+- calls setTenantContext()
+- redirects to "/"
+
+exitTenantContextAction()
+- calls clearTenantContext()
+- redirects to "/tenants"
+
+---
+
+## 2. Add Switch Button (Tenant Detail)
+
+Update:
+
+apps/control-center/src/app/tenants/[id]/page.tsx
+
+Add button:
+- "Switch to Tenant Context"
+
+Behavior:
+- triggers server action
+- passes:
+  tenantId
+  tenantName
+  tenantCode
+
+---
+
+## 3. Create Global Context Banner
+
+Create:
+
+apps/control-center/src/components/layout/tenant-context-banner.tsx
+
+Display:
+- "Viewing as: [Tenant Name]"
+- tenantCode (subtext)
+- "Exit Context" button
+
+---
+
+## 4. Wire Banner into Layout
+
+Update:
+
+root layout or shell component
+
+- call getTenantContext()
+- if exists:
+  render banner above main content
+
+---
+
+## 5. Exit Context Button
+
+- calls exitTenantContextAction()
+- clears cookie
+- redirects to tenants list
+
+---
+
+## 6. Add Visual Indicator
+
+- banner color slightly different (e.g. amber background)
+- clearly distinguish "context mode"
+
+---
+
+## 7. Optional: Dashboard Awareness
+
+If context exists:
+- dashboard shows:
+  "Scoped to [Tenant Name]"
+
+---
+
+## 8. Backend readiness
+
+Add TODOs:
+
+// TODO: persist tenant context in backend session
+// TODO: integrate impersonation with Identity service
+
+---
+
+## Output
+
+1. Show file-by-file implementation plan
+2. Generate code
+3. Produce report:
+
+# Step 18 – Tenant Context UI
+
+## Files Created
+## Files Updated
+## Server Actions Added
+## UI Behavior
+## Context Flow
+## TODOs for Backend Integration
+## Independence Validation
+## Any Issues or Assumptions
+
+4. Save report to:
+
+/analysis/step_18-context-ui.md

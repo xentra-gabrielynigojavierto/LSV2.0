@@ -1,0 +1,257 @@
+Implement a HIGH-FIDELITY UI body redesign for:
+
+Tenant Portal → Synq Liens → Case → Case Detail page
+
+Use the provided screenshot as the EXACT layout reference.
+
+--------------------------------------------------
+STRICT SCOPE (DO NOT VIOLATE)
+--------------------------------------------------
+
+- ONLY modify the BODY content area of the Case Detail page
+- DO NOT modify:
+  - top navigation
+  - side navigation
+  - fonts
+  - colors
+  - routing
+  - services
+  - APIs
+  - role-access logic
+  - provider-mode logic
+
+This is a STRUCTURAL + LAYOUT + SPACING update only.
+
+--------------------------------------------------
+CRITICAL CHANGE FROM PREVIOUS DESIGN
+--------------------------------------------------
+
+This layout is NOT split-panel driven.
+
+- REMOVE any split-panel behavior
+- DO NOT use SplitPanelLayout
+- Use a FULL-WIDTH STACKED layout with optional right-side support panel
+
+--------------------------------------------------
+SCREEN STRUCTURE (MATCH EXACTLY)
+--------------------------------------------------
+
+1. Breadcrumb
+   - "Cases > Liens Management"
+
+2. Page Header (FULL WIDTH GRID)
+
+Left:
+- Case Name (e.g., "Maj Test")
+- Case ID below
+
+Right side (INLINE GRID, not panel):
+- Case Type
+- Case Status (badge style)
+- Date of Loss
+- Date of Birth
+- State of Incident
+- Law Firm
+- Case Manager
+- Actions button (far right)
+
+👉 This must be a horizontal grid, not a sidebar
+
+--------------------------------------------------
+TABS ROW
+--------------------------------------------------
+
+Tabs directly under header:
+
+- Details (active)
+- Liens (with badge count)
+- Documents
+- Servicing
+- Notes
+- Task Manager
+
+Requirements:
+- underline active tab
+- compact spacing
+- preserve routing logic
+
+--------------------------------------------------
+MAIN CONTENT LAYOUT
+--------------------------------------------------
+
+Two-column layout:
+
+LEFT (PRIMARY ~70%)
+RIGHT (SECONDARY ~30%)
+
+BUT:
+- NOT collapsible
+- NOT resizable
+- STATIC layout
+
+--------------------------------------------------
+LEFT COLUMN STRUCTURE (MATCH EXACTLY)
+--------------------------------------------------
+
+SECTION 1: Plaintiff (COLLAPSIBLE)
+
+Header:
+- icon + "Plaintiff"
+- expand/collapse arrow (left)
+- edit icon (right)
+
+Subsection: Plaintiff Info
+
+Fields layout:
+- Full Name
+- Phone Number
+- Email
+- Birthdate
+- Sex
+- Address
+
+👉 Use 2-column grid layout
+👉 Labels muted, values stronger
+
+--------------------------------------------------
+
+SECTION 2: Case Tracking (COLLAPSIBLE)
+
+Header:
+- icon + "Case Tracking"
+- expand/collapse arrow
+- edit icon
+
+Subsection: Case Details
+
+Fields:
+- Tracking Follow Up
+- Current Status (badge)
+- Current Medical Status
+- Case Type
+- State of Incident
+- Lead
+- Case Tracking Note
+
+👉 Same grid system as Plaintiff
+
+--------------------------------------------------
+RIGHT COLUMN STRUCTURE
+--------------------------------------------------
+
+SECTION: Email
+
+Header:
+- "Email" with collapse arrow
+
+Body:
+- Large primary button:
+  "Compose New Email"
+
+👉 Centered horizontally
+👉 Prominent but clean
+
+--------------------------------------------------
+SECTION BEHAVIOR
+--------------------------------------------------
+
+All major sections must support:
+
+- expand/collapse toggle
+- default: expanded
+
+Behavior:
+- collapse hides content body
+- header always visible
+
+--------------------------------------------------
+SECTION STYLING
+--------------------------------------------------
+
+- Card style containers
+- Light border
+- Subtle radius
+- Consistent padding
+
+Headers:
+- icon + title
+- left aligned
+- edit icon on right
+
+--------------------------------------------------
+SPACING RULES (CRITICAL)
+--------------------------------------------------
+
+- Consistent vertical spacing between sections
+- Tight spacing inside field groups
+- Equal padding across all cards
+- Balanced left/right column spacing
+
+--------------------------------------------------
+TEMPORARY MOCK DISPLAY DATA (REQUIRED)
+--------------------------------------------------
+
+Add mock display data ONLY for visual completeness.
+
+Rules:
+- DO NOT override real API data
+- Use only when fields are empty
+- Must be removable
+- Scope ONLY to Case Detail page
+
+Mock examples:
+- Case Name: "Maj Test"
+- Phone: "---"
+- Email: "---"
+- Status: "Closed"
+- Activity-like data for realism
+
+Add comment:
+"// TEMP: UI mock data for visual review only"
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze existing Case Detail page
+T002 — Rebuild Header as inline metadata grid
+T003 — Align Tabs row
+T004 — Implement two-column layout (static)
+T005 — Build Plaintiff section (collapsible)
+T006 — Build Case Tracking section (collapsible)
+T007 — Build Email panel (right column)
+T008 — Add expand/collapse behavior
+T009 — Add mock display data fallback
+T010 — Spacing + alignment refinement
+T011 — Final validation
+
+--------------------------------------------------
+VALIDATION CHECKLIST
+--------------------------------------------------
+
+- Header matches grid layout exactly
+- Tabs aligned correctly
+- Sections stacked properly
+- Collapse/expand works
+- Email panel aligned right
+- No split panel logic exists
+- Fonts unchanged
+- Colors unchanged
+- Navigation unchanged
+- No logic broken
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- UI matches screenshot structure exactly
+- Header uses horizontal metadata grid
+- Sections are collapsible
+- Layout is clean and aligned
+- Email panel positioned correctly
+- No split panel behavior
+- All functionality intact
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT introduce split panels.

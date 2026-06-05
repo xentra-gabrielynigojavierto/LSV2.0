@@ -1,0 +1,268 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Implement the BillOfSale document retrieval APIs so the Liens service can securely expose access to BOS PDFs that are stored in the v2 Documents service.
+
+This feature should let Liens act as the business access gate for BOS documents while Documents remains the owner of storage and file delivery.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All document storage and binary ownership MUST remain in the v2 Documents service.
+- Liens must NOT store files
+- Liens must NOT create document tables
+- Liens must ONLY store and use DocumentId references
+
+CRITICAL IMPLEMENTATION RULES:
+- Preserve existing Liens business authorization boundaries
+- Do NOT bypass Liens by exposing raw Documents access directly
+- Do NOT introduce cross-service DB joins
+- Keep endpoint handlers thin
+- Keep Documents retrieval behind an abstraction/service
+- Do NOT add generic document APIs for all entities in this feature
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING DOCUMENTS RETRIEVAL PATTERNS
+--------------------------------------------------
+
+Inspect how the current v2 Documents service exposes document retrieval.
+
+Look for:
+- download/view endpoints
+- response/content streaming behavior
+- auth requirements
+- whether services proxy document bytes or return a redirect/location
+- how MIME type / filename are returned
+- any existing integration pattern already used by another service
+
+Follow the existing platform pattern if one exists.
+If no clear pattern exists, default to a Liens-side proxy download approach.
+
+--------------------------------------------------
+STEP 2 — EXTEND THE LIENS-SIDE DOCUMENT ABSTRACTION
+--------------------------------------------------
+
+Reuse or extend the existing Liens → Documents integration abstraction created in LS-LIENS-07-001.
+
+Example:
+- `IBillOfSaleDocumentService`
+- `BillOfSaleDocumentService`
+
+Add retrieval support, such as:
+- get document stream/content by DocumentId
+- return enough metadata for API response:
+  - content type
+  - filename
+  - stream/bytes
+  - optionally content length if available
+
+Do NOT expose Documents service internals above the application boundary more than necessary.
+
+--------------------------------------------------
+STEP 3 — ADD APPLICATION SERVICE / HANDLER FOR BOS DOCUMENT RETRIEVAL
+--------------------------------------------------
+
+Create a dedicated application-layer service or handler for BOS document retrieval.
+
+Example:
+- `IBillOfSaleDocumentQueryService`
+- `BillOfSaleDocumentQueryService`
+
+Responsibilities:
+1. load BillOfSale by id (or by BOS number if implemented)
+2. validate tenant scope
+3. verify `DocumentId` exists
+4. call the Documents integration abstraction
+5. return a clean retrieval result for the API layer
+
+Do NOT put Documents HTTP logic directly in the endpoint handler.
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT THE PRIMARY RETRIEVAL ENDPOINT
+--------------------------------------------------
+
+Implement the preferred endpoint:
+
+- `GET /api/liens/bill-of-sales/{id}/document`
+
+Behavior:
+- extract tenant from request context
+- load BOS by id via application layer
+- ensure BOS exists within tenant
+- ensure `DocumentId` is present
+- retrieve document from Documents service
+- return file response safely
+
+Keep the endpoint thin and consistent with existing Liens API patterns.
+
+--------------------------------------------------
+STEP 5 — OPTIONAL BY-NUMBER RETRIEVAL
+--------------------------------------------------
+
+If it fits the existing API pattern cleanly, also implement:
+
+- `GET /api/liens/bill-of-sales/by-number/{billOfSaleNumber}/document`
+
+Only add this if it stays consistent with:
+- Case by-number route
+- Lien by-number route
+- current BillOfSale route conventions
+
+If you do not add it, document why clearly.
+
+--------------------------------------------------
+STEP 6 — CHOOSE AND IMPLEMENT THE RETRIEVAL MODEL
+--------------------------------------------------
+
+Choose the retrieval model based on the platform pattern:
+
+### Preferred default if no platform standard exists: Proxy download
+Liens validates access, calls Documents, and streams the file back to the caller.
+
+Implement:
+- correct content type
+- sensible filename
+- efficient streaming where practical
+
+Alternative acceptable model:
+- Liens validates access then redirects / returns a short-lived retrieval URL from Documents
+
+If you choose redirect/handoff, document the rationale clearly.
+
+--------------------------------------------------
+STEP 7 — APPLY AUTHORIZATION USING EXISTING FILTERS
+--------------------------------------------------
+
+Protect the endpoint(s) using the existing auth model:
+- `RequireAuthorization(Policies.AuthenticatedUser)`
+- `RequireProductAccess(LiensPermissions.ProductCode)`
+- `RequirePermission(...)`
+
+Do NOT invent a new auth model.
+
+Use the closest aligned current permission for BOS/lien read access.
+If no BOS-document-specific permission exists, use the closest current permission and document the gap clearly.
+
+--------------------------------------------------
+STEP 8 — USE REQUEST CONTEXT CORRECTLY
+--------------------------------------------------
+
+Use `ICurrentRequestContext` (or current equivalent) to get:
+- tenant id
+- user id if needed for logging/context
+- org id only if current pattern actually uses it
+
+Do NOT trust client-supplied tenant/org/user data.
+
+All retrieval must first pass through tenant-scoped BOS validation in Liens.
+
+--------------------------------------------------
+STEP 9 — HANDLE ERROR CASES EXPLICITLY
+--------------------------------------------------
+
+Define and implement clear behavior for:
+
+1. BOS not found
+2. BOS found but `DocumentId` is null
+3. Documents service returns not found
+4. Documents service unavailable/error
+5. unauthorized access
+
+Map these through the current middleware/error style consistently.
+Do NOT return vague generic errors if a clearer application error is appropriate.
+
+--------------------------------------------------
+STEP 10 — KEEP SERVICE BOUNDARIES CLEAN
+--------------------------------------------------
+
+Do NOT:
+- add document tables in Liens
+- cache file blobs in Liens DB
+- expose raw Documents endpoints directly
+- add case/lien generic document endpoints
+- add viewer UI
+- add document mutation/delete endpoints
+
+This feature is only for BOS document retrieval.
+
+--------------------------------------------------
+STEP 11 — VALIDATE REAL EXECUTION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. endpoint(s) compile and resolve
+4. BOS lookup works
+5. `DocumentId` missing path returns a clear error
+6. Documents retrieval path works
+7. no regression to BOS APIs
+8. no regression to sale finalization flow
+9. no cross-service DB coupling introduced
+
+If you add a lightweight validation path or smoke-test support, keep it tight and document it clearly.
+
+--------------------------------------------------
+STEP 12 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add generic document APIs for all entities
+- add document upload APIs in Liens
+- add document delete/version APIs
+- add notifications
+- add audit integration
+- add frontend work
+- add ETL scripts
+
+This feature is only:
+- BOS document retrieval service
+- BOS document retrieval endpoint(s)
+- validation
+
+--------------------------------------------------
+STEP 13 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-07-002-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Documents retrieval pattern identified and followed
+3. Exact files created/changed
+4. Application/document retrieval services added
+5. Endpoint route(s) added
+6. Retrieval model chosen (proxy vs redirect/handoff)
+7. How BOS is resolved before document retrieval
+8. How Documents service retrieval works
+9. Authorization approach used
+10. Request-context usage
+11. Error handling behavior for:
+    - missing BOS
+    - null DocumentId
+    - Documents not found/error
+12. Validation performed
+13. Confirmation:
+    - no local file storage introduced
+    - no cross-service DB joins introduced
+    - no generic document APIs added
+14. Build results:
+    - Liens
+    - relevant solution/workspace
+15. Any permission-model gaps or deferred items
+16. Risks / assumptions
+17. Final readiness statement:
+    - Is BOS document retrieval now exposed safely?
+    - Is the system ready for Audit/Notifications integration or broader document features next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Expose a secure BillOfSale document retrieval API through Liens by validating business ownership in Liens and delegating actual file retrieval to the v2 Documents service, without violating service boundaries.
+
+Proceed.

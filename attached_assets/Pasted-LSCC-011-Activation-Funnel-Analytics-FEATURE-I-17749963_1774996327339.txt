@@ -1,0 +1,432 @@
+LSCC-011 — Activation Funnel Analytics
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-011
+
+Initial implementation report:
+- /analysis/LSCC-011-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-011-XX.md
+
+Examples:
+- /analysis/LSCC-011-report.md
+- /analysis/LSCC-011-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Provide a minimal, high-signal analytics layer for the provider activation funnel so admins can measure performance, identify bottlenecks, and optimize conversion.
+
+This feature must:
+
+1. aggregate funnel metrics from existing system events/data
+2. compute key conversion rates
+3. expose metrics via a clean admin-facing UI
+4. support basic date filtering
+5. optionally support lightweight drilldowns into existing views
+
+Do NOT build a full analytics platform.
+Do NOT introduce heavy BI infrastructure.
+Do NOT duplicate data unnecessarily.
+
+This is a thin analytics layer on top of LSCC-008, LSCC-009, and LSCC-010.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Activation funnel metric definitions + aggregation service
+B. Conversion rate calculations
+C. Admin analytics page UI
+D. Date range filtering
+E. Optional lightweight drilldowns (if low-risk)
+F. Report
+
+Do NOT implement:
+- complex dashboards
+- cohort analysis
+- export functionality
+- real-time streaming analytics
+- new event pipelines beyond minimal extensions
+- cross-product analytics
+- large schema redesign
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Prefer reading from existing data:
+   - referral records
+   - LSCC-008 funnel events
+   - LSCC-009 activation requests
+   - LSCC-010 auto-provision events
+   - referral acceptance records
+2. Do NOT duplicate core business data into analytics tables unless absolutely necessary
+3. Keep analytics logic in a dedicated service layer
+4. Make aggregation deterministic and testable
+5. Handle missing data gracefully (no crashes, no NaN)
+6. Keep UI simple and fast (server-driven or lightweight client fetch)
+7. Follow existing admin auth and routing conventions
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Backend:
+- apps/services/careconnect/...
+- analytics/service layer additions only
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/admin/analytics/...
+- apps/web/src/components/careconnect/...
+
+Do NOT modify unrelated product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+You already have:
+
+- LSCC-008:
+  - ReferralViewed
+  - ActivationStarted
+- LSCC-010:
+  - AutoProvisionStarted
+  - AutoProvisionSucceeded
+  - AutoProvisionFailed
+- LSCC-009:
+  - ActivationRequest (Pending / Approved)
+- Referral system:
+  - referral creation
+  - referral acceptance
+
+LSCC-011 must unify these into a coherent funnel view.
+
+==================================================
+FUNNEL DEFINITION
+==================================================
+
+Primary funnel stages:
+
+1. Referrals Sent
+2. Referral Viewed
+3. Activation Started
+4. Auto Provision Succeeded
+5. Auto Provision Failed (Fallback)
+6. Referral Accepted
+
+If a stage cannot be reliably computed:
+- return null or explicit “not available”
+- document in report
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. ANALYTICS SERVICE
+--------------------------------------------------
+
+Create a dedicated service, e.g.:
+
+GetActivationFunnelMetrics(dateRange)
+
+Input:
+- startDate
+- endDate
+
+Output structure (example, adapt to conventions):
+
+{
+  counts: {
+    referralsSent: number,
+    viewed: number,
+    activationStarted: number,
+    autoProvisionSucceeded: number,
+    autoProvisionFailed: number,
+    accepted: number,
+    pendingRequests: number,
+    approvedRequests: number
+  },
+  rates: {
+    viewRate: number,
+    activationRate: number,
+    autoProvisionSuccessRate: number,
+    fallbackRate: number,
+    acceptanceRate: number
+  }
+}
+
+Rules:
+- all calculations must be deterministic
+- no division-by-zero errors
+- no NaN values (fallback to 0 or null)
+- clearly separate counts vs derived rates
+
+--------------------------------------------------
+B. METRIC MAPPING
+--------------------------------------------------
+
+Define exactly how each metric is computed.
+
+Minimum mapping:
+
+Referrals Sent:
+- referral created within date range
+
+Viewed:
+- ReferralViewed event count
+
+Activation Started:
+- ActivationStarted event count
+
+Auto Provision Succeeded:
+- AutoProvisionSucceeded event count
+
+Auto Provision Failed:
+- AutoProvisionFailed event count
+
+Accepted:
+- referral accepted timestamp within range
+
+Pending Requests:
+- ActivationRequest where status = Pending
+
+Approved Requests:
+- ActivationRequest where status = Approved
+
+Rules:
+- avoid double counting same referral/provider pair where possible
+- document deduplication strategy
+
+--------------------------------------------------
+C. CONVERSION RATE CALCULATIONS
+--------------------------------------------------
+
+Compute:
+
+View Rate = viewed / referralsSent  
+Activation Rate = activationStarted / viewed  
+Auto Provision Success Rate = autoProvisionSucceeded / activationStarted  
+Fallback Rate = autoProvisionFailed / activationStarted  
+Acceptance Rate = accepted / activationStarted  
+
+Rules:
+- if denominator = 0 → return 0
+- do not return NaN or Infinity
+- rounding/formatting handled in UI layer
+
+--------------------------------------------------
+D. ADMIN ANALYTICS PAGE
+--------------------------------------------------
+
+Route:
+
+/careconnect/admin/analytics/activation
+
+Page must include:
+
+1. Summary cards
+   - Referrals Sent
+   - Activation Started
+   - Auto Provision Succeeded
+   - Referral Accepted
+
+2. Funnel breakdown (simple)
+   - Sent → Viewed → Started → Succeeded / Failed → Accepted
+
+3. Supporting counts
+   - Pending Activation Requests
+   - Approved Activation Requests
+
+UI rules:
+- clean and minimal
+- no heavy chart libraries required
+- simple bars or stacked sections acceptable
+- fast load time
+
+--------------------------------------------------
+E. DATE FILTERING
+--------------------------------------------------
+
+Provide date range selection.
+
+Minimum presets:
+- Last 7 days
+- Last 30 days
+- Last 90 days
+
+Optional:
+- custom range (only if easy)
+
+Behavior:
+- all metrics update together
+- prefer URL-based state if consistent with current admin patterns
+
+--------------------------------------------------
+F. OPTIONAL DRILLDOWNS (LOW-RISK ONLY)
+--------------------------------------------------
+
+If simple to implement, allow:
+
+- clicking “Fallback” → opens activation queue filtered to Pending
+- clicking “Accepted” → opens referrals list filtered to accepted
+- clicking “Approved” → opens activation queue filtered to Approved
+
+Rules:
+- reuse existing pages
+- do not build new complex drilldown UIs
+
+--------------------------------------------------
+G. EDGE CASE HANDLING
+--------------------------------------------------
+
+Handle safely:
+
+1. no data in range
+   → show:
+   "No activation activity for this period"
+
+2. missing event stages
+   → show 0 or “—”
+   → document limitation
+
+3. duplicate events
+   → avoid double counting where practical
+
+4. partial funnel progression
+   → still render metrics
+
+--------------------------------------------------
+H. SECURITY
+--------------------------------------------------
+
+- admin-only access
+- follow existing auth guards
+- no exposure to providers/public
+
+--------------------------------------------------
+I. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add tests for:
+
+1. metric aggregation
+   - correct counts per stage
+   - correct filtering by date
+
+2. rate calculations
+   - correct values
+   - division-by-zero handling
+
+3. pending vs approved request counts
+
+4. service determinism
+   - same input → same output
+
+5. edge cases
+   - empty dataset
+   - missing events
+
+Frontend:
+- minimal rendering checks or snapshot tests if feasible
+- document limitations if UI testing is minimal
+
+--------------------------------------------------
+J. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-011-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Metric definitions
+- exact mapping from data → metric
+
+3. Aggregation logic
+- how counts are computed
+- deduplication strategy
+
+4. Conversion calculations
+- formulas used
+- handling of zero denominators
+
+5. Admin UI
+- route
+- components used
+- layout structure
+
+6. Date filtering
+- supported ranges
+- implementation approach
+
+7. Data sources used
+- which tables/events are read
+
+8. Tests
+- what scenarios are covered
+- gaps
+
+9. Known limitations
+- missing stages
+- approximations
+
+10. Recommended next step
+- based on insights (e.g., hardening, UX improvements, notifications)
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. Define metric mapping clearly
+2. Implement analytics service
+3. Implement conversion calculations
+4. Build admin analytics page
+5. Add date filter
+6. Add optional drilldowns (if simple)
+7. Add tests
+8. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-011 is complete ONLY if:
+
+1. funnel metrics are computed correctly
+2. conversion rates are correct and stable
+3. admin page displays metrics clearly
+4. date filtering works
+5. auto-provision success vs fallback is visible
+6. no regression to LSCC-008 / 009 / 010
+7. report exists:
+   /analysis/LSCC-011-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this focused and high-signal.
+
+Do not over-engineer analytics.
+Do not build a BI system.
+
+This feature exists to give visibility into your growth funnel so you can identify where to optimize next.

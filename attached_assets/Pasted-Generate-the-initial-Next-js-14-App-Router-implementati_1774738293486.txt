@@ -1,0 +1,135 @@
+Generate the initial Next.js 14 App Router implementation scaffold for the LegalSynq tenant-aware, multi-organization, product-role frontend platform.
+
+Use this architecture as the source of truth:
+
+- Framework: Next.js 14+ with App Router
+- One shared platform app for:
+  - law firm
+  - provider
+  - funder
+  - lien owner
+  - tenant admin
+  - platform admin
+- Injured party portal is a separate route group for now, with separate session shape later
+- Tenant is resolved from subdomain, not path
+- Gateway is the only API entry point
+- Frontend does NOT enforce capabilities as security; backend does
+- Frontend uses orgType + productRoles for navigation and UX shaping
+- JWT/session fields include:
+  - tenant_id
+  - tenant_code
+  - org_id
+  - org_type
+  - product_roles
+  - system roles
+
+Implementation goals:
+- generate the app folder structure
+- generate core providers
+- generate session/bootstrap flow
+- generate auth guards
+- generate the shared app shell
+- generate the initial route groups and placeholder pages
+- keep the implementation minimal but production-structured
+
+Generate the output in these exact sections:
+
+1. Project Folder Structure
+Provide the recommended `src/` structure for:
+- app/
+- components/
+- lib/
+- hooks/
+- providers/
+- types/
+- middleware.ts
+
+Include route groups for:
+- (platform)
+- (admin)
+- portal
+
+2. Core TypeScript Types
+Generate the initial TS types for:
+- PlatformSession
+- TenantBranding
+- OrgType
+- ProductRole
+- SystemRole
+- NavGroup / NavItem
+- ApiError
+
+3. Session Bootstrap Design
+Generate code for:
+- `getServerSession()`
+- `SessionProvider`
+- `useSession()`
+- session bootstrap from `/identity/api/auth/me`
+- note clearly that frontend session truth should come from `/auth/me`, not trusting browser JWT decode alone
+
+4. Tenant Branding Bootstrap
+Generate code for:
+- `TenantBrandingProvider`
+- `useTenantBranding()`
+- fetch branding from `/identity/api/tenants/current/branding`
+- CSS variable injection example
+
+5. API Client
+Generate:
+- `apiClient`
+- `ApiError`
+- credentials include pattern
+- correlation ID handling
+- unauthorized / forbidden handling conventions
+
+6. Auth Guards
+Generate code for:
+- `requireAuthenticated()`
+- `requireOrg()`
+- `requireProductRole()`
+- `requireAdmin()`
+Use server-side patterns compatible with Next.js App Router.
+
+7. App Shell Components
+Generate minimal starter components for:
+- `AppShell`
+- `TopBar`
+- `Sidebar`
+- `OrgBadge`
+- `ProductSwitcher` placeholder
+
+8. Navigation Builder
+Generate:
+- `buildNavGroups(session)`
+- nav rules for:
+  - LAW_FIRM
+  - PROVIDER
+  - FUNDER
+  - LIEN_OWNER
+  - PlatformAdmin
+
+9. Initial Pages
+Generate minimal placeholder pages for:
+- `/login`
+- `/dashboard`
+- `/careconnect/referrals`
+- `/fund/applications`
+- `/lien/marketplace`
+- `/admin/users`
+- `/portal/login`
+
+Each page should use the proper guard pattern.
+
+10. middleware.ts
+Generate an initial middleware example that:
+- allows public login routes
+- requires session for protected platform/admin routes
+- checks admin routes
+- does not attempt to do backend capability enforcement
+
+11. Implementation Notes
+Explain:
+- what to build first after the scaffold
+- what to stub vs fully implement
+- where future org switching will fit
+- where injured party portal will later diverge

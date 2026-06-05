@@ -1,0 +1,269 @@
+Implement CareConnect scheduling Step 15: Appointment status history + cancellation/reschedule workflow.
+
+Goal:
+Add operational appointment lifecycle support by implementing:
+1. AppointmentStatusHistory
+2. appointment status transitions
+3. cancellation
+4. reschedule
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect already supports:
+  - Facilities
+  - ServiceOfferings
+  - ProviderAvailabilityTemplates
+  - AppointmentSlots
+  - slot generation
+  - Appointments
+  - booking from slot
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+- This step should build on the current booking baseline without introducing unrelated features
+
+Important:
+Keep this implementation minimal, clean, production-minded, and consistent with the current architecture.
+
+Do NOT implement yet:
+- notifications/reminders
+- provider-side confirmations
+- no-show automation
+- recurring appointments
+- blackout exceptions
+- document integration
+- payment integration
+
+Requirements
+
+==================================================
+PART 1 — APPOINTMENT STATUS CONSTANTS
+==================================================
+
+1. Create or refine an AppointmentStatuses constants class.
+
+Allowed statuses for this phase:
+- Scheduled
+- Confirmed
+- Completed
+- Cancelled
+- NoShow
+
+2. Add a helper for allowed statuses if useful.
+
+==================================================
+PART 2 — APPOINTMENT STATUS HISTORY
+==================================================
+
+3. Create AppointmentStatusHistory entity
+
+Fields:
+- Id : Guid
+- AppointmentId : Guid
+- TenantId : Guid
+- OldStatus : string
+- NewStatus : string
+- ChangedByUserId : Guid?
+- ChangedAtUtc : DateTime
+- Notes : string?
+
+4. Add EF Core mapping
+
+Table name:
+- AppointmentStatusHistories
+
+Primary key:
+- Id
+
+Indexes:
+- (TenantId, AppointmentId)
+- (TenantId, ChangedAtUtc)
+
+Relationship:
+- many history rows to one Appointment
+
+5. Update CareConnectDbContext
+- add DbSet<AppointmentStatusHistory>
+- register mapping cleanly
+
+6. Add migration
+Create migration:
+- AddAppointmentStatusHistory
+
+==================================================
+PART 3 — WORKFLOW RULES
+==================================================
+
+7. Implement lightweight appointment workflow rules.
+
+Allowed transitions:
+- Scheduled -> Confirmed
+- Scheduled -> Cancelled
+- Scheduled -> NoShow
+- Confirmed -> Completed
+- Confirmed -> Cancelled
+- Confirmed -> NoShow
+
+Rules:
+- Completed is terminal
+- Cancelled is terminal
+- NoShow is terminal
+- same-status update is allowed if only notes change, but must not create a history row
+- invalid transition returns 400 with clean error
+
+8. Create a helper/service such as:
+- AppointmentWorkflowRules
+
+Responsibilities:
+- validate status values
+- validate transitions
+- provide clear invalid transition messages
+
+==================================================
+PART 4 — APPOINTMENT UPDATE / CANCEL / RESCHEDULE
+==================================================
+
+9. Add update endpoint
+Implement:
+- PUT /api/appointments/{id}
+
+Allow updates to:
+- Status
+- Notes
+
+Behavior:
+- tenant-scoped
+- if status changes, validate transition
+- create AppointmentStatusHistory on valid status changes
+- if status does not change, no history row
+- update audit fields
+
+10. Add cancellation endpoint
+Implement either:
+- POST /api/appointments/{id}/cancel
+or keep cancellation within PUT if cleaner
+
+Behavior:
+- transitions appointment to Cancelled
+- writes history row
+- frees slot capacity if appointment was holding a slot and was not already terminal
+- ReservedCount on AppointmentSlot should decrement safely
+- slot may reopen if capacity is available again
+
+11. Add reschedule endpoint
+Implement:
+- POST /api/appointments/{id}/reschedule
+
+Request DTO:
+- NewAppointmentSlotId : Guid
+- Notes : string?
+
+Behavior:
+- tenant-scoped
+- current appointment must be in a reschedulable state:
+  - Scheduled
+  - Confirmed
+- new slot must exist, be Open, and have remaining capacity
+- decrement ReservedCount on old slot if one exists
+- increment ReservedCount on new slot
+- update Appointment:
+  - AppointmentSlotId
+  - ScheduledStartAtUtc
+  - ScheduledEndAtUtc
+  - ProviderId
+  - FacilityId
+  - ServiceOfferingId
+- keep appointment active rather than creating a new appointment
+- append an AppointmentStatusHistory row only if status changes; if reschedule leaves status unchanged, do not create status history
+- if useful, create a separate reschedule audit note in appointment notes, but keep it simple
+
+12. Save booking changes atomically
+For cancellation and reschedule:
+- appointment update
+- slot ReservedCount updates
+- history insert
+must be saved together safely
+
+==================================================
+PART 5 — HISTORY ENDPOINT
+==================================================
+
+13. Add endpoint
+Implement:
+- GET /api/appointments/{id}/history
+
+Behavior:
+- authenticated users can read
+- tenant-scoped
+- if appointment not in tenant, return 404
+- ordered history response
+
+DTO fields:
+- Id
+- AppointmentId
+- OldStatus
+- NewStatus
+- ChangedByUserId
+- ChangedAtUtc
+- Notes
+
+Use newest first unless an existing pattern suggests otherwise.
+
+==================================================
+PART 6 — VALIDATION AND CAPACITY RULES
+==================================================
+
+14. Validation rules
+- invalid appointment status => 400
+- invalid transition => 400
+- reschedule target slot must be Open
+- reschedule target slot must have remaining capacity
+- cannot cancel/reschedule terminal appointments
+- cancellation of an already terminal appointment should fail cleanly
+- cross-tenant access => 404
+
+15. Capacity behavior
+- cancelling should decrement ReservedCount on the slot if appropriate
+- rescheduling should decrement old slot and increment new slot
+- ReservedCount must never go below 0
+- if a slot becomes available again after cancellation/reschedule, keep the rule simple and reopen it if appropriate
+
+==================================================
+PART 7 — AUTHORIZATION
+==================================================
+
+16. Authorization rules
+Keep read endpoints authenticated.
+Use PlatformOrTenantAdmin for:
+- PUT /api/appointments/{id}
+- POST /api/appointments/{id}/cancel
+- POST /api/appointments/{id}/reschedule
+
+Keep:
+- GET /api/appointments
+- GET /api/appointments/{id}
+- GET /api/appointments/{id}/history
+as AuthenticatedUser
+
+==================================================
+PART 8 — OUTPUT REQUIRED
+==================================================
+
+17. After implementation, output:
+- files created/updated
+- migration command
+- allowed appointment transitions
+- how cancellation affects slot capacity
+- how reschedule affects old/new slots
+- sample curl requests for:
+  - confirm appointment
+  - cancel appointment
+  - reschedule appointment
+  - read appointment history
+
+18. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- no breaking changes to existing booking flow
+- preserve strict tenant isolation
+- UTC timestamps everywhere

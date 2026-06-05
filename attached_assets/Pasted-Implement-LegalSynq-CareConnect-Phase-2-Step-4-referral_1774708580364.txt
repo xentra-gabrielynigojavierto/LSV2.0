@@ -1,0 +1,228 @@
+Implement LegalSynq CareConnect Phase 2 — Step 4: referral search, filtering, and pagination.
+
+Context:
+- CareConnect service already exists and is working
+- Gateway is routing /careconnect/*
+- Identity and JWT are working
+- MySQL + EF Core are configured
+- CareConnect already supports:
+  - Providers
+  - Categories
+  - Referrals CRUD
+  - Referral status history
+  - Workflow rules
+- Tenant context, role-based auth, and exception handling are already standardized
+
+Goal:
+Upgrade referral querying so users can efficiently search, filter, and paginate referrals.
+
+Scope:
+1. Add referral search + filtering
+2. Add pagination
+3. Keep tenant isolation strict
+4. Keep implementation clean and efficient (DB-level filtering)
+
+Do NOT add:
+- advanced analytics
+- full-text search engines
+- sorting across many fields (unless trivial)
+- notifications, documents, payments
+- workflow engine
+
+==================================================
+PART 1 — QUERY PARAMETERS
+==================================================
+
+1. Enhance GET /api/referrals
+
+Add optional query parameters:
+
+- status
+- providerId
+- clientName
+- caseNumber
+- urgency
+- createdFrom
+- createdTo
+- page
+- pageSize
+
+Definitions:
+
+- status: exact match
+- providerId: filter by provider
+- clientName: search across ClientFirstName + ClientLastName (contains)
+- caseNumber: contains or exact match
+- urgency: exact match
+- createdFrom: filter CreatedAtUtc >= value
+- createdTo: filter CreatedAtUtc <= value
+
+==================================================
+PART 2 — QUERY MODEL
+==================================================
+
+2. Create query DTO
+
+Create:
+- GetReferralsQuery
+
+Fields:
+- string? Status
+- Guid? ProviderId
+- string? ClientName
+- string? CaseNumber
+- string? Urgency
+- DateTime? CreatedFrom
+- DateTime? CreatedTo
+- int Page = 1
+- int PageSize = 20
+
+==================================================
+PART 3 — PAGINATION RULES
+==================================================
+
+3. Apply pagination
+
+Rules:
+- page default = 1
+- page must be >= 1
+- pageSize default = 20
+- pageSize max = 100
+
+4. Return paged response
+
+{
+  "items": [...],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 125
+}
+
+Create reusable PagedResponse DTO if not already available.
+
+==================================================
+PART 4 — FILTERING LOGIC
+==================================================
+
+5. Build EF Core query
+
+Requirements:
+
+- ALWAYS filter by TenantId from ICurrentRequestContext
+- Apply filters conditionally (only when provided)
+- Apply filtering in database, not in memory
+- Combine filters safely
+
+Filtering details:
+
+- status: r.Status == status
+- providerId: r.ProviderId == providerId
+- clientName:
+    r.ClientFirstName + " " + r.ClientLastName contains value
+    OR match either first or last name
+- caseNumber: contains match
+- urgency: exact match
+- createdFrom: r.CreatedAtUtc >= createdFrom
+- createdTo: r.CreatedAtUtc <= createdTo
+
+6. Include Provider name in response
+
+Ensure ReferralResponse includes:
+- ProviderName
+
+Load provider efficiently (join or include).
+
+==================================================
+PART 5 — SERVICE LAYER
+==================================================
+
+7. Refactor into application service
+
+Ensure logic is inside:
+- IReferralService
+- ReferralService
+
+Responsibilities:
+- apply filters
+- apply pagination
+- return DTOs
+
+Do NOT place query logic directly in endpoints.
+
+==================================================
+PART 6 — VALIDATION
+==================================================
+
+8. Validate query inputs
+
+- page >= 1
+- pageSize >= 1
+- pageSize <= 100
+
+If invalid:
+- return 400 using standardized exception handling
+
+==================================================
+PART 7 — AUTHORIZATION
+==================================================
+
+9. Keep existing rules
+
+- GET /api/referrals => AuthenticatedUser
+- GET /api/referrals/{id} => AuthenticatedUser
+- GET /api/referrals/{id}/history => AuthenticatedUser
+- POST/PUT => PlatformOrTenantAdmin
+
+No changes needed.
+
+==================================================
+PART 8 — PERFORMANCE
+==================================================
+
+10. Query optimization
+
+- Apply filters before pagination
+- Apply pagination before materializing results
+- Avoid loading unnecessary data
+- Use async EF queries
+
+==================================================
+PART 9 — OUTPUT REQUIRED
+==================================================
+
+11. After implementation, output:
+
+- files created/updated
+- how filtering works for each field
+- how pagination works
+- sample curl requests
+
+==================================================
+PART 10 — TEST SCENARIOS
+==================================================
+
+Support these:
+
+A. List referrals default paging
+B. Filter by status
+C. Filter by providerId
+D. Filter by clientName
+E. Filter by caseNumber
+F. Filter by urgency
+G. Filter by date range
+H. Combined filters
+I. Pagination (page/pageSize)
+J. Invalid pagination values => 400
+K. Cross-tenant isolation enforced
+
+==================================================
+PART 11 — CODE QUALITY
+==================================================
+
+- clean namespaces
+- async EF Core
+- minimal duplication
+- production-minded
+- no breaking changes
+- strict tenant isolation
+- UTC timestamps everywhere

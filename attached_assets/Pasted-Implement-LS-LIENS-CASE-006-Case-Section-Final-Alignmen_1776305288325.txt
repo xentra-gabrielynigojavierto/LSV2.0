@@ -1,0 +1,119 @@
+Implement LS-LIENS-CASE-006 — Case Section Final Alignment & Validation.
+
+Goal:
+Perform a final UI alignment pass across the entire Case Detail page to ensure consistency, cohesion, and production readiness.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+
+All tabs must be aligned:
+- Details
+- Liens
+- Documents
+- Servicing
+- Notes
+- Task Manager
+
+This is NOT feature work.
+This is refinement and normalization only.
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+You may adjust:
+- spacing
+- padding
+- alignment
+- consistency across sections/tables/modals
+- empty states
+- icon usage
+
+You may NOT:
+- add new features
+- change APIs
+- modify business logic
+- redesign layouts
+- break existing functionality
+
+--------------------------------------------------
+ALIGNMENT TASKS
+--------------------------------------------------
+
+T001 — Normalize header spacing and alignment across tabs
+
+T002 — Normalize CollapsibleSection styling:
+- rounded-lg
+- px-5 py-3 header
+- px-5 py-4 body
+
+T003 — Normalize vertical spacing:
+- use consistent space-y-4
+- remove inconsistent spacing
+
+T004 — Ensure LayoutSplit consistency across applicable tabs
+
+T005 — Standardize all tables:
+- header style
+- row spacing
+- action columns
+- footer totals
+
+T006 — Normalize modal spacing and button alignment (light pass)
+
+T007 — Standardize empty, loading, and error states
+
+T008 — Ensure icon consistency (Remix icons only)
+
+T009 — Validate communication panel consistency across tabs
+
+T010 — Validate navigation consistency
+
+T011 — Final visual and regression validation
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-006-report.md
+
+2. Initialize with:
+   - objective
+   - scope
+   - alignment checklist
+
+3. DURING implementation:
+   - update after each task
+   - document changes made and files affected
+
+4. FINAL:
+   - summarize alignment improvements
+   - validation results
+   - note any remaining minor inconsistencies
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- All tabs visually aligned
+- Sections consistent
+- Tables standardized
+- Modals consistent
+- Empty/loading/error states consistent
+- Icons consistent
+- No regressions
+- UI feels cohesive and production-ready
+
+Execute FULL alignment pass.
+Do NOT redesign the product.
+Do NOT change functionality.
+Do NOT break existing behavior.

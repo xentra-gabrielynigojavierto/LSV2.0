@@ -1,0 +1,357 @@
+Implement LS-LIENS-UI-011 — Provider Mode (Sell vs Manage Internally).
+
+Goal:
+Enable dynamic product behavior based on provider mode sourced from a tenant/org configuration API.
+
+Provider modes:
+- sell = marketplace-enabled provider workflow
+- manage = internal lien management only
+
+This mode is:
+- organization-level
+- not per-user
+- resolved from tenant/org configuration API
+- defaulted to sell if missing, invalid, or unavailable
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-011-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Final mode source decision
+   - Expected org config contract
+   - Initial implementation plan
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g. T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Follow the same architecture standards used in prior features
+- Centralize provider mode logic
+- No hardcoded mode checks scattered across pages/components
+- No mock mode logic
+- Preserve existing UI structure and layout
+- Do not fork the app into separate products
+- One codebase, one UI, behavior branched by org mode
+- If config API fails or mode is missing, default to sell
+- This applies to provider org behavior only
+
+--------------------------------------------------
+MODE SOURCE DECISION
+--------------------------------------------------
+
+Provider mode must come from tenant/org configuration API.
+
+Expected mode values:
+- sell
+- manage
+
+Preferred contract examples:
+1.
+{
+  "providerMode": "sell"
+}
+
+or broader config:
+2.
+{
+  "organizationId": "org-123",
+  "productCode": "LIENS",
+  "settings": {
+    "providerMode": "sell"
+  }
+}
+
+Fallback rule:
+- if providerMode is missing, invalid, or API is unavailable → use sell
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Finalize Mode Source Analysis
+- Inspect the backend and frontend for the best tenant/org config endpoint to source provider mode
+- Confirm whether an existing org settings / tenant config / product config endpoint already exists
+- If an endpoint exists, document exact route and payload shape
+- If no endpoint exists, implement the smallest backend addition needed to expose providerMode from org config
+- Log the final contract in the report
+- Explicitly document fallback to sell mode
+
+Update report after completion
+
+--------------------------------------------------
+
+T002 — Create Provider Mode Types
+Create:
+- provider-mode.types.ts
+
+Include:
+- ProviderMode = 'sell' | 'manage'
+- API response/config types
+- normalized frontend mode types if needed
+
+Update report after completion
+
+--------------------------------------------------
+
+T003 — Create Provider Mode API Layer
+Create:
+- provider-mode.api.ts
+
+Responsibilities:
+- raw API call(s) only
+- fetch org/tenant config for provider mode
+- no UI logic
+- no mode branching logic
+
+Update report after completion
+
+--------------------------------------------------
+
+T004 — Create Provider Mode Service Layer
+Create:
+- provider-mode.service.ts
+
+Expose:
+- getProviderMode()
+- isSellMode()
+- isManageMode()
+
+Rules:
+- service is the single source of truth for provider mode logic
+- normalization happens here or in mapper/helper
+- invalid values normalize to sell
+
+Update report after completion
+
+--------------------------------------------------
+
+T005 — Make Provider Mode Available to the App
+- Integrate provider mode into the product/app context so relevant UI surfaces can use it
+- Use an existing context/provider pattern if available
+- If helpful, create a small hook such as useProviderMode()
+- Avoid repeated ad hoc fetches from many components
+- Cache/reuse mode sensibly within the app lifecycle
+
+Update report after completion
+
+--------------------------------------------------
+
+T006 — Navigation Updates
+Update lien/provider-facing navigation behavior by mode.
+
+Sell mode:
+- show marketplace-related items
+- show bill of sale / settlement-related items where applicable
+
+Manage mode:
+- hide or remove marketplace-related navigation
+- hide bill-of-sale/settlement navigation
+- preserve internal lien management/navigation
+
+Rules:
+- no broken links
+- no dead nav items
+- preserve overall shell layout
+
+Update report after completion
+
+--------------------------------------------------
+
+T007 — Lien Detail Behavior by Mode
+Update lien detail UI behavior.
+
+Sell mode:
+- preserve current marketplace/sale behavior
+- offers, sale state, BOS links remain available where already supported
+
+Manage mode:
+- hide offers
+- hide buyer/sale sections
+- hide BOS links/actions
+- keep internal lien tracking + servicing-relevant sections
+
+Rules:
+- no misleading action buttons
+- no empty containers for hidden features
+
+Update report after completion
+
+--------------------------------------------------
+
+T008 — Lien Creation Flow by Mode
+Adjust lien creation behavior.
+
+Sell mode:
+- lien creation remains marketplace-ready
+
+Manage mode:
+- lien creation results in internal management flow only
+- no marketplace exposure
+- no sell-related affordances presented
+
+Document exactly what changes in UI and payload behavior.
+
+Update report after completion
+
+--------------------------------------------------
+
+T009 — Bill of Sale / Settlement Gating
+Sell mode:
+- preserve LS-LIENS-UI-007 behavior
+
+Manage mode:
+- remove or disable all BOS/settlement entry points
+- ensure users cannot navigate into sell-only financial flow from the normal UI
+
+Rules:
+- if direct route access must still be protected, add defensive UI handling
+- document any backend gating gaps found
+
+Update report after completion
+
+--------------------------------------------------
+
+T010 — Unified Activity Adaptation
+Update unified activity behavior for mode awareness.
+
+Manage mode:
+- hide or exclude sell-only categories where the UI is mode-filtering activity views
+- examples: offer accepted, BOS created, BOS executed, settlement-only events
+
+Rules:
+- do NOT alter audit source truth
+- only adapt UI presentation/filtering where appropriate
+- document exactly what is filtered and why
+
+Update report after completion
+
+--------------------------------------------------
+
+T011 — Notifications Adaptation
+Update notifications behavior for mode awareness.
+
+Manage mode:
+- exclude or suppress sell-only notification categories from provider-facing views if those categories are not relevant
+- preserve operational/internal notifications:
+  - servicing updates
+  - case updates
+  - document updates
+  - contact/participant updates where relevant
+
+Rules:
+- do not fabricate notification categories
+- only adapt display where source metadata supports it
+
+Update report after completion
+
+--------------------------------------------------
+
+T012 — Mode Indicator in UI
+Add a small, non-intrusive UI indicator showing current provider mode.
+
+Preferred labels:
+- Sell Mode
+- Internal Mode
+
+Possible locations:
+- header
+- dashboard
+- provider-facing settings area
+
+Rules:
+- minimal UI disruption
+- clearly visible
+- consistent with existing styling
+
+Update report after completion
+
+--------------------------------------------------
+
+T013 — Remove Unsupported Actions in Manage Mode
+Ensure all sell-only UI affordances are removed or disabled in manage mode, including where applicable:
+- offer actions
+- accept/reject offer actions
+- sell lien actions
+- BOS actions
+- settlement actions
+
+Rules:
+- no fake disabled states unless there is a reason to show why
+- prefer clean omission over noisy disabled UI
+- document all affected actions
+
+Update report after completion
+
+--------------------------------------------------
+
+T014 — Validation and Regression Checks
+Verify:
+- sell mode remains fully intact
+- manage mode hides/restricts correct features
+- no broken navigation
+- no broken entity pages
+- no stray sell-only actions in manage mode
+- no TypeScript/build regressions
+
+Update report after completion
+
+--------------------------------------------------
+
+T015 — Finalize Report
+Finalize /analysis/LS-LIENS-UI-011-report.md with:
+- executive summary
+- final provider mode source and contract
+- files created/modified
+- sell mode behavior summary
+- manage mode behavior summary
+- navigation changes
+- lien detail changes
+- lien creation behavior changes
+- BOS/settlement gating changes
+- activity/notification adaptation details
+- unsupported actions removed
+- risks/issues/blockers
+- validation results
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Provider mode is sourced from tenant/org configuration API
+- Mode defaults safely to sell
+- Mode logic is centralized
+- Sell mode remains intact
+- Manage mode hides marketplace / offer / BOS / settlement behavior
+- No broken navigation or dead UI
+- Activity and notifications are adapted appropriately
+- UI clearly reflects current mode
+- Report was created first and updated incrementally
+- Final report is complete and traceable
+
+Execute FULL implementation.
+Do NOT stop at analysis.
+Do NOT delay report creation.

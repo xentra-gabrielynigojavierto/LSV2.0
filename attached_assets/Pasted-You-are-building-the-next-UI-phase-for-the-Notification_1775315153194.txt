@@ -1,0 +1,679 @@
+You are building the next UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase is still for the Control Center.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-005 — Control Center WYSIWYG Template UI
+==================================================
+
+GOAL:
+Build the Control Center UI for managing global product templates with WYSIWYG-compatible email template workflows, using the completed NOTIF-008 backend.
+
+This phase adds:
+- global templates list grouped/filterable by product type
+- global template create/edit metadata UI
+- global template detail page
+- template version create flow
+- WYSIWYG-compatible editor UI for email templates
+- branded preview flow using tenant + product context
+- version publish flow
+- tenant branding admin UI for product-specific branding
+
+This is still the Control Center, not the Tenant Portal.
+
+Do NOT overbuild.
+Do NOT build tenant self-service flows.
+Do NOT build drag-and-drop page builders.
+Do NOT redesign the platform shell.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Completed:
+- NOTIF-UI-001 — Control Center Foundation
+- NOTIF-UI-002 — Control Center Mutation Flows
+- NOTIF-UI-003 — Control Center Extended Config & Admin
+- NOTIF-UI-004 — Control Center Hardening / Remaining Gaps
+- NOTIF-008 — Global Product Templates + Tenant Branding Backend
+
+This task continues the Control Center track before tenant portal work begins.
+
+==================================================
+IMPLEMENTATION CONTEXT
+==================================================
+
+The Notifications backend now supports:
+- product-type-aware global templates
+- templateScope
+- editorType
+- WYSIWYG-compatible version storage:
+  - editorJson
+  - html/body template
+  - textTemplate
+- branded preview:
+  - tenantId
+  - productType
+  - templateData
+- tenant branding CRUD
+- reserved brand token injection
+- global template version publish flow
+- immutable version lifecycle (draft create → publish, with no version patch unless backend clearly supports it)
+
+Use the real backend APIs from NOTIF-008.
+Do NOT invent fake endpoints.
+
+==================================================
+CONTROL CENTER SCOPE
+==================================================
+
+This UI is for internal/admin users in the Control Center.
+
+Audience:
+- platform admins
+- operations/configuration admins
+
+This UI should allow internal users to:
+- manage global templates by product type
+- create draft versions
+- edit WYSIWYG content before version creation/save
+- preview templates with selected tenant branding
+- publish versions
+- manage tenant branding records for a product
+
+This is NOT a tenant-facing UI.
+
+==================================================
+GENERAL UX / DESIGN RULES
+==================================================
+
+- Use the main platform design system / shell
+- Preserve platform-native theme/tokens
+- Use clean, admin-oriented workflows
+- Prefer structured forms and modals/drawers where appropriate
+- Keep the WYSIWYG experience constrained and deterministic
+- Use explicit save/preview/publish actions
+- Surface loading, success, and failure states clearly
+- Keep lifecycle rules visible in the UI
+- Do NOT imply that published versions are editable if backend lifecycle forbids it
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. GLOBAL TEMPLATES LIST PAGE
+--------------------------------------
+
+Build or extend a Control Center page for global templates.
+
+Suggested route:
+- /notifications/templates/global
+
+Requirements:
+- list global templates
+- support filtering by:
+  - productType
+  - channel
+  - templateKey
+  - status if available
+- group or visually segment by productType
+- columns should include at minimum:
+  - template key
+  - name
+  - product type
+  - channel
+  - template scope
+  - editor type
+  - current/published version indicator
+  - updated at
+- add "New Global Template" action
+
+Expected backend endpoint:
+- GET /notifications/v1/templates/global
+
+This page should be clearly distinct from older template surfaces if both still exist.
+
+==================================================
+2. GLOBAL TEMPLATE CREATE / EDIT METADATA
+==================================================
+
+Add create and metadata-edit flows for global templates.
+
+Expected backend endpoints:
+- POST /notifications/v1/templates/global
+- PATCH /notifications/v1/templates/global/:id
+
+Create/edit fields must support at minimum:
+- templateKey
+- name
+- productType
+- channel
+- templateScope (default global; do not expose unsupported values if tenant scope is not ready)
+- editorType
+- category
+- isBrandable
+- description/status if backend supports them
+
+Validation:
+- required fields
+- valid productType
+- valid channel
+- valid editorType
+- uniqueness/backend errors shown clearly
+
+Behavior:
+- on create success:
+  - refresh/revalidate templates data
+  - navigate to detail page or refresh list
+- on edit success:
+  - refresh/revalidate relevant views
+
+If the Control Center already has an older templates page, integrate cleanly rather than duplicating confusing routes.
+
+==================================================
+3. GLOBAL TEMPLATE DETAIL PAGE
+==================================================
+
+Build a global template detail page.
+
+Suggested route:
+- /notifications/templates/global/[id]
+
+Display:
+- template metadata
+- product type
+- channel
+- scope
+- editor type
+- category
+- brandable flag
+- created/updated timestamps
+- versions list
+
+Version list should show:
+- version number
+- status (draft / published / retired if present)
+- current/published indicator
+- created at
+- published at
+- actions:
+  - preview
+  - publish
+  - view content
+  - edit draft only if backend truly supports it
+
+Make immutable lifecycle rules visible:
+- if versions are immutable after create, say so clearly
+- if draft edit is not supported, do not show edit buttons that imply it is
+
+==================================================
+4. WYSIWYG-COMPATIBLE TEMPLATE VERSION CREATE UI
+==================================================
+
+Add a version creation flow on the global template detail page.
+
+Expected backend endpoint:
+- POST /notifications/v1/templates/global/:id/versions
+
+Required fields at minimum:
+- subjectTemplate (required for email where appropriate)
+- editorJson
+- html/body template
+- textTemplate
+- designTokensJson optional
+- layoutType optional
+- variables schema if supported by backend route
+- sample data if supported by backend route
+
+Critical requirement:
+- the editor must produce both:
+  - structured editorJson
+  - compiled renderable HTML/body
+- text fallback should be editable or derivable, but must be included where backend expects it
+
+If a fully rich editor is too large to wire in one pass, an acceptable phase-1 implementation is:
+- constrained rich text editor or structured content editor
+- source JSON maintained
+- compiled HTML/body preview/generated before submit
+
+Do NOT store only raw HTML in the UI workflow.
+The UI must respect the backend’s structured editor model.
+
+==================================================
+5. WYSIWYG EDITOR UX
+==================================================
+
+Implement a constrained WYSIWYG editor experience for email templates.
+
+Requirements:
+- support core formatting only:
+  - headings
+  - paragraphs
+  - bold / italic / underline
+  - links
+  - bullet / numbered lists
+  - divider
+  - button-like CTA block if feasible
+  - image/logo placeholder if clean
+  - variable token insertion
+- allow insertion of template variables
+- allow insertion or visibility of reserved brand tokens, such as:
+  - {{brand.name}}
+  - {{brand.logoUrl}}
+  - {{brand.primaryColor}}
+  - {{brand.supportEmail}}
+  - etc.
+
+Important:
+- brand tokens should be presented as reserved/system tokens
+- do not allow users to redefine branding values in the editor
+- keep output deterministic and safe
+- sanitize or constrain unsafe HTML behavior
+
+Editor strategy:
+- prefer a known structured editor that can serialize to JSON cleanly
+- do not build a drag-and-drop block marketplace in this phase
+- do not build arbitrary custom-script support
+
+==================================================
+6. BRANDED PREVIEW FLOW
+==================================================
+
+Implement branded preview from the global template detail/version workflow.
+
+Expected backend endpoint:
+- POST /notifications/v1/templates/global/:id/versions/:versionId/preview
+
+Required preview inputs:
+- tenantId
+- productType
+- templateData
+
+UI requirements:
+- allow admin to choose tenant context for preview
+- productType should default from the template but be visible
+- allow entering sample template variables
+- render preview result:
+  - subject
+  - html preview
+  - text preview
+- show branding context used:
+  - brand name
+  - logo if present
+  - primary color or token summary if useful
+
+If tenant branding is missing:
+- preview should still work using fallback branding
+- surface this clearly as “default branding applied” or equivalent
+
+Do NOT fake preview results.
+Use the real preview endpoint.
+
+==================================================
+7. VERSION PUBLISH FLOW
+==================================================
+
+Add publish action for global template versions.
+
+Expected backend endpoint:
+- POST /notifications/v1/templates/global/:id/versions/:versionId/publish
+
+Requirements:
+- explicit publish action per eligible version
+- show confirmation before publish
+- clearly indicate current/published version after success
+- if a prior published version is retired/replaced, reflect that cleanly in the UI
+
+Do NOT allow accidental publishing without confirmation.
+
+==================================================
+8. TENANT BRANDING ADMIN UI
+==================================================
+
+Build Control Center branding admin UI.
+
+Suggested route:
+- /notifications/branding
+- optionally /notifications/branding/[id]
+
+Expected backend endpoints:
+- GET /notifications/v1/branding
+- POST /notifications/v1/branding
+- GET /notifications/v1/branding/:id
+- PATCH /notifications/v1/branding/:id
+
+Requirements:
+- list branding records by:
+  - tenant
+  - productType
+- create branding record
+- edit branding record
+- fields at minimum:
+  - tenantId
+  - productType
+  - brandName
+  - logoUrl
+  - primaryColor
+  - secondaryColor
+  - accentColor
+  - textColor
+  - backgroundColor
+  - buttonRadius
+  - fontFamily
+  - emailHeaderHtml
+  - emailFooterHtml
+  - supportEmail
+  - supportPhone
+  - websiteUrl
+
+Validation:
+- required tenant/product/brand name
+- basic format validation where practical
+- uniqueness/backend conflict errors shown clearly
+
+Do NOT build file upload infrastructure unless platform asset handling is already available and trivial to reuse.
+Logo URL input is acceptable in this phase.
+
+==================================================
+9. BRANDING LIST / DETAIL UX
+==================================================
+
+Branding management should be readable and operational.
+
+List view should include:
+- tenant
+- productType
+- brandName
+- primary color swatch
+- support email
+- updated at
+
+Detail or edit view should:
+- present branding tokens in a manageable form
+- optionally show a lightweight live preview card
+
+If HTML header/footer fields are supported:
+- use controlled textareas
+- make it clear these affect email rendering
+
+==================================================
+10. MUTATION INFRASTRUCTURE
+==================================================
+
+Use the established Control Center mutation/server-action pattern.
+
+Requirements:
+- require platform admin auth on all mutations
+- preserve tenant/admin context correctly
+- use real backend APIs
+- revalidate correct cache tags after success
+- return structured action results
+- keep code maintainable; split actions by domain if needed
+
+Expected mutation areas:
+- global template create/update
+- version create
+- version publish
+- branded preview submit
+- branding create/update
+
+Do NOT bypass the established server-side mutation architecture.
+
+==================================================
+11. CACHE / REVALIDATION
+==================================================
+
+Use notifications cache tags or add new ones if needed.
+
+Revalidate the correct domain after mutation, such as:
+- templates
+- branding
+
+Preview is read-like and may not require revalidation.
+
+Document:
+- which actions invalidate which tags
+
+Do NOT rely on stale views after template/branding changes.
+
+==================================================
+12. ERROR / EMPTY / UNSUPPORTED STATES
+==================================================
+
+Handle clearly:
+- no templates for a product type
+- no branding records
+- missing tenant branding fallback during preview
+- unsupported draft editing if backend does not support version patch
+- invalid JSON/editor payload
+- uniqueness conflicts
+- missing template/version
+- preview render errors for missing variables
+
+Do NOT let backend limitations masquerade as generic blank screens.
+
+==================================================
+13. WHAT NOT TO BUILD IN NOTIF-UI-005
+==================================================
+
+Do NOT build:
+- tenant portal
+- tenant self-service branding UI
+- drag-and-drop template builder marketplace
+- asset library / media manager
+- localization UI
+- tenant template override UI
+- approval workflow UI
+- analytics dashboard
+- full email campaign composer
+- end-user send flows
+
+This phase is strictly Control Center WYSIWYG template administration + branding admin.
+
+==================================================
+14. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. global templates list page works
+2. global template create works
+3. global template metadata edit works
+4. global template detail page works
+5. global template version create flow works
+6. constrained WYSIWYG-compatible editor flow works
+7. branded preview flow works
+8. version publish flow works
+9. tenant branding list page works
+10. tenant branding create works
+11. tenant branding edit works
+12. all flows use real backend APIs from NOTIF-008
+13. tenant/admin auth context remains correct
+14. loading / success / error states are handled
+15. immutable lifecycle constraints are represented honestly in the UI
+16. no tenant portal UI is introduced
+17. UI compiles/runs cleanly inside the main platform
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-005-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+- What was built
+- Scope completed vs requested scope
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+List all files:
+- New files with purpose
+- Modified files with description of changes
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+Break down all implemented features:
+- global templates list/create/edit
+- global template detail/version flow
+- editor behavior
+- preview behavior
+- branding admin UI
+- publish workflow
+- any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+List all endpoints used, grouped by:
+- global templates
+- versions
+- preview
+- branding
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+Explain:
+- request flow
+- server action flow
+- editor data flow (editorJson + compiled HTML/body)
+- preview flow
+- branding flow
+- cache revalidation flow
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+Describe:
+- editor validation
+- preview failures
+- backend error handling
+- unsupported version editing behavior
+- empty/no-branding states
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT
+--------------------------------------
+- how auth is enforced
+- how tenant/admin context is handled for preview/branding
+- how required headers/tokens are injected
+- behavior when tenant context is missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE
+--------------------------------------
+- cache tags invalidated
+- revalidation approach
+- performance considerations / known inefficiencies
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+List all gaps:
+- editor limitations
+- backend constraints
+- missing asset workflow
+- assumptions made
+- technical debt if any
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+List problems during implementation:
+- editor integration issues
+- route/contract mismatches
+- lifecycle constraints
+- preview/branding UX constraints
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+Provide exact steps:
+- how to start the system
+- how to access/test the feature
+- any tenant/seed requirements
+- how to exercise branded preview
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+Answer clearly:
+- Is NOTIF-UI-005 complete? (Yes / Mostly / Partial)
+- Is the Control Center now complete enough to start tenant portal work? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+List:
+- next features to build
+- remaining backend dependencies
+- whether tenant branding self-service or tenant template read views should come next
+
+==================================================
+CRITICAL: REPORT GENERATION IS REQUIRED
+==================================================
+
+You MUST generate the report file after completing the implementation.
+
+This is NOT optional.
+
+If the report is not generated, the task is considered incomplete.
+
+File path must be:
+
+/analysis/NOTIF-UI-005-report.md
+
+Do NOT skip sections.
+Do NOT claim features that are not implemented.
+Do NOT hide limitations.
+
+==================================================
+EXECUTION
+==================================================
+
+Build the full NOTIF-UI-005 scope now.
+Do not overbuild.
+Keep the UI Control Center-only, branding-aware, product-aware, and aligned to the NOTIF-008 backend.
+Generate the required report at the end.

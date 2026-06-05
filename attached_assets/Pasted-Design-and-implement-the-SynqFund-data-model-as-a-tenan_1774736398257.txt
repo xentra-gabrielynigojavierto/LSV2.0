@@ -1,0 +1,110 @@
+Design and implement the SynqFund data model as a tenant-aware, multi-organization, multi-party workflow.
+
+Use the existing platform foundation:
+
+- Tenant = subdomain/account boundary
+- Organization = business actor (LAW_FIRM, FUNDER, etc.)
+- Party = injured party (applicant)
+- Users are separate from Parties
+- JWT provides:
+  - tenant_id
+  - org_id
+  - org_type
+  - product_roles
+
+Core business rules:
+
+- Injured party applies for funding (Party)
+- Law firm refers or sponsors the injured party
+- Funder receives the application
+- Funder reviews and decides (approve/deny)
+- If approved, funder disburses funds
+- Injured party must have a separate interface (Party-based access)
+
+Actors:
+- Applicant → Party
+- Referrer → LAW_FIRM Organization
+- Receiver → FUNDER Organization
+
+Generate the output in these exact sections:
+
+1. Application Core Schema
+Design Applications table with:
+- ApplicantPartyId
+- ReferringOrganizationId
+- ReceivingOrganizationId
+- TenantId (keep for partitioning only)
+- Status
+- RequestedAmount
+- ApprovedAmount
+- metadata fields
+
+Explain why TenantId is NOT the access boundary.
+
+2. Application Status Model
+- define full lifecycle:
+  - Draft
+  - Submitted
+  - UnderReview
+  - Approved
+  - Denied
+  - Funded
+- explain transitions
+- include auditability
+
+3. Supporting Tables
+Design:
+- ApplicationStatusHistories
+- ApplicationDocuments
+- FundingDecisions
+- FundingDisbursements
+
+Explain purpose of each.
+
+4. Party Integration
+- explain how ApplicantPartyId is used
+- how party portal will access applications
+- define read rules for Party
+
+5. EF Core Design
+- entity classes
+- relationships
+- navigation properties
+
+6. Migration Plan
+- refactor existing Applications table
+- backfill ApplicantPartyId from inline fields
+- add ReferringOrganizationId and ReceivingOrganizationId
+- keep backward compatibility
+
+7. Authorization Rules
+Define:
+
+- law firm:
+  - create application
+  - view their applications
+- funder:
+  - view assigned applications
+  - approve/deny
+- injured party:
+  - view own application only
+
+Include endpoint-level logic examples.
+
+8. Cross-Tenant Access Model
+- explain how law firm (Tenant A) and funder (Tenant B) interact
+- define query patterns
+- explicitly avoid TenantId-based filtering
+
+9. Funding Lifecycle
+- define:
+  - approval
+  - funding
+  - disbursement
+- define state transitions and constraints
+
+10. Risks and Edge Cases
+- duplicate applications
+- partial funding
+- multiple funders
+- party identity mismatch

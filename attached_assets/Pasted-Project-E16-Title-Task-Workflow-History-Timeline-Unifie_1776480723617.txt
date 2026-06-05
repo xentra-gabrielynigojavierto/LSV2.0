@@ -1,0 +1,331 @@
+Project: E16
+Title: Task & Workflow History / Timeline — Unified Read Model + UI
+
+You are implementing the history and traceability layer for the LegalSynq workflow and task orchestration platform.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E16-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around audit data availability, event completeness, SLA history coverage, mapping logic, and any gaps from earlier phases (E10.1, E10.2, E14.2, E10.3).
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - timeline read model design
+   - API changes
+   - mapping logic
+   - UI components added
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for ops visibility / escalation phase or needs iteration
+
+REPORT FORMAT
+
+# E16 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Timeline Read Model Notes
+## Task Timeline Notes
+## Workflow Timeline Notes
+## Mapping / Transformation Notes
+## API Notes
+## UI Component Notes
+## Task UI Notes
+## Control Center Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose a clear, trustworthy history layer for tasks and workflows so users and admins can understand:
+- what changed
+- when it changed
+- who changed it
+- why it changed
+- how work moved across assignment, workflow, admin, and SLA states
+
+This phase must transform existing audit/event data into a unified, readable timeline without introducing a new write system.
+
+SCOPE INCLUDES
+
+- timeline read model
+- task timeline API
+- workflow timeline API
+- mapping layer (audit → timeline entries)
+- SLA history exposure where available
+- admin action history exposure
+- assignment transition history exposure
+- reusable timeline UI component
+- task detail timeline UI
+- Control Center timeline UI
+- documentation/reporting
+
+DO NOT BUILD
+
+- new event storage system
+- editable/deletable history
+- analytics dashboards
+- notification history
+- full audit explorer
+- collaboration/commenting features
+- bulk export tools
+- major UI redesign
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- use existing audit/event sources as the primary truth
+- avoid creating a second conflicting history system
+- keep history append-only and read-only
+- ensure all timeline entries are deterministic and explainable
+- preserve tenant isolation and access control
+- avoid fabricating history that cannot be trusted
+- keep UI readable and operational (not overloaded)
+
+CURRENT CONTEXT
+
+Already completed:
+- E10.1 admin action audit events
+- E10.2 outbox infrastructure
+- E14.2 assignment audit (claim/reassign)
+- E10.3 SLA status tracking (task-level)
+- E15 task inbox / queue UI
+
+Current limitation:
+- audit exists but is not surfaced cohesively
+- users/admins cannot easily reconstruct task/workflow history
+- SLA, assignment, and admin events are disconnected in UI
+
+E16 must unify these into a usable timeline.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. TIMELINE READ MODEL
+
+Create a normalized timeline entry structure.
+
+Required fields:
+- Id
+- EntityType (WorkflowTask, WorkflowInstance)
+- EntityId
+- EventType
+- Timestamp
+- Actor
+- Summary (human-readable)
+- Details (optional structured or text)
+- Metadata (optional JSON)
+- Category (optional: Assignment, Workflow, Admin, SLA)
+
+Rules:
+- must be derived, not stored as a new source of truth
+- must be deterministic
+- must support ordering
+
+2. SOURCE OF TRUTH
+
+Use existing sources:
+- Audit service records (primary)
+- Task/workflow state where necessary (secondary)
+- minimal synthetic events only when:
+  - deterministic
+  - clearly documented
+
+DO NOT:
+- invent history that cannot be traced back to source data
+
+3. TASK TIMELINE COVERAGE
+
+Include at minimum:
+- task created
+- assignment transitions (claim, reassign)
+- queue placement if derivable
+- completion/cancellation if applicable
+- SLA transitions (if available)
+- admin interventions affecting task/workflow
+
+4. WORKFLOW TIMELINE COVERAGE
+
+Include:
+- workflow created/started
+- step transitions
+- workflow completed
+- workflow cancelled
+- admin actions (retry, cancel, force-complete)
+
+5. SLA HISTORY
+
+If available:
+- AtRisk (DueSoon) entry
+- Overdue entry (especially first breach)
+
+If not fully auditable:
+- document limitations clearly
+- do NOT fabricate missing transitions
+
+6. MAPPING LAYER
+
+Build a transformation layer:
+Audit/Event → Timeline Entry
+
+Requirements:
+- map raw event types into readable summaries
+- example:
+  - workflow.task.claim → "Task claimed from role queue"
+  - workflow.task.reassign → "Task reassigned"
+  - workflow.admin.cancel → "Workflow cancelled by admin"
+  - SLA breach → "Task became overdue"
+- preserve raw type in metadata if needed
+
+7. TIMELINE APIs
+
+Add read-only endpoints:
+
+Examples:
+- GET /api/v1/workflow-tasks/{id}/timeline
+- GET /api/v1/workflow-instances/{id}/timeline
+
+Requirements:
+- tenant-safe
+- permission-aware
+- paginated if needed
+- deterministic ordering (document oldest-first or newest-first)
+
+8. TIMELINE UI COMPONENT
+
+Create reusable component:
+
+Capabilities:
+- timestamp display
+- actor display
+- summary text
+- optional details expansion
+- category indicator (icon/badge)
+
+Requirements:
+- reusable across:
+  - task detail drawer
+  - workflow detail drawer
+  - future admin views
+- support:
+  - loading state
+  - empty state
+  - long lists
+
+9. TASK UI INTEGRATION
+
+Add timeline to:
+- task detail drawer (E15)
+
+Requirements:
+- accessible but not overwhelming
+- collapsible or tabbed if needed
+- readable summaries
+
+10. CONTROL CENTER INTEGRATION
+
+Add timeline to:
+- workflow detail drawer (E9.2)
+
+Requirements:
+- include admin actions
+- include workflow progression
+- include assignment transitions where relevant
+
+11. ACTOR HANDLING
+
+Requirements:
+- show user name/email where available
+- fallback to:
+  - "System"
+  - "Unknown"
+- do not fabricate identities
+
+12. SECURITY / VISIBILITY
+
+Requirements:
+- inherit access rules from parent entity
+- no cross-tenant leakage
+- admin views may show broader data if allowed
+
+13. DATA INTEGRITY
+
+Requirements:
+- no duplicate entries unless justified
+- consistent ordering
+- consistent mapping rules
+- clearly document synthetic entries if any
+
+14. VALIDATION
+
+You MUST validate:
+
+Functional:
+- task timeline shows assignment/admin/SLA events
+- workflow timeline shows execution/admin events
+
+Security:
+- tenant isolation preserved
+- unauthorized access blocked
+
+Data Integrity:
+- no contradictory entries
+- ordering consistent
+
+UI:
+- timeline renders correctly
+- handles long history
+
+Build/Runtime:
+- backend builds
+- frontend compiles
+- APIs respond correctly
+
+15. DOCUMENTATION
+
+Document:
+- data sources used
+- mapping rules
+- limitations (missing historical events)
+- future improvements (audit completeness, SLA event capture)
+
+16. EXPLICIT DEFERRALS
+
+Document clearly:
+- no full audit explorer
+- no analytics dashboards
+- no notification history
+- no collaboration/comments
+- no editable history
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect audit/event sources and E14.2 / E10.3 outputs
+2. Create /analysis/E16-report.md
+3. Define timeline read model
+4. Implement mapping layer
+5. Implement task timeline API
+6. Implement workflow timeline API
+7. Build timeline UI component
+8. Integrate into task detail UI
+9. Integrate into Control Center UI
+10. Validate and finalize report
+
+SUCCESS CONDITION
+
+E16 is successful when:
+- task and workflow history is visible and understandable
+- assignment, workflow, admin, and SLA events are unified
+- history is trustworthy and deterministic
+- UI is usable and not overwhelming
+
+FAILURE CONDITION
+
+E16 fails if:
+- history is misleading or fabricated
+- multiple conflicting history sources exist
+- UI is confusing or overloaded
+- security boundaries are weakened

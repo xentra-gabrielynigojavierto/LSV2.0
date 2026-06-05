@@ -1,0 +1,507 @@
+You are implementing **LS-REPORTS-02-001 — Template Assignment & Tenant Customization Foundation** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story introduces the first tenant-aware template distribution layer so templates can be assigned globally or to specific tenants and resolved into a tenant-visible catalog by tenant, product, and organization type.
+
+This is a foundation story for tenant targeting and future tenant customization. Do not implement the tenant report builder yet.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-02-001-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not write code before this.
+
+## 2. Update the report continuously
+After each major step, update the report with:
+- step completed
+- files created
+- files modified
+- schema/migration notes
+- implementation notes
+- validation results
+- issues encountered
+- decisions made
+- build/run/API status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- full tenant custom report builder
+- drag-and-drop report editing
+- scheduling
+- report execution
+- pricing engine logic
+- UI
+- authentication/authorization middleware
+- advanced tenant override editing
+
+## 4. Preserve architecture
+- API layer must use DTOs
+- API layer must call a service layer
+- API layer must NOT call repositories directly
+- Repository layer remains persistence-focused
+- Domain entities must not be returned directly from endpoints
+
+## 5. Preserve current functionality
+Do not break:
+- existing template APIs
+- versioning behavior
+- published-version rules
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-02-001 — Template Assignment & Tenant Customization Foundation**
+
+---
+
+# OBJECTIVE
+Introduce the first tenant-aware template distribution layer for the Reports Service so `ReportTemplate` records can be:
+- assigned globally
+- assigned to specific tenants
+- resolved by tenant, product, and organization type
+- prepared for tenant-level customization and commercialization in later stories
+
+This story must establish the foundation for:
+- control-center-managed template distribution
+- tenant-specific availability
+- product/org-type filtering
+- future pricing-tier and feature-gated reporting
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Assignment Domain / Persistence Model
+Add assignment persistence entities.
+
+### 1. ReportTemplateAssignment
+Suggested fields:
+- `Id`
+- `ReportTemplateId`
+- `AssignmentScope` (`Global` or `Tenant`)
+- `ProductCode`
+- `OrganizationType`
+- `IsActive`
+- `RequiredFeatureCode` (nullable)
+- `MinimumTierCode` (nullable)
+- `CreatedAtUtc`
+- `CreatedByUserId`
+- `UpdatedAtUtc`
+- `UpdatedByUserId`
+
+### 2. ReportTemplateAssignmentTenant
+Suggested fields:
+- `Id`
+- `ReportTemplateAssignmentId`
+- `TenantId`
+- `IsActive`
+- `CreatedAtUtc`
+- `CreatedByUserId`
+
+### Rules
+- Global assignment should not require child tenant rows
+- Tenant assignment should require one or more tenant rows
+- Design must support future commercialization hooks without overbuilding
+
+---
+
+## B. EF Core Configuration
+Create fluent configurations for the new entities.
+
+### Expected tables
+- `rpt_ReportTemplateAssignments`
+- `rpt_ReportTemplateAssignmentTenants`
+
+### Requirements
+- define keys
+- define relationships
+- add sensible indexes
+- keep naming platform-consistent
+- enforce string length limits where appropriate
+
+Suggested relationships:
+- one `ReportTemplate` → many `ReportTemplateAssignments`
+- one `ReportTemplateAssignment` → many `ReportTemplateAssignmentTenant`
+
+---
+
+## C. Migration
+Create and apply a migration for the new assignment tables.
+
+Choose a sensible migration name, for example:
+- `AddTemplateAssignments`
+
+Apply the migration if the database is available.
+Document:
+- migration files
+- schema changes
+- migration success/failure
+- any environment-specific adjustments
+
+---
+
+## D. Repository Support
+Add repository support for template assignment.
+
+### Required capabilities
+- create assignment
+- update assignment
+- get assignment by id
+- list assignments by template
+- list tenant targets by assignment
+- resolve templates available to a tenant by:
+  - tenant id
+  - product code
+  - organization type
+
+You may:
+- add a new repository interface, or
+- extend an existing template repository cleanly
+
+Preferred approach:
+- keep assignment concerns explicit and not mixed into unrelated repository methods excessively
+
+---
+
+## E. Service Layer
+Add a service layer for assignment logic.
+
+### Recommended contracts
+- `ITemplateAssignmentService`
+- `TemplateAssignmentService`
+
+### Responsibilities
+- validate requests
+- enforce assignment scope rules
+- prevent invalid duplicates/conflicts
+- resolve tenant-visible template catalog
+- coordinate repository calls
+- optionally call `IAuditAdapter`
+
+The API layer must not call repositories directly.
+
+---
+
+## F. Assignment Rules
+Implement at minimum:
+
+### Rule 1 — Scope validity
+- `Global` assignment must not require tenant list
+- `Tenant` assignment must include at least one tenant
+
+### Rule 2 — Product/org alignment
+- assignment product/org type must align with the template’s product/org type
+- reject conflicting assignment requests
+
+### Rule 3 — Published version requirement
+Tenant-visible catalog should only return templates where:
+- template is active
+- assignment is active
+- a published version exists
+
+### Rule 4 — Duplicate handling
+Prevent invalid duplicates such as:
+- the same template assigned globally more than once as active
+- the same tenant assigned redundantly in a conflicting active assignment
+
+### Rule 5 — Activation model
+Assignments and assignment-tenant rows should support activation/deactivation without requiring physical deletion
+
+---
+
+## G. Request DTOs
+Create request DTOs for:
+
+### CreateTemplateAssignmentRequest
+Fields:
+- `AssignmentScope`
+- `TenantIds` (nullable/empty for global)
+- `IsActive`
+- `CreatedByUserId`
+- optional:
+  - `RequiredFeatureCode`
+  - `MinimumTierCode`
+
+### UpdateTemplateAssignmentRequest
+Fields:
+- `TenantIds`
+- `IsActive`
+- `UpdatedByUserId`
+- optional:
+  - `RequiredFeatureCode`
+  - `MinimumTierCode`
+
+### TenantTemplateCatalogQuery
+Fields:
+- `TenantId`
+- `ProductCode`
+- `OrganizationType`
+
+---
+
+## H. Response DTOs
+Create response DTOs for:
+
+### TemplateAssignmentResponse
+Include:
+- `AssignmentId`
+- `TemplateId`
+- `AssignmentScope`
+- `ProductCode`
+- `OrganizationType`
+- `IsActive`
+- `TenantIds`
+- `RequiredFeatureCode`
+- `MinimumTierCode`
+- `CreatedAtUtc`
+- `UpdatedAtUtc`
+
+### TenantTemplateCatalogItemResponse
+At minimum include:
+- `TemplateId`
+- `Code`
+- `Name`
+- `Description`
+- `ProductCode`
+- `OrganizationType`
+- `CurrentVersion`
+- `PublishedVersionNumber`
+- `AssignmentScope`
+- `IsActive`
+
+Do not return raw entities directly.
+
+---
+
+## I. API Surface
+Add endpoints for assignment management and tenant catalog resolution.
+
+### Control-center/admin assignment endpoints
+- `POST /api/v1/templates/{templateId}/assignments`
+- `PUT /api/v1/templates/{templateId}/assignments/{assignmentId}`
+- `GET /api/v1/templates/{templateId}/assignments`
+- `GET /api/v1/templates/{templateId}/assignments/{assignmentId}`
+
+### Tenant catalog endpoint
+- `GET /api/v1/tenant-templates?tenantId={id}&productCode={code}&organizationType={type}`
+
+Optional only if clean:
+- `GET /api/v1/tenants/{tenantId}/templates?productCode={code}&organizationType={type}`
+
+---
+
+## J. Validation and Error Handling
+Implement at minimum:
+
+### Assignment create
+- template must exist
+- scope valid
+- tenant list required for tenant scope
+- tenant list empty/ignored for global scope
+- conflicting duplicate global assignment not allowed
+
+### Assignment update
+- assignment must exist
+- updated assignment must remain valid
+
+### Tenant catalog query
+- `TenantId` required
+- `ProductCode` required
+- `OrganizationType` required
+
+### Status code guidance
+- `400` invalid request
+- `404` template/assignment not found
+- `409` duplicate/conflict
+- `500` unexpected failure
+
+Use lightweight consistent responses.
+
+---
+
+## K. Audit Hook Readiness
+If low-risk and clean, add non-blocking `IAuditAdapter` calls on:
+- template.assignment.created
+- template.assignment.updated
+- tenant.catalog.resolved
+
+Use the same warning-only pattern as previous stories.
+
+---
+
+## L. Preserve Existing APIs
+Ensure existing template management APIs continue to work unchanged unless minor compatibility-safe adjustments are needed.
+
+---
+
+## M. Health & Readiness Compatibility
+Preserve:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+Build and startup must remain healthy.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. assignment persistence entities exist
+2. EF configuration exists for assignment entities
+3. migration exists for assignment tables
+4. repository support exists for assignment operations
+5. service layer exists for assignment logic
+6. assignment APIs exist under `/api/v1/templates/{templateId}/assignments`
+7. tenant catalog API exists
+8. global assignment works
+9. tenant-targeted assignment works
+10. tenant catalog only returns templates with published versions
+11. validation and duplicate-handling rules are implemented
+12. API uses DTOs and service layer, not raw entities or direct repository calls from endpoints
+13. service builds successfully
+14. service starts successfully
+15. `/api/v1/health` works
+16. `/api/v1/ready` works
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-02-001-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Add assignment entities and EF configurations
+Create the new domain entities and persistence configurations.
+Update the report.
+
+## Step 3 — Create and apply migration
+Generate migration for assignment tables and apply it if DB is available.
+Update the report with output and schema notes.
+
+## Step 4 — Add repository support
+Implement or extend repositories to support assignment operations and tenant catalog resolution.
+Update the report.
+
+## Step 5 — Add service layer
+Create `ITemplateAssignmentService` and `TemplateAssignmentService`.
+Implement validation, conflict handling, resolution logic, and optional audit hooks.
+Update the report.
+
+## Step 6 — Add DTOs
+Create request/response DTOs for assignment APIs and tenant catalog.
+Update the report.
+
+## Step 7 — Add assignment endpoints
+Implement the required assignment endpoints under `/api/v1/templates/{templateId}/assignments`.
+Update the report.
+
+## Step 8 — Add tenant catalog endpoint
+Implement:
+- `GET /api/v1/tenant-templates?tenantId={id}&productCode={code}&organizationType={type}`
+
+Ensure it only returns active templates with published versions and valid assignments.
+Update the report.
+
+## Step 9 — Add validation and duplicate handling
+Enforce scope validity, duplicate prevention, product/org alignment, and published-version filtering.
+Update the report.
+
+## Step 10 — Validate
+Run build/startup validation and exercise the new endpoints against DB if available.
+At minimum validate:
+- create global assignment
+- create tenant-targeted assignment
+- list assignments
+- get assignment by id
+- tenant catalog resolution for matching tenant
+- tenant catalog exclusion for non-matching tenant
+- published-version filtering
+
+Update the report.
+
+## Step 11 — Finalize report
+Complete `/analysis/LS-REPORTS-02-001-report.md` with:
+- schema summary
+- migration summary
+- endpoint summary
+- validation results
+- build/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- templates can be assigned globally or to specific tenants
+- tenant catalog can resolve available templates by tenant/product/org type
+- published-version filtering works
+- architecture remains clean
+- schema and APIs are ready for future tenant customization and pricing/tier gating
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-02-001** exactly as described.

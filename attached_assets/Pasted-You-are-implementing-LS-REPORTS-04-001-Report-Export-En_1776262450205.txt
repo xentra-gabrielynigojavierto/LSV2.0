@@ -1,0 +1,255 @@
+You are implementing **LS-REPORTS-04-001 — Report Export Engine (CSV / XLSX / PDF)** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story introduces the export engine so executed reports can be transformed into downloadable files (CSV, XLSX, PDF).
+
+This is a delivery-layer story. Do NOT implement scheduling, long-term storage, or UI.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create:
+
+- `/analysis/LS-REPORTS-04-001-report.md`
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step, update with:
+- files created/modified
+- implementation notes
+- validation results
+- issues
+- decisions
+
+## 3. Keep scope controlled
+Do NOT implement:
+- scheduling
+- email/FTP delivery
+- cloud storage (S3, etc.)
+- UI
+- advanced PDF templating
+
+## 4. Preserve architecture
+- API → Service → Execution Service → Exporter
+- DO NOT bypass execution service
+- DO NOT leak EF entities
+- keep exporter abstraction clean
+
+---
+
+# STORY ID
+**LS-REPORTS-04-001 — Report Export Engine**
+
+---
+
+# OBJECTIVE
+Enable report execution results to be exported into:
+- CSV
+- XLSX
+- PDF
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Create Export DTOs
+
+### ExportReportRequest
+- TenantId
+- TemplateId
+- ProductCode
+- OrganizationType
+- Format (CSV | XLSX | PDF)
+- ParametersJson
+- RequestedByUserId
+- UseOverride (optional, default true)
+
+### ExportReportResponse
+- ExportId
+- FileName
+- ContentType
+- FileSize
+- GeneratedAtUtc
+- Format
+- Status
+- FileContent (byte[] or base64)
+
+---
+
+## B. Create Exporter Abstraction
+
+### Interface
+`IReportExporter`
+
+### Method
+`ExportAsync(TabularResultSet data, ExportContext ctx)`
+
+---
+
+## C. Implement Exporters
+
+### 1. CSV Exporter
+- comma delimiter
+- include headers
+- escape values properly
+- UTF-8 encoding
+
+### 2. XLSX Exporter
+- use ClosedXML (preferred lightweight lib)
+- single worksheet
+- header row
+- typed cells if easy
+
+### 3. PDF Exporter (basic)
+- use QuestPDF or iText7
+- simple table layout
+- no styling complexity
+
+---
+
+## D. Export Service Layer
+
+Create:
+- `IReportExportService`
+- `ReportExportService`
+
+### Responsibilities
+- validate request
+- call execution service
+- get TabularResultSet
+- call correct exporter
+- generate file
+- build response
+- emit audit events
+
+---
+
+## E. File Naming Convention
+
+{TemplateCode}_{yyyyMMdd_HHmmss}.{ext}
+
+---
+
+## F. Integrate Execution Service
+
+- call `IReportExecutionService`
+- reuse validation
+- DO NOT duplicate execution logic
+
+---
+
+## G. Guardrails
+
+Implement:
+- max rows (reuse execution cap)
+- max file size (e.g., 10MB)
+- reject unsupported formats
+
+---
+
+## H. Audit Events
+
+Emit:
+- report.export.started
+- report.export.completed
+- report.export.failed
+
+Include metadata:
+- format
+- row count
+- file size
+
+---
+
+## I. API Endpoint
+
+Add:
+
+POST `/api/v1/report-exports`
+
+Return:
+- file content
+- metadata
+
+---
+
+## J. Error Handling
+
+- invalid format → 400
+- execution failure → propagate
+- export failure → mark failed
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. Export DTOs exist
+2. Export service exists
+3. Exporter abstraction exists
+4. CSV export works
+5. XLSX export works
+6. PDF export works (basic)
+7. Export endpoint exists
+8. Export integrates with execution service
+9. Audit events emitted
+10. Guardrails enforced
+11. File output valid
+12. Build passes
+13. Service runs
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file
+2. Add DTOs
+3. Create exporter interface
+4. Implement CSV exporter
+5. Implement XLSX exporter
+6. Implement PDF exporter
+7. Create export service
+8. Integrate execution service
+9. Add API endpoint
+10. Add audit events
+11. Validate everything
+12. Finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- Files Created/Modified
+- Export Formats Summary
+- API Validation Results
+- Build Status
+- Issues
+- Decisions
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- Export engine works
+- CSV/XLSX/PDF generated
+- Integrated with execution
+- Audit integrated
+- System ready for scheduling
+
+---
+
+Now implement **LS-REPORTS-04-001** exactly as described.

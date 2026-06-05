@@ -1,0 +1,103 @@
+You are a senior database and security architect. Upgrade the Docs Service to implement strong tenant isolation using MySQL.
+
+Goal:
+Ensure strict tenant isolation WITHOUT relying on PostgreSQL Row-Level Security (RLS), since MySQL does not support it.
+
+This must be implemented safely at the application and data-access layers.
+
+---
+
+## Requirements
+
+Tenant isolation must be enforced through:
+
+1. Repository Layer (MANDATORY)
+- Every query MUST include tenant filtering:
+  WHERE tenant_id = ?
+- No exceptions unless explicitly controlled (e.g. PlatformAdmin)
+
+2. Service Layer (MANDATORY)
+- Enforce tenant scope using ABAC:
+  - compare JWT tenantId with document tenantId
+- Block cross-tenant access by default
+
+3. Defensive Safeguards (IMPORTANT)
+Implement protections to prevent developer mistakes:
+
+- central query helpers or repository wrappers that REQUIRE tenantId
+- prevent raw queries without tenant filtering
+- optional query builder abstraction
+- validation guards for missing tenantId
+
+---
+
+## Optional Enhancements (Recommended)
+
+- create database views scoped by tenant_id
+- use stored procedures for sensitive operations
+- add database constraints/indexes:
+  - composite indexes including tenant_id
+- consider audit triggers for sensitive tables
+
+---
+
+## Admin Access Design
+
+- PlatformAdmin may access multiple tenants
+- This must be:
+  - explicit
+  - auditable
+  - NOT the default path
+
+---
+
+## Security Rules
+
+- default DENY for cross-tenant access
+- never return data across tenants
+- never rely on frontend or client input for tenant enforcement
+- tenantId must come from verified JWT claims
+
+---
+
+## Testing Requirements
+
+Add tests for:
+- tenant A cannot access tenant B data
+- tenant A cannot delete tenant B data
+- missing tenant filter should fail or be blocked
+- admin cross-tenant access works only when explicitly allowed
+
+---
+
+## Deliverables
+
+1. Implement tenant isolation changes
+2. Ensure no unsafe query patterns exist
+3. Generate:
+
+/analysis/step13_mysql_tenant_isolation.md
+
+---
+
+## Report must include
+
+1. Objective
+2. Isolation strategy
+3. How tenant filtering is enforced
+4. Safeguards against developer mistakes
+5. Files changed
+6. Risks / gaps
+7. How to verify
+
+---
+
+## Important
+
+- Do NOT use PostgreSQL RLS
+- Do NOT assume DB-level enforcement exists
+- All safety must come from application + repository design
+
+---
+
+Start now and implement real code changes.

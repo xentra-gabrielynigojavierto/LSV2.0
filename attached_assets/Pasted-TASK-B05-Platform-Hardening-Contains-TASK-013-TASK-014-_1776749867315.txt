@@ -1,0 +1,310 @@
+TASK-B05 — Platform Hardening
+(Contains TASK-013, TASK-014, TASK-015, TASK-016, TASK-017, TASK-018)
+
+OBJECTIVE:
+Harden the Task service and its integrations post-cutover so it can operate as a secure, observable, and reliable platform service across products. This block focuses on security, validation, monitoring, data integrity, and cleanup — NOT new user-facing features.
+
+NON-NEGOTIABLE RULES:
+- DO NOT change user-facing behavior or UX flows
+- DO NOT introduce new task features
+- MUST preserve TASK-B01 → B04 behavior
+- MUST use existing platform patterns (Identity, Notification, Audit, Monitoring)
+- MUST create report FIRST and update incrementally
+- MUST validate against current codebase before implementing
+- MUST remain backward compatible for current consumers
+- NO placeholders or speculative architecture
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-B05-report.md
+
+Initialize with:
+
+# TASK-B05 Report — Platform Hardening
+
+## 1. Codebase Analysis
+## 2. Flow Callback Auth Hardening
+## 3. Product Validation Enforcement
+## 4. Monitoring Integration
+## 5. Notification Hardening
+## 6. Data Integrity & Query Hardening
+## 7. Transitional Cleanup
+## 8. Validation Results
+## 9. Known Gaps / Risks
+
+Update this report AFTER EVERY STEP.
+
+--------------------------------------------------
+STEP 1 — CODEBASE ANALYSIS
+--------------------------------------------------
+
+Analyze current Task + Liens + Flow integration:
+
+- Identify current auth pattern for:
+  - Flow callback endpoint
+  - Liens → Task calls
+- Identify product-code usage across:
+  - Task create/update
+  - templates
+  - governance
+- Identify monitoring registration pattern used by other services
+- Identify notification template usage and registry pattern
+- Identify query/index patterns for:
+  - /tasks/my
+  - product-scoped queries
+  - linked entities
+- Identify leftover transitional code from B04/B04-01
+
+Document:
+## 1. Codebase Analysis
+
+--------------------------------------------------
+STEP 2 — FLOW CALLBACK AUTH HARDENING (TASK-013)
+--------------------------------------------------
+
+Target:
+POST /api/tasks/internal/flow-callback
+
+Replace current weak/admin-style auth with proper service-to-service auth.
+
+Requirements:
+- Reuse existing internal-service auth pattern (same as Notification or Flow if present)
+- Use signed service token (e.g., HS256 JWT via shared secret or existing issuer)
+- Validate:
+  - service identity
+  - tenantId consistency
+- Reject:
+  - user-level tokens
+  - missing/invalid tokens
+- Keep endpoint internal-only
+
+Ensure:
+- idempotent behavior unchanged
+- logging for:
+  - unauthorized attempts
+  - malformed payloads
+
+Update:
+## 2. Flow Callback Auth Hardening
+
+--------------------------------------------------
+STEP 3 — CANONICAL PRODUCT VALIDATION (TASK-014)
+--------------------------------------------------
+
+Audit ALL usage of SourceProductCode.
+
+Enforce:
+- validation against canonical product registry (config, enum, or shared source)
+- no raw string comparisons scattered in code
+
+Apply validation to:
+- task create/update
+- templates
+- governance config
+- stage config
+- linked entities (if applicable)
+
+Behavior:
+- invalid product codes → deterministic validation error
+- no silent fallback
+
+Ensure:
+- consistent behavior across ALL endpoints
+
+Update:
+## 3. Product Validation Enforcement
+
+--------------------------------------------------
+STEP 4 — MONITORING INTEGRATION (TASK-015)
+--------------------------------------------------
+
+Register Task service in Monitoring.
+
+Requirements:
+- expose/confirm:
+  - /health
+  - readiness behavior (if pattern exists)
+- integrate with Monitoring service:
+  - service registration
+  - dependency tracking (if pattern exists)
+- ensure structured logs include:
+  - correlationId
+  - service name
+  - error context
+
+Add:
+- startup logs
+- migration logs (if missing clarity)
+
+Document:
+- how Task appears in Monitoring
+- how to check health
+
+Update:
+## 4. Monitoring Integration
+
+--------------------------------------------------
+STEP 5 — NOTIFICATION HARDENING (TASK-016)
+--------------------------------------------------
+
+Audit Task notification usage:
+
+- assignment
+- reassignment
+- due soon
+- overdue
+
+Ensure:
+- all template keys are registered in Notification system (if registry required)
+- payload structure matches Notification contract
+- no hard-coded email logic
+- failures do NOT break task operations
+
+Add:
+- logging for notification failures
+- clear template naming consistency
+
+Update:
+## 5. Notification Hardening
+
+--------------------------------------------------
+STEP 6 — DATA INTEGRITY & QUERY HARDENING (TASK-017)
+--------------------------------------------------
+
+A. Linked entity deduplication
+- prevent duplicate (task_id, entity_type, entity_id)
+- add constraint or safe dedup logic
+
+B. Pagination & query safety
+- ensure /tasks/my supports:
+  - pagination
+  - filtering
+- verify all list endpoints:
+  - enforce tenant isolation
+  - do not allow unbounded queries
+
+C. Index review
+Ensure indexes exist for:
+- my tasks (assigned user)
+- product-scoped queries
+- source entity lookups
+- workflow linkage
+- generation metadata
+- linked entities
+
+D. Defensive query behavior
+- null-safe filters
+- no accidental full scans
+
+Update:
+## 6. Data Integrity & Query Hardening
+
+--------------------------------------------------
+STEP 7 — TRANSITIONAL CLEANUP (TASK-018)
+--------------------------------------------------
+
+Audit leftover migration/cutover code:
+
+- duplicate-check fallbacks
+- temporary branches
+- unused repo methods
+- unused DI registrations
+
+Clean up:
+- remove runtime dependencies no longer needed
+- keep ONLY:
+  - backfill tools (if still needed)
+  - rollback-safe components
+
+Ensure:
+- no runtime path depends on removed Liens tables
+- no dead code paths remain
+
+DO NOT remove:
+- anything required for rollback unless verified safe
+
+Update:
+## 7. Transitional Cleanup
+
+--------------------------------------------------
+STEP 8 — VALIDATION
+--------------------------------------------------
+
+Validate:
+
+AUTH:
+1. valid Flow callback succeeds
+2. invalid token rejected
+3. user token rejected
+
+PRODUCT VALIDATION:
+4. valid product accepted
+5. invalid product rejected everywhere
+
+MONITORING:
+6. service visible in Monitoring
+7. health endpoint works
+
+NOTIFICATIONS:
+8. assignment notification works
+9. reminder notification works
+10. failures logged but non-breaking
+
+DATA INTEGRITY:
+11. duplicate linked entity blocked
+12. pagination works on /tasks/my
+13. no unbounded query behavior
+
+REGRESSION:
+14. all B01–B04 behavior still works
+15. no UI/API regressions
+16. Liens integration unaffected
+
+Update:
+## 8. Validation Results
+
+--------------------------------------------------
+STEP 9 — KNOWN GAPS
+--------------------------------------------------
+
+Document remaining gaps:
+
+- permission model (future enhancement)
+- advanced SLA/timer engine
+- product onboarding readiness
+- monitoring enhancements
+- any technical debt
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-B05 is complete only if:
+
+1. Flow callback is securely authenticated
+2. Product codes are validated consistently
+3. Task is visible in Monitoring
+4. Notification integration is hardened
+5. Data integrity issues are addressed
+6. Query performance is safe
+7. Transitional code is cleaned up
+8. No regression in behavior
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- No UI redesign
+- No new features
+- No breaking API changes
+- No large architectural rewrites
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

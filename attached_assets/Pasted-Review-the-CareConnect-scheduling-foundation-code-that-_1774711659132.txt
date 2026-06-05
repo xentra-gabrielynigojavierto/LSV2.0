@@ -1,0 +1,102 @@
+Review the CareConnect scheduling foundation code that was just generated and clean it up before any migration is applied.
+
+Goal:
+Validate that the implementation only includes the intended scheduling foundation and fix any issues before database changes are applied.
+
+Expected scope only:
+- Facility
+- ProviderFacility
+- ServiceOffering
+- ProviderServiceOffering
+- ProviderAvailabilityTemplate
+
+Do NOT keep or add anything outside this scope:
+- Appointment
+- AppointmentSlot
+- AvailabilityException
+- Booking
+- Scheduling jobs
+- Notifications
+- Documents
+- Payments
+
+Tasks
+
+1. Review the generated code and confirm only these entities exist:
+- Facility
+- ProviderFacility
+- ServiceOffering
+- ProviderServiceOffering
+- ProviderAvailabilityTemplate
+
+2. Remove any extra scheduling-related entities, DTOs, services, endpoints, migrations, or DbSets that are outside the intended scope.
+
+3. Review EF Core mappings and confirm:
+- table names are exactly:
+  - Facilities
+  - ProviderFacilities
+  - ServiceOfferings
+  - ProviderServiceOfferings
+  - ProviderAvailabilityTemplates
+- keys and indexes are clean and intentional
+- relationships are correct
+- tenant-scoped entities are tenant-safe
+
+4. Review ProviderServiceOfferings specifically and ensure the chosen key strategy is clean:
+- either a proper composite key that works well with EF/MySQL
+- or a surrogate Id plus a unique index
+- pick one approach and make it consistent
+
+5. Review time field mapping for:
+- StartTimeLocal
+- EndTimeLocal
+
+Ensure the chosen type is compatible with EF Core + Pomelo + MySQL and will migrate cleanly.
+
+6. Review validation and ensure it exists for:
+- Facility
+- ServiceOffering
+- ProviderAvailabilityTemplate
+
+7. Review endpoints and ensure only these exist for this step:
+Facilities:
+- GET /api/facilities
+- POST /api/facilities
+- PUT /api/facilities/{id}
+
+Service offerings:
+- GET /api/service-offerings
+- POST /api/service-offerings
+- PUT /api/service-offerings/{id}
+
+Availability templates:
+- GET /api/providers/{id}/availability-templates
+- POST /api/providers/{id}/availability-templates
+- PUT /api/availability-templates/{id}
+
+Plus:
+- GET /health
+- GET /info
+
+8. Review authorization and ensure:
+- read endpoints require authenticated user
+- create/update endpoints require PlatformOrTenantAdmin
+- health/info are anonymous
+
+9. Review audit field usage and ensure auditable entities follow the existing audit pattern cleanly.
+
+10. Review the generated migration and ensure it only creates the intended scheduling foundation tables.
+If the migration includes extra tables outside scope, fix the code and regenerate or adjust the migration accordingly.
+
+11. Output:
+- files reviewed
+- issues found
+- fixes made
+- final list of entities
+- final list of tables
+- any migration changes needed before running database update
+
+Important:
+Do not apply the migration yet.
+Do not run database update yet.
+This step is only for review and cleanup before migration.

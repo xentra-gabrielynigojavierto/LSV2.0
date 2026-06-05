@@ -1,0 +1,292 @@
+Project: E11.5
+Title: My Tasks API — Tenant User Task Query Surface
+
+You are implementing the first operator-facing task query layer for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.5-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around user identity resolution, tenant scoping, workflow context joins, filtering semantics, and pagination defaults.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - API endpoints added
+   - query logic and filters
+   - response model structure
+   - indexing usage
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for UI consumption or needs iteration
+
+REPORT FORMAT
+
+# E11.5 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## API Endpoint Notes
+## Query / Filtering Notes
+## Response Model Notes
+## Authorization / Tenant Safety Notes
+## Performance Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose a tenant-safe, user-scoped "My Tasks" API so authenticated users can retrieve their assigned tasks from WorkflowTask without relying on workflow reconstruction.
+
+This API will serve as the foundation for:
+- My Tasks UI (tenant portal)
+- task-based user workflows
+- future task notifications and SLA overlays
+
+SCOPE INCLUDES
+
+- read-only My Tasks endpoint
+- current-user task filtering
+- response DTO shaping
+- pagination
+- optional status filtering
+- minimal workflow context enrichment
+- tenant-safe authorization
+- documentation/reporting
+
+DO NOT BUILD
+
+- task creation logic
+- assignment rules
+- task lifecycle mutations
+- task UI
+- notification sending
+- admin task endpoints
+- advanced search/filter engine
+- workflow progression logic
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- scope all queries to the current authenticated user
+- enforce tenant isolation strictly
+- use WorkflowTask as the source of truth
+- return UI-friendly task data
+- avoid leaking internal workflow structures
+- keep the endpoint read-only
+- avoid modifying existing workflow or task lifecycle behavior
+
+CURRENT CONTEXT
+
+Already completed:
+- E11.1 → Task entity
+- E11.2 → Task creation from workflow
+- E11.4 → Task lifecycle service
+
+This phase exposes those tasks to users.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. ENDPOINT
+
+Create a read-only endpoint, aligned with API conventions, for example:
+
+GET /api/v1/tasks/me
+
+Requirements:
+- returns only tasks for the current authenticated user
+- does NOT accept arbitrary userId as input
+- uses auth/session context to resolve user
+- tenant-scoped automatically
+- returns 200 with empty list if no tasks
+
+2. USER SCOPING
+
+Define “my tasks” as:
+
+- WorkflowTask.AssignedUserId == current user id
+
+Rules:
+- do NOT include role-based or org-based tasks in this phase
+- do NOT include unassigned tasks
+- document clearly what is excluded
+
+3. RESPONSE MODEL
+
+Each task item must include:
+
+- taskId
+- title
+- description (if available)
+- status
+- priority
+- stepKey
+- assignedUserId
+- createdAt
+- updatedAt
+- startedAt
+- completedAt
+- cancelledAt
+
+Include minimal workflow context:
+
+- workflowInstanceId
+- optional workflow title (if cheap to retrieve)
+- optional product key (if cheap to retrieve)
+
+Rules:
+- response must be UI-friendly
+- avoid exposing internal engine-only fields
+- tolerate null values safely
+
+4. FILTERING
+
+Support basic filters via query parameters:
+
+- status (single or multiple if easy)
+- page
+- pageSize
+
+Optional (only if trivial):
+- priority
+
+Rules:
+- keep filtering simple
+- no complex query language
+- document default behavior
+
+5. ORDERING
+
+Define deterministic ordering.
+
+Recommended:
+- active tasks first (Open, InProgress)
+- then sort by UpdatedAt DESC or CreatedAt DESC
+
+Rules:
+- ordering must be stable
+- document ordering logic
+
+6. PAGINATION
+
+Requirements:
+- support page + pageSize
+- return pagination metadata:
+  - total count (or equivalent)
+  - current page
+  - page size
+
+Rules:
+- enforce max page size
+- use safe defaults (e.g., 20–50)
+- prevent unbounded queries
+
+7. DATA ACCESS
+
+Requirements:
+- query WorkflowTask directly
+- filter by:
+  - TenantId
+  - AssignedUserId
+- use indexes created in E11.1
+- optionally join WorkflowInstance for lightweight context
+
+Rules:
+- avoid N+1 queries
+- keep query efficient
+- avoid loading full workflow graphs
+
+8. AUTHORIZATION / TENANT SAFETY
+
+Requirements:
+- endpoint requires authentication
+- derive userId from auth context (not request input)
+- enforce tenant scoping at query level
+- prevent cross-tenant access
+- prevent user impersonation
+
+Rules:
+- reuse existing auth and tenant resolution patterns
+- return empty or 404 appropriately without leaking data
+
+9. STATUS SEMANTICS
+
+Pass through WorkflowTaskStatus values:
+
+- Open
+- InProgress
+- Completed
+- Cancelled
+
+Rules:
+- do not remap or rename statuses
+- ensure filter uses same vocabulary
+
+10. NON-INTERFERENCE
+
+You MUST confirm:
+
+- workflow engine unchanged
+- task lifecycle service unchanged
+- outbox system unchanged
+- SLA engine unchanged
+- admin APIs unchanged
+- no regression in existing endpoints
+
+VALIDATION REQUIREMENTS
+
+Functional:
+- user receives only their tasks
+- filtering works
+- pagination works
+- ordering is correct
+
+Security:
+- cannot query other users’ tasks
+- no cross-tenant leakage
+- auth required
+
+Performance:
+- queries use indexes
+- no N+1 issues
+- response time acceptable
+
+Platform Stability:
+- build succeeds
+- no regression in workflow/task systems
+
+Documentation:
+- endpoint documented
+- response structure documented
+- filters documented
+- pagination documented
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E11.5-report.md
+2. Inspect WorkflowTask model and tenant/user resolution
+3. Define response DTO
+4. Implement GET /tasks/me endpoint
+5. Add filtering and pagination
+6. Add workflow context join (if needed)
+7. Validate tenant and user scoping
+8. Validate build/runtime
+9. Finalize report
+
+SUCCESS CONDITION
+
+- authenticated user can retrieve their assigned tasks
+- response is stable and UI-ready
+- filtering and pagination work
+- tenant/user isolation enforced
+- no regression in platform behavior
+
+FAILURE CONDITION
+
+- user can access another user’s tasks
+- cross-tenant data is exposed
+- response is too raw or incomplete
+- performance issues due to poor query design
+- existing platform functionality is broken

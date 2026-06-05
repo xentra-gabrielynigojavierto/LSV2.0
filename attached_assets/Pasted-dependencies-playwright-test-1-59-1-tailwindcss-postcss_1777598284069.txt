@@ -1,0 +1,93 @@
+dependencies:
++ @playwright/test 1.59.1
++ @tailwindcss/postcss 4.2.2
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @testing-library/user-event 14.6.1
++ @types/node 25.5.0
++ @types/react 18.3.28
++ @types/react-dom 18.3.7
++ @types/testing-library__jest-dom 5.14.9
++ @vitejs/plugin-react 6.0.1
++ autoprefixer 10.4.27
++ clsx 2.1.1
++ jose 6.2.2
++ jsdom 29.0.2
++ leaflet 1.9.4
++ lucide-react 1.7.0
++ mysql2 3.22.1
++ next 15.5.15
++ postcss 8.5.8
++ react 18.3.1
++ react-dom 18.3.1
++ react-leaflet 4.2.1
++ remixicon 4.9.1
++ tailwindcss 4.2.2
++ typescript 6.0.2
++ vitest 4.1.5
++ zustand 5.0.12
+
+devDependencies:
++ @types/leaflet 1.9.21
++ tsx 4.21.0
+
+
+Done in 6.1s using pnpm v10.26.1
+
+[pnpm-restore] Done
+
+Using next binary: /home/runner/workspace/node_modules/next/dist/bin/next
+====== Pre-build disk cleanup ======
+[pre-cleanup] Removing git history...
+
+[pre-cleanup] Removing archived files...
+
+[pre-cleanup] Removing analysis/exports/downloads...
+
+[pre-cleanup] Removing attached_assets...
+
+[pre-cleanup] Removing Replit agent/workflow state...
+
+[pre-cleanup] Done
+====== Building web app ======
+
+[dedup] Linked apps/web/node_modules/next → /home/runner/workspace/node_modules/.pnpm/next@15.5.15_@playwright+test@1.59.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+This information is used to shape Next.js' roadmap and prioritize features.
+
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+   ▲ Next.js 15.5.15
+   - Environments: .env.local, .env.production
+   - Experiments (use with caution):
+     · serverActions
+     ⨯ webpackBuildWorker
+     ✓ webpackMemoryOptimizations
+
+
+   Creating an optimized production build ...
+
+Failed to compile.
+
+
+./src/app/api/auth/login/route.ts
+Module parse failed: Identifier 'resolvedTenantCode' has already been declared (208:10)
+File was processed with these loaders:
+ * ../../node_modules/.pnpm/next@15.5.15_@playwright+test@1.59.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-flight-loader/index.js
+ * ../../node_modules/.pnpm/next@15.5.15_@playwright+test@1.59.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+You may need an additional loader to handle the result of these loaders.
+|         maxAge: maxAgeSeconds
+|     });
+>     const resolvedTenantCode = user.tenantCode ?? tenantCode;
+|     response.cookies.set('tenant_code', resolvedTenantCode, {
+|         httpOnly: false,
+
+Import trace for requested module:
+./src/app/api/auth/login/route.ts
+
+
+> Build failed because of webpack errors

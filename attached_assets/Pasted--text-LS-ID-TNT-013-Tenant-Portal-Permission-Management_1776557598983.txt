@@ -1,0 +1,420 @@
+```text
+# LS-ID-TNT-013 — Tenant Portal Permission Management UI
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity/authorization feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation (Tenant + Product + UI Boundaries)
+- LS-ID-TNT-012 — Backend Permission Enforcement
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, onboarding, access-management, and permission-enforcement behavior
+- Reuse the existing permission catalog, role-permission mappings, and effective-permission endpoints where possible
+- Keep backend, API, and UI concerns clearly separated
+- Include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Preserve tenant isolation in every new UI flow and API path
+- Keep governance boundaries explicit: Tenant Portal manages tenant-level permissions only
+
+---
+
+## FEATURE OBJECTIVE
+
+Provide a Tenant Portal UI for tenant admins to:
+- view the tenant permission catalog
+- view tenant role → tenant permission mappings
+- update tenant role → tenant permission mappings
+- inspect a user’s effective permissions
+
+This feature should make the permission system operational for tenant administrators without exposing product/platform governance concerns that belong in Control Center.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Product permission management UI
+- Product role definition UI
+- Control Center governance UI
+- Full permission-aware product UI
+- ABAC/policy editors
+- Role creation redesign
+- Broad admin-shell redesign
+- Product permission editing for product roles
+- Platform-level permission taxonomy editing
+
+ONLY IMPLEMENT:
+- Tenant Portal UI for tenant-level permission visibility and editing
+- User effective-permission inspection UI
+- Minimal backend mutation endpoints only if required and validated
+- Minimal UI changes within existing Authorization / Roles experience
+- Clear unauthorized/error handling
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-013-report.md
+
+Initialize with:
+
+# LS-ID-TNT-013 — Tenant Portal Permission Management UI
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Permission API Analysis
+## 4. Existing Roles / Authorization UI Analysis
+## 5. UI Placement and Interaction Design
+## 6. Mutation API Design (if needed)
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Frontend / UX Implementation
+## 10. API / Error Contract Changes
+## 11. Testing Results
+## 12. Known Issues / Gaps
+## 13. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Permission APIs
+- `/api/admin/permissions/catalog`
+- `/api/admin/permissions/role-assignments`
+- `/api/permissions/effective`
+- whether any mutation endpoint for tenant role → permission mappings already exists
+- if no mutation endpoint exists, identify the smallest safe extension needed
+
+### Existing Tenant Portal UI
+- current Roles page
+- current Authorization page structure/tabs
+- current modal/panel patterns
+- current role list/detail components
+- current user detail/inspection patterns if any
+
+### Data model
+- tenant roles available today
+- tenant permissions available today
+- current role-permission mapping storage path
+- whether role assignments are system-role based, product-role based, or both in the current tenant portal UX
+
+DO NOT assume mutation APIs or UI placement until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Permission API Analysis
+## 4. Existing Roles / Authorization UI Analysis
+
+---
+
+## STEP 2 — CHOOSE THE UI PLACEMENT
+
+Based on actual codebase structure, choose the smallest coherent tenant-admin UX.
+
+Preferred options (pick what fits the codebase best):
+- extend existing Roles page with a permissions panel/tab
+- add tenant-permission management inside role details/edit modal
+- add a side panel/drawer for “Manage Permissions”
+
+Requirements:
+- keep within the Tenant Portal
+- stay role-centric if practical
+- avoid broad redesign
+- keep product/platform permission governance out of this UI
+
+Document:
+- chosen placement
+- why it best fits the existing UI
+- what was rejected and why
+
+Update report:
+## 5. UI Placement and Interaction Design
+
+---
+
+## STEP 3 — IMPLEMENT / EXTEND BACKEND MUTATION PATH (ONLY IF NEEDED)
+
+If a suitable tenant role → permission mutation API already exists:
+- reuse it
+
+If it does NOT exist:
+- implement the smallest coherent backend extension necessary for tenant admins to update tenant role → tenant permission mappings
+
+Requirements:
+- tenant admins can update tenant-level permission mappings only
+- platform roles and product permissions must not be editable here
+- tenant isolation must be preserved
+- backend remains authoritative
+- use clear validation and error responses
+- preserve compatibility with existing role-permission data model from LS-ID-TNT-011/012
+
+If new mutation endpoint(s) are added, they should support:
+- set/replace tenant permissions for a tenant role
+  OR
+- add/remove mappings safely
+Choose the smallest clean contract that fits the codebase.
+
+Update report:
+## 6. Mutation API Design (if needed)
+## 8. Backend Implementation
+## 10. API / Error Contract Changes
+
+---
+
+## STEP 4 — IMPLEMENT TENANT PERMISSION CATALOG VIEW
+
+Add UI to display the tenant permission catalog.
+
+Requirements:
+- only show tenant-level permissions (`TENANT.*`)
+- group by category where available
+- show human-readable label first
+- show code second if useful
+- use current design system and table/list/card patterns
+- loading, empty, and error states must be handled cleanly
+
+Do NOT show product permissions as editable here.
+
+Update report:
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 5 — IMPLEMENT TENANT ROLE → PERMISSION VIEW
+
+Add UI to view tenant roles and their assigned tenant permissions.
+
+Requirements:
+- show current tenant-relevant roles only
+- show assigned permission count
+- allow drilling into permissions for a selected role
+- keep the display understandable and grouped
+- preserve current roles page functionality
+
+Possible patterns:
+- role list + detail panel
+- table row action → “Manage Permissions”
+- role card → permissions drawer
+
+Update report:
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 6 — IMPLEMENT TENANT ROLE → PERMISSION EDITING UI
+
+Allow tenant admins to update tenant-level permissions assigned to tenant roles.
+
+Requirements:
+- only tenant-level permissions may be edited here
+- only tenant-manageable roles may be edited here
+- use grouped checklist / structured selector / dual-list only if it fits the existing UI patterns
+- preserve clear save/cancel behavior
+- show validation/error feedback from backend cleanly
+- if a role is protected or non-editable, reflect that clearly
+
+Do NOT expose:
+- product permission editing
+- platform role editing
+- permission creation
+
+Update report:
+## 9. Frontend / UX Implementation
+## 10. API / Error Contract Changes
+
+---
+
+## STEP 7 — IMPLEMENT USER EFFECTIVE PERMISSION INSPECTION
+
+Provide a read-only view for tenant admins to inspect a user’s effective permissions.
+
+Requirements:
+- source data from `/api/permissions/effective` or validated equivalent
+- allow selecting or launching inspection from existing Users UI if practical
+- clearly separate:
+  - tenant permissions
+  - product permissions (read-only, optional if already available and clearly labeled)
+- present results in a readable grouped layout
+- this is inspection only, not direct per-user editing
+
+Possible patterns:
+- row action → “View Effective Permissions”
+- drawer/modal from Users page
+- details side panel
+
+Update report:
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 8 — PRESERVE GOVERNANCE BOUNDARIES
+
+Ensure and document in implementation:
+
+### Editable in Tenant Portal
+- tenant-level permissions
+- tenant role → tenant permission mappings
+- effective permission inspection
+
+### NOT editable in Tenant Portal
+- product permission catalog
+- product role definitions
+- product role → permission mappings
+- platform/system permission taxonomy
+
+The UI should make this boundary obvious where helpful:
+- labels
+- helper text
+- read-only sections
+- omission of non-tenant governance controls
+
+Update report:
+## 9. Frontend / UX Implementation
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 9 — HANDLE AUTHORIZATION AND ERROR STATES
+
+Requirements:
+- only authorized tenant admins can edit tenant role permissions
+- unauthorized attempts must fail cleanly with 403/appropriate error
+- frontend must surface clear error states
+- loading/empty/error states required for:
+  - permission catalog load
+  - role-permission load
+  - effective-permissions load
+  - permission save/update
+
+No generic crashes. No silent failures.
+
+Update report:
+## 10. API / Error Contract Changes
+## 11. Testing Results
+
+---
+
+## STEP 10 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- roles page
+- users page
+- invite flow
+- accept-invite flow
+- password reset
+- product/group assignment
+- route-level product enforcement
+- backend permission enforcement from LS-ID-TNT-012
+
+Explicitly validate:
+- TenantAdmin can still operate normally
+- StandardUser without permission-management rights cannot edit mappings
+- existing role/product/group behavior remains intact
+
+Update report:
+## 11. Testing Results
+## 12. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING
+
+Test and document each scenario.
+
+### Catalog / visibility
+- tenant admin opens permission management UI
+- tenant permission catalog loads
+- permissions grouped correctly
+- tenant roles and current mappings display correctly
+
+### Mapping update
+- add tenant permission to editable role
+- remove tenant permission from editable role
+- save persists correctly
+- reload reflects changes
+- unauthorized user cannot update
+
+### Effective permission inspection
+- inspect user with TenantAdmin
+- inspect user with StandardUser
+- inspect user with product permissions (read-only if shown)
+- effective permissions match backend response
+
+### Regression
+- roles page still works
+- users page still works
+- invite flow still works
+- password reset still works
+- product route enforcement still works
+- backend permission enforcement still works
+- null-safe rendering remains intact
+
+Update report:
+## 11. Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 12. Known Issues / Gaps
+## 13. Final Status = Complete
+
+Your final report must clearly state:
+- what UI placement was chosen and why
+- whether a new mutation API was required
+- what tenant permission management actions are supported
+- how effective permission inspection works
+- what remains deferred to Control Center
+- whether any current limitations remain around role/permission editing
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Tenant admins can view the tenant permission catalog in the Tenant Portal
+✔ Tenant admins can view tenant role → permission mappings
+✔ Tenant admins can update tenant role → tenant permission mappings
+✔ Only tenant-level permissions are editable here
+✔ Product/platform governance is not exposed as editable in this UI
+✔ Tenant admins can inspect a user’s effective permissions
+✔ Backend remains authoritative for permission changes
+✔ Unauthorized permission-edit attempts are blocked and surfaced clearly
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-012 functionality does not regress
+✔ Governance boundaries between Tenant Portal and Control Center remain clear
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working Tenant Portal permission management UI
+2. Working user effective-permission inspection UI
+3. Any minimal backend mutation API required for tenant role → permission mappings
+4. Completed report:
+/analysis/LS-ID-TNT-013-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

@@ -1,0 +1,333 @@
+You are implementing feature MON-INT-04-002 — Uptime Aggregation Engine.
+
+OBJECTIVE
+Add a durable uptime aggregation layer to the Monitoring Service so the platform can compute accurate 24h / 7d / 30d / 90d uptime metrics and historical availability buckets for each monitored component without recalculating from raw check history on every request.
+
+This is the data foundation for uptime percentages, availability bars, and future response-time trend views.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Raw check history remains canonical
+- Uptime metrics must be derived from Monitoring Service persistence, not invented in Control Center
+- Manual alert resolution must NOT affect uptime metrics
+- Do NOT fabricate historical uptime
+- Do NOT compute public uptime from active alerts; compute it from check history
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-04-002-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT introduce fake rollups
+- Do NOT change existing read endpoints unless required and documented
+- Prefer minimal, reversible changes
+- Keep raw facts, rollups, and read APIs clearly separated
+
+CURRENT CONTEXT
+- Monitoring Service already stores:
+  - monitored entities
+  - check result history
+  - current status projection
+  - alerts
+- Public status page now exists, but does NOT yet show uptime percentages or availability history
+- The next requirement is a real aggregation engine for uptime windows
+
+GOAL OF THIS FEATURE
+By the end of this feature:
+- Monitoring Service can derive uptime from persisted check history
+- rollup persistence exists for efficient reads
+- read APIs exist for uptime windows and bucketed history
+- the model is suitable for later public-page uptime percentages and availability bars
+- no fake or alert-derived uptime is introduced
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-04-002-report.md
+
+Initialize with:
+
+# MON-INT-04-002 — Uptime Aggregation Engine
+
+## 1. Task Summary
+## 2. Existing Raw Data Analysis
+## 3. Uptime Aggregation Model
+## 4. Persistence Design
+## 5. Aggregation Engine Implementation
+## 6. Read API Design & Implementation
+## 7. Validation
+## 8. Files Changed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING RAW DATA
+
+Inspect the Monitoring Service data model and determine exactly what raw facts already exist for uptime aggregation.
+
+At minimum inspect:
+- CheckResultRecord entity + persistence config
+- EntityCurrentStatus entity + persistence config
+- MonitoringAlert entity + persistence config
+- MonitoringDbContext
+- scheduler / rule engine that writes check results
+- any existing timestamps and elapsed-time fields
+
+Document clearly:
+- which table is canonical for uptime history
+- which fields can be used to compute availability windows
+- whether check cadence is fixed or variable
+- whether current status projection is suitable only for “now” (it should be)
+- why alerts are NOT the correct basis for uptime percentages
+
+Be explicit that uptime is derived from raw check result history, not alert lifecycle.
+
+---
+
+STEP 3 — DEFINE THE UPTIME AGGREGATION MODEL
+
+Design the canonical uptime model before coding.
+
+The model must include:
+
+A. Raw fact source
+- check_result_records (or exact equivalent) as canonical input
+
+B. Rollup granularity
+- hourly rollups
+- daily rollups
+
+C. Availability states
+At minimum account for:
+- Up / Healthy
+- Degraded
+- Down
+- Unknown / insufficient data
+
+D. Core metrics per bucket
+- observed check count
+- up count
+- degraded count
+- down count
+- unknown count
+- up duration seconds
+- degraded duration seconds
+- down duration seconds
+- unknown duration seconds
+- strict uptime ratio
+- weighted availability ratio (optional but preferred)
+- average latency ms
+- max latency ms
+
+E. Window goals
+Support later reads for:
+- 24h
+- 7d
+- 30d
+- 90d
+
+Requirements:
+- do NOT use alert state to compute uptime
+- do NOT let manual resolve modify uptime
+- define how missing data / unknown periods are handled
+- define whether unknown is excluded from denominator or tracked separately
+- prefer interval-based computation over simple count percentage if feasible
+- document the chosen formulas in the report before implementation
+
+If you decide a simpler first cut is necessary, explain exactly why and what is deferred.
+
+---
+
+STEP 4 — DESIGN PERSISTENCE
+
+Add durable rollup persistence inside Monitoring Service.
+
+Preferred design:
+- hourly rollup table
+- daily rollup table
+
+At minimum define:
+- entity identifier
+- bucket start / date
+- counts
+- duration seconds by state
+- uptime ratios
+- latency aggregates
+- timestamps
+
+Implement the minimal schema needed for a credible uptime engine.
+
+Requirements:
+- use proper EF Core entities + configurations
+- add migrations properly
+- no destructive changes to existing monitoring tables
+- keep rollups clearly separate from raw check history
+
+If you add a watermark/progress table for incremental processing, document and implement it clearly.
+
+---
+
+STEP 5 — IMPLEMENT THE AGGREGATION ENGINE
+
+Implement a Monitoring-owned aggregation process that derives rollups from raw check history.
+
+Preferred approach:
+- hosted service or similar internal processor
+- incremental processing using a watermark or last-processed timestamp
+- recompute/update hourly buckets
+- derive daily buckets from hourly or directly from raw data (document choice)
+
+Requirements:
+- idempotent processing
+- safe on repeated runs
+- no duplicate rollup inflation
+- no mutation of raw check history
+- works with existing scheduler-generated data
+- does NOT depend on alerts
+- manual alert resolve has zero effect on uptime rollups
+
+Be explicit in the report about:
+- processing cadence
+- bucket boundary handling
+- how intervals are split across buckets if applicable
+- how unknown/no-data windows are treated
+
+If full incremental correctness is too large for one feature, implement the minimal reliable version and document limitations honestly.
+
+---
+
+STEP 6 — ADD READ APIS
+
+Implement Monitoring Service read endpoints for uptime data.
+
+At minimum add:
+
+A. Rollup endpoint
+GET /monitoring/uptime/rollups?window=24h|7d|30d|90d
+
+Return:
+- window
+- start/end timestamps
+- overall uptime percent
+- per-component uptime summaries
+- any unknown/insufficient-data indicators needed
+
+B. History endpoint
+GET /monitoring/uptime/history?entityName=...&period=24h|7d|30d|90d
+OR use entityId if you can cleanly support it
+
+Return:
+- ordered bucket list
+- uptime percent per bucket
+- dominant status per bucket
+- unknown/insufficient-data marker if applicable
+
+Requirements:
+- read-only
+- no breaking changes to existing endpoints
+- public vs protected access must be explicitly chosen and documented
+- if these are not yet intended for public page use directly, that is acceptable, but document the access decision clearly
+
+Do NOT add charts in this feature.
+Do NOT add fake percentages.
+
+---
+
+STEP 7 — GATEWAY / BFF IMPACT
+
+Update gateway routing only if required for the new endpoints.
+
+If Control Center or the future public status page will consume these via BFF later, document the expected routing pattern.
+
+Do NOT build the public-page charting layer in this feature.
+Only add routing needed for correct service access.
+
+If no gateway changes are necessary yet, state that clearly.
+
+---
+
+STEP 8 — VALIDATION
+
+Validate as far as environment permits.
+
+At minimum validate:
+A. Monitoring Service builds
+B. New migrations build correctly
+C. Aggregation tables/entities are created or migration-ready
+D. Aggregation engine runs without corrupting data
+E. Rollup endpoints return plausible output
+F. 24h / 7d / 30d / 90d window selection behaves correctly
+G. Unknown/no-data handling behaves consistently
+H. Existing monitoring summary/status/alerts endpoints still work
+
+Also validate this critical rule:
+- manual alert resolve does NOT change uptime rollups
+
+If runtime historical data is too sparse for perfect 30d/90d realism, still validate with the data available and document the limitation precisely.
+
+Capture:
+- exact endpoints tested
+- sample outputs
+- what was runtime-tested vs code-verified only
+
+---
+
+STEP 9 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- removed (if any)
+- purpose
+
+Be explicit.
+
+---
+
+STEP 10 — KNOWN GAPS / RISKS
+
+Document clearly:
+- whether uptime is based on full interval duration or per-check approximation
+- whether unknown windows are excluded from denominator
+- any sparse-data limitations
+- whether weighted availability is exposed or internal-only
+- any performance limitations in current aggregation strategy
+- whether response-time trends are fully supported yet or only partially
+
+---
+
+STEP 11 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+
+Option A:
+- MON-INT-04-003 — Availability Timeline Bars
+Use this if rollup/history data is now strong enough to drive the visual daily availability bars on the public status page.
+
+Option B:
+- MON-INT-04-004 — Response Time Charts
+Use this if latency aggregates are now strong enough and charting is the next highest-value presentation step.
+
+Option C:
+- Stabilization / validation pass
+Use this if the aggregation engine is complete but needs confidence-building before more presentation work.
+
+Choose based on actual implementation outcome.
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+- /analysis/MON-INT-04-002-report.md exists and was created FIRST
+- a real uptime aggregation model is implemented
+- durable rollup persistence exists
+- uptime read endpoints exist
+- percentages/history are derived from raw check history, not alerts
+- manual alert resolution does not affect uptime
+- no fake data was introduced
+- validation has been performed and documented

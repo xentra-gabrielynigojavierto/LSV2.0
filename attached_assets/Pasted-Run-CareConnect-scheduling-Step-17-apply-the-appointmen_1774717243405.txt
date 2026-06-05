@@ -1,0 +1,109 @@
+Run CareConnect scheduling Step 17: apply the appointment lifecycle migration and test confirm, cancel, reschedule, and appointment history end to end.
+
+Goal:
+Verify that the new appointment lifecycle layer works in practice:
+- migration applies cleanly
+- appointment status transitions work
+- cancellation frees slot capacity correctly
+- reschedule moves capacity between slots correctly
+- appointment history is recorded correctly
+
+Context:
+- CareConnect scheduling foundation already exists
+- Booking baseline already exists
+- Appointment lifecycle code has already been generated and reviewed
+- Migration should already exist and be safe to apply
+- Gateway, Identity, and CareConnect are already configured
+- This step is for applying and testing, not adding new features
+
+Tasks
+
+1. Apply the CareConnect migration for appointment lifecycle.
+Expected migration name:
+- AddAppointmentStatusHistory
+
+2. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+3. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+4. Confirm prerequisite data exists:
+- at least one Appointment already exists
+- at least one open AppointmentSlot exists for reschedule testing
+
+If prerequisites are missing, identify exactly what is missing before lifecycle tests continue.
+
+5. Test confirm flow
+Use:
+- PUT /careconnect/api/appointments/{id}
+to change status:
+- Scheduled -> Confirmed
+
+Verify:
+- appointment status updates
+- AppointmentStatusHistory row is created
+- no slot capacity changes on confirm
+
+6. Test cancel flow
+Use:
+- POST /careconnect/api/appointments/{id}/cancel
+
+Verify:
+- appointment status becomes Cancelled
+- AppointmentStatusHistory row is created
+- old slot ReservedCount decrements safely
+- slot availability is reopened if appropriate
+- ReservedCount does not go below 0
+
+7. Test reschedule flow
+Use:
+- POST /careconnect/api/appointments/{id}/reschedule
+
+Verify:
+- old slot ReservedCount decrements
+- new slot ReservedCount increments
+- appointment times update from new slot
+- provider/facility/service are copied from the new slot
+- reschedule fails cleanly if target slot is full or not open
+- if status remains unchanged, no AppointmentStatusHistory row is added solely because of reschedule
+
+8. Test invalid transition behavior
+Examples:
+- Cancelled -> Confirmed
+- Completed -> Cancelled
+- NoShow -> Scheduled
+
+Expected:
+- clean 400 validation/business-rule error
+- no raw exception dumps
+
+9. Test history endpoint
+Use:
+- GET /careconnect/api/appointments/{id}/history
+
+Verify:
+- history rows are returned in consistent order
+- rows show old/new statuses
+- rows are tenant-scoped
+- appointment outside tenant returns 404
+
+10. Output:
+- migration command used
+- whether migration succeeded
+- confirm request used
+- cancel request used
+- reschedule request used
+- history request used
+- whether capacity changes were correct
+- whether invalid transitions were blocked
+- whether history creation worked correctly
+
+Important:
+Do not add new schema or features in this step.
+Do not implement reminders, notifications, or blackout exceptions yet.
+This step is only to validate the appointment lifecycle end to end.

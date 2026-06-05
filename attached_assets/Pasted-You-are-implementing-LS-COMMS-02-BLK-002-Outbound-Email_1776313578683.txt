@@ -1,0 +1,644 @@
+You are implementing LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status for SynqComm, integrated with the Notifications service for outbound delivery.
+
+OBJECTIVE:
+Extend SynqComm to support outbound email orchestration and delivery status tracking while preserving the platform service boundaries already established.
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the system of record for conversations, messages, participants, email threading metadata, and communication history.
+- Notifications service is responsible for outbound email delivery, provider integration, retries, and delivery-status events.
+- SynqComm must NOT directly own SMTP/provider delivery logic as the long-term architecture.
+- SynqComm must continue to run as an independent service under /apps/services/synqcomm with its own physically separate database.
+- SynqComm must NOT piggyback on another service database.
+- SynqComm must NOT use cross-database joins for core logic.
+- Documents service remains the owner of binaries.
+- This block must build on the existing email intake/threading implementation already completed in LS-COMMS-02-BLK-001.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+- LS-COMMS-02-BLK-001 — Email Intake and Threading
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-02-BLK-002-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-02-BLK-002-report.md
+
+Initialize it with:
+
+# LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support outbound email orchestration through Notifications service and track delivery status updates while preserving SynqComm as the communication system of record.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- SynqComm owns communication records and email threading metadata
+- Notifications owns outbound email delivery and retry/provider behavior
+- Documents remain owned by Documents service
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Review existing implementation and integration patterns
+- [ ] Step 2: Design outbound email and delivery-status extensions
+- [ ] Step 3: Add outbound email domain models and contracts
+- [ ] Step 4: Implement Notifications integration seam/client/contracts
+- [ ] Step 5: Implement outbound email composition and request flow
+- [ ] Step 6: Implement delivery status update flow
+- [ ] Step 7: Extend APIs and persistence
+- [ ] Step 8: Extend audit coverage
+- [ ] Step 9: Add/update migrations
+- [ ] Step 10: Add automated tests
+- [ ] Step 11: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND PLATFORM INTEGRATION PATTERNS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current conversation/message/participant/email reference models
+- current inbound email implementation from LS-COMMS-02-BLK-001
+- current audit integration pattern
+- current Documents service integration pattern
+- current auth/request context flow
+- whether the platform already has an HTTP client or internal service client pattern for service-to-service calls
+- whether Notifications service already exposes any outbound email API or contracts
+- whether the platform has an event-driven pattern already in use; if not, prefer a clean direct integration seam to Notifications for this block
+- current route conventions and permission patterns
+
+Update the report with:
+- exact Notifications integration strategy selected
+- exact outbound email persistence strategy selected
+- exact delivery-status callback/update strategy selected
+- any assumptions required
+
+IMPORTANT:
+For this block, prefer a pragmatic integration with Notifications using the existing repo patterns.
+If no eventing infrastructure exists, use a clean Notifications service client/HTTP seam rather than inventing a new event bus.
+
+--------------------------------------------------
+STEP 3 — DESIGN OUTBOUND EMAIL AND DELIVERY STATUS EXTENSIONS
+--------------------------------------------------
+
+This block must add:
+- outbound email request flow from SynqComm to Notifications
+- storage of outbound email metadata and delivery state in SynqComm
+- generation/storage of threading identifiers needed for future replies
+- attachment inclusion using existing Documents-linked attachments
+- delivery status updates flowing back into SynqComm
+- audit events for outbound email operations
+
+Key design principles:
+- SynqComm owns the outbound communication record
+- Notifications owns actual send execution
+- outbound email must originate from a SynqComm message/conversation
+- delivery status must be tracked in SynqComm without making SynqComm the delivery engine
+- provider-specific delivery details must stay abstracted behind Notifications
+- threading metadata must remain compatible with the existing inbound email matching logic
+- this block must not implement unrelated notification features or UI
+
+Update the report with the chosen design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent model(s) needed for outbound email delivery tracking.
+
+Preferred additions:
+
+A. Extend EmailMessageReference
+Ensure it supports outbound records cleanly with:
+- emailDirection = OUTBOUND
+- generated internetMessageId
+- inReplyToMessageId nullable
+- referencesHeader nullable
+- providerMessageId nullable
+- providerThreadId nullable
+- sentAtUtc nullable
+
+B. Add EmailDeliveryStatus projection model if needed
+Preferred model name:
+EmailDeliveryState
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- messageId
+- emailMessageReferenceId
+- deliveryStatus
+- providerName nullable
+- providerMessageId nullable
+- lastStatusAtUtc
+- lastErrorCode nullable
+- lastErrorMessage nullable
+- retryCount nullable
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Recommended delivery statuses:
+- PENDING
+- QUEUED
+- SENT
+- DELIVERED
+- FAILED
+- BOUNCED
+- DEFERRED
+- SUPPRESSED
+- UNKNOWN
+
+If delivery status can be stored directly on EmailMessageReference without making the model messy, that is acceptable; choose the cleanest design and document it.
+
+Rules:
+- outbound email records must be linked to a SynqComm message
+- one SynqComm message may produce one primary outbound email record in this block
+- future support for resend/versioning can be deferred
+- provider metadata should be stored only as needed for reconciliation and inbound reply threading
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUMS / RULE DEFINITIONS
+--------------------------------------------------
+
+Add or extend rules for outbound email.
+
+Required rules:
+- only authorized internal participants may initiate outbound email
+- external contacts do not send outbound email through the platform in this block
+- SYSTEM_NOTE cannot be sent as outbound external email
+- only messages with SHARED_EXTERNAL visibility may be sent outbound
+- INTERNAL_ONLY messages must never be sent as email
+- outbound email should support To and optional Cc in this block only if cleanly supported
+- Bcc may be deferred unless there is a clear existing platform pattern
+- outbound email must generate stable threading identifiers compatible with inbound matching:
+  - internetMessageId
+  - inReplyToMessageId where replying to an existing thread
+  - referencesHeader where appropriate
+- if the source conversation is CLOSED and outbound email is added, reopen behavior should follow current conversation rules or be clearly documented
+
+Matching/threading rules:
+- outbound reply to an existing threaded conversation should reference the latest relevant outbound/inbound email reference where possible
+- do not rely on provider thread id alone
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required request/response support:
+
+1. SendOutboundEmailRequest
+Fields should include at minimum:
+- messageId or conversationId + messageId
+- toAddresses
+- ccAddresses nullable
+- subject override nullable (prefer default from conversation/message if omitted)
+- bodyText nullable
+- bodyHtml nullable
+- attachmentDocumentIds nullable if supported
+- replyToEmailReferenceId nullable if replying to an existing email thread
+
+2. SendOutboundEmailResponse
+Include:
+- conversationId
+- messageId
+- emailMessageReferenceId
+- deliveryStatus
+- notificationsRequestId nullable if available
+- generatedInternetMessageId
+- matchedReplyReferenceId nullable
+- attachmentCount
+
+3. DeliveryStatusUpdateRequest
+Fields should include:
+- provider
+- providerMessageId
+- internetMessageId nullable
+- status
+- statusAtUtc
+- errorCode nullable
+- errorMessage nullable
+- retryCount nullable
+- providerPayloadReference nullable if useful
+
+4. EmailDeliveryStateResponse
+5. Extend thread/message response models if delivery state should be visible in conversation views
+
+Do not add unrelated notification DTOs.
+Keep the contracts focused on outbound email from SynqComm.
+
+--------------------------------------------------
+STEP 7 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- email delivery state if modeled separately
+- outbound email lookup by message/conversation/reference/provider identifiers
+- latest email reference retrieval for reply threading
+- any needed lookup methods to reconcile delivery updates
+
+Possible interfaces:
+- IEmailDeliveryStateRepository
+- additions to IEmailMessageReferenceRepository
+
+Required behaviors:
+- create outbound email reference
+- retrieve latest email reference chain for a conversation/message
+- update delivery state by providerMessageId or email reference
+- prevent duplicate delivery update rows where reasonable
+- tenant-aware retrieval
+
+Stay within SynqComm-owned database only.
+Do not access Notifications service DB directly.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT NOTIFICATIONS INTEGRATION SEAM / CLIENT / CONTRACTS
+--------------------------------------------------
+
+Implement a clean Notifications integration seam.
+
+Requirements:
+- inspect the repo for existing Notifications service contracts or client patterns
+- if a reusable internal service client pattern exists, use it
+- if not, create a clean INotificationsServiceClient abstraction for outbound email send requests
+- SynqComm should call Notifications to request outbound email sending
+- Notifications client contract should be provider-agnostic from SynqComm’s perspective
+
+At minimum, the Notifications integration must support:
+- send outbound email request
+- return a provider/request correlation identifier if available
+- allow future extension for retry and callback correlation
+
+Example abstraction responsibilities:
+- SendEmailAsync(normalized outbound email payload)
+- possibly return providerMessageId/requestId/status
+
+Do NOT:
+- implement SMTP/provider logic inside SynqComm
+- tightly couple SynqComm to SendGrid/Mailgun/Postmark/etc.
+- invent a fake notification subsystem if Notifications service already exists
+- bypass Notifications and send directly from SynqComm unless absolutely necessary due to missing platform components; if a temporary fallback is used, document it clearly as a gap, not the target architecture
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT OUTBOUND EMAIL COMPOSITION AND REQUEST FLOW
+--------------------------------------------------
+
+Implement service-layer logic for outbound email orchestration.
+
+Required operations:
+- validate current user is an authorized active internal participant
+- validate message visibility is SHARED_EXTERNAL
+- validate target recipients are provided and normalized
+- create or update outbound EmailMessageReference
+- generate internetMessageId for outbound message
+- determine inReplyToMessageId and referencesHeader when replying in an existing thread
+- collect attachment metadata/documentIds from linked message attachments if supported
+- call Notifications service client to request send
+- persist initial delivery status
+- update conversation/message state as appropriate
+- emit audit events
+
+Recommended behavior:
+- use existing message content as the outbound source of truth, unless request explicitly provides override content and the architecture supports it cleanly
+- if no existing message is suitable, reject instead of synthesizing ambiguous outbound content
+- store enough metadata so future inbound replies can match via In-Reply-To / References
+
+If the conversation is currently CLOSED and an outbound email is sent by an authorized internal user, you may reopen to OPEN if this is consistent with prior lifecycle rules. If implemented, document it clearly.
+
+--------------------------------------------------
+STEP 10 — IMPLEMENT DELIVERY STATUS UPDATE FLOW
+--------------------------------------------------
+
+Implement a way for Notifications delivery results to update SynqComm.
+
+Required support:
+- a normalized internal/status update endpoint or service method in SynqComm
+- correlation by providerMessageId and/or internetMessageId
+- update delivery state projection in SynqComm
+- audit delivery status changes
+
+Required statuses to handle at minimum:
+- QUEUED
+- SENT
+- DELIVERED
+- FAILED
+- BOUNCED
+
+Optional:
+- DEFERRED
+- SUPPRESSED
+- OPENED / CLICKED if Notifications supports them, but do not overbuild unless already standard in the platform
+
+Requirements:
+- status update processing must be idempotent where reasonable
+- unknown status payloads should be handled safely
+- if a status update cannot be matched to a known outbound email, reject or record as documented gap
+- do not allow arbitrary user-driven mutation of delivery state; use an internal/system integration endpoint or equivalent pattern
+
+--------------------------------------------------
+STEP 11 — ATTACHMENT HANDLING FOR OUTBOUND EMAIL
+--------------------------------------------------
+
+Use existing SynqComm-to-Documents linkage established in prior blocks.
+
+Requirements:
+- outbound email should include message-linked attachments where supported
+- retrieve attachment metadata/documentIds from SynqComm linkage, not from a Documents DB
+- pass attachment references through Notifications integration in the cleanest supported form
+- if Notifications expects downloadable URLs or document fetch descriptors, use or create a clean abstraction
+- do not duplicate file binaries into SynqComm DB
+
+If direct attachment handoff is not yet fully supported by platform components, implement the clean seam and document the exact gap.
+Do not fake file transport.
+
+--------------------------------------------------
+STEP 12 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for outbound-email-related operations.
+
+Required audit events where feasible:
+- outbound email requested
+- outbound email queued
+- outbound email sent
+- outbound email delivered
+- outbound email failed
+- outbound email bounced
+- outbound email delivery status updated
+- outbound email request rejected due to visibility/authorization/validation rule
+- conversation reopened due to outbound email if that rule is used
+
+If structured audit payloads are supported, include metadata such as:
+- tenantId
+- conversationId
+- messageId
+- emailMessageReferenceId
+- generatedInternetMessageId
+- providerMessageId
+- deliveryStatus
+- recipientCount
+- attachmentCount
+- failure code/message where relevant
+
+Do not create a fake audit subsystem.
+Use the existing audit publisher pattern or extend it cleanly.
+
+--------------------------------------------------
+STEP 13 — API EXTENSIONS
+--------------------------------------------------
+
+Add or extend APIs to support outbound email and delivery status.
+
+Required endpoint additions:
+
+POST /api/synqcomm/email/send
+- Accepts SendOutboundEmailRequest
+- Orchestrates outbound send through Notifications
+- Returns SendOutboundEmailResponse
+
+POST /api/synqcomm/email/delivery-status
+- Accepts normalized delivery status update payload
+- Intended for internal Notifications-to-SynqComm integration, not general user access
+- Apply appropriate authorization/internal-protection pattern based on the existing platform
+
+Optional only if clean:
+GET /api/synqcomm/conversations/{conversationId}/email-delivery
+- Returns delivery-state records for the conversation or message set
+
+Keep existing endpoints working.
+
+--------------------------------------------------
+STEP 14 — AUTHORIZATION, TENANT, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- only authenticated authorized internal participants may trigger outbound email
+- outbound email must stay within the conversation’s tenant boundary
+- only SHARED_EXTERNAL messages can be sent outbound
+- INTERNAL_ONLY content and attachments must not be sent
+- delivery-status updates must come through an internal/system integration path, not end-user permissions
+- recipient normalization and validation must be applied
+- reply threading references must not cross conversation/tenant boundaries
+
+If tenant or integration authentication for Notifications callbacks depends on missing platform configuration, implement the clean seam and document the exact gap.
+Do not weaken authorization just to make the flow work.
+
+--------------------------------------------------
+STEP 15 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-002 of Epic 02.
+
+Expected changes may include:
+- new table for email delivery state if modeled separately
+- additions/indexes for outbound email reference lookup and correlation
+
+Possible indexes:
+- IX_EmailRefs_TenantId_MessageId
+- IX_EmailRefs_TenantId_ProviderMessageId
+- IX_EmailRefs_TenantId_ConversationId_EmailDirection
+- IX_EmailDelivery_TenantId_ProviderMessageId
+- IX_EmailDelivery_TenantId_EmailMessageReferenceId
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 16 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — Authorized Internal Participant Can Request Outbound Email
+- valid internal participant sends SHARED_EXTERNAL message
+- verify Notifications client is called
+- verify outbound email reference and initial delivery state persist
+
+Test 2 — Non-Participant or canReply=false Cannot Send
+- verify authorization/reply rules are enforced
+
+Test 3 — INTERNAL_ONLY Message Cannot Be Sent Outbound
+- verify request is rejected
+
+Test 4 — Reply Threading Metadata Is Generated Correctly
+- seed prior email reference
+- send outbound reply
+- verify internetMessageId, inReplyToMessageId, referencesHeader
+
+Test 5 — Attachments Are Included Correctly
+- message has linked attachments
+- verify Notifications client receives attachment references/metadata as expected
+
+Test 6 — Delivery Status Update Persists Correctly
+- Notifications status callback/update changes state from QUEUED to SENT/DELIVERED/etc.
+
+Test 7 — Delivery Status Update Is Idempotent/Safe
+- duplicate status update does not corrupt state
+
+Test 8 — Audit Emission
+- verify audit publisher invoked for outbound request and delivery update actions
+
+Test 9 — Prior Inbound Threading Still Works
+- at least one regression test to ensure BLK-001 inbound matching behavior remains intact after outbound changes
+
+If full integration tests are too heavy, use service-layer tests plus repository tests and mocked Notifications/Documents clients.
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 17 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Notifications owns delivery execution, not SynqComm
+- SynqComm remains the system of record for communications
+- outbound email can be requested through Notifications
+- delivery status can be reconciled back into SynqComm
+- threading metadata supports future inbound reply matching
+- attachments, if supported, respect document boundaries
+- audit coverage is extended using existing patterns
+- no unrelated notification/UI features were added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves the SynqComm vs Notifications service boundary.
+
+## Notifications Integration
+Explain exactly how SynqComm requests outbound delivery and how status comes back.
+
+## Outbound Threading Design
+Explain how internetMessageId, inReplyToMessageId, and referencesHeader are handled.
+
+## Delivery Status Design
+Explain how delivery state is stored and correlated.
+
+## Documents Integration
+Explain how attachments are passed for outbound email and what gaps remain.
+
+## Audit Integration
+Explain which outbound-email-related audit events are now emitted.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST integrate outbound delivery through Notifications service
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on outbound email and delivery status
+- MUST NOT add unrelated notification features
+- NO UI
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- outbound email orchestration through Notifications
+- persisted outbound email references and threading metadata
+- delivery status tracking and reconciliation
+- attachment-aware outbound email requests
+- audit events for outbound email lifecycle
+- automated tests proving these behaviors
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-02-BLK-002-report.md

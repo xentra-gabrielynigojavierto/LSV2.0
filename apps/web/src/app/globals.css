@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "remixicon/fonts/remixicon.css";
+
+@theme {
+  --color-primary: #2563eb;
+}
+
+:root {
+  --color-primary: #2563eb; /* fallback; overridden by TenantBrandingProvider */
+}

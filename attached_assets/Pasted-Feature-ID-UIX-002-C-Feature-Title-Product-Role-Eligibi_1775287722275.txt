@@ -1,0 +1,292 @@
+Feature ID: UIX-002-C
+Feature Title: Product Role Eligibility & Assignment Guardrails
+
+Implement UIX-002-C for the LegalSynq Control Center and Identity service.
+
+Context:
+- UIX-001 through UIX-005-01 are already implemented
+- The platform already supports:
+  - users
+  - roles
+  - groups
+  - memberships
+  - permissions
+  - effective access
+  - TenantAdmin / PlatformAdmin scope
+- Current gap:
+  - product-role assignment is not yet fully governed by eligibility rules
+  - admins can still reach invalid or unsafe assignment states if org type / product enablement is not enforced consistently
+- This feature is a focused governance-hardening pass
+- It should close the gap between “RBAC works” and “RBAC is safe for product workflows”
+
+Objective:
+Implement product role eligibility guardrails so role assignment is valid only when:
+- the target organization type is allowed for the product role
+- the tenant has the relevant product enabled
+- the role/product relationship is valid
+- the admin is acting within allowed scope
+
+This feature must add both:
+- backend enforcement
+- frontend assignment guardrails
+
+========================================
+CORE RULES
+========================================
+
+1. Backend is the source of truth for product-role eligibility
+2. Do NOT rely only on frontend filtering
+3. Do NOT redesign the overall identity/session model
+4. Do NOT redesign the permissions architecture
+5. Keep this feature small, surgical, and governance-focused
+6. Preserve PlatformAdmin and TenantAdmin scope behavior already established
+
+========================================
+MVP SCOPE FOR UIX-002-C
+========================================
+
+Implement the first operational eligibility layer for product-role assignment.
+
+1. Product Role → Org Type Eligibility
+Enforce that specific product roles may only be assigned to valid organization types.
+
+Examples of intended behavior:
+- CARECONNECT_REFERRER → allowed only for LAW_FIRM orgs
+- CARECONNECT_RECEIVER → allowed only for PROVIDER orgs
+- SYNQFUND_REFERRER → allowed only for LAW_FIRM orgs
+- SYNQFUND_FUNDER → allowed only for FUNDER orgs
+- SYNQLIEN_SELLER → allowed only for PROVIDER orgs
+- SYNQLIEN_BUYER / SYNQLIEN_HOLDER → allowed only for LIEN_OWNER orgs
+
+Use the actual current role and org type constants already present in the system. Do not invent new names if the codebase already defines canonical ones.
+
+2. Tenant Product Enablement Check
+Enforce that a tenant can only assign product roles for products enabled/subscribed for that tenant.
+
+If a tenant does not have a product enabled:
+- assignment must be rejected in backend
+- UI should not offer the role as assignable, or should clearly disable it with reason
+
+3. Role-Product Binding Clarity
+Ensure there is a clear way in backend to know:
+- which product a role belongs to
+- which org types are allowed for it
+- whether it is a system/global role vs product role
+
+Do this in the smallest safe way:
+- use existing metadata if already present
+- otherwise add a minimal mapping/read model/config layer
+- do NOT overengineer a new policy engine
+
+4. Assignment Guardrails in UI
+When assigning roles in the Control Center:
+- invalid roles must not appear as normally assignable
+- if shown, they must be disabled with a clear reason
+- admins should understand why a role is unavailable:
+  - wrong org type
+  - tenant does not have product enabled
+  - system/platform-managed role
+
+========================================
+DO NOT IMPLEMENT IN UIX-002-C
+========================================
+
+Do NOT implement unless trivially required:
+- new products
+- product subscription billing flows
+- product catalog redesign
+- custom role builder
+- permission redesign
+- per-user permission overrides
+- tenant/org provisioning flows
+- workflow/business logic changes in CareConnect, Fund, or Lien
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+Implement the backend enforcement layer for product-role eligibility.
+
+1. Eligibility Source of Truth
+Implement or verify a minimal authoritative source for:
+- role code / role id
+- product association
+- allowed organization types
+- system-role flag vs product-role flag
+
+Preferred approach:
+- reuse existing role metadata if present
+- otherwise add the smallest safe mapping layer (config, enum map, seed metadata, or lookup table)
+
+Document clearly in the report which approach was used.
+
+2. Tenant Product Enablement Source
+Implement or verify a minimal authoritative source for:
+- which products are enabled for a tenant
+
+Preferred approach:
+- reuse existing tenant-product or subscription model if present
+- otherwise add the smallest safe representation needed for enforcement
+
+Document clearly in the report which approach was used.
+
+3. Role Assignment Validation
+Harden the backend mutation used for assigning roles to users.
+
+At minimum, verify/harden:
+- POST /identity/api/admin/users/{id}/roles
+
+The backend must reject assignment if:
+- target role is not allowed for the user’s organization type
+- target tenant does not have the role’s product enabled
+- target role is out of scope for the acting admin
+- role is otherwise platform/system managed and not assignable in this context
+
+Return clear, machine-usable and human-readable errors where possible.
+
+Examples:
+- 400 INVALID_ORG_TYPE_FOR_ROLE
+- 400 PRODUCT_NOT_ENABLED_FOR_TENANT
+- 403 SYSTEM_ROLE_RESTRICTED
+- 403 CROSS_TENANT_FORBIDDEN
+
+Do not hardcode these exact strings if the codebase has existing error conventions, but keep the semantics clear.
+
+4. Optional Read Endpoint / Assignment Metadata Support
+If needed for the UI, add or extend a backend endpoint that returns assignable roles for a given user/org/tenant context.
+
+Examples:
+- GET /identity/api/admin/users/{id}/assignable-roles
+or
+- extend existing role list endpoint to include eligibility metadata:
+  - assignable: boolean
+  - disabledReason: string
+  - productCode
+  - allowedOrgTypes
+
+Use whichever approach is simpler and cleaner in the current codebase.
+
+========================================
+CONTROL CENTER — FRONTEND / BFF
+========================================
+
+Implement assignment guardrails in the existing admin UI.
+
+1. User Role Assignment Surface
+Update the current role assignment UI on:
+- /tenant-users/[id]
+
+Requirements:
+- show only eligible roles as assignable, OR
+- show ineligible roles as disabled with clear reason
+- preserve existing assign/revoke functionality
+- keep editable vs informational boundaries clear
+
+2. Roles List / Detail UX
+If role metadata is visible in:
+- /roles
+- /roles/[id]
+
+Improve clarity by showing:
+- product association
+- allowed org types
+- whether role is platform/system managed
+- whether it is tenant-assignable
+
+Do not redesign the roles UI; extend it.
+
+3. Permission / Role Context UX
+Where helpful, explain that:
+- product roles are constrained by organization type and tenant product enablement
+- platform/system roles are managed separately
+
+4. BFF Route Handling
+Update any BFF handlers involved in role assignment or assignable-role querying.
+
+Requirements:
+- use requireAdmin() where appropriate
+- preserve current TenantAdmin / PlatformAdmin behavior
+- do not trust frontend for eligibility
+- propagate backend error reasons cleanly
+
+========================================
+TENANTADMIN / PLATFORMADMIN BEHAVIOR
+========================================
+
+TenantAdmin:
+- may assign only eligible roles inside their tenant
+- may not bypass product enablement rules
+- may not bypass org-type eligibility rules
+- may not gain cross-tenant reach
+
+PlatformAdmin:
+- broader scope where intended
+- should still respect product-role eligibility unless the role is explicitly system/platform managed
+- if PlatformAdmin can override any eligibility rule, document it clearly
+- if PlatformAdmin cannot override, document that clearly too
+
+Non-admin:
+- blocked from these actions
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation:
+
+1. Admin opens user detail
+2. Role assignment UI reflects eligibility
+3. Eligible product role can be assigned successfully
+4. Ineligible product role cannot be assigned
+5. Tenant without product enabled cannot receive that product role
+6. Wrong-org-type user cannot receive product role
+7. Existing valid assignments still display correctly
+8. Backend rejects invalid direct API attempts even if UI is bypassed
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-002-C-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Eligibility Model Implemented
+6. Tenant Product Enablement Source
+7. Backend Validation Changes
+8. Endpoints Implemented / Verified
+9. BFF Route Changes
+10. Control Center UI Guardrail Changes
+11. TenantAdmin / PlatformAdmin Behavior
+12. Error / Conflict Handling
+13. Known Issues / Remaining Gaps
+14. Manual Test Results
+15. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- product role → org type rules enforced
+- tenant product enablement enforced
+- valid role assignment still works
+- invalid org type assignment blocked
+- product-disabled assignment blocked
+- backend rejects invalid direct API attempts
+- UI shows eligible/ineligible roles clearly
+- TenantAdmin scope preserved
+- PlatformAdmin behavior documented
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- keep this feature focused and surgical
+- do not redesign the platform
+- enforce eligibility in backend first, then reflect it in UI
+- if a limitation remains, document it clearly instead of faking support
+- save the report to /analysis/UIX-002-C-report.md

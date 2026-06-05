@@ -1,0 +1,342 @@
+TASK-FLOW-04 — Analytics Migration (Flow Analytics → Task Service)
+
+OBJECTIVE:
+Remove Flow analytics dependency on the deprecated `flow_workflow_tasks` shadow model by moving task analytics sourcing to the Task service. This closes the final remaining read dependency identified after TASK-FLOW-03, where `FlowAnalyticsService` still relied on complex aggregates over `flow_workflow_tasks`. :contentReference[oaicite:0]{index=0}
+
+This step must deliver Task-backed analytics for:
+- SLA analytics
+- queue analytics
+- assignment analytics
+- dashboard summary composition
+
+CONTEXT:
+After TASK-FLOW-03:
+- Flow no longer owns task execution state
+- `flow_workflow_tasks` is dropped or being dropped
+- Flow runtime reads already come from Task service
+- the only remaining shadow dependency is analytics, explicitly deferred to TASK-FLOW-04 because the existing analytics queries are complex aggregates and require Task-native analytics support. :contentReference[oaicite:1]{index=1}
+
+NON-NEGOTIABLE RULES:
+- DO NOT recreate `flow_workflow_tasks`
+- DO NOT move Flow orchestration tables
+- DO NOT merge Flow and Task databases
+- DO NOT redesign workflow orchestration
+- DO NOT break existing analytics endpoint contracts unless absolutely necessary
+- MUST create report FIRST and update incrementally
+- MUST validate against the current codebase before implementing
+- MUST preserve tenant isolation and auth behavior
+- MUST keep Task service generic enough to support future product analytics, not just Flow hacks
+- NO placeholders
+
+CRITICAL GOAL:
+After this step:
+- `FlowAnalyticsService` no longer queries `flow_workflow_tasks`
+- Task service exposes analytics/query endpoints sufficient for Flow analytics needs
+- Flow becomes a pure consumer of Task analytics
+- the Flow → Task decoupling lane is fully complete for runtime + analytics
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-FLOW-04-report.md
+
+Initialize with:
+
+# TASK-FLOW-04 Report — Analytics Migration (Flow Analytics → Task)
+
+## 1. Codebase Analysis
+## 2. Current Analytics Dependency Map
+## 3. Analytics Contract Design
+## 4. Task Service Analytics API Changes
+## 5. Flow Analytics Migration
+## 6. Validation Results
+## 7. Rollback Plan
+## 8. Known Gaps / Risks
+
+Update this report AFTER EVERY MAJOR STEP with:
+- what was analyzed
+- what changed
+- files added/updated
+- endpoint/schema changes
+- validation performed
+- issues encountered
+- final outcome of the step
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT FLOW ANALYTICS DEPENDENCIES
+--------------------------------------------------
+
+Inspect the current Flow codebase and fully inventory how analytics currently use task data.
+
+At minimum inspect:
+- `FlowAnalyticsService`
+- any analytics controllers/endpoints calling it
+- any dashboard summary services
+- any DTOs returned to UI
+- any helper query methods or projections touching task state
+
+For each analytics method, document:
+- exact purpose
+- exact metrics returned
+- grouping dimensions used
+- filters used (tenant, date windows, status, assignee, role queue, org queue, SLA)
+- whether data is task-only or requires workflow/orchestration joins
+- whether the query uses:
+  - counts
+  - sums
+  - averages
+  - age buckets
+  - group-by
+  - windowing / trend slices
+
+Specifically confirm the report’s statement that `FlowAnalyticsService` contains multiple complex aggregates over `flow_workflow_tasks`, spanning:
+- SLA analytics
+- queue analytics
+- assignment analytics
+- dashboard summary composition. :contentReference[oaicite:2]{index=2}
+
+Document:
+- every analytics dependency on task data
+- which ones can be served entirely by Task service
+- which ones still require Flow-side orchestration data
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Analytics Dependency Map
+
+--------------------------------------------------
+STEP 2 — DESIGN THE ANALYTICS CONTRACT BETWEEN FLOW AND TASK
+--------------------------------------------------
+
+Design the cleanest analytics contract so Flow can consume task analytics from Task service without regaining data ownership.
+
+You MUST explicitly define:
+
+1. Which analytics should be computed in Task service:
+   - SLA analytics
+   - queue analytics
+   - assignment analytics
+   - any task-count summaries needed by dashboard
+
+2. Which analytics should remain composed in Flow:
+   - any workflow/orchestration-specific metrics that require Flow-only tables
+   - any mixed dashboard composition that combines Task analytics + Flow analytics
+
+3. The Task analytics endpoint strategy:
+   Choose the minimum clean surface, for example:
+   - `/api/tasks/analytics/sla`
+   - `/api/tasks/analytics/queue`
+   - `/api/tasks/analytics/assignment`
+   - `/api/tasks/analytics/summary`
+or another equivalent design grounded in the current codebase
+
+4. Filter contract:
+   Define which query params are needed, such as:
+   - tenant/product scope
+   - date range
+   - workflow-linked only vs all tasks
+   - status
+   - priority
+   - assignee / role / org
+   - stage
+   - SLA status
+
+5. Auth model:
+   - preserve current user-facing auth where appropriate
+   - if Flow calls Task analytics internally, use the same auth forwarding / service pattern already established in TASK-FLOW-01/02
+
+Bias toward:
+- Task computes task analytics
+- Flow composes only what is truly orchestration-specific
+- keeping Task generic enough for future consumers
+
+Update:
+## 3. Analytics Contract Design
+
+--------------------------------------------------
+STEP 3 — IMPLEMENT TASK SERVICE ANALYTICS SUPPORT
+--------------------------------------------------
+
+Implement the Task-side analytics/query support required by Flow.
+
+Possible deliverables:
+- new analytics DTOs
+- repository query methods
+- service layer analytics methods
+- analytics endpoints
+- supporting indexes if needed
+- date-range and tenant/product filters
+- aggregation queries for:
+  - SLA counts / breached / on-time / overdue / avg age
+  - queue depth by role / org / stage / status
+  - assignment breakdowns by mode / assignee / queue
+  - summary counts used by Flow dashboard
+
+Rules:
+- keep Task generic
+- do not introduce Flow orchestration semantics into Task
+- use existing Task fields such as:
+  - status
+  - priority
+  - dueAt
+  - slaStatus
+  - assignedUserId
+  - assignedRole
+  - assignedOrgId
+  - workflow linkage fields
+  - stage fields
+- add indexes only where analysis shows they are needed
+- preserve current Task consumers
+
+If Task schema changes are needed for analytics support:
+- keep them minimal
+- create/apply migrations
+- document them clearly
+
+Update:
+## 4. Task Service Analytics API Changes
+
+--------------------------------------------------
+STEP 4 — MIGRATE FLOW ANALYTICS SERVICE
+--------------------------------------------------
+
+Update Flow so analytics no longer query `flow_workflow_tasks`.
+
+At minimum migrate:
+- `GetSlaAnalyticsAsync`
+- `GetQueueAnalyticsAsync`
+- `GetAssignmentAnalyticsAsync`
+- `GetDashboardSummaryAsync`
+
+Requirements:
+- Flow should call Task analytics endpoints (or Task read APIs if a composed approach is chosen)
+- preserve current output contracts as closely as possible
+- preserve tenant isolation
+- preserve auth behavior
+- keep Flow orchestration-specific analytics in Flow only where necessary
+- remove `IFlowDbContext.WorkflowTasks` dependency from `FlowAnalyticsService`
+
+If some analytics remain Flow-side composites:
+- implement them by combining Task analytics responses with Flow-owned orchestration data
+- do not reintroduce task storage/querying in Flow
+
+Update:
+## 5. Flow Analytics Migration
+
+--------------------------------------------------
+STEP 5 — REMOVE REMAINING SHADOW ASSUMPTIONS
+--------------------------------------------------
+
+After analytics migration, inspect the Flow codebase for any remaining assumptions that `flow_workflow_tasks` exists.
+
+At minimum search for:
+- `WorkflowTasks`
+- `flow_workflow_tasks`
+- `_db.WorkflowTasks`
+- old task shadow DTOs / projections
+- analytics-only query helpers
+
+Remove or refactor anything still tied to the dropped table.
+
+If `flow_task_items` is touched by analytics or nearby code:
+- inspect it
+- document whether it is still used or is now a deprecation candidate
+- do NOT drop it in this prompt unless code inspection proves it is dead and removal is trivial/safe
+
+Update:
+## 5. Flow Analytics Migration
+## 8. Known Gaps / Risks
+
+--------------------------------------------------
+STEP 6 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. SLA analytics works using Task service data
+2. queue analytics works using Task service data
+3. assignment analytics works using Task service data
+4. dashboard summary still works
+5. tenant isolation is preserved
+6. auth behavior works correctly for analytics requests
+7. Flow no longer queries `flow_workflow_tasks`
+8. Task analytics endpoints return correct aggregates for workflow-linked tasks
+9. any remaining Flow-side orchestration analytics still behave correctly
+10. builds succeed for Flow and Task services
+11. no UI/API regression occurs
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 6. Validation Results
+
+--------------------------------------------------
+STEP 7 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting Flow analytics reads back to prior implementation if absolutely necessary
+- preserving Task analytics additions if harmless
+- keeping runtime behavior intact
+- no forced DB rollback unless schema changes were introduced
+
+If Task analytics endpoints are added:
+- explain whether they are safe to leave in place during rollback
+- explain whether rollback is code-only or requires DB migration rollback
+
+Update:
+## 7. Rollback Plan
+
+--------------------------------------------------
+STEP 8 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any analytics still not migrated and why
+- any remaining Flow-owned reporting concerns
+- any performance caveats in Task analytics queries
+- whether `flow_task_items` is still active or is now a cleanup candidate
+- whether the Flow → Task execution decoupling program is now fully complete after this step
+
+Update:
+## 8. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-FLOW-04 is successful only if:
+
+1. `FlowAnalyticsService` no longer depends on `flow_workflow_tasks`
+2. Task service provides the analytics/query support Flow actually needs
+3. SLA / queue / assignment / dashboard analytics behave correctly
+4. Flow remains an orchestration consumer, not a task data owner
+5. The Flow → Task migration lane is complete for both runtime and analytics
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT reintroduce shadow task storage in Flow
+- Do NOT move Flow orchestration tables
+- Do NOT redesign the workflow engine
+- Do NOT overbuild analytics beyond what current Flow consumers actually need
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- FlowAnalyticsService and related controllers/DTOs
+- Task analytics DTOs/endpoints/services/repositories
+- auth forwarding / client usage for analytics calls
+- indexes/migrations if needed for Task analytics performance
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

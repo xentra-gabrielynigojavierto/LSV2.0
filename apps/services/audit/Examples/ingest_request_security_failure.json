@@ -1,0 +1,16 @@
+{
+  "source": "gateway",
+  "eventType": "user.login.failed",
+  "category": "security",
+  "severity": "WARN",
+  "tenantId": "tenant-abc",
+  "actorId": null,
+  "actorLabel": "unknown@attacker.example",
+  "targetType": "User",
+  "targetId": null,
+  "description": "Failed login attempt — invalid credentials supplied.",
+  "outcome": "FAILURE",
+  "ipAddress": "198.51.100.77",
+  "correlationId": "req-trace-fail-xyz",
+  "metadata": "{\"attemptCount\":3}"
+}

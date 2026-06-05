@@ -1,0 +1,361 @@
+You are implementing BLK-GOV-01 — Governance & Access Control Enforcement for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-GOV-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block establishes governance-grade access control after security hardening and observability are in place.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new product features
+   - redesign UX
+   - change core business workflows unless required to enforce correct authorization
+   - weaken tenant isolation or security boundaries for convenience
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Establish explicit governance-grade access control so that:
+
+- role boundaries are clear and enforceable
+- admin capabilities are not accidentally shared with lower-privilege roles
+- tenant-scoped actions align with authenticated membership and role claims
+- common portal/provider roles cannot drift into tenant-admin powers
+- privileged actions are consistently protected by policy, not convention
+
+At the end of this block:
+
+- access rules are explicit
+- policy enforcement is consistent
+- admin / tenant / provider boundaries are auditable and predictable
+- hidden over-privilege paths are closed
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- audit of roles, policies, and effective permissions
+- explicit enforcement of role hierarchy / boundaries
+- endpoint-level authorization correctness review
+- governance checks for privileged actions
+- cleanup of any accidental or overly broad policy usage
+
+This block does NOT include:
+
+- new business capabilities
+- SSO redesign
+- organization model redesign
+- new entitlement/product packaging features
+
+--------------------------------------------------
+
+PART A — AUDIT CURRENT ROLE / POLICY MODEL
+
+--------------------------------------------------
+
+Audit the current access-control model across the platform.
+
+You MUST identify and document at minimum:
+
+1. Roles in active use
+   - PlatformAdmin
+   - TenantAdmin
+   - tenant-scoped operational roles
+   - COMMON_PORTAL / provider roles
+   - any product-specific admin/operator roles
+
+2. Policies in active use
+   - PlatformOrTenantAdmin
+   - other named policies
+   - role-based inline checks
+   - request-context-driven authorization patterns
+
+3. Effective privilege model
+   - which actions are platform-wide
+   - which actions are tenant-scoped
+   - which actions are provider/common-portal only
+   - which actions are read-only vs state-changing
+
+Document:
+- where roles are defined
+- where policies are registered
+- where inline checks exist
+- where authorization appears too broad or ambiguous
+
+--------------------------------------------------
+
+PART B — DEFINE ACCESS BOUNDARIES EXPLICITLY
+
+--------------------------------------------------
+
+Classify sensitive actions into clear governance buckets:
+
+1. Platform-only actions
+   Examples:
+   - cross-tenant visibility
+   - platform-wide analytics
+   - global operational diagnostics
+   - platform-level remediation / governance controls
+
+2. Tenant-admin-only actions
+   Examples:
+   - tenant-specific provider activation
+   - tenant-specific network management admin actions
+   - tenant-specific referral administration
+   - tenant-specific operational configuration
+
+3. Provider/common-portal-only actions
+   Examples:
+   - provider onboarding
+   - provider self-service actions
+   - provider referral participation actions
+
+4. Shared authenticated actions
+   - only where explicitly justified
+
+Then enforce that model in code.
+Do NOT leave privilege boundaries implicit.
+
+--------------------------------------------------
+
+PART C — AUDIT PRIVILEGED ENDPOINTS
+
+--------------------------------------------------
+
+Review privileged endpoints across at least:
+
+- `/api/admin/*`
+- provisioning flows
+- provider activation / organization-linking
+- analytics / performance / dashboard endpoints
+- internal diagnostic/integrity endpoints
+- tenant-scoped operational write endpoints
+- common portal/provider-sensitive endpoints
+
+For each, validate:
+
+- correct policy/role protection
+- correct tenant scoping
+- no lower-privilege role can invoke a higher-privilege action
+- no policy name grants broader access than intended
+
+Fix any endpoint where:
+- `PlatformOrTenantAdmin` is too broad
+- inline checks are missing
+- provider/common roles can reach admin functions
+- state-changing actions are not governance-aligned
+
+--------------------------------------------------
+
+PART D — REDUCE OVER-BROAD ACCESS
+
+--------------------------------------------------
+
+Where authorization is too broad, tighten it.
+
+Examples:
+- endpoints currently using `PlatformOrTenantAdmin` but should really be PlatformAdmin only
+- endpoints using generic authenticated access but performing admin/state-changing work
+- provider/common-portal routes that can reach tenant-scoped operations
+- diagnostics/integrity routes that should be more restricted
+
+Rules:
+- prefer explicit, minimal privilege
+- prefer role/policy alignment over ad hoc assumptions
+- preserve intended operational workflows
+
+--------------------------------------------------
+
+PART E — ALIGN ROLE CLAIMS WITH ACTUAL CAPABILITIES
+
+--------------------------------------------------
+
+Audit how role claims are consumed in request context and endpoint logic.
+
+Ensure:
+
+- PlatformAdmin is treated as platform-wide
+- TenantAdmin is tenant-scoped unless explicitly escalated
+- provider/common roles do not inherit tenant-admin semantics
+- missing or ambiguous role combinations fail safely
+- role usage is consistent across:
+  - policies
+  - inline RequireRole checks
+  - request-context helper methods
+  - endpoint-level ownership checks
+
+If a role is currently used inconsistently, normalize it.
+
+--------------------------------------------------
+
+PART F — GOVERNANCE VISIBILITY
+
+--------------------------------------------------
+
+For sensitive/privileged actions, ensure the decision path is governable:
+
+- policy or role requirement is explicit
+- denial path is observable
+- audit event exists if the action changes state
+- cross-tenant admin actions remain distinguishable from tenant-scoped admin actions
+
+Where needed, improve:
+- naming clarity
+- handler-level checks
+- audit/log visibility for governance-sensitive denials
+
+Do NOT create a new audit subsystem.
+Use existing logging / audit patterns.
+
+--------------------------------------------------
+
+PART G — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Platform-only endpoints reject TenantAdmin / provider roles where appropriate
+2. Tenant-admin endpoints reject provider/common roles
+3. Provider/common-portal endpoints do not gain tenant-admin privileges
+4. Cross-tenant platform actions remain available only to PlatformAdmin
+5. Tenant-scoped admin actions remain available to the owning tenant admin
+6. Denial paths remain observable in logs / audit where applicable
+7. No regression in onboarding
+8. No regression in public routes
+9. No regression in tenant portal operational flows
+10. dotnet build succeeds for:
+   - CareConnect
+   - Tenant
+   - Identity
+   - Gateway (if touched)
+11. Frontend / Next.js build succeeds if touched
+
+If feasible, add or update automated tests for:
+- policy enforcement
+- role denial
+- tenant-admin vs platform-admin separation
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-GOV-01-report.md
+
+# BLK-GOV-01 Report
+
+## 1. Summary
+
+## 2. Role / Policy Audit
+- active roles
+- active policies
+- current privilege model
+
+## 3. Governance Boundary Model
+- platform-only
+- tenant-admin-only
+- provider/common-portal-only
+- shared authenticated actions
+
+## 4. Privileged Endpoint Corrections
+- what was too broad
+- what was tightened
+
+## 5. Role Claim Alignment
+- inconsistencies found
+- how they were resolved
+
+## 6. Governance Visibility
+- how privileged denials/actions are now observable
+
+## 7. Validation Results
+
+## 8. Changed Files
+- full file paths
+
+## 9. Methods / Endpoints Updated
+
+## 10. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 11. Issues / Gaps
+
+--------------------------------------------------
+
+PART I — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-GOV-01-commit.diff.txt
+
+--------------------------------------------------
+
+PART I.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-GOV-01-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- role/policy audit corrections
+- privileged endpoint tightening
+- governance boundary enforcement
+- role-claim alignment improvements
+
+--------------------------------------------------
+
+PART I.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 12. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-GOV-01-commit.diff.txt
+- Summary: /analysis/BLK-GOV-01-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- privileged access boundaries are explicit and correct
+- lower-privilege roles cannot reach higher-privilege actions
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

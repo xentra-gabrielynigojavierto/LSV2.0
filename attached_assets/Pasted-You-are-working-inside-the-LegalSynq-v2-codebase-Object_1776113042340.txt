@@ -1,0 +1,274 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Define the core `Lien` domain entity for the `liens` microservice as the central business object of the SynqLiens product.
+
+This feature is domain modeling only. It is NOT for repositories, EF Core mappings, database migrations, CRUD APIs, or frontend work yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+For the Liens build, all shared platform concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION RULE:
+- Preserve donor SynqLiens product behavior
+- Preserve existing APIs as much as possible
+- Use v1 as a donor for behavior and API shape, NOT as a schema to copy directly
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING LIENS DOMAIN + V2 PATTERNS
+--------------------------------------------------
+
+Inspect:
+- the Liens domain entities already created (Case, Contact, Facility, LookupValue)
+- v2 domain entity patterns from Fund, CareConnect, Identity
+- donor SynqLiens concepts related to liens (frontend types, mock data, workflow/state meanings)
+
+Understand:
+- current Liens entity modeling conventions
+- status/type constants pattern
+- factory/update method pattern
+- multi-tenant/org scoping pattern
+- how current entities preserve donor behavior while staying v2-clean
+
+Follow these existing patterns. Do NOT invent a conflicting Lien modeling style.
+
+--------------------------------------------------
+STEP 1A — DONOR BEHAVIOR & API PRESERVATION (CRITICAL)
+--------------------------------------------------
+
+Before defining the Lien entity:
+
+1. Review donor SynqLiens lien concepts at a high level, including:
+   - lien structure
+   - lien type/status values
+   - ownership/holder meaning
+   - financial values used by the product
+   - case/facility linkage
+   - references exposed through APIs and UI
+
+2. Identify:
+   - key fields that drive behavior
+   - key fields exposed in APIs
+   - fields needed for future workflows:
+     - offers
+     - sale
+     - bill of sale
+     - servicing
+     - settlement linkage
+
+3. Apply these rules:
+
+### Behavior Preservation
+- Preserve meaning and purpose of core lien fields
+- Ensure the entity can support the same operational workflow intent as donor SynqLiens
+- Do NOT drop critical status/type/financial concepts
+
+### API Compatibility Preservation
+- Prefer field names that can map cleanly to existing APIs
+- Avoid renaming important external/business properties unnecessarily
+- Design the entity so future APIs can map to v1-style contracts with minimal transformation
+
+### v2 Alignment
+- Use clean TenantId / OrgId / CaseId style identifiers
+- Normalize legacy naming where it improves the design
+- Keep the model clean and consistent with the v2 architecture
+
+4. Any field that is changed, normalized, or deferred must be documented and justified in the report.
+
+--------------------------------------------------
+STEP 2 — DEFINE THE CORE LIEN ENTITY
+--------------------------------------------------
+
+In:
+apps/services/liens/Liens.Domain/Entities/
+
+Create:
+
+- `Lien.cs`
+
+Also create supporting types if needed in:
+- `Liens.Domain/Enums`
+- `Liens.Domain/ValueObjects`
+- `Liens.Domain/Constants`
+
+Use the same style as the already-established Liens entities.
+
+--------------------------------------------------
+STEP 3 — MODEL A CLEAN V2 CANONICAL LIEN
+--------------------------------------------------
+
+Design the entity to support both donor behavior and clean v2 structure.
+
+The Lien entity should be ready for future concepts such as:
+- draft lien creation
+- case linkage
+- facility linkage
+- current ownership
+- future seller / buyer / holder transitions
+- purchase / payoff / balance tracking
+- status-based workflows
+- future bill of sale
+- future servicing
+- future settlement association
+- future documents
+
+At minimum, the resulting model should support equivalent meaning for concepts such as:
+
+- `Id`
+- `TenantId`
+- `OrgId`
+- `CaseId`
+- `LienNumber` or `ReferenceNumber`
+- `ExternalReference`
+- `LienType`
+- `Status`
+- `Title` or display label if useful
+- `FacilityId`
+- `OriginalAmount`
+- `CurrentBalance`
+- `PurchaseAmount`
+- `PayoffAmount`
+- `OpenedAtUtc`
+- `ClosedAtUtc`
+- `Notes`
+- optional holder/seller/buyer reference identifiers if appropriate
+
+You do NOT have to use these exact names if the existing Liens/v2 patterns suggest a better structure, but the business meaning and API mapping ability must be preserved.
+
+--------------------------------------------------
+STEP 4 — SUPPORTING TYPES
+--------------------------------------------------
+
+Add supporting enums/constants/value objects if needed, such as:
+- lien status constants
+- lien type constants
+- ownership/participant role constants if useful
+- money/amount value object ONLY if it genuinely matches existing v2 patterns and does not overcomplicate the domain
+
+Do NOT over-engineer.
+If plain decimal fields are more consistent with current v2 + Liens domain patterns, prefer that.
+
+--------------------------------------------------
+STEP 5 — RELATIONSHIP READINESS
+--------------------------------------------------
+
+Design the Lien entity so future relationships can be added without redesign.
+
+The model should clearly support future relationships to:
+- Case
+- Facility
+- Contact and/or org-based ownership actors
+- BillOfSale
+- ServicingItem
+- Settlement
+- Offers
+- Documents
+
+Do NOT add persistence-heavy navigation complexity.
+Use the lightest clean design that preserves future extensibility.
+
+--------------------------------------------------
+STEP 6 — EXPRESS DOMAIN INTENT
+--------------------------------------------------
+
+Where useful, include:
+- factory methods
+- update methods
+- state transition methods
+- simple validation guards
+
+Examples of natural operations at this stage may include:
+- create draft lien
+- update core lien details
+- transition status
+- set financial values
+- attach/change facility
+- close / reopen if appropriate
+
+Keep the scope tight:
+- no workflow orchestration
+- no repositories
+- no service integrations
+
+--------------------------------------------------
+STEP 7 — KEEP DOMAIN CLEAN
+--------------------------------------------------
+
+Do NOT add:
+- EF Core attributes
+- DbContext
+- repositories
+- migrations
+- API DTOs/models
+- HTTP logic
+- auth logic
+- identity claim parsing
+- documents integration
+- notifications integration
+- audit integration
+
+This is domain modeling only.
+
+--------------------------------------------------
+STEP 8 — VALIDATE BUILD + NON-REGRESSION
+--------------------------------------------------
+
+Validate:
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. Existing identity integration still builds
+4. Gateway is unaffected
+5. No project dependency direction is violated
+
+--------------------------------------------------
+STEP 9 — GENERATE REPORT
+--------------------------------------------------
+
+Create this report file in the root `/analysis` folder:
+
+`/analysis/LS-LIENS-03-002-report.md`
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 + Liens domain patterns identified and followed
+3. Donor SynqLiens lien concepts consulted (behavior/API only)
+4. Exact files created/changed
+5. Final entity list
+   - `Lien`
+   - plus any supporting enums/value objects/constants
+6. Key fields in `Lien` and why they were chosen
+7. Multi-tenant / org / ownership design decisions
+8. Relationship assumptions and future extensibility notes
+9. What was intentionally deferred
+10. Build results
+    - liens service
+    - relevant solution/workspace
+11. Confirmation that no persistence/API/auth concerns were added to the Domain layer
+12. Confirmation that no v1 code or v1 runtime logic was introduced
+
+### REQUIRED SECTION — API & Behavior Preservation Analysis
+13. API & Behavior Preservation Analysis
+- Which donor lien fields influenced the design
+- Which fields were preserved for compatibility
+- Any fields changed, normalized, or deferred and why
+- How easily future APIs can map to the new Lien entity
+
+14. Risks / assumptions
+15. Final readiness statement:
+   - Is the core Lien domain model now established?
+   - Is the service ready for the next feature?
+
+Be detailed and evidence-based. The report should be sufficient for architecture review without opening the code.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Create a clean v2 core Lien domain model that preserves SynqLiens behavior and supports future API compatibility without copying legacy implementation.
+
+Proceed.

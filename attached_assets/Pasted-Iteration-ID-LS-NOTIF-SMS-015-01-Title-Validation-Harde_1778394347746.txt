@@ -1,0 +1,157 @@
+Iteration ID: LS-NOTIF-SMS-015-01
+
+Title:
+Validation Hardening for Adaptive Routing
+
+Objective:
+Complete validation hardening for LS-NOTIF-SMS-015 by proving the adaptive routing implementation builds cleanly, behaves correctly, preserves existing routing behavior, protects sensitive data, and renders correctly in Control Center.
+
+Critical Instruction:
+This is primarily a validation and hardening iteration. Do not add new adaptive routing scope unless required to fix defects discovered during validation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-015-01-report.md
+
+Update it incrementally throughout validation and include:
+1. Build validation results
+2. Functional validation results
+3. Security validation results
+4. Endpoint authorization validation results
+5. Control Center UI validation results
+6. Regression validation results
+7. Files changed
+8. Defects found
+9. Fixes applied
+10. Known gaps/issues
+11. Final recommendation
+
+Validation Tasks:
+
+STEP 1 — Build Validation
+Run and document results for:
+- dotnet build Notifications.Infrastructure
+- dotnet build Notifications.Api
+- Control Center TypeScript/build validation using the existing project command
+
+If any build fails:
+- Fix the smallest safe issue.
+- Re-run validation.
+- Document the error and fix.
+
+STEP 2 — Adaptive Routing Functional Validation
+Validate:
+- adaptive_quality selects the highest quality provider when sufficient quality snapshots exist.
+- adaptive_quality falls back to priority when quality data is missing or below minimum threshold.
+- adaptive_balanced considers provider quality and cost where both are available.
+- adaptive_balanced falls back to hybrid/priority when data is insufficient.
+- adaptive_regional uses country-specific provider quality when inferred country data exists.
+- adaptive_regional falls back to adaptive_quality/priority when country cannot be inferred.
+- excluded providers are never selected.
+- MaxEstimatedCostPerMessage is respected.
+- RequireHealthyProvider is respected if health data exists.
+
+STEP 3 — Regional Inference Validation
+Validate:
+- +1 maps according to documented behavior.
+- +44 maps to GB.
+- +52 maps to MX.
+- +61 maps to AU.
+- +91 maps to IN.
+- +33 maps to FR.
+- +49 maps to DE.
+- unknown or malformed phone numbers return null safely.
+- raw phone numbers are not persisted.
+
+STEP 4 — Existing Routing Regression Validation
+Validate existing modes remain unchanged:
+- priority
+- cost_optimized
+- health_optimized
+- hybrid
+- regional
+
+Confirm:
+- Twilio default behavior remains intact.
+- Vonage support remains intact.
+- unsupported provider behavior remains safe.
+- no duplicate sends are introduced.
+- contact/preference enforcement still occurs before routing.
+
+STEP 5 — Optimization API Validation
+Validate:
+- GET /v1/admin/sms/routing/quality
+- GET /v1/admin/sms/routing/quality/trends
+- GET /v1/admin/sms/routing/latency
+- GET /v1/admin/sms/routing/regional
+- GET /v1/admin/sms/routing/optimization
+
+Confirm:
+- endpoints require PlatformAdmin/admin authorization.
+- responses do not expose credentials, SettingsJson, CredentialsJson, raw phone numbers, recipient JSON, or raw provider payloads.
+- filters work where implemented:
+  - tenantId
+  - provider
+  - providerConfigId
+  - providerOwnershipMode
+  - countryCode
+  - region
+  - from
+  - to
+
+STEP 6 — Control Center UI Validation
+Validate:
+- SMS Routing page still loads.
+- Optimization tab renders.
+- Provider quality data renders.
+- Regional analytics data renders.
+- Latency/optimization sections render.
+- Empty states render safely.
+- Error states render safely.
+- No credentials, raw phones, webhook URLs, or raw payloads are displayed.
+
+STEP 7 — Security Validation
+Search/inspect implementation to confirm:
+- RecipientPhoneForInferenceOnly is transient only.
+- Raw phone numbers are not stored in:
+  - SmsProviderQualitySnapshot
+  - SmsRoutingDecision
+  - SmsRoutingPolicy
+  - optimization API DTOs
+  - Control Center optimization UI
+- CredentialsJson, SettingsJson, auth tokens, webhook URLs, and raw provider payloads are not returned by optimization APIs.
+- Logs do not print raw recipient phones or provider secrets.
+
+STEP 8 — Regression Validation Across LS-NOTIF-SMS-001 through LS-NOTIF-SMS-014
+Confirm no changes break:
+- Twilio outbound send
+- Vonage outbound send
+- SMS preference enforcement
+- retry/dead-letter
+- webhook reconciliation
+- vendor polling reconciliation
+- tenant runtime provider resolution
+- activity APIs
+- dashboard APIs
+- cost analytics
+- alerting
+- escalation
+- incident UI
+- routing policies and decisions
+
+STEP 9 — Final Report Update
+At the end, update /analysis/LS-NOTIF-SMS-015-01-report.md with:
+- final validation status
+- all fixes applied
+- remaining gaps
+- whether LS-NOTIF-SMS-015 can be approved
+
+Do NOT:
+- Add new routing features beyond validation fixes.
+- Rewrite the routing engine.
+- Add AI/ML routing.
+- Add new providers.
+- Store raw phone numbers.
+- Expose credentials or secrets.
+- Break existing LS-NOTIF-SMS-001 through LS-NOTIF-SMS-014 behavior.

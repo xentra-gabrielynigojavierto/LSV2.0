@@ -1,0 +1,282 @@
+You are implementing feature MON-INT-01-003 — Monitoring Auth & Security Alignment.
+
+OBJECTIVE
+Align the Monitoring Service authentication and security model with the main LegalSynq platform so that platform components can use the Monitoring admin/write path without relying on temporary bootstrap workarounds, while preserving safe access to monitoring read endpoints.
+
+This feature replaces the current auth mismatch (Monitoring RS256 vs platform HS256) with a coherent platform-aligned security model.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Monitoring write/admin operations must be secured
+- Monitoring read operations may remain platform-consumable, but the access model must be explicit and intentional
+- Do NOT weaken security by leaving sensitive write surfaces anonymously accessible
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-01-003-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT introduce placeholder auth
+- Do NOT leave the system in a half-switched auth state
+- Do NOT break existing read endpoints without documenting and validating the replacement access path
+- Prefer incremental, reversible changes
+- Keep backend, gateway, and consumer concerns clearly separated
+
+CURRENT CONTEXT
+- Monitoring Service is integrated and operational
+- Read model is implemented
+- Entity bootstrap is currently done through an internal hosted-service workaround
+- Current gap: Monitoring Service uses RS256 with a different issuer/audience than the rest of the platform
+- Platform services use the standard platform auth pattern and cannot call Monitoring admin endpoints today
+- This feature should remove that mismatch cleanly
+
+GOAL OF THIS FEATURE
+By the end of this feature:
+- Monitoring admin endpoints must be callable through a platform-aligned auth model
+- The temporary bootstrap workaround should be retired or clearly marked for retirement
+- Monitoring read and write surfaces must have an intentional security posture
+- The chosen approach must be validated end-to-end
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-01-003-report.md
+
+Initialize with:
+
+# MON-INT-01-003 — Monitoring Auth & Security Alignment
+
+## 1. Task Summary
+## 2. Existing Auth Model Analysis
+## 3. Target Security Model
+## 4. Implementation Changes
+## 5. Read Endpoint Security Decision
+## 6. Admin/Write Path Validation
+## 7. Bootstrap Retirement Assessment
+## 8. Validation Performed
+## 9. Files Changed
+## 10. Known Gaps / Risks
+## 11. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE THE EXISTING AUTH MODEL
+
+Inspect the Monitoring Service and relevant platform patterns.
+
+At minimum inspect:
+- Monitoring.Api authentication setup
+- JwtAuthenticationOptions and related validators/extensions
+- Program.cs in Monitoring.Api
+- existing endpoint auth groups (`AllowAnonymous`, `RequireAuthorization`)
+- one or more platform services that represent the standard auth pattern
+- gateway auth assumptions if relevant
+- Control Center monitoring consumption path
+
+Document:
+- exactly how Monitoring auth currently works
+- exactly how platform auth currently works
+- the current mismatch
+- which endpoints are currently anonymous vs protected
+- what currently blocks platform admin access to Monitoring
+
+---
+
+STEP 3 — CHOOSE THE TARGET SECURITY MODEL
+
+You must choose and implement ONE coherent target model, based on actual platform conventions.
+
+Preferred order of solutions:
+1. Align Monitoring Service to the platform’s standard JWT model so platform-issued tokens are accepted
+2. If a shared internal service-token pattern already exists and is clearly more appropriate for admin/bootstrap flows, implement that in a minimal, platform-consistent way
+3. Do NOT invent a one-off custom auth scheme unless absolutely necessary
+
+Document clearly:
+- chosen target model
+- why it fits platform conventions
+- why alternative models were rejected
+
+The final model must answer:
+- how Control Center reads Monitoring data
+- how trusted platform/admin clients write/update Monitoring entities
+- whether anonymous read endpoints remain acceptable or should be tightened
+
+---
+
+STEP 4 — IMPLEMENT AUTH ALIGNMENT IN MONITORING SERVICE
+
+Refactor the Monitoring Service authentication/security setup to match the chosen target model.
+
+Possible work may include, depending on actual platform conventions:
+- replacing RS256-only config with the platform-standard JWT validation approach
+- changing issuer/audience expectations
+- switching from embedded public-key validation to platform-aligned symmetric validation if that is the standard
+- introducing a platform-standard service-token/internal-auth pattern for admin-only operations
+- updating endpoint authorization groups accordingly
+
+Requirements:
+- write/admin endpoints must remain protected
+- auth configuration must use environment/config-driven values, not hardcoded secrets
+- existing health endpoint behavior must remain intentional
+- read endpoints must have a clearly justified access decision
+
+Do NOT leave dead or misleading auth code behind unless explicitly documented as temporary and harmless.
+
+---
+
+STEP 5 — READ ENDPOINT SECURITY DECISION
+
+Review these endpoints:
+- GET /monitoring/entities
+- GET /monitoring/status
+- GET /monitoring/alerts
+- GET /monitoring/summary
+- GET /health
+
+Decide and implement whether each should be:
+- anonymous
+- platform-authenticated
+- internal-only via gateway/service token pattern
+
+Your decision must be explicit and justified in the report.
+
+Guidance:
+- `/health` is usually anonymous or infra-accessible
+- `/summary`, `/status`, `/alerts` should be safe for platform consumption, but not necessarily public
+- `/entities` may be more sensitive than summary/status depending on target URLs and operational metadata
+
+If you tighten a previously anonymous endpoint:
+- update downstream consumers accordingly
+- validate the new access path works
+
+---
+
+STEP 6 — ADMIN / WRITE PATH ENABLEMENT
+
+Enable a canonical Monitoring-owned write path that platform components can actually use.
+
+At minimum validate the create/update admin entity flow:
+- create monitored entity
+- update monitored entity
+- confirm persistence
+- confirm domain rules still enforced
+
+If entity bootstrap can now be replaced by the real admin path:
+- document the exact API flow
+- preserve idempotence and safety
+
+Do NOT use direct DB writes.
+
+---
+
+STEP 7 — BOOTSTRAP RETIREMENT ASSESSMENT
+
+Review the temporary bootstrap mechanism added in MON-INT-02-001.
+
+Decide one of:
+- keep temporarily but disable by default
+- keep only for dev/bootstrap scenarios behind explicit config
+- retire/remove now if the canonical admin path is validated and a better bootstrap mechanism exists
+
+Requirements:
+- no duplicate ownership ambiguity
+- bootstrap behavior must be explicit
+- if retained, it must be clearly documented as temporary/dev-only
+- if removed, validate that seeded entity creation can still be achieved through canonical paths
+
+---
+
+STEP 8 — VALIDATE END-TO-END SECURITY FLOW
+
+Validate as far as environment permits.
+
+At minimum validate:
+A. Monitoring service builds
+B. Monitoring service starts
+C. Read endpoints behave according to the new access model
+D. Admin endpoints are callable through the chosen auth model
+E. Control Center monitoring consumption still works
+F. Entity create/update path works without bootstrap dependence, if feasible
+G. No regression to summary/status/alerts read model
+
+Capture:
+- exact endpoints tested
+- token or auth mode used
+- response codes
+- any remaining blockers
+
+If some validation is blocked by missing runtime secrets or environment constraints:
+- document precisely what succeeded vs what remains blocked
+
+---
+
+STEP 9 — UPDATE ANY PLATFORM CONSUMERS ONLY AS NEEDED
+
+Only modify downstream consumers if required by the new security model.
+
+Possible targets:
+- apps/control-center/src/lib/monitoring-source.ts
+- gateway routing/auth behavior only if necessary
+- any bootstrap or internal utility used for canonical registration
+
+Do NOT modify UI components unless absolutely required, which is unlikely.
+
+---
+
+STEP 10 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- removed (if any)
+- purpose of change
+
+Be explicit.
+
+---
+
+STEP 11 — KNOWN GAPS / RISKS
+
+Document clearly:
+- any remaining differences between Monitoring and other platform services
+- any endpoints intentionally left anonymous and why
+- any dev-only bootstrap retained and how it is controlled
+- any operational follow-up needed
+- any risk created by exposing operational metadata
+
+---
+
+STEP 12 — RECOMMEND NEXT FEATURE
+
+Based on the actual outcome, recommend one of:
+
+Option A:
+- MON-INT-02-002 — Status Summary Banner
+Use this if auth alignment is complete and the monitoring platform is operationally trustworthy.
+
+Option B:
+- MON-INT-02-003 — Component Status List
+Use this if summary/banner is already effectively present and the next best user-facing step is component-level visibility.
+
+Option C:
+- MON-INT-01-003-01 — Auth follow-up hardening
+Use this only if this feature partially succeeds but needs a tightly scoped follow-up.
+
+Make the recommendation based on actual validation results.
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+- /analysis/MON-INT-01-003-report.md exists and was created FIRST
+- Monitoring auth model is aligned to a coherent platform-compatible approach
+- read endpoint security posture is explicitly decided and implemented
+- admin/write path is secured and actually usable through a canonical Monitoring-owned path
+- bootstrap workaround is retired, reduced, or explicitly constrained
+- validation has been performed and documented
+- no fake security model has been introduced

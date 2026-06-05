@@ -1,0 +1,133 @@
+You are implementing Phase 3 Block 1 of LegalSynq Support Service.
+
+FEATURE ID:
+SUP-TNT-01
+
+FEATURE NAME:
+External Customer Model
+
+Report file:
+ /analysis/SUP-TNT-01-report.md
+
+PRIMARY OBJECTIVE:
+Introduce a tenant-scoped external customer model to support future tenant → client support workflows.
+
+CRITICAL RULES:
+1. DO NOT modify existing Support user/agent model.
+2. DO NOT integrate with Identity Service.
+3. DO NOT introduce authentication/login.
+4. DO NOT break existing ticket flows.
+5. DO NOT weaken tenant isolation.
+6. DO NOT expose external customer APIs publicly yet.
+7. DO NOT introduce UI in this block.
+8. Keep the model lightweight and email-based.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-TNT-01-report.md
+
+STEP 2 — CODEBASE ANALYSIS:
+- Locate ticket creation flow
+- Identify current creator fields
+- Identify tenant context resolution
+- Identify DB schema structure
+
+Document findings before coding.
+
+STEP 3 — DATA MODEL:
+
+Create new entity:
+
+ExternalCustomer
+
+Fields:
+- Id (GUID)
+- TenantId (string) — required
+- Email (string) — required
+- Name (string) — optional
+- Status (Active/Inactive)
+- CreatedAt (DateTime UTC)
+
+Constraints:
+- Unique index: (TenantId + Email)
+
+Add DB migration.
+
+DO NOT:
+- Add foreign key to Identity users
+- Add authentication fields (password, tokens, etc.)
+
+STEP 4 — REPOSITORY:
+
+Create:
+ExternalCustomerRepository
+
+Methods:
+- GetByEmail(tenantId, email)
+- CreateIfNotExists(tenantId, email, name)
+
+STEP 5 — SERVICE LAYER:
+
+Create:
+ExternalCustomerService
+
+Method:
+ResolveOrCreateCustomer(tenantId, email, name)
+
+Behavior:
+- If exists → return
+- If not → create new customer
+
+STEP 6 — INTEGRATION (INTERNAL ONLY):
+
+DO NOT expose API endpoints yet.
+
+Wire service so it can be used later by ticket creation.
+
+STEP 7 — VALIDATION:
+
+- Ensure multi-tenant isolation:
+  same email across tenants = different records
+
+- Ensure no impact to:
+  - ticket creation
+  - assignment
+  - comments
+  - audit
+  - notifications
+
+STEP 8 — BUILD:
+
+Run:
+- dotnet build Support.Api
+- dotnet build Support.Tests if present
+
+STEP 9 — FINAL REPORT:
+
+# SUP-TNT-01 Report
+
+## 1. Codebase Analysis
+## 2. Data Model
+## 3. Repository Layer
+## 4. Service Layer
+## 5. Schema Changes
+## 6. Tenant Isolation Validation
+## 7. Impact Analysis
+## 8. Build Results
+## 9. Known Gaps / Deferred Items
+## 10. Final Readiness Assessment
+
+DONE CRITERIA:
+
+- ExternalCustomer entity exists
+- Unique (TenantId + Email) enforced
+- Repository + service implemented
+- No API exposure yet
+- No changes to existing ticket behavior
+- Tenant isolation preserved
+- Build passes
+- Report complete
+
+If any validation fails:
+- do not claim success
+- document root cause

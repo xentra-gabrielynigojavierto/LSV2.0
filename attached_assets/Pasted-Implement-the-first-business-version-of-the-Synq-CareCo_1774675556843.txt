@@ -1,0 +1,395 @@
+Implement the first business version of the Synq CareConnect service for the LegalSynq .NET monorepo.
+
+Context:
+- Gateway is already working
+- Identity is already working
+- JWT issuance and validation are working
+- MySQL on AWS RDS is already being used
+- Monorepo structure already exists
+- I want to pause Fund for now and build CareConnect first
+
+Goal:
+Create CareConnect as a protected business service behind Gateway using:
+- .NET 8
+- EF Core
+- MySQL
+- tenant-scoped CRUD
+- JWT claim-based tenant filtering
+- clean architecture
+
+Scope for v1:
+Implement these entities and APIs:
+- Provider
+- Category
+- ProviderCategory
+- Referral
+
+Requirements
+
+1. Create standard CareConnect service structure
+Create these projects if they do not already exist:
+- apps/services/careconnect/CareConnect.Api
+- apps/services/careconnect/CareConnect.Application
+- apps/services/careconnect/CareConnect.Domain
+- apps/services/careconnect/CareConnect.Infrastructure
+
+2. Add project references
+Ensure references follow the same pattern as Identity/Fund:
+- CareConnect.Api references:
+  - CareConnect.Application
+  - CareConnect.Infrastructure
+  - Contracts
+  - BuildingBlocks
+- CareConnect.Application references:
+  - CareConnect.Domain
+  - Contracts
+  - BuildingBlocks
+- CareConnect.Infrastructure references:
+  - CareConnect.Application
+  - CareConnect.Domain
+  - BuildingBlocks
+
+3. Add NuGet packages
+Add the latest stable .NET 8-compatible packages only where needed:
+- Microsoft.EntityFrameworkCore
+- Microsoft.EntityFrameworkCore.Design
+- Pomelo.EntityFrameworkCore.MySql
+- Microsoft.AspNetCore.Authentication.JwtBearer if needed in CareConnect.Api
+
+4. Create domain entities
+
+Provider
+- Id : Guid
+- TenantId : Guid
+- Name : string
+- OrganizationName : string?
+- Email : string
+- Phone : string
+- AddressLine1 : string
+- City : string
+- State : string
+- PostalCode : string
+- IsActive : bool
+- AcceptingReferrals : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+Category
+- Id : Guid
+- Name : string
+- Code : string
+- Description : string?
+- IsActive : bool
+- CreatedAtUtc : DateTime
+
+ProviderCategory
+- ProviderId : Guid
+- CategoryId : Guid
+
+Referral
+- Id : Guid
+- TenantId : Guid
+- ProviderId : Guid
+- ClientFirstName : string
+- ClientLastName : string
+- ClientDob : DateTime?
+- ClientPhone : string
+- ClientEmail : string
+- CaseNumber : string?
+- RequestedService : string
+- Urgency : string
+- Status : string
+- Notes : string?
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+5. Add EF Core DbContext
+Create CareConnectDbContext in CareConnect.Infrastructure.
+Use Fluent API only and IEntityTypeConfiguration classes.
+
+Table names:
+- Providers
+- Categories
+- ProviderCategories
+- Referrals
+
+Primary keys:
+- Providers: Id
+- Categories: Id
+- Referrals: Id
+- ProviderCategories: composite key (ProviderId, CategoryId)
+
+Indexes:
+- Provider unique on (TenantId, Email)
+- Provider index on (TenantId, Name)
+- Category unique on Code
+- Referral index on (TenantId, Status)
+- Referral index on (TenantId, ProviderId)
+- Referral index on (TenantId, CreatedAtUtc)
+
+6. Add seed data
+Seed Categories with deterministic GUIDs:
+- Chiropractic
+- Physical Therapy
+- Orthopedic
+- Imaging
+- Pain Management
+
+Use codes like:
+- CHIRO
+- PT
+- ORTHO
+- IMG
+- PAIN
+
+7. Add appsettings
+Update:
+- appsettings.json
+- appsettings.Development.json
+
+Add:
+- ConnectionStrings:CareConnectDb
+- Jwt settings:
+  - Issuer
+  - Audience
+  - SigningKey
+  - ExpiryMinutes
+
+Use placeholder connection string:
+server=localhost;port=3306;database=careconnect_db;user=root;password=yourpassword
+
+8. Register MySQL and JWT auth
+In CareConnect.Api:
+- register CareConnectDbContext with MySQL using ServerVersion.AutoDetect
+- configure JWT bearer auth
+- configure authorization policies:
+  - AuthenticatedUser
+  - PlatformOrTenantAdmin
+
+9. Add automatic migrations in Development only
+Apply migrations automatically only in Development.
+
+10. Create initial migration
+Migration name:
+- InitialCareConnectSchema
+
+Place under CareConnect.Infrastructure in a sensible migrations folder.
+
+11. Add DTOs
+
+CreateProviderRequest
+- Name
+- OrganizationName
+- Email
+- Phone
+- AddressLine1
+- City
+- State
+- PostalCode
+- IsActive
+- AcceptingReferrals
+- CategoryIds : List<Guid>
+
+UpdateProviderRequest
+- Name
+- OrganizationName
+- Email
+- Phone
+- AddressLine1
+- City
+- State
+- PostalCode
+- IsActive
+- AcceptingReferrals
+- CategoryIds : List<Guid>
+
+ProviderResponse
+- Id
+- TenantId
+- Name
+- OrganizationName
+- Email
+- Phone
+- AddressLine1
+- City
+- State
+- PostalCode
+- IsActive
+- AcceptingReferrals
+- Categories : List<string>
+
+CreateReferralRequest
+- ProviderId
+- ClientFirstName
+- ClientLastName
+- ClientDob
+- ClientPhone
+- ClientEmail
+- CaseNumber
+- RequestedService
+- Urgency
+- Notes
+
+UpdateReferralRequest
+- RequestedService
+- Urgency
+- Status
+- Notes
+
+ReferralResponse
+- Id
+- TenantId
+- ProviderId
+- ProviderName
+- ClientFirstName
+- ClientLastName
+- ClientDob
+- ClientPhone
+- ClientEmail
+- CaseNumber
+- RequestedService
+- Urgency
+- Status
+- Notes
+- CreatedAtUtc
+- UpdatedAtUtc
+
+12. Add services/use case layer
+Create application-layer services for:
+- list providers
+- get provider by id
+- create provider
+- update provider
+- list referrals
+- get referral by id
+- create referral
+- update referral
+
+Suggested interfaces:
+- IProviderService
+- IReferralService
+
+13. Tenant scoping
+Use ICurrentRequestContext for:
+- TenantId
+- UserId
+- roles
+
+All provider and referral reads/writes must be tenant-scoped.
+
+14. Validation
+Implement simple validation without FluentValidation for now.
+
+Provider validation:
+- Name required, max 200
+- Email required, valid format, max 320
+- Phone required, max 50
+- AddressLine1 required
+- City required
+- State required
+- PostalCode required
+
+Referral validation:
+- ProviderId required
+- ClientFirstName required
+- ClientLastName required
+- ClientPhone required
+- ClientEmail required, valid format
+- RequestedService required
+- Urgency must be one of:
+  - Low
+  - Normal
+  - Urgent
+  - Emergency
+- Status on create should default to New
+
+Referral status values:
+- New
+- Received
+- Contacted
+- Scheduled
+- Completed
+- Cancelled
+
+15. Endpoints
+Implement:
+
+Public:
+- GET /health
+- GET /info
+
+Providers:
+- GET /api/providers
+- GET /api/providers/{id}
+- POST /api/providers
+- PUT /api/providers/{id}
+
+Referrals:
+- GET /api/referrals
+- GET /api/referrals/{id}
+- POST /api/referrals
+- PUT /api/referrals/{id}
+
+Categories:
+- GET /api/categories
+
+Authorization:
+- GET routes require AuthenticatedUser
+- POST/PUT routes require PlatformOrTenantAdmin
+- health/info anonymous
+
+16. Add standardized exception handling
+Use the same shared exception pattern already established.
+Support:
+- ValidationException -> 400
+- NotFoundException -> 404
+- ForbiddenException -> 403 if used
+- unexpected -> 500
+
+17. Configure service port
+Set CareConnect.Api to run on:
+- 5003
+
+18. Update Gateway
+Add route:
+- /careconnect/{**catch-all} -> CareConnect service at http://localhost:5003
+
+Keep JWT validation at Gateway.
+
+19. Update dev run script
+Update the root dev script so it starts:
+- Identity.Api on 5001
+- Gateway.Api on 5000
+- CareConnect.Api on 5003
+
+20. Do NOT add yet
+Do not implement:
+- geo search
+- map integration
+- scheduling engine
+- provider availability
+- notifications
+- documents
+- payment integration
+- external provider portal
+- advanced workflow engine
+
+21. Output required
+After implementation, output:
+- files created/updated
+- package commands used
+- migration commands used
+- how to update CareConnect connection string
+- sample curl requests for login, providers, referrals, and categories
+
+Important implementation guidance:
+- keep code minimal, clean, and production-minded
+- preserve clean architecture boundaries
+- use async EF Core access
+- use UTC timestamps everywhere
+- keep tenant isolation strict
+- do not break existing Identity or Gateway behavior

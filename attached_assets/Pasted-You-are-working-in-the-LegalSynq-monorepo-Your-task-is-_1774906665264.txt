@@ -1,0 +1,442 @@
+You are working in the LegalSynq monorepo.
+
+Your task is to execute **Step 25: Production Hardening, Security Closure, and Cutover Safety Fixes** for the Platform Audit/Event Service and its currently integrated consumers.
+
+Do the work now.
+
+This is an implementation step, not a planning step.
+
+The goal is to fix the current high-risk gaps discovered after Step 24 so that the Platform Audit/Event Service becomes safe for real staged rollout.
+
+Make additive, production-safe changes. Do not redesign the architecture. Do not remove working legacy functionality. Do not break current flows.
+
+---
+
+# PRIMARY OBJECTIVE
+
+Bring the current audit platform to a state where:
+
+1. canonical audit ingestion is durable
+2. canonical query access is secured
+3. producer integrations emit the highest-value missing events
+4. hybrid cutover cannot silently mask canonical failures
+5. correlation and tracing are consistently enforced
+6. audit access itself is auditable
+7. hash-chain integrity is safer under concurrent ingest
+8. legacy/canonical coexistence is explicit and controlled
+
+---
+
+# IMPLEMENTATION PRIORITIES
+
+Execute in this order unless a code dependency requires minor adjustment.
+
+---
+
+## A. FIX DURABILITY FIRST
+
+### A1. Replace InMemory canonical storage with durable dev-safe storage
+
+Current problem:
+- audit service still uses `Database:Provider = "InMemory"`
+- all canonical events disappear on restart
+
+Do:
+- change the audit service development/runtime default away from InMemory
+- use the safest local durable option already supported by the codebase:
+  - prefer SQLite if already feasible with current EF structure
+  - otherwise wire MySQL/PostgreSQL cleanly if that is simpler in this repo
+- keep development friction low, but persistence must survive service restart
+
+Requirements:
+- update config classes if needed
+- update appsettings files
+- update startup docs / README
+- verify migrations still work
+- make sure health/detail endpoints reflect real DB mode
+
+Do not:
+- remove InMemory support entirely if tests still depend on it
+- break the existing test project
+
+Implementation note:
+- if tests require InMemory, keep it only in test factory / test overrides, not as the service’s default runtime path
+
+---
+
+## B. SECURE THE QUERY SIDE
+
+### B1. Enable real query authentication
+
+Current problem:
+- canonical query routes are being consumed while `QueryAuth:Mode = None`
+
+Do:
+- fully wire JWT bearer authentication in the audit service
+- ensure:
+  - `AddAuthentication().AddJwtBearer(...)`
+  - `UseAuthentication()`
+  - correct middleware order
+- bind JWT settings from config
+- fail startup with a clear error if `QueryAuth:Mode = Bearer` but JWT config is missing
+
+Requirements:
+- preserve current query authorization abstraction
+- do not hardcode a specific external identity provider
+- keep claim mapping configurable
+- verify tenant scoping still works
+- verify platform admin behavior still works
+
+Also:
+- add/update integration tests for bearer mode:
+  - no token -> 401
+  - valid token -> 200
+  - cross-tenant -> 403
+  - wrong role -> constrained/denied appropriately
+
+### B2. Block tenant UI activation until query auth is real
+
+Do:
+- make the tenant activity page explicitly refuse canonical activation unless query auth is enabled
+- if there is a placeholder or feature gate, preserve it and make the reason visible in code/comments/docs
+
+---
+
+## C. FIX PRODUCER EVENT COVERAGE
+
+### C1. Add missing high-value Identity security events
+
+Current problem:
+- `user.login.failed` missing
+- `user.logout` missing
+- other high-value admin/user lifecycle events are still missing
+
+Implement at minimum:
+- `user.login.failed`
+- `user.logout` if there is an appropriate server-side seam
+- `user.created` if easy and already has a stable admin flow
+- `user.deactivated` if easy and already has a stable admin flow
+
+Requirements:
+- use existing shared `LegalSynq.AuditClient`
+- preserve fire-and-observe pattern
+- use good idempotency strategy:
+  - timestamp-based where repeated events are legitimate
+  - stable keys where the event is a state transition
+- do not allow audit emission to fail the main user flow
+
+For `user.login.failed`:
+- ensure failed auth still emits audit event before the exception fully exits
+- avoid leaking sensitive failure detail
+
+### C2. Wire first meaningful CareConnect business events
+
+Current problem:
+- DI exists but no events emit
+
+Implement at minimum if the service seams exist:
+- `careconnect.referral.created`
+- `careconnect.appointment.scheduled`
+
+If exact seams differ in code:
+- choose the closest stable service/application-layer methods where creation/scheduling succeeds
+- document any inferred decisions in the report
+
+Requirements:
+- use the shared audit client
+- include tenant / organization / actor / entity identifiers where available
+- keep event names consistent
+- preserve business flow reliability
+
+---
+
+## D. MAKE HYBRID CUTOVER SAFER
+
+### D1. Stop silent canonical failure masking
+
+Current problem:
+- hybrid mode silently falls back to legacy when canonical fails
+
+Do:
+- preserve fallback behavior
+- but make canonical failure visible
+
+Requirements:
+- log canonical fetch failures clearly
+- expose a visible “using legacy fallback” signal in the Control Center audit UI
+- do not break the page if canonical is unavailable
+- make sure operators can tell when hybrid is hiding an upstream problem
+
+### D2. Make legacy/canonical read mode explicit and safe
+
+Do:
+- review all Control Center audit read paths
+- ensure mode handling is explicit:
+  - legacy
+  - hybrid
+  - canonical
+- avoid accidental mixed rendering from both models in one table unless intentionally mapped
+
+Also:
+- document the exact assumptions of each mode in code comments and/or docs
+
+---
+
+## E. ENFORCE CORRELATION / TRACE CONSISTENCY
+
+### E1. Guarantee correlation ID presence
+
+Current problem:
+- correlationId support exists but is not guaranteed
+
+Do:
+- ensure every canonical ingest request ends up with a correlation identifier
+- if missing:
+  - generate one
+  - log that generation occurred
+- preserve requestId/sessionId when available
+
+Requirements:
+- do not break existing producers
+- prefer additive defaulting over strict rejection
+- propagate through shared client where appropriate
+- align logs and stored audit records
+
+### E2. Improve traceability in docs and integration helpers
+
+Do:
+- update shared audit client example(s) and docs to show required/recommended use of:
+  - correlationId
+  - requestId
+  - sessionId
+
+---
+
+## F. ADD AUDIT-OF-AUDIT
+
+### F1. Record audit access events
+
+Current problem:
+- the system records business/security events, but not who read audit data
+
+Do:
+- emit an audit event when audit query endpoints are accessed
+
+At minimum cover:
+- `GET /audit/events`
+- `GET /audit/events/{auditId}`
+- scoped query endpoints if practical
+- export creation endpoint
+
+Recommended event shape:
+- event type something like:
+  - `audit.log.accessed`
+  - `audit.export.requested`
+- category:
+  - Access or Compliance
+- include:
+  - actor
+  - scope
+  - key filters used
+  - timestamp
+  - source service = platform-audit-event-service
+
+Requirements:
+- do not create infinite recursion
+- do not have audit-access events themselves trigger further audit-access events
+- add an explicit suppression/guard mechanism
+
+---
+
+## G. IMPROVE HASH-CHAIN SAFETY
+
+### G1. Reduce concurrent chain fork risk
+
+Current problem:
+- concurrent ingest in same chain can fork `PreviousHash`
+
+Implement the safest practical improvement without redesigning the whole service.
+
+Preferred approaches:
+1. per-chain DB locking in the append path
+2. transactional compare/retry approach
+3. serialized append within `(TenantId, SourceSystem)` boundary
+
+Choose the approach that best fits the current repository + EF structure.
+
+Requirements:
+- keep throughput reasonable
+- do not introduce a dangerous global lock
+- document remaining limitations
+- add tests for concurrent same-chain ingest if feasible
+
+If full elimination is not practical in this step:
+- implement the best available mitigation
+- document clearly what remains
+
+---
+
+## H. STRENGTHEN LEGACY / CANONICAL COEXISTENCE
+
+### H1. Make canonical store usage explicit
+
+Do:
+- add a config/feature flag or explicit documentation boundary for canonical store usage if not already clear
+- ensure new APIs and new UI paths read from canonical store only
+- ensure legacy readers remain isolated to their intended paths
+
+### H2. Document cutover constraints in-place
+
+Do:
+- add concise docs/comments for:
+  - what still writes legacy
+  - what writes canonical
+  - what is hybrid
+  - what must happen before canonical-only mode
+
+Keep this grounded in the real codebase, not generic prose.
+
+---
+
+## I. STANDARDIZE EVENT NAMING
+
+Current issue:
+- naming may drift between global and service-prefixed patterns
+
+Do:
+- inspect current emitted event names
+- choose and apply one consistent rule for newly added events only
+- do NOT mass-rename already emitted production-relevant events unless absolutely necessary
+
+Preferred rule:
+- use namespaced style if it matches current direction and avoids ambiguity
+  - e.g. `identity.user.login.failed`
+  - or `careconnect.referral.created`
+- but preserve consistency with what already exists in this codebase
+
+Document the naming rule in producer docs
+
+---
+
+## J. TESTING AND VALIDATION
+
+Add or update tests for:
+
+1. durable DB config path boots successfully
+2. bearer auth works
+3. login failed event emits
+4. CareConnect event emission path(s) work
+5. correlation ID generation/defaulting works
+6. audit-of-audit does not recurse
+7. concurrent ingest mitigation behaves correctly or at least fails safely
+8. hybrid mode surfaces canonical fallback state
+
+Do not remove existing tests. Keep all current passing tests green.
+
+---
+
+# FILES / SURFACES TO INSPECT
+
+Inspect and modify as needed, at minimum:
+
+## Audit service
+- Program.cs
+- appsettings.json
+- appsettings.Development.json
+- appsettings.Production.json
+- Configuration/*
+- Controllers/*
+- Middleware/*
+- Services/*
+- Repositories/*
+- Data/*
+- Docs/*
+- Tests/*
+
+## Shared client
+- shared/audit-client/LegalSynq.AuditClient/*
+
+## Identity
+- AuthService.cs
+- AdminEndpoints.cs
+- DependencyInjection.cs
+- appsettings.json / environment config
+
+## CareConnect
+- DependencyInjection.cs
+- referral / appointment services or handlers
+- appsettings.json / environment config
+
+## Control Center
+- audit-logs page
+- API client
+- mappers
+- canonical table
+- mode handling
+
+## Tenant portal
+- activity page
+- any current feature guard or API seam
+
+---
+
+# IMPORTANT IMPLEMENTATION CONSTRAINTS
+
+- Do not remove legacy audit support yet
+- Do not force destructive retention on
+- Do not introduce Kafka
+- Do not redesign the service boundary
+- Do not break fire-and-observe producer behavior
+- Do not silently swallow critical canonical failures in hybrid mode
+- Do not leave security-sensitive defaults ambiguous
+
+---
+
+# REQUIRED OUTPUT
+
+Write a final implementation report to:
+
+/analysis/step25_production_fix_report.md
+
+If you create supporting notes, use:
+
+/analysis/step25_*
+
+---
+
+# REPORT FORMAT
+
+# Step 25 — Production Hardening and Cutover Safety Fixes
+
+## 1. Executive Summary
+## 2. Critical Issues Fixed
+## 3. Security Changes
+## 4. Producer Integration Changes
+## 5. UI / Cutover Safety Changes
+## 6. Integrity / Concurrency Changes
+## 7. Testing Changes
+## 8. Remaining Risks
+## 9. Recommended Immediate Next Step
+
+At the end include:
+- exact files changed
+- any migrations added
+- any config/env vars newly required
+
+---
+
+# FINAL INSTRUCTION
+
+Do the work now.
+
+Implement the fixes directly in the codebase wherever practical.
+
+If a piece cannot be fully completed:
+- implement the strongest safe foundation
+- document exactly what remains and why
+
+Optimize for:
+- safety
+- correctness
+- compliance
+- cutover confidence

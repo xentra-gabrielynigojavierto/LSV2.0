@@ -1,0 +1,273 @@
+Implement LS-LIENS-UI-007 — Bill of Sale & Settlement Flow.
+
+Goal:
+Wire the Bill of Sale and Settlement UI to real backend APIs and complete the financial lifecycle of the system.
+
+--------------------------------------------------
+🚨 CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-007-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Initial analysis plan
+   - Known UI surfaces
+   - Expected backend endpoints
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g., T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Follow same architecture as:
+  Cases, Liens, Servicing, Documents, Contacts
+
+- Enforce:
+  API → Service → Mapper → UI
+
+- No direct HTTP in components
+- No mock data
+- No fake financial calculations
+- Preserve UI layout
+- Use service layer only
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Initial Analysis
+- Analyze backend APIs for:
+  - bill-of-sales
+  - settlements
+  - lien-sale relationships
+- Log findings in report
+
+T002 — Create Types Layer
+Create:
+- billofsale.types.ts
+
+Include:
+- DTOs
+- UI models
+- query models
+- settlement status enum
+- payout structure
+
+Update report after completion
+
+--------------------------------------------------
+
+T003 — Create API Layer
+Create:
+- billofsale.api.ts
+
+Implement raw calls:
+- list bill of sales
+- get by id
+- get by lien
+- settlement endpoints (if available)
+
+NO UI logic
+
+Update report after completion
+
+--------------------------------------------------
+
+T004 — Create Mapper Layer
+Create:
+- billofsale.mapper.ts
+
+Map:
+- list row
+- detail model
+- settlement model
+- payout breakdown
+- participant roles
+- status display
+
+NO duplication
+NO mapping in components
+
+Update report after completion
+
+--------------------------------------------------
+
+T005 — Create Service Layer
+Create:
+- billofsale.service.ts
+
+Expose:
+- getBillOfSales()
+- getBillOfSale()
+- getBillOfSaleByLien()
+- getSettlement()
+- updateSettlementStatus()
+
+Service = ONLY data access layer
+
+Update report after completion
+
+--------------------------------------------------
+
+T006 — Wire Bill of Sale List Page
+Route:
+/lien/bill-of-sales
+
+Replace:
+- all mock data
+
+With:
+- service layer calls
+
+Support:
+- search
+- filter
+- sort
+- pagination
+- loading/error/empty
+
+Update report after completion
+
+--------------------------------------------------
+
+T007 — Wire Bill of Sale Detail Page
+Route:
+/lien/bill-of-sales/[id]
+
+Display:
+- linked lien
+- linked case
+- buyer/seller
+- sale amount
+- settlement status
+- payout breakdown
+- documents (if available)
+
+Add:
+- loading/error/not-found
+
+Update report after completion
+
+--------------------------------------------------
+
+T008 — Lien → Bill of Sale Integration
+From Lien Detail:
+- show sold state
+- link to Bill of Sale
+
+Use real API relationship
+
+Update report after completion
+
+--------------------------------------------------
+
+T009 — Settlement Lifecycle
+Implement (only if supported):
+- status display
+- update status action
+
+Statuses:
+- Pending
+- In Review
+- Approved
+- Paid
+- Closed
+
+Update report after completion
+
+--------------------------------------------------
+
+T010 — Payout Display
+Show:
+- total sale amount
+- seller payout
+- buyer cost
+- fees (if available)
+
+NO fake calculations
+
+Update report after completion
+
+--------------------------------------------------
+
+T011 — Cross-Entity Navigation
+Enable:
+- Bill of Sale → Case
+- Bill of Sale → Lien
+- Bill of Sale → Contacts
+- Bill of Sale → Documents
+
+Update report after completion
+
+--------------------------------------------------
+
+T012 — Remove Mock Data
+Remove:
+- static sale data
+- placeholder settlements
+- fake payouts
+
+Update report after completion
+
+--------------------------------------------------
+
+T013 — Unsupported Actions
+If APIs missing:
+- disable/hide actions
+- document gaps
+
+Update report after completion
+
+--------------------------------------------------
+
+T014 — Final Validation
+- Verify build
+- Verify API integration
+- Verify UI stability
+
+Finalize report with:
+- executive summary
+- before/after data flow
+- APIs used
+- architecture validation
+- risks/blockers
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Report created FIRST and updated incrementally
+- Bill of Sale list uses real APIs
+- Detail page uses real data
+- Lien → Bill of Sale works
+- Settlement status is real
+- No mock financial data remains
+- Service-layer pattern enforced
+- UI layout unchanged
+- Report is complete and traceable
+
+--------------------------------------------------
+
+Execute FULL implementation.
+DO NOT stop at analysis.
+DO NOT delay report creation.

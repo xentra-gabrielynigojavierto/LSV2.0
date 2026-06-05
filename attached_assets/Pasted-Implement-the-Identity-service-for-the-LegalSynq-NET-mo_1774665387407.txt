@@ -1,0 +1,292 @@
+Implement the Identity service for the LegalSynq .NET monorepo using .NET 8, EF Core, and MySQL.
+
+Context:
+The monorepo already contains these projects:
+- apps/services/identity/Identity.Api
+- apps/services/identity/Identity.Application
+- apps/services/identity/Identity.Domain
+- apps/services/identity/Identity.Infrastructure
+- shared/contracts/Contracts
+- shared/building-blocks/BuildingBlocks
+
+Goal:
+Build the initial Identity data foundation with this exact schema shape:
+- Tenants
+- Users
+- Roles
+- UserRoles
+- Products
+- TenantProducts
+
+Use clean architecture boundaries:
+- Domain: entities only
+- Infrastructure: EF Core, entity configurations, DbContext, seed data
+- Api: DI registration, endpoints, startup
+- Application: keep minimal for now, but keep references correct
+
+Requirements
+
+1) Add NuGet packages
+Add the latest stable versions compatible with .NET 8 for:
+- Microsoft.EntityFrameworkCore
+- Microsoft.EntityFrameworkCore.Design
+- Pomelo.EntityFrameworkCore.MySql
+
+Add them only where needed:
+- Identity.Infrastructure
+- Identity.Api if needed for migrations startup
+
+2) Create domain entities in Identity.Domain
+
+Create these classes:
+- Tenant
+- User
+- Role
+- UserRole
+- Product
+- TenantProduct
+
+Use Guid keys consistently where specified.
+Use UTC timestamps.
+
+Entity definitions:
+
+Tenant
+- Id : Guid
+- Name : string
+- Code : string
+- IsActive : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+User
+- Id : Guid
+- TenantId : Guid
+- Email : string
+- PasswordHash : string
+- FirstName : string
+- LastName : string
+- IsActive : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+Role
+- Id : Guid
+- TenantId : Guid
+- Name : string
+- Description : string?
+- IsSystemRole : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+UserRole
+- UserId : Guid
+- RoleId : Guid
+- AssignedAtUtc : DateTime
+
+Product
+- Id : Guid
+- Name : string
+- Code : string
+- Description : string?
+- IsActive : bool
+- CreatedAtUtc : DateTime
+
+TenantProduct
+- TenantId : Guid
+- ProductId : Guid
+- IsEnabled : bool
+- EnabledAtUtc : DateTime?
+
+3) Create IdentityDbContext in Identity.Infrastructure
+
+Create IdentityDbContext and map all entities using Fluent API only.
+Use separate IEntityTypeConfiguration<T> classes for each entity.
+
+Table names must be exactly:
+- Tenants
+- Users
+- Roles
+- UserRoles
+- Products
+- TenantProducts
+
+Relationships:
+- User -> Tenant (many-to-one)
+- Role -> Tenant (many-to-one)
+- UserRole -> User (many-to-one)
+- UserRole -> Role (many-to-one)
+- TenantProduct -> Tenant (many-to-one)
+- TenantProduct -> Product (many-to-one)
+
+Primary keys:
+- Tenants: Id
+- Users: Id
+- Roles: Id
+- Products: Id
+- UserRoles: composite key (UserId, RoleId)
+- TenantProducts: composite key (TenantId, ProductId)
+
+Indexes:
+- Tenant.Code unique
+- User unique on (TenantId, Email)
+- Role unique on (TenantId, Name)
+- Product.Code unique
+
+Use sensible lengths for strings, for example:
+- Name 200
+- Code 100
+- Email 320
+- PasswordHash 500
+- FirstName 100
+- LastName 100
+- Description 1000
+
+4) Add seed data
+
+Seed these Products with deterministic GUIDs:
+- SynqFund
+- SynqLiens
+- SynqCareConnect
+- SynqPay
+- SynqAI
+
+Use these product codes:
+- SYNQ_FUND
+- SYNQ_LIENS
+- SYNQ_CARECONNECT
+- SYNQ_PAY
+- SYNQ_AI
+
+Seed one default tenant with deterministic GUID:
+- Name: LegalSynq Internal
+- Code: LEGALSYNQ
+- IsActive: true
+
+Seed three roles for that tenant with deterministic GUIDs:
+- PlatformAdmin
+- TenantAdmin
+- StandardUser
+
+Make seed data clean and repeatable.
+
+5) Add MySQL registration
+
+In Identity.Api:
+- register IdentityDbContext
+- read connection string from ConnectionStrings:IdentityDb
+- use ServerVersion.AutoDetect(connectionString)
+
+6) Add appsettings
+
+Update appsettings.json and appsettings.Development.json in Identity.Api.
+
+Use a placeholder connection string like:
+server=localhost;port=3306;database=identity_db;user=root;password=yourpassword
+
+Do not hardcode secrets anywhere else.
+
+7) Add migration support
+
+In Program.cs:
+- apply migrations automatically only when running in Development
+- keep startup clean and minimal
+
+8) Create initial migration
+
+Create the first migration named:
+- InitialIdentitySchema
+
+Place migrations under Identity.Infrastructure in a sensible folder like:
+- Persistence/Migrations
+
+9) Add minimal endpoints in Identity.Api
+
+Add these endpoints:
+- GET /health
+- GET /info
+- GET /api/tenants
+- GET /api/products
+
+Response rules:
+- do not return EF entities directly
+- use simple DTOs
+- return consistent JSON
+
+/health response example:
+{
+  "status": "ok",
+  "service": "identity"
+}
+
+/info response example:
+{
+  "service": "identity",
+  "environment": "<current environment>",
+  "version": "v1"
+}
+
+For /api/tenants return:
+- Id
+- Name
+- Code
+- IsActive
+
+For /api/products return:
+- Id
+- Name
+- Code
+- Description
+- IsActive
+
+10) Keep boundaries clean
+
+- Domain contains no EF attributes
+- Infrastructure contains EF Core and configurations
+- Api contains endpoints and DI wiring
+- Application can remain thin for now
+
+11) Do NOT add yet
+
+Do not add any of the following yet:
+- JWT issuing
+- login endpoint
+- password hashing implementation
+- refresh tokens
+- permissions matrix
+- role-permission tables
+- external auth providers
+
+12) Project references
+
+Ensure references are correct:
+- Identity.Api references:
+  - Identity.Application
+  - Identity.Infrastructure
+  - Contracts
+  - BuildingBlocks
+- Identity.Application references:
+  - Identity.Domain
+  - Contracts
+  - BuildingBlocks
+- Identity.Infrastructure references:
+  - Identity.Application
+  - Identity.Domain
+  - BuildingBlocks
+
+13) Output required
+
+After implementing, output:
+- all files created or updated
+- package commands used
+- migration commands used
+- final folder structure for Identity
+- how to run the Identity service
+- expected database tables
+
+Important implementation guidance:
+- use UTC timestamps everywhere
+- keep naming enterprise-ready
+- use MySQL-compatible types
+- keep the code minimal, clean, and production-minded
+- use deterministic GUIDs for seed data

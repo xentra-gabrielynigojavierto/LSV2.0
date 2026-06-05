@@ -1,0 +1,404 @@
+Project: E14.2
+Title: Workflow Task Claim / Reassign — Governed Assignment Transition APIs
+
+You are implementing the next workflow-task assignment phase after E14.1.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E14.2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current task statuses, queue eligibility rules, actor identity resolution, audit behavior, DTO compatibility, and any limitations in concurrency handling or existing environment migration state.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - assignment transition service changes
+   - claim API changes
+   - reassign API changes
+   - authorization/eligibility changes
+   - audit/metadata changes
+   - DTO/API changes
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for queue UI / SLA phase or needs iteration
+
+REPORT FORMAT
+
+# E14.2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Assignment Transition Service Notes
+## Claim API Notes
+## Reassign API Notes
+## Authorization / Eligibility Notes
+## Audit / Metadata Notes
+## DTO / API Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Enable governed claim and reassignment of workflow tasks so tasks can move safely between queue-style assignment and direct user assignment while preserving the E14.1 assignment invariants, tenant isolation, auditability, concurrency safety, and future readiness for queue UI and SLA/work distribution features.
+
+This phase makes the E14.1 assignment model actionable.
+
+SCOPE INCLUDES
+
+- assignment transition service
+- task claim API
+- task reassign API
+- authorization / queue eligibility validation
+- assignment metadata stamping
+- audit emission for claim/reassign
+- additive DTO/API updates only if needed
+- documentation/reporting
+
+DO NOT BUILD
+
+- queue UI
+- bulk claim / bulk reassign
+- notification changes
+- SLA logic
+- workload balancing
+- task timeline/history UI
+- workflow-engine redesign
+- broad My Tasks UI changes
+- direct DB manipulation outside Flow
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve E14.1 as the single source of truth for assignment invariants
+- centralize assignment mutations through one dedicated transition service
+- support claim and reassign through governed APIs only
+- require explicit reason for reassignment
+- stamp AssignedAt / AssignedBy / AssignmentReason correctly
+- emit audit records for claim and reassign
+- preserve tenant isolation and non-leakage
+- fail safely on invalid state, invalid target, or concurrent changes
+- avoid breaking existing My Tasks consumers
+
+CURRENT CONTEXT
+
+E14.1 already delivered:
+- `AssignmentMode`
+- `AssignedAt`
+- `AssignedBy`
+- `AssignmentReason`
+- single-mode invariants in `WorkflowTask.EnsureValid()`
+- migration/backfill for legacy rows
+- deterministic producer-side assignment wiring
+
+Current limitation:
+- tasks still cannot be claimed or reassigned through governed APIs
+- queues are modeled but not actionable
+- metadata/audit fields are not yet exercised by user-driven assignment changes
+
+This E14.2 phase should add safe claim/reassign behavior without changing workflow execution semantics.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. ASSIGNMENT TRANSITION SERVICE
+
+Create a focused service to centralize all assignment transitions.
+
+Requirements:
+- add a dedicated service such as `WorkflowTaskAssignmentService` or equivalent
+- all claim/reassign mutations must go through this service
+- the service must:
+  - validate current task state
+  - validate target assignment mode and required fields
+  - clear incompatible assignment columns
+  - stamp `AssignmentMode`
+  - stamp `AssignedUserId` / `AssignedRole` / `AssignedOrgId`
+  - stamp `AssignedAt`
+  - stamp `AssignedBy`
+  - stamp `AssignmentReason`
+  - preserve E14.1 entity invariants as the final gate
+- avoid duplicating assignment mutation logic in controllers
+
+The service should support at minimum:
+- claim from queue to direct user
+- reassign to direct user
+- reassign to role queue
+- reassign to org queue
+- optionally reassign to unassigned only if you can justify and document the policy clearly
+
+2. CLAIM API
+
+Add an endpoint to claim a task.
+
+Suggested route:
+- POST /api/v1/tasks/{id}/claim
+
+Request body:
+- may include `reason`
+- if your policy keeps claim reason optional, document that clearly
+- if required, enforce it consistently
+
+Behavior:
+- current authenticated user becomes direct assignee
+- allowed only when the task is claimable according to assignment mode + task state + queue eligibility
+- task must belong to caller tenant
+- caller must be eligible for the queue they are claiming from
+
+Validation rules:
+- cannot claim terminal/completed/cancelled task
+- cannot claim task already directly assigned to another user
+- claim from `RoleQueue` requires matching role/capability
+- claim from `OrgQueue` requires matching org / org-scoped permission
+- if claim from `Unassigned` is allowed, document exactly why and under what authorization rule; otherwise reject clearly
+
+3. REASSIGN API
+
+Add an endpoint to reassign a task.
+
+Suggested route:
+- POST /api/v1/tasks/{id}/reassign
+
+Request body shape (example):
+{
+  "targetMode": "DirectUser | RoleQueue | OrgQueue | Unassigned",
+  "assignedUserId": "optional",
+  "assignedRole": "optional",
+  "assignedOrgId": "optional",
+  "reason": "required"
+}
+
+Behavior:
+- validates target mode
+- validates target fields match the chosen mode exactly
+- clears incompatible fields
+- stamps metadata
+- persists only through the assignment transition service
+
+Rules:
+- reason is required for reassignment
+- target payload must match target mode exactly
+- no ambiguous combinations allowed
+- use E14.1 invariants as the final write-time gate
+- do not allow arbitrary reassignment by ordinary users
+
+4. AUTHORIZATION / ELIGIBILITY MODEL
+
+Define separate rules for claim vs reassign.
+
+A. Claim
+Recommended:
+- ordinary eligible worker may claim from queue if they match the queue target
+- must be same tenant
+- must satisfy role/org eligibility
+
+B. Reassign
+Recommended:
+- supervisor/admin/operations role only
+- not all workers may reassign
+- PlatformAdmin / TenantAdmin / designated operations roles may be acceptable if aligned with existing platform policy patterns
+
+Requirements:
+- do not use the same permission model for claim and administrative reassign unless clearly justified
+- backend remains authoritative
+- unauthorized/out-of-scope access must not leak cross-tenant task existence
+
+5. TASK STATE RULES
+
+Only allow assignment changes for valid task states.
+
+Requirements:
+- define the allowed-state matrix and document it clearly
+- recommended claim/reassign allowed states:
+  - Pending
+  - Available
+  - Assigned
+  - maybe InProgress only if explicitly justified
+- disallow terminal or closed states:
+  - Completed
+  - Cancelled
+  - Failed if terminal in current model
+  - any archived/closed state if present
+
+Document exactly which statuses are claimable and which are reassignable.
+
+6. ASSIGNMENT METADATA
+
+Use the E14.1 fields actively.
+
+Requirements:
+- `AssignedAt` set whenever assignment target changes
+- `AssignedBy` set from authenticated actor identity
+- `AssignmentReason` set on reassign; on claim either required or optional according to your chosen policy
+- metadata must not be left blank when a user explicitly changes assignment
+
+Do not fabricate actors. Use the current request/user context.
+
+7. AUDIT REQUIREMENTS
+
+This is mandatory.
+
+For every claim/reassign action, emit an audit record using the Audit service.
+
+Suggested actions:
+- `workflow.task.claim`
+- `workflow.task.reassign`
+
+Minimum audit fields:
+- task id
+- workflow instance id if available
+- tenant id
+- previous assignment mode
+- previous assigned target(s)
+- new assignment mode
+- new assigned target(s)
+- performedBy
+- timestamp
+- reason
+
+Requirements:
+- distinguish clearly between claim and reassign
+- do not rely only on app logs
+- if audit adapter has fallback behavior, document how failures are handled
+- ensure the audit content is useful for future task-history surfaces
+
+8. DTO / API SURFACE
+
+If needed, widen task DTOs additively only.
+
+Optional additive fields:
+- assignmentMode
+- assignedAt
+- assignedBy
+- assignmentReason
+
+Rules:
+- additive only unless absolutely necessary
+- do not break existing My Tasks response shape/consumers
+- if DTO widening is deferred, document it clearly and explain why
+
+9. ERROR MODEL
+
+Use structured, operator-safe / client-safe errors.
+
+Suggested codes:
+- task_not_claimable
+- task_not_reassignable
+- assignment_target_invalid
+- assignment_mode_invalid
+- task_already_assigned
+- task_state_invalid
+- concurrent_assignment_change
+- missing_assignment_reason
+- forbidden_assignment_action
+
+Requirements:
+- map validation failures clearly
+- avoid raw exception leakage
+- preserve tenant non-leakage for unauthorized or out-of-scope access
+
+10. CONCURRENCY SAFETY
+
+Assignment changes are conflict-prone.
+
+Requirements:
+- use optimistic concurrency where available
+- fail safely if assignment changed between read and write
+- do not silently overwrite another claimant’s assignment
+- return structured conflict error when appropriate
+
+Document the exact concurrency mechanism used or any limitation if the current task model lacks a true concurrency token.
+
+11. BACKWARD COMPATIBILITY
+
+Respect E14.1 and existing consumers.
+
+Requirements:
+- no breaking change to existing My Tasks behavior unless additive
+- tasks created by existing engine paths remain valid
+- claim/reassign must work on rows migrated by E14.1 once migrations are applied
+- if the current environment still has unapplied E11.1/E14.1 migrations, document the blocker explicitly rather than guessing
+
+12. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional
+- eligible user can claim a claimable task
+- supervisor/admin can reassign a task to direct user / role queue / org queue as implemented
+- invalid target combinations are rejected
+- invalid task states are rejected
+
+Security
+- wrong-tenant caller cannot claim/reassign
+- ineligible user cannot claim role/org queue task
+- non-privileged user cannot reassign
+
+Audit / Metadata
+- claim audit emitted
+- reassign audit emitted
+- AssignedAt / AssignedBy / AssignmentReason stamped correctly
+
+Data Integrity
+- E14.1 invariants remain intact
+- illegal mixed assignment fields cannot persist
+- concurrency conflicts fail safely
+
+Build / Runtime
+- backend builds
+- APIs start
+- existing task consumers are not broken
+
+13. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- which service was added
+- which endpoints were added
+- which task states are claimable/reassignable
+- how queue eligibility is determined
+- how audit/metadata are stamped
+- what remains for queue UI / SLA / history surfaces
+
+14. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E14.2 unless strictly required:
+- queue UI
+- bulk claim/reassign
+- notifications
+- SLA/workload balancing
+- assignment history UI
+- advanced role/org queue dashboards
+- workflow-engine redesign
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect E14.1 entity/invariant model and current task API surface.
+2. Create /analysis/E14.2-report.md immediately and begin logging assumptions/actions.
+3. Add the assignment transition service.
+4. Add claim API.
+5. Add reassign API.
+6. Add authorization / queue eligibility validation.
+7. Wire audit + metadata stamping.
+8. Add additive DTO fields if needed.
+9. Validate concurrency, integrity, and compatibility behavior.
+10. Update docs and finalize the report.
+
+SUCCESS CONDITION
+
+E14.2 is successful when:
+- eligible users can claim valid queue tasks safely
+- authorized users can reassign tasks through governed APIs
+- E14.1 invariants remain enforced
+- assignment metadata is stamped correctly
+- claim/reassign actions are audited
+- tenant/security boundaries are preserved
+- the platform is ready for queue UI and SLA-driven work distribution
+
+FAILURE CONDITION
+
+E14.2 fails if:
+- assignment changes bypass domain invariants
+- claim/reassign overwrite state unsafely
+- metadata or audit are missing
+- authorization is too permissive
+- DTO/API changes break existing task consumers

@@ -1,0 +1,267 @@
+────────────────────────────────────────────────────
+LS-LIENS-07-004 — Notifications Integration (Replit Prompt)
+────────────────────────────────────────────────────
+
+==============================
+SECTION 0 — REPORT GENERATION (DO THIS FIRST)
+==============================
+
+Create this file:
+
+/analysis/LS-LIENS-07-004-report.md
+
+The report MUST include:
+
+1. Summary of notifications integration
+2. Existing Notifications integration pattern identified and followed
+3. Notification event types implemented
+4. Payload structure / template data shape
+5. Files created/modified
+6. Where notifications are triggered
+7. Integration approach (HTTP / shared client / bus)
+8. Failure handling strategy
+9. Request-context usage
+10. Validation performed
+11. Confirmation:
+   - no notification storage in Liens
+   - no workflow impact from notification failures
+12. Build results
+13. Permission or design gaps
+14. Risks / assumptions
+15. Final readiness:
+   - Are notifications emitted for key user-facing events?
+   - Is the system ready for security hardening / internal-mode features next?
+
+IMPORTANT:
+- Update this report as each section is completed.
+
+--------------------------------------------------
+
+==============================
+SECTION 1 — ANALYZE EXISTING PATTERNS
+==============================
+
+Inspect how other v2 services integrate with Notifications.
+
+Look for:
+- shared SDK / client usage
+- HTTP vs bus pattern
+- template invocation pattern
+- recipient model
+- tenant scoping
+- failure handling
+
+Follow the same platform pattern exactly.
+If no clear pattern exists, use a simple HTTP-based notification publish approach.
+
+--------------------------------------------------
+
+==============================
+SECTION 2 — CREATE NOTIFICATION ABSTRACTION
+==============================
+
+Create a Liens-side abstraction for notification publishing.
+
+Example:
+- INotificationPublisher
+- NotificationPublisher
+
+Responsibilities:
+- publish notifications
+- standardize payload shape
+- hide transport details
+
+Do NOT:
+- call Notifications service directly from endpoints
+- scatter transport logic throughout services
+
+--------------------------------------------------
+
+==============================
+SECTION 3 — DEFINE NOTIFICATION EVENTS
+==============================
+
+Implement at minimum these notification triggers:
+
+Offer lifecycle:
+- lienoffer.submitted
+- lienoffer.accepted
+- lienoffer.rejected
+
+Bill of sale / sale:
+- lien.sale.finalized
+- billofsale.document.generated
+
+Use consistent lowercase, dot-separated names.
+
+--------------------------------------------------
+
+==============================
+SECTION 4 — DEFINE PAYLOAD / TEMPLATE DATA
+==============================
+
+For each notification, include enough structured data for downstream template rendering.
+
+Typical fields:
+- tenantId
+- userId (if applicable)
+- orgId
+- lienId
+- offerId
+- billOfSaleId
+- billOfSaleNumber
+- lienNumber
+- purchaseAmount
+- originalLienAmount
+- discountPercent
+- sellerOrgId
+- buyerOrgId
+- documentId
+
+Do NOT do cross-service enrichment in Liens.
+Pass scalar IDs and business identifiers only.
+
+--------------------------------------------------
+
+==============================
+SECTION 5 — IMPLEMENT NOTIFICATION INTEGRATION
+==============================
+
+Inside NotificationPublisher:
+
+- send notification request to Notifications service
+- use configured base URL / shared client / platform pattern
+- support async publish
+- log failures
+
+Failures MUST:
+- NOT throw to caller
+- NOT break business flow
+- be observable in logs
+
+--------------------------------------------------
+
+==============================
+SECTION 6 — INTEGRATE INTO APPLICATION SERVICES
+==============================
+
+Add notification publishing AFTER successful operations.
+
+LienOfferService:
+- after offer creation → lienoffer.submitted
+
+LienSaleService:
+- after offer accepted → lienoffer.accepted
+- after competing offers rejected → lienoffer.rejected
+- after sale finalized → lien.sale.finalized
+
+BillOfSaleDocumentService:
+- after document generated → billofsale.document.generated
+
+If competing offers are rejected in a batch, choose and document one of:
+- one notification per rejected offer
+- a summarized seller/buyer-safe notification model
+
+--------------------------------------------------
+
+==============================
+SECTION 7 — USE REQUEST CONTEXT
+==============================
+
+Use:
+- TenantId
+- UserId
+- OrgId
+
+Do NOT trust client input.
+
+Use context only for attribution and scoping.
+Do NOT invent recipient-resolution joins here.
+
+--------------------------------------------------
+
+==============================
+SECTION 8 — KEEP NOTIFICATIONS NON-BLOCKING
+==============================
+
+Pattern:
+
+try {
+    await notificationPublisher.PublishAsync(...);
+} catch {
+    log error;
+}
+
+DO NOT:
+- let notification failures bubble up
+- block business transactions
+- retry synchronously in the hot path
+
+--------------------------------------------------
+
+==============================
+SECTION 9 — EVENT TIMING RULES
+==============================
+
+Emit notifications:
+- AFTER successful operation
+- AFTER persistence / commit
+
+DO NOT emit:
+- before transaction commit
+- before validation completes
+
+For sale finalization:
+- only notify after the workflow has successfully committed
+
+--------------------------------------------------
+
+==============================
+SECTION 10 — VALIDATION
+==============================
+
+Validate:
+
+1. Liens builds successfully
+2. Notifications integration compiles
+3. notifications are triggered for:
+   - offer submission
+   - offer accepted
+   - offer rejected
+   - sale finalized
+   - BOS document generated
+4. notification failures do NOT break workflows
+5. no regression to:
+   - Case APIs
+   - Lien APIs
+   - LienOffer APIs
+   - BillOfSale APIs
+   - Sale Finalization API
+   - Documents integration
+   - Audit integration
+
+--------------------------------------------------
+
+==============================
+SECTION 11 — DO NOT IMPLEMENT
+==============================
+
+Do NOT:
+- build notification inbox UI
+- store notifications in Liens
+- add cross-service joins for recipient names
+- build user preference management
+- modify existing API response models
+- add frontend work
+
+This feature is ONLY:
+- notification emission
+- notifications integration
+- validation
+
+--------------------------------------------------
+
+FINAL GOAL
+==============================
+
+Enable user-facing operational communication for the Liens system by emitting structured, non-blocking notifications for key marketplace and sale events while preserving clean architecture boundaries.

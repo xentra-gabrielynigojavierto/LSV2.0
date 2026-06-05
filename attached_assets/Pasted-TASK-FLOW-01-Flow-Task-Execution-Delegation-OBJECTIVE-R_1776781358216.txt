@@ -1,0 +1,108 @@
+TASK-FLOW-01 — Flow → Task Execution Delegation
+
+OBJECTIVE:
+Refactor Flow service so it no longer owns workflow task execution records and instead delegates all task creation and lifecycle to Task service.
+
+This replaces:
+- flow_workflow_tasks
+
+With:
+- Task service API
+
+DO NOT MOVE TABLE FIRST.
+Replace behavior first.
+
+--------------------------------------------------
+
+STEP 0 — CREATE REPORT
+
+/analysis/TASK-FLOW-01-report.md
+
+--------------------------------------------------
+
+STEP 1 — ANALYZE USAGE
+
+Find all usage of:
+- flow_workflow_tasks
+
+Identify:
+- where tasks are created
+- where they are updated
+- where status changes
+- how they link to workflow instances
+
+--------------------------------------------------
+
+STEP 2 — DESIGN MAPPING
+
+Define mapping:
+
+flow_workflow_tasks → Task
+
+Map fields:
+- workflowInstanceId → linked entity
+- stage → task stage
+- assignee → Task assignee
+- status → Task status
+
+--------------------------------------------------
+
+STEP 3 — IMPLEMENT TASK INTEGRATION
+
+Replace:
+- DB inserts into flow_workflow_tasks
+
+With:
+- TaskService.CreateTask()
+
+Ensure:
+- idempotency
+- correlationId = workflowInstanceId
+
+--------------------------------------------------
+
+STEP 4 — UPDATE FLOW LOGIC
+
+Modify Flow so:
+- it does NOT rely on DB task state
+- it queries Task service if needed
+- or reacts via events
+
+--------------------------------------------------
+
+STEP 5 — BACKFILL (OPTIONAL)
+
+If existing data exists:
+- migrate flow_workflow_tasks → Task
+
+--------------------------------------------------
+
+STEP 6 — VALIDATION
+
+Ensure:
+- workflows still execute
+- tasks appear correctly in Task system
+- no regression
+
+--------------------------------------------------
+
+STEP 7 — DEPRECATE TABLE
+
+After validation:
+
+- stop writing to flow_workflow_tasks
+- mark table deprecated
+
+DO NOT DROP YET
+
+--------------------------------------------------
+
+SUCCESS CRITERIA
+
+- Flow no longer writes to flow_workflow_tasks
+- Task owns execution
+- Workflow still functions
+
+--------------------------------------------------
+
+END

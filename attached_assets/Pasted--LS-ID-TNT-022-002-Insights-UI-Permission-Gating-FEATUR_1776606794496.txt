@@ -1,0 +1,433 @@
+# LS-ID-TNT-022-002 — Insights UI Permission Gating
+
+## FEATURE OBJECTIVE
+
+Implement permission-aware UI gating across the Insights product so the existing Insights screens now reflect the permission catalog introduced in LS-ID-TNT-022-001.
+
+This feature should wire real Insights UI actions to the new permission codes using the same shared patterns already established in:
+- LS-ID-TNT-015
+- LS-ID-TNT-015-004
+- LS-ID-TNT-015-001
+
+This is a **UI gating feature**, not a backend-enforcement rewrite. Backend enforcement for Insights APIs remains a follow-on item after the UI is wired. The permission-code foundation already exists. :contentReference[oaicite:0]{index=0}
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+LS-ID-TNT-022-001 completed the missing authorization foundation for SynqInsights:
+- `SYNQ_INSIGHTS` product seeded
+- 7 Insights capabilities defined
+- frontend `PermissionCodes.Insights.*` added
+- default role-capability assignments established. :contentReference[oaicite:1]{index=1}
+
+The current remaining gap is that Insights screens still do not consume those permissions in the UI.
+
+This feature closes that gap by making Insights screens permission-aware in the same way CareConnect and Fund already are.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- backend capability enforcement in reports service
+- ABAC/policy activation
+- redesign of Insights pages
+- speculative permission codes beyond the catalog already defined in LS-ID-TNT-022-001
+- tenant or control-center governance redesign
+- fake placeholder backend guards
+- broad product restructuring
+
+ONLY IMPLEMENT:
+- actual Insights UI action inventory and mapping
+- permission-aware UI gating for validated Insights screens/actions
+- reuse of shared `usePermission`, `PermissionTooltip`, `DisabledReasons`, and `ForbiddenBanner`
+- hide/disable/read-only behavior aligned with established platform rules
+- minimal supporting plumbing only if required
+- report-first implementation and honest coverage documentation
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental Insights authorization feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, access, authorization, governance, and product UI behavior
+- use the actual Insights routes/components identified in LS-ID-TNT-022-001
+- reuse the shared permission-aware UI and explainability primitives already in the codebase
+- keep backend authority intact; frontend gating is UX-only
+- include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- validate the actual current codebase before implementing
+- document exact Insights coverage achieved
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-022-002-report.md
+
+Initialize with:
+
+# LS-ID-TNT-022-002 — Insights UI Permission Gating
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Insights UI Action Inventory
+## 4. Permission Mapping Matrix
+## 5. Coverage Scope Selection
+## 6. Shared Pattern Reuse Strategy
+## 7. Files Changed
+## 8. Frontend Implementation
+## 9. Backend Alignment / Error Handling
+## 10. Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL INSIGHTS UI
+
+Inspect the actual current Insights frontend and document the real action surfaces.
+
+Use the LS-ID-TNT-022-001 findings as the starting point and verify them in code. The report identified these routes and actions: :contentReference[oaicite:2]{index=2}
+
+- `/insights` → dashboard (view metrics widgets)
+- `/insights/reports` → reports catalog: Run, Export, Customize/Build, Schedule
+- `/insights/reports/[id]` → report viewer: Export
+- `/insights/reports/builder` → report builder: Create / Save report definition
+- `/insights/schedules` → schedules list: Run-now, Deactivate
+- `/insights/schedules/[id]` → schedule detail: Edit, Activate/Deactivate
+- `/insights/schedules/new` → new schedule form: Create schedule
+
+You must validate:
+- actual component files
+- which actions are client components vs server components
+- what buttons, menus, and CTA surfaces exist
+- whether actions are already conditionally rendered for other reasons
+- what current error handling exists
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Insights UI Action Inventory
+
+---
+
+## STEP 2 — BUILD THE PERMISSION MAPPING MATRIX
+
+Map each real Insights action surface to one of the permission codes created in LS-ID-TNT-022-001.
+
+Available Insights codes are: :contentReference[oaicite:3]{index=3}
+- `SYNQ_INSIGHTS.dashboard:view`
+- `SYNQ_INSIGHTS.reports:view`
+- `SYNQ_INSIGHTS.reports:run`
+- `SYNQ_INSIGHTS.reports:export`
+- `SYNQ_INSIGHTS.reports:build`
+- `SYNQ_INSIGHTS.schedules:manage`
+- `SYNQ_INSIGHTS.schedules:run`
+
+For every action you cover, document:
+- route/page/component
+- action label
+- permission code used
+- whether UX treatment is hide, disable-with-tooltip, read-only, or banner
+- why that treatment is correct
+
+Do NOT invent permissions outside the defined catalog.
+
+Update report:
+## 4. Permission Mapping Matrix
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 3 — SELECT THE INITIAL INSIGHTS UI COVERAGE
+
+Choose the validated Insights surfaces to gate in this feature.
+
+Preferred target scope based on LS-ID-TNT-022-001:
+1. Reports catalog
+   - Run
+   - Export
+   - Customize/Build
+   - Schedule
+2. Report viewer
+   - Export
+3. Report builder
+   - Create / Save
+4. Schedules list
+   - Run-now
+   - Deactivate
+5. Schedule detail
+   - Edit
+   - Activate/Deactivate
+6. Schedule creation
+   - Create
+
+Requirements:
+- prioritize high-value visible actions
+- cover both reports and schedules if present
+- document anything that must remain out of scope and why
+- do not claim page coverage if only one button was gated
+
+Update report:
+## 5. Coverage Scope Selection
+
+---
+
+## STEP 4 — REUSE SHARED PERMISSION-AWARE PATTERNS
+
+Use the existing shared frontend primitives already established elsewhere in the platform:
+
+- `usePermission(...)`
+- `PermissionCodes`
+- `PermissionTooltip`
+- `DisabledReasons`
+- `ForbiddenBanner`
+
+Requirements:
+- do not create a new Insights-only permission framework
+- do not duplicate logic unnecessarily
+- extend current patterns only if the existing shared primitives genuinely do not fit
+- document any minimal extension you had to add
+
+Update report:
+## 6. Shared Pattern Reuse Strategy
+## 8. Frontend Implementation
+
+---
+
+## STEP 5 — APPLY HIDE / DISABLE / READ-ONLY RULES CONSISTENTLY
+
+Use the platform rules consistently:
+
+### Hide
+Hide actions when visibility adds no value and would just clutter or confuse.
+
+### Disabled with tooltip
+Use disabled-with-tooltip when the action is meaningful to discoverability and workflow understanding.
+
+### Read-only
+Use read-only mode for builder/detail screens where the user may view but not modify.
+
+### ForbiddenBanner
+Use when the user can access the surface/page contextually but none of the relevant actions are permitted.
+
+Requirements:
+- choose the correct rule per surface
+- document the rule used per covered action
+- keep ordering stable
+- do not create inconsistent treatment for similar Insights actions
+
+Update report:
+## 6. Shared Pattern Reuse Strategy
+## 8. Frontend Implementation
+
+---
+
+## STEP 6 — IMPLEMENT REPORTS UI GATING
+
+Apply permission-aware UI to the actual reports surfaces.
+
+Potential mappings (validate before implementation):
+- Reports catalog page visibility / main content:
+  - use `Insights.ReportsView`
+- Run report:
+  - `Insights.ReportsRun`
+- Export report:
+  - `Insights.ReportsExport`
+- Customize / Build:
+  - `Insights.ReportsBuild`
+- Schedule from report:
+  - likely `Insights.SchedulesManage`
+- Report builder save/create:
+  - `Insights.ReportsBuild`
+
+Requirements:
+- preserve existing page flow for authorized users
+- where a user can view but not build/export/run, apply disable/read-only appropriately
+- if the report page itself should remain accessible with view-only permission, do that rather than hard-hiding entire screens without reason
+
+Update report:
+## 8. Frontend Implementation
+
+---
+
+## STEP 7 — IMPLEMENT SCHEDULES UI GATING
+
+Apply permission-aware UI to schedule surfaces.
+
+Potential mappings (validate before implementation):
+- View schedule screens:
+  - likely still under report/schedule page access if accessible
+- Create / Edit / Activate / Deactivate:
+  - `Insights.SchedulesManage`
+- Run now:
+  - `Insights.SchedulesRun`
+
+Requirements:
+- schedule create/save buttons must align with manage permission
+- run-now must align with run permission
+- list/detail actions should use shared disable/explainability treatment where visibility helps understanding
+- keep backend-denied fallback handling intact
+
+Update report:
+## 8. Frontend Implementation
+
+---
+
+## STEP 8 — HANDLE SERVER COMPONENT LIMITATIONS CORRECTLY
+
+Some Insights surfaces may be server-rendered.
+
+Requirements:
+- if a server component already has enough session/auth context to gate safely, use the existing pattern
+- if a server component cannot use `usePermission`, do not force a bad pattern
+- wrap or delegate to client components where appropriate and minimal
+- do not redesign whole pages just to force client-side permission checks
+
+Document clearly which covered surfaces are:
+- client-gated
+- server-gated
+- hybrid
+
+Update report:
+## 8. Frontend Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — PRESERVE BACKEND AUTHORITY AND 403 FALLBACKS
+
+Backend enforcement for Insights APIs is still a future feature, so be careful here.
+
+Requirements:
+- preserve existing error handling for API failures
+- do not imply backend enforcement exists if it does not yet
+- if some actions are UI-gated before backend enforcement lands, document that honestly
+- where APIs already fail or are not permission-aware server-side, keep the UI stable and honest
+
+IMPORTANT:
+- This feature does NOT complete Insights backend authorization
+- The report must explicitly state that LS-ID-TNT-022-003 is still required for authoritative backend enforcement
+
+Update report:
+## 9. Backend Alignment / Error Handling
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 10 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- existing CareConnect/Fund/Liens permission-aware UI
+- disabled-state explainability
+- tenant permission UI
+- control center governance UI
+- invite/onboarding/password reset flows
+- route-level product access enforcement
+- TypeScript/build/runtime stability
+
+Update report:
+## 10. Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Insights reports
+- user with `ReportsView` only sees report catalog/view surfaces appropriately
+- user with `ReportsRun` can run reports
+- user without `ReportsRun` gets intended hide/disable behavior
+- user with `ReportsExport` can export
+- user without `ReportsExport` gets intended behavior
+- builder/create/save actions align with `ReportsBuild`
+
+### Insights schedules
+- user with `SchedulesManage` can create/edit/activate/deactivate schedules
+- user without `SchedulesManage` gets intended UI behavior
+- user with `SchedulesRun` can run schedule now
+- user without `SchedulesRun` gets intended behavior
+
+### Shared behavior
+- explainability appears where intended
+- action ordering remains stable
+- no TypeScript/build/runtime regressions
+- existing non-Insights coverage remains intact
+
+Update report:
+## 10. Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what Insights components/pages/actions were covered
+- what permission codes were used where
+- what shared patterns were reused
+- what UI treatment was chosen (hide/disable/read-only/banner)
+- what remains deferred to LS-ID-TNT-022-003 backend enforcement
+- whether Insights is now UI-gated, partially gated, or fully UI-covered for the implemented scope
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Actual Insights UI actions were analyzed from code
+✔ A real mapping from Insights UI actions to `PermissionCodes.Insights.*` was implemented
+✔ Shared permission-aware UI patterns were reused consistently
+✔ Covered Insights reports/schedules actions now reflect permission state in the UI
+✔ Existing platform authorization/governance behavior does not regress
+✔ TypeScript/build/runtime results are clean
+✔ The report documents exact coverage and remaining gaps honestly
+✔ Insights now has a real UI-gating layer for the implemented scope
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working Insights UI permission gating for the validated scope
+2. Reuse of shared permission-aware UI and explainability primitives
+3. Honest documentation of remaining backend-enforcement gap
+4. Completed report:
+/analysis/LS-ID-TNT-022-002-report.md
+
+---
+
+END OF IMPLEMENTATION

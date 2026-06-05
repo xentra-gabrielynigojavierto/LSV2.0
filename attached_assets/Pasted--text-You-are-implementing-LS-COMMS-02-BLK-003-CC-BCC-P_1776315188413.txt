@@ -1,0 +1,617 @@
+```text
+You are implementing LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion for SynqComm.
+
+OBJECTIVE:
+Extend SynqComm to support multi-recipient email threading behavior, including CC/BCC handling, controlled participant expansion from email recipients, reply-all style thread continuity, and safe visibility enforcement across expanded email participants.
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the system of record for conversations, messages, participants, email threading metadata, and communication history.
+- Notifications service remains the outbound delivery engine.
+- SynqComm continues as an independent service under /apps/services/synqcomm with its own physically separate database.
+- SynqComm must NOT piggyback on another service database.
+- SynqComm must NOT use cross-database joins for core logic.
+- Documents service remains the owner of binaries.
+- This block builds on the completed inbound and outbound email implementation.
+- CC/BCC behavior must preserve tenant, participant, and visibility boundaries.
+- BCC must be handled carefully so it does not leak in thread views or reply-all recipient exposure.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+- LS-COMMS-02-BLK-001 — Email Intake and Threading
+- LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-02-BLK-003-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-02-BLK-003-report.md
+
+Initialize it with:
+
+# LS-COMMS-02-BLK-003 — CC/BCC Participant Handling and Email Thread Expansion Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support safe CC/BCC handling, external participant expansion from email recipients, and multi-recipient email thread continuity while preserving SynqComm service boundaries and visibility controls.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- SynqComm owns participants, email references, and thread metadata
+- Notifications remains the outbound delivery engine
+- Documents remain owned by Documents service
+- Preserve Clean Architecture layering from prior blocks
+
+## Steps Completed
+- [ ] Step 1: Review existing implementation and recipient handling gaps
+- [ ] Step 2: Design CC/BCC and participant-expansion model
+- [ ] Step 3: Add domain models and contracts
+- [ ] Step 4: Implement inbound CC/BCC recipient processing
+- [ ] Step 5: Implement outbound recipient expansion and reply-all logic
+- [ ] Step 6: Implement BCC confidentiality rules
+- [ ] Step 7: Extend APIs and persistence
+- [ ] Step 8: Extend audit coverage
+- [ ] Step 9: Add/update migrations
+- [ ] Step 10: Add automated tests
+- [ ] Step 11: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND IDENTIFY RECIPIENT GAPS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current inbound email handling processes only From sender
+- current outbound email supports To and passes Cc to Notifications, but participant expansion is not yet implemented
+- current external participant identity model
+- current email message reference storage for To/Cc/Bcc
+- current thread retrieval payloads and visibility rules
+- current Notifications outbound payload shape
+- current audit integration pattern
+- current permission model and active participant enforcement
+
+Update the report with:
+- current recipient-handling behavior
+- what must change for CC/BCC and reply-all support
+- exact participant-expansion strategy selected
+- exact BCC confidentiality strategy selected
+- any assumptions required
+
+IMPORTANT:
+Build incrementally.
+Do not rewrite prior blocks unless necessary.
+
+--------------------------------------------------
+STEP 3 — DESIGN CC/BCC PARTICIPANT AND THREAD EXPANSION MODEL
+--------------------------------------------------
+
+This block must add:
+- controlled processing of CC recipients on inbound email
+- controlled inclusion of CC recipients on outbound email
+- optional BCC support for outbound delivery without leaking BCC recipients into visible thread data
+- conversation participant expansion from external recipient identities
+- reply-all recipient reconstruction rules
+- safe visibility rules for internal-only vs shared-external content in expanded threads
+
+Key design principles:
+- visible email recipients (To/Cc) may become conversation-linked external identities/participants where safe
+- BCC recipients must NOT become generally visible conversation participants unless there is an explicit internal-only modeling reason and it does not leak externally
+- thread recipient expansion must not create duplicate external participants
+- recipient expansion must stay within the conversation tenant boundary
+- reply-all behavior must be deterministic and must not expose hidden recipients
+- this block must not weaken existing participant-based authorization rules
+
+Update the report with the chosen design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent model(s) needed for recipient tracking and participant expansion.
+
+Preferred model:
+EmailRecipientRecord
+
+Purpose:
+Track recipients per email reference with role and visibility characteristics.
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- emailMessageReferenceId
+- participantId nullable
+- normalizedEmail
+- displayName nullable
+- recipientType
+- recipientVisibility
+- isResolvedToParticipant
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+Recommended recipient types:
+- TO
+- CC
+- BCC
+
+Recommended recipient visibility:
+- VISIBLE
+- HIDDEN
+
+Rules:
+- TO and CC are typically VISIBLE
+- BCC must be HIDDEN
+- participantId is nullable until resolved or if intentionally not resolved
+- avoid duplicate recipient records for the same email reference and normalized address
+- do not model BCC in a way that exposes it through general thread views
+
+You may also extend:
+- EmailMessageReference
+- ExternalParticipantIdentity
+- ConversationParticipant
+
+If useful, add source metadata such as:
+- addedFromEmailFlow
+- recipientSource (INBOUND_TO, INBOUND_CC, OUTBOUND_TO, OUTBOUND_CC, OUTBOUND_BCC)
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUMS / RULE DEFINITIONS
+--------------------------------------------------
+
+Add or extend rules for recipient processing.
+
+Required rules:
+
+Inbound email:
+- From sender remains primary message sender
+- To recipients may be considered contextual recipients but should not automatically become participants unless the chosen design clearly supports it
+- CC recipients may be resolved to external identities/participants when safe
+- BCC is generally not available on inbound provider webhooks and should not be assumed unless explicitly supported by provider payload
+- duplicate normalized addresses across From/To/Cc should be deduplicated appropriately for participant expansion logic
+
+Outbound email:
+- To recipients are visible recipients
+- CC recipients are visible recipients
+- BCC recipients are hidden recipients
+- only authorized internal users may include BCC
+- BCC recipients must not appear in general conversation thread recipient displays or reply-all reconstruction
+- reply-all should include prior visible participants/recipients only, excluding hidden BCC recipients
+
+Participant expansion:
+- only external identities within the same tenant context may be linked
+- do not create duplicate participants for the same normalized email in the same conversation
+- reuse existing external participant identities whenever possible
+- participant auto-creation from recipients should apply only to SHARED_EXTERNAL email flows
+- INTERNAL_ONLY messages never expand visible external participants
+
+Reply-all behavior:
+- reconstruct recipients from latest relevant visible email chain
+- exclude current sender from recipient list
+- exclude BCC from visible reply-all
+- preserve deterministic ordering where practical
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required support:
+
+1. Extend InboundEmailIntakeRequest
+Ensure it fully supports:
+- toAddresses
+- ccAddresses
+- bccAddresses if provider supplies them (optional)
+- normalized recipient descriptors if useful
+
+2. Extend SendOutboundEmailRequest
+Support:
+- toAddresses
+- ccAddresses
+- bccAddresses
+- optional recipient expansion flags only if needed and clean
+
+3. Add ReplyAllPreviewResponse or equivalent if useful
+This may be an internal service result even if not exposed as an API yet.
+
+4. Add EmailRecipientRecordResponse
+Include:
+- normalizedEmail
+- displayName
+- recipientType
+- recipientVisibility
+- participantId nullable
+
+5. Extend EmailReferenceResponse / thread response models as needed
+Visible thread responses may include visible recipients, but must NOT expose hidden BCC recipients.
+
+Do not overbuild UI-oriented DTOs.
+
+--------------------------------------------------
+STEP 7 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- email recipient records
+- recipient lookup by email reference
+- visible recipient reconstruction for reply-all
+- hidden-recipient-safe retrieval
+
+Possible interfaces:
+- IEmailRecipientRecordRepository
+
+Required behaviors:
+- create recipient records
+- list visible recipients by email reference
+- list hidden recipients only for internal/system-safe contexts if truly needed
+- find prior visible recipients for reply-all reconstruction
+- deduplicate normalized addresses
+- tenant-aware retrieval
+
+Stay within SynqComm-owned database only.
+Do not access Notifications or other service DBs directly.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT INBOUND CC/BCC RECIPIENT PROCESSING
+--------------------------------------------------
+
+Extend inbound email intake flow to process recipients safely.
+
+Required behavior:
+- normalize To/Cc/Bcc addresses from intake payload
+- persist recipient records against the email reference
+- resolve/reuse external identities where safe
+- create or attach external conversation participants for relevant visible recipients where the chosen design supports it
+- avoid duplicate participants
+- do not create visible participant leaks from hidden recipient data
+- sender identity resolution remains primary for the actual message author
+
+Recommended safe behavior:
+- process CC recipients for identity reuse/participant expansion
+- do not auto-create participants for every To address unless clearly justified by your selected design
+- document how inbound mailbox addresses or internal system addresses are excluded from participant expansion
+- if BCC inbound data is not reliably available, document that and keep the model ready without faking behavior
+
+If recipient expansion could create unsafe ambiguity, prefer storing recipient records without over-expanding participants.
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT OUTBOUND RECIPIENT EXPANSION AND REPLY-ALL LOGIC
+--------------------------------------------------
+
+Extend outbound email flow to support:
+- visible To/Cc recipients
+- hidden Bcc recipients
+- recipient record persistence for outbound email references
+- reply-all reconstruction from prior visible email references
+- exclusion of hidden BCC from visible reply chains
+
+Required behavior:
+- validate recipients are normalized and deduplicated
+- generate recipient records for outbound email reference
+- pass To/Cc/Bcc separately to Notifications service client
+- when replying, derive default visible recipients from latest visible email chain if request does not override
+- exclude current sender from recipient reconstruction
+- exclude hidden BCC from reply-all
+- ensure only SHARED_EXTERNAL content can be sent
+- preserve prior participant and visibility rules
+
+If reply-all auto-reconstruction is too risky to make implicit, implement a preview/internal resolution method and require explicit recipient submission, while still storing recipient records properly. Document the choice clearly.
+
+--------------------------------------------------
+STEP 10 — IMPLEMENT BCC CONFIDENTIALITY RULES
+--------------------------------------------------
+
+This is a core requirement.
+
+Implement and enforce:
+- BCC recipients are stored as hidden recipient records
+- BCC recipients are never returned from general conversation thread APIs
+- BCC recipients are never used in visible reply-all recipient reconstruction
+- BCC recipients are only passed to Notifications for delivery
+- if internal audit or privileged internal inspection of BCC is supported, it must be through explicit internal-safe paths only
+- external participants must never infer the existence of hidden recipients from thread payloads
+
+If no privileged retrieval path is needed in this block, keep BCC retrieval internal to service logic only.
+
+--------------------------------------------------
+STEP 11 — EXTEND NOTIFICATIONS INTEGRATION PAYLOADS
+--------------------------------------------------
+
+Extend the Notifications integration seam as needed.
+
+Requirements:
+- outbound payload sent to Notifications must include:
+  - To recipients
+  - Cc recipients
+  - Bcc recipients
+  - message/threading metadata
+  - attachment metadata where already supported
+- keep Notifications integration provider-agnostic from SynqComm’s perspective
+- do not add provider-specific BCC logic in SynqComm
+- preserve idempotency/correlation behavior from prior block
+
+If Notifications currently lacks BCC support in its payload contract, extend the seam cleanly and document the dependency.
+
+--------------------------------------------------
+STEP 12 — EXTEND APIs
+--------------------------------------------------
+
+Add or extend APIs only as needed.
+
+Minimum required changes:
+- POST /api/synqcomm/email/send must support ccAddresses and bccAddresses properly
+- POST /api/synqcomm/email/intake must support cc/bcc recipient descriptors when available
+- GET /api/synqcomm/conversations/{conversationId}/email-references may include visible recipient summaries
+- visible APIs must never expose hidden BCC recipients
+
+Optional only if clean:
+- GET /api/synqcomm/conversations/{conversationId}/reply-all-preview
+  - returns computed visible recipients for a reply-all operation
+  - excludes BCC and internal-only participants
+If implemented, protect it with standard conversation-read access.
+
+Keep existing endpoints working.
+
+--------------------------------------------------
+STEP 13 — AUTHORIZATION, TENANT, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- only authorized internal users may send outbound email
+- only active participants with proper permissions may drive recipient expansion through send operations
+- recipient expansion must stay within the conversation’s tenant
+- INTERNAL_ONLY content must not produce external participant expansion
+- visible recipients in thread APIs must respect participant visibility boundaries
+- hidden BCC data must not be returned to normal users/external participants
+- inbound recipient expansion must not create unauthorized cross-tenant identities
+
+If any internal/admin-safe BCC inspection path is added, document it clearly and protect it appropriately.
+Do not weaken current authorization rules.
+
+--------------------------------------------------
+STEP 14 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for recipient expansion and hidden-recipient-safe behavior.
+
+Required audit events where feasible:
+- visible recipient records created
+- hidden recipient records created
+- external participant identity reused from CC
+- external participant auto-created from recipient expansion
+- outbound email requested with recipient counts
+- reply-all recipients resolved
+- outbound email rejected due to recipient/visibility rule
+- hidden recipient handling invoked for outbound delivery
+
+If structured audit payloads are supported, include metadata such as:
+- tenantId
+- conversationId
+- messageId
+- emailMessageReferenceId
+- visibleRecipientCount
+- hiddenRecipientCount
+- toCount
+- ccCount
+- bccCount
+- participantExpansionCount
+
+Do not create a fake audit subsystem.
+Use the existing audit publisher pattern or extend it cleanly.
+
+--------------------------------------------------
+STEP 15 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-003 of Epic 02.
+
+Expected changes may include:
+- new table for email recipient records
+- supporting indexes for email reference and normalized email lookup
+
+Possible indexes:
+- IX_EmailRecipients_TenantId_EmailMessageReferenceId
+- IX_EmailRecipients_TenantId_ConversationId
+- IX_EmailRecipients_TenantId_NormalizedEmail
+- IX_EmailRecipients_TenantId_EmailMessageReferenceId_RecipientVisibility
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 16 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — Inbound CC Recipient Records Persist
+- inbound email with CC addresses
+- verify visible CC recipient records are stored correctly
+
+Test 2 — External Identity Reuse from CC
+- existing external identity for CC address
+- verify it is reused and not duplicated
+
+Test 3 — Outbound To/Cc/Bcc Passed to Notifications Correctly
+- send outbound email with to/cc/bcc
+- verify Notifications client receives separated recipient sets
+
+Test 4 — BCC Not Exposed in Visible APIs
+- outbound email with BCC
+- verify conversation thread/email reference retrieval does not expose BCC recipient
+
+Test 5 — Reply-All Reconstruction Excludes BCC
+- seed prior email with to/cc/bcc
+- verify reply-all computed recipients exclude hidden BCC and current sender
+
+Test 6 — Duplicate Recipient Deduplication
+- repeated addresses across to/cc or sender overlap
+- verify duplicates are handled safely
+
+Test 7 — InternalOnly Message Does Not Expand External Participants
+- verify participant expansion is blocked for non-shared content
+
+Test 8 — Audit Emission
+- verify audit publisher invoked for recipient creation/expansion/send actions
+
+Test 9 — Prior Inbound/Outbound Threading Still Works
+- at least one regression test ensuring prior email reference threading behavior remains correct
+
+If full integration tests are too heavy, use service-layer tests plus repository tests and mocked Notifications/Documents clients.
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 17 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- Notifications remains the outbound delivery engine
+- SynqComm owns recipient/thread metadata
+- inbound CC processing works safely
+- outbound To/Cc/Bcc handling works
+- BCC confidentiality is preserved
+- reply-all visible recipient logic is deterministic and documented
+- participant expansion is controlled and safe
+- no unrelated UI or notification features were added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block preserves SynqComm, Notifications, and Documents boundaries.
+
+## Recipient Expansion Design
+Explain exactly how To/Cc/Bcc are stored and processed.
+
+## BCC Confidentiality Design
+Explain how hidden recipients are protected from exposure.
+
+## Reply-All Design
+Explain how visible recipients are reconstructed and what is excluded.
+
+## Audit Integration
+Explain which recipient-related audit events are now emitted.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-02-BLK-004 — Tenant-Configurable Sender Addresses and Email Templates
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST preserve Notifications as the outbound delivery engine
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on CC/BCC participant handling and thread expansion
+- MUST NOT add unrelated UI features
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- inbound CC recipient processing
+- outbound To/Cc/Bcc handling through Notifications
+- recipient record persistence
+- controlled external participant expansion from visible recipients
+- hidden BCC confidentiality
+- safe reply-all visible recipient reconstruction
+- audit events for recipient expansion and hidden-recipient-safe handling
+- automated tests proving these behaviors
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-02-BLK-003-report.md
+```

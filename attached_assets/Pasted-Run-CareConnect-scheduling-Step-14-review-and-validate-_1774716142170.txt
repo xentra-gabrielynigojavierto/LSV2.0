@@ -1,0 +1,87 @@
+Run CareConnect scheduling Step 14: review and validate the first end-to-end booking workflow, then prepare it as a stable baseline.
+
+Goal:
+Validate that the current booking workflow is correct, safe, and ready for the next phase.
+
+Current scope already implemented:
+- Facilities
+- ServiceOfferings
+- ProviderAvailabilityTemplates
+- AppointmentSlots
+- slot generation
+- Appointments
+- booking from slot
+
+This step is only for validation and readiness review.
+Do not add new schema or new features in this step.
+
+Tasks
+
+1. Review the current booking workflow and confirm the implemented scope is exactly:
+- Provider availability templates
+- Slot generation
+- Slot listing/search
+- Appointment creation from slot
+
+2. Confirm these endpoint groups are present and working through Gateway:
+
+Scheduling foundation:
+- GET /careconnect/api/facilities
+- POST /careconnect/api/facilities
+- PUT /careconnect/api/facilities/{id}
+- GET /careconnect/api/service-offerings
+- POST /careconnect/api/service-offerings
+- PUT /careconnect/api/service-offerings/{id}
+- GET /careconnect/api/providers/{id}/availability-templates
+- POST /careconnect/api/providers/{id}/availability-templates
+- PUT /careconnect/api/availability-templates/{id}
+
+Booking flow:
+- POST /careconnect/api/providers/{id}/slots/generate
+- GET /careconnect/api/slots
+- POST /careconnect/api/appointments
+- GET /careconnect/api/appointments
+- GET /careconnect/api/appointments/{id}
+
+3. Confirm booking rules are working correctly:
+- slot generation creates expected slots
+- rerunning generation for same provider/date range does not create duplicates
+- only Open slots can be booked
+- ReservedCount increments on booking
+- Capacity is enforced
+- booking the same full slot again fails cleanly
+- appointment times come from the slot
+- appointment/provider/facility/service references are copied correctly
+
+4. Confirm tenant isolation:
+- all slot queries are tenant-scoped
+- all appointment queries are tenant-scoped
+- bookings are tenant-scoped
+- cross-tenant access would return 404 or filtered results appropriately
+
+5. Confirm authorization:
+- read endpoints require authenticated user
+- admin-only endpoints require PlatformOrTenantAdmin
+- no token => 401
+- wrong role => 403 on protected write routes
+
+6. Confirm validation/error handling:
+- invalid date ranges are rejected
+- invalid booking requests are rejected
+- full slot booking fails cleanly
+- duplicate slot generation is handled cleanly
+- no raw stack traces or DB exceptions leak
+
+7. Provide a concise readiness summary:
+- working entities/tables
+- working endpoints
+- booking rules validated
+- known limitations
+- recommended next step
+
+8. Provide exact git commands to commit this as a checkpoint.
+
+Important:
+Do not modify working code unless something is clearly broken.
+Do not add appointment status history, cancellations, rescheduling, or notifications yet.
+This step is only to validate the booking baseline and confirm readiness for the next phase.

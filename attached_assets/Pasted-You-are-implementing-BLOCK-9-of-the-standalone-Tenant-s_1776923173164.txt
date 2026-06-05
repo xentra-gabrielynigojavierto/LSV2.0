@@ -1,0 +1,330 @@
+You are implementing BLOCK 9 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B09-report.md
+- This is a real implementation task. Do not leave placeholders or pseudo-code.
+- Validate against the current codebase before making changes.
+- Reuse Blocks 1–8 structure and conventions.
+- This block is HIGH RISK. All changes must be reversible or staged.
+- DO NOT remove Identity data unless explicitly gated and proven safe.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B09 — Identity Cleanup + Final Field Retirement (SAFE MODE)
+================================================================
+
+OBJECTIVE
+Safely retire Identity’s tenant READ responsibilities and deprecate/remove redundant fields and endpoints, while preserving:
+
+- rollback capability
+- dual-write integrity
+- authentication dependencies
+
+This block transitions Identity from:
+    “tenant source of truth”
+→   “tenant write + auth service only”
+
+WITHOUT breaking production.
+
+================================================================
+PREREQUISITES (MANDATORY — VERIFY BEFORE ANY CODE CHANGE)
+================================================================
+
+You MUST confirm ALL of the following before proceeding:
+
+1. Migration:
+   - All tenants exist in Tenant DB
+   - No missing tenants in latest migration run
+
+2. Runtime:
+   - System has run in Tenant mode or HybridFallback
+   - Fallback rate is effectively zero
+
+3. Dual Write:
+   - Enabled and stable
+   - No sync failures observed
+
+4. Observability:
+   - runtime-metrics endpoint working
+   - fallback metric implemented and near zero
+
+If ANY of the above is not true:
+→ STOP and document blocker in report
+→ DO NOT proceed with cleanup
+
+================================================================
+BLOCK 9 STORIES
+================================================================
+
+This block includes:
+
+- IDENTITY READ PATH RETIREMENT
+- IDENTITY BRANDING ENDPOINT DEPRECATION
+- SAFE FIELD DEPRECATION (NO HARD DROP YET)
+- FINAL SOURCE-OF-TRUTH ENFORCEMENT
+- CLEANUP OF FALLBACK PATHS (CONTROLLED)
+- POST-CLEANUP VALIDATION
+
+================================================================
+SCOPE
+================================================================
+
+A) Disable Identity as runtime read source (soft retirement)
+
+Update read-source config defaults:
+
+Set:
+Features:TenantReadSource = Tenant
+Features:TenantBrandingReadSource = Tenant
+Features:TenantResolutionReadSource = Tenant
+
+BUT:
+- keep Identity mode available for rollback
+- DO NOT remove config options
+
+Add warning log if Identity mode is used:
+[DEPRECATION] Identity read-source mode is deprecated
+
+---
+
+B) Deprecate Identity branding endpoint
+
+Target:
+- /api/tenants/current/branding
+
+Actions:
+1. Keep endpoint for compatibility
+2. Add:
+   - response header:
+     X-Deprecated: true
+   - log warning:
+     [DEPRECATED] Identity branding endpoint invoked
+3. Internally:
+   - delegate to Tenant service if possible
+   OR
+   - mark clearly as fallback-only
+
+DO NOT delete endpoint in this block.
+
+---
+
+C) Remove Identity from active read paths (internal)
+
+Search for:
+- direct DB reads of tenant fields used for:
+  - branding
+  - resolution
+  - bootstrap
+
+Replace with:
+- read-source abstraction (Tenant-only path)
+
+Result:
+- Identity is no longer used for runtime reads
+- ONLY used for:
+  - writes
+  - auth
+  - sync
+
+---
+
+D) Field-level retirement (SAFE MODE — NO DROP)
+
+For each field:
+
+| Field | Action |
+|------|--------|
+| Subdomain | mark obsolete |
+| LogoDocumentId | write-through only |
+| LogoWhiteDocumentId | write-through only |
+| Name | keep (auth dependency) |
+| Code | keep (auth dependency) |
+| IsActive | keep |
+
+Actions:
+- add deprecation markers:
+  // DEPRECATED: Tenant is source of truth
+- prevent new read usage in code
+
+DO NOT:
+- remove columns
+- remove EF mappings
+
+---
+
+E) Remove fallback logic from runtime (PARTIAL)
+
+In:
+- BFF routes
+- gateway resolution
+
+Update behavior:
+
+If:
+TenantReadSource = Tenant
+
+Then:
+- DO NOT fallback to Identity
+
+BUT:
+- fallback still allowed in HybridFallback mode
+
+---
+
+F) Dual-write enforcement (tighten behavior)
+
+If dual-write is enabled:
+
+- ensure ALL Identity tenant writes trigger sync:
+  - CreateTenant
+  - UpdateTenant
+  - Logo updates
+  - Subdomain changes
+
+Add:
+- warning if sync adapter not called
+
+DO NOT enforce strict mode globally yet.
+
+---
+
+G) Cache + consistency validation
+
+After cleanup:
+
+- ensure cache still:
+  - returns correct data
+  - respects sync updates
+- verify eviction on sync still works
+
+---
+
+H) Final cleanup (SAFE ONLY)
+
+You MAY remove:
+
+- unused helper methods
+- duplicated fallback utilities
+- dead code confirmed unused
+
+You MUST NOT remove:
+- Identity tenant table
+- auth-dependent fields
+- rollback paths
+
+---
+
+================================================================
+NON-GOALS (STRICT)
+================================================================
+
+DO NOT:
+- drop Identity DB columns
+- remove Identity tenant entity
+- remove rollback config
+- force strict dual-write globally
+- remove Identity endpoints entirely
+- refactor unrelated systems
+
+---
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if:
+
+1. Tenant is the ONLY runtime read source in Tenant mode
+2. Identity is no longer used for branding/resolution reads
+3. Identity branding endpoint is deprecated but still functional
+4. Deprecated fields are marked and no longer used in runtime reads
+5. Dual-write remains functional and intact
+6. HybridFallback still works
+7. Rollback to Identity mode still works via config
+8. No production-breaking changes introduced
+
+---
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+You MUST verify:
+
+- Build success
+- All services start
+- Branding works in Tenant mode
+- Resolution works in Tenant mode
+- Logo loads correctly
+- No Identity read logs in Tenant mode
+- Dual-write still syncs correctly
+- runtime-metrics:
+  - fallback = 0
+- Rollback test:
+  - switch to Identity mode
+  - system still works
+
+---
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B09-report.md
+
+Include:
+
+# TENANT-B09 Report
+
+## 1. Objective
+
+## 2. Preconditions Validation
+- migration status
+- fallback rate
+- dual-write status
+
+## 3. Identity Cleanup Actions
+- endpoints deprecated
+- fields marked
+- read paths removed
+
+## 4. Runtime Behavior Changes
+- Tenant-only mode behavior
+- fallback rules
+
+## 5. Dual Write Validation
+- hook coverage
+- sync behavior
+
+## 6. Implementation Summary
+
+## 7. Validation Results
+
+## 8. Remaining Identity Dependencies
+- what still exists
+- why
+
+## 9. Final Retirement Plan (NEXT STEP)
+- what can be physically removed in future
+
+## 10. Final Assessment
+- is Identity now:
+  - write-only?
+  - fallback-only?
+  - safe to partially decommission?
+
+---
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- DO NOT rush this block
+- Make small, reversible changes
+- Validate each step
+- Prefer deprecation over deletion
+- Preserve rollback at all times
+
+Now execute BLOCK 9 carefully.

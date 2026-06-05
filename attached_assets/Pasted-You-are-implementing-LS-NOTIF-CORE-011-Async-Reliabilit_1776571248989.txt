@@ -1,0 +1,121 @@
+You are implementing LS-NOTIF-CORE-011 — Async Reliability & Worker Completion.
+
+================================================================================
+WORKFLOW RULES (MANDATORY)
+================================================================================
+
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-CORE-011-report.md
+
+2. Update the report incrementally after each major step.
+
+3. At completion, the report MUST include:
+   - what was implemented
+   - worker behavior
+   - retry logic
+   - state transitions
+   - files changed
+   - validation performed
+   - remaining gaps
+   - risks
+
+================================================================================
+OBJECTIVE
+================================================================================
+
+Upgrade the Notifications service to support reliable, asynchronous delivery with:
+- background workers
+- retry engine
+- delivery state management
+- webhook reconciliation
+- dead-letter handling
+
+DO NOT redesign the service. Extend existing logic.
+
+================================================================================
+IN SCOPE
+================================================================================
+
+1. Implement real background worker:
+   - Process pending/queued notifications
+   - Move delivery out of request thread when appropriate
+
+2. Introduce delivery state machine:
+   - queued
+   - processing
+   - sent
+   - delivered
+   - failed
+   - retrying
+   - dead-letter
+
+3. Implement retry engine:
+   - Retry only retryable failures
+   - Add exponential backoff (or simple incremental if needed)
+   - Track retry attempts
+   - Stop after max attempts
+
+4. Implement retry scheduling:
+   - Store next retry time
+   - Worker picks up eligible retries
+
+5. Implement webhook reconciliation:
+   - Update delivery status from provider webhooks
+   - Map provider events → normalized states
+
+6. Dead-letter handling:
+   - Mark notifications as dead-letter after retries exhausted
+   - Ensure they appear in issues endpoint
+
+================================================================================
+OUT OF SCOPE
+================================================================================
+
+- No UI changes
+- No auth changes (already handled)
+- No new notification channels
+- No redesign of provider adapters
+- No event bus redesign
+
+================================================================================
+IMPLEMENTATION GUIDELINES
+================================================================================
+
+- Reuse existing entities:
+   notifications
+   attempts
+   events
+   issues
+
+- Extend existing worker classes (do not replace blindly)
+- Keep logic in services, not endpoints
+- Preserve existing API behavior
+- Prefer additive changes
+
+================================================================================
+VALIDATION
+================================================================================
+
+- Build must succeed
+- Worker must:
+   - process queued notifications
+   - process retries
+- Retry logic must:
+   - stop at max attempts
+   - respect retry eligibility
+- Status transitions must be consistent
+
+================================================================================
+REPORT FORMAT
+
+# LS-NOTIF-CORE-011 Report
+
+## Summary
+## Worker Implementation
+## Retry Engine
+## State Machine
+## Webhook Handling
+## Files Changed
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations

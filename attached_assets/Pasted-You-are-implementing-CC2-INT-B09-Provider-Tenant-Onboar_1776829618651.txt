@@ -1,0 +1,247 @@
+You are implementing CC2-INT-B09 — Provider Tenant Onboarding (TENANT Stage Completion) for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B09-report.md
+
+2. Update the report incrementally after each major step.
+
+3. This builds on:
+   - CC2-INT-B06-01 (shared provider registry)
+   - CC2-INT-B06-02 (provider access stage)
+   - CC2-INT-B07 (public network surface)
+   - CC2-INT-B08 (public referral initiation)
+
+4. DO NOT modify:
+   - provider registry model
+   - network association model
+   - referral core logic
+
+5. This block completes the provider lifecycle:
+   URL → COMMON_PORTAL → TENANT
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Enable providers (currently in COMMON_PORTAL stage) to:
+
+- create their own tenant account OR join an existing tenant
+- transition to TENANT stage
+- access Synq CareConnect through their tenant portal
+- retain continuity of identity and provider record (NO duplication)
+
+At the end of this block:
+
+- provider can onboard into a tenant
+- provider AccessStage transitions to TENANT
+- provider can log into tenant portal
+- CareConnect is available inside tenant portal for provider
+
+--------------------------------------------------
+
+PART A — ONBOARDING ENTRY POINT (COMMON PORTAL)
+
+--------------------------------------------------
+
+A.1 Add onboarding entry in Common Portal
+
+In provider UI (COMMON_PORTAL):
+
+- add CTA:
+    "Set up your organization"
+    or
+    "Create your tenant workspace"
+
+Visible ONLY if:
+- provider.AccessStage == COMMON_PORTAL
+
+--------------------------------------------------
+
+A.2 Onboarding options
+
+Provide two paths:
+
+1. Create new tenant
+2. Join existing tenant (optional initial — can stub if needed)
+
+--------------------------------------------------
+
+PART B — BACKEND SERVICE
+
+--------------------------------------------------
+
+B.1 Create service
+
+ProviderOnboardingService (new or existing service layer)
+
+Method:
+
+ProvisionProviderToTenantAsync:
+
+Input:
+- providerId
+- tenantName
+- tenantCode (subdomain)
+- optional: join token (future)
+
+--------------------------------------------------
+
+B.2 Logic
+
+1. Load provider from shared registry
+2. Validate:
+   - provider exists
+   - provider.AccessStage >= COMMON_PORTAL
+
+3. Create tenant (if new):
+   - call Identity service
+   - create organization / tenant
+   - assign subdomain
+
+4. Link provider to tenant:
+   - update provider.TenantId = new tenantId
+
+5. Call:
+   provider.MarkTenantProvisioned(tenantId)
+
+6. Persist changes
+
+7. Assign roles in Identity:
+   - user becomes tenant admin or provider role
+
+--------------------------------------------------
+
+PART C — IDENTITY INTEGRATION
+
+--------------------------------------------------
+
+Ensure:
+
+- provider.IdentityUserId is used
+- no new user is created
+
+Assign:
+
+- tenant membership
+- roles:
+    - tenant user
+    - CareConnect access
+
+--------------------------------------------------
+
+PART D — TENANT PORTAL ACCESS
+
+--------------------------------------------------
+
+D.1 After onboarding success:
+
+Redirect provider to:
+
+    https://[tenant-subdomain].[baseurl]
+
+--------------------------------------------------
+
+D.2 Ensure:
+
+- provider can authenticate via Identity
+- JWT contains correct tenant/org claims
+- CareConnect appears in tenant portal navigation
+
+--------------------------------------------------
+
+PART E — FRONTEND (COMMON PORTAL)
+
+--------------------------------------------------
+
+E.1 Create onboarding UI
+
+Page or modal:
+
+- tenant name
+- tenant subdomain (validate availability)
+- optional org details
+
+--------------------------------------------------
+
+E.2 Submit flow
+
+- POST to onboarding endpoint
+- show loading
+- show success
+- redirect to tenant portal
+
+--------------------------------------------------
+
+PART F — VALIDATION
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. COMMON_PORTAL provider can start onboarding
+2. Tenant is created successfully
+3. Provider is linked to tenant
+4. AccessStage transitions to TENANT
+5. No duplicate provider created
+6. Identity user reused (same IdentityUserId)
+7. Provider can log into tenant portal
+8. CareConnect accessible inside tenant portal
+9. Existing referrals still accessible
+10. No cross-tenant leakage
+
+--------------------------------------------------
+
+PART G — SECURITY
+
+--------------------------------------------------
+
+Ensure:
+
+- only authenticated COMMON_PORTAL providers can onboard
+- tenant code (subdomain) validated for uniqueness
+- no direct tenantId injection from client
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/CC2-INT-B09-report.md
+
+# CC2-INT-B09 Report
+
+## 1. Summary
+## 2. Onboarding Flow
+## 3. Backend Implementation
+## 4. Identity Integration
+## 5. Frontend Changes
+## 6. Tenant Access
+## 7. Test Results
+## 8. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- create duplicate provider records
+- break provider lifecycle
+- bypass Identity service
+- introduce new auth systems
+- modify unrelated services
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- provider transitions correctly to TENANT stage
+- tenant portal access works
+- provider record remains single/shared
+- report saved at:
+  /analysis/CC2-INT-B09-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

@@ -1,0 +1,358 @@
+You are implementing CC2-INT-B10 — Final Validation & Production Readiness for CareConnect inside the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B10-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This is the FINAL BLOCK before production readiness.
+   DO NOT add new features.
+   DO NOT expand scope.
+   DO NOT introduce new architecture.
+
+5. You are validating and hardening what already exists:
+   - Backend (CareConnect service)
+   - Identity integration
+   - Common Portal
+   - Tenant Portal (including networks + map)
+
+6. Be critical and precise.
+   If something is broken or incomplete, document it clearly.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Perform full **end-to-end validation**, **security verification**, and **production readiness checks** across all CareConnect components.
+
+At the end of this block:
+
+- The system is verified across ALL user types
+- Security posture is validated
+- Performance baseline is acceptable
+- Configuration is production-ready
+- All known gaps are documented
+- The system is ready for real-world testing or deployment
+
+--------------------------------------------------
+
+SYSTEM SURFACES TO VALIDATE
+
+You MUST validate ALL:
+
+1. Backend (CareConnect service)
+2. Identity integration
+3. Gateway routing
+4. Documents service integration
+5. Notifications service integration
+6. Common Portal (external UX)
+7. Tenant Portal (internal UX)
+8. Network + Provider + Map features
+
+--------------------------------------------------
+
+PART A — END-TO-END USER FLOWS
+
+--------------------------------------------------
+
+You MUST validate FULL journeys:
+
+### A.1 Provider Flow
+
+- Receive referral link
+- Activate via token
+- Identity user created (if new)
+- Login via Identity
+- Access Common Portal
+- View assigned referrals
+- View documents
+
+--------------------------------------------------
+
+### A.2 Lien Company Flow
+
+- Login via Tenant Portal
+- Access CareConnect module
+- View referrals
+- Create network
+- Add providers to network
+- View network map
+
+--------------------------------------------------
+
+### A.3 Law Firm Flow (CURRENT + FUTURE STATE)
+
+- Validate current behavior (even if partial)
+- Confirm:
+  - access restrictions
+  - role-based behavior
+- Document gaps clearly
+
+--------------------------------------------------
+
+--------------------------------------------------
+
+PART B — SECURITY VALIDATION
+
+--------------------------------------------------
+
+You MUST verify:
+
+1. Authentication:
+   - Identity JWT required where appropriate
+   - No local auth paths exist
+
+2. Authorization:
+   - Role-based access works:
+     - CARECONNECT_NETWORK_MANAGER enforced
+   - Product access enforced
+   - Tenant scoping enforced
+
+3. Data Isolation:
+   - No cross-tenant data leakage
+   - Network data isolated per org
+
+4. Document Security:
+   - Only signed URLs used
+   - No raw storage URLs exposed
+
+5. API Security:
+   - Internal endpoints protected
+   - No unsecured endpoints
+
+--------------------------------------------------
+
+PART C — PERFORMANCE BASELINE
+
+--------------------------------------------------
+
+You MUST perform basic sanity checks:
+
+- Referral list load time
+- Network list load time
+- Map rendering time
+- API response times (approximate acceptable latency)
+
+You do NOT need full load testing,
+but MUST identify obvious performance risks.
+
+--------------------------------------------------
+
+PART D — CONFIGURATION VALIDATION
+
+--------------------------------------------------
+
+Verify:
+
+1. Identity Service:
+   - Base URL configured (NOT empty)
+   - works in current environment
+
+2. Documents Service:
+   - correct endpoint configured
+   - S3-backed flow works
+
+3. Notifications Service:
+   - SendGrid integration active
+   - templates triggered
+
+4. Gateway:
+   - routes stable
+   - no duplicates
+
+5. Environment variables:
+   - no hardcoded localhost values in production configs
+   - no missing critical settings
+
+--------------------------------------------------
+
+PART E — DATA INTEGRITY
+
+--------------------------------------------------
+
+Validate:
+
+- Networks correctly linked to tenant/org
+- Providers correctly linked to networks
+- Referrals correctly linked to participants
+- No orphaned records
+- Soft-deleted entities behave correctly
+
+--------------------------------------------------
+
+PART F — UI / UX VALIDATION
+
+--------------------------------------------------
+
+Common Portal:
+
+- login flow
+- activation flow
+- referral display
+- document access
+
+Tenant Portal:
+
+- navigation
+- referral list/detail
+- network management
+- provider assignment
+- map rendering
+
+Check for:
+
+- broken pages
+- missing data
+- UI inconsistencies
+- incorrect role visibility
+
+--------------------------------------------------
+
+PART G — REGRESSION CHECK
+
+--------------------------------------------------
+
+Ensure:
+
+- No regression from:
+  - B01 (service)
+  - B02 (routing/audit)
+  - B03 (documents/notifications)
+  - B04 (identity)
+  - B05 (common portal)
+  - B06 (tenant portal + networks)
+
+--------------------------------------------------
+
+PART H — KNOWN GAPS & RISK ASSESSMENT
+
+--------------------------------------------------
+
+You MUST explicitly identify:
+
+- incomplete features
+- technical debt
+- risks before production
+- deferred items
+
+Examples (if still applicable):
+
+- law firm activation flow
+- preferred provider flag
+- cross-tenant network sharing
+- correlationId tracing
+
+Be honest and precise.
+
+--------------------------------------------------
+
+PART I — PRODUCTION READINESS CHECKLIST
+
+--------------------------------------------------
+
+You MUST confirm:
+
+| Item | Status |
+|------|--------|
+| Backend stable | YES/NO |
+| Identity integration correct | YES/NO |
+| Common Portal usable | YES/NO |
+| Tenant Portal usable | YES/NO |
+| Security validated | YES/NO |
+| Config ready for production | YES/NO |
+| Major blockers exist | YES/NO |
+
+--------------------------------------------------
+
+PART J — TESTING REQUIREMENTS
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. Provider activation flow works
+2. Identity user creation works
+3. Login/session works (HttpOnly cookie)
+4. Referral list/detail loads (both portals)
+5. Documents accessible via signed URLs
+6. Notifications triggered correctly
+7. Network CRUD works
+8. Provider assignment works
+9. Map displays providers
+10. Role-based access enforced
+11. Unauthorized access blocked
+12. No cross-tenant data leakage
+13. dotnet build succeeds
+14. Next.js build succeeds
+15. Gateway routing works
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B10-report.md
+
+Use this exact structure:
+
+# CC2-INT-B10 Report
+
+## 1. Summary
+High-level result of validation
+
+## 2. End-to-End Flow Validation
+Provider, Lien Company, Law Firm
+
+## 3. Security Validation
+Auth, roles, data isolation
+
+## 4. Performance Observations
+Latency, rendering, API response
+
+## 5. Configuration Validation
+All service configs
+
+## 6. Data Integrity
+Relationships, consistency
+
+## 7. UI/UX Validation
+Common + Tenant portals
+
+## 8. Regression Check
+What remained stable
+
+## 9. Known Gaps & Risks
+Explicit list
+
+## 10. Production Readiness Checklist
+YES/NO table
+
+--------------------------------------------------
+
+DO NOT:
+
+- add features
+- change architecture
+- refactor unnecessarily
+- skip validation steps
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- Report is complete
+- Saved at:
+  /analysis/CC2-INT-B10-report.md
+- All validations executed
+- System status clearly defined
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

@@ -1,0 +1,346 @@
+# LS-COR-AUT-005 — Admin UI + Access Management Layer
+
+## Objective
+
+Build the **admin UI and access management layer** for LS-COR-AUT that allows platform and tenant administrators to manage:
+
+* users
+* product access
+* roles
+* groups
+* group memberships
+* group-based access
+
+This feature must expose the full capabilities implemented in LS-COR-AUT-001 through LS-COR-AUT-004 through a **clean, intuitive, and production-ready UI**, backed by existing APIs.
+
+At completion, administrators must be able to:
+
+* view and manage user access end-to-end
+* assign direct and group-based access
+* understand effective access (including inherited access)
+* operate safely within tenant boundaries
+
+---
+
+## Architectural Constraints
+
+### Backend
+
+* Do NOT modify core access logic unless required for UI support
+* Reuse existing APIs from LS-COR-AUT-002/003/004
+* Add read endpoints ONLY if necessary for UI efficiency
+
+### Identity
+
+* Do NOT modify authentication or JWT issuance
+* Use existing auth/session model
+
+### Synq Audit
+
+* UI must trigger existing backend mutations
+* Do NOT implement audit logic in UI
+* All audit must remain backend-driven
+
+---
+
+## In Scope
+
+### 1. Admin UI Framework
+
+Create a new **Admin Access Management section** within the tenant portal.
+
+Structure:
+
+* Top navigation → select product / admin mode
+* Left sidebar → access management modules
+
+Modules:
+
+* Users
+* Groups
+* Roles (read-only for now)
+* Access Overview (optional but recommended)
+
+---
+
+## 2. Users Management UI
+
+### User List Page
+
+* List users in tenant
+* Search (name/email)
+* Filter (status, product access optional)
+* Columns:
+
+  * Name
+  * Email
+  * Status
+  * Groups count
+  * Products count
+
+### User Detail Page
+
+Sections:
+
+#### A. Profile
+
+* Name
+* Email
+* Status (read-only or toggle if already supported)
+
+#### B. Direct Product Access
+
+* List assigned products
+* Add product access
+* Remove product access
+
+#### C. Direct Roles
+
+* List assigned roles
+* Assign role
+* Remove role
+
+#### D. Group Memberships
+
+* List groups user belongs to
+* Add to group
+* Remove from group
+
+#### E. Effective Access (CRITICAL)
+
+Display:
+
+* Products (direct vs inherited)
+* Roles (direct vs inherited)
+* Source attribution:
+
+  * Direct
+  * Group: [Group Name]
+
+Use:
+
+* `/access-snapshot` endpoint
+
+---
+
+## 3. Groups Management UI
+
+### Group List Page
+
+* List all groups in tenant
+* Columns:
+
+  * Name
+  * Scope (Tenant/Product/Org)
+  * Members count
+  * Status
+
+### Create/Edit Group
+
+Fields:
+
+* Name
+* Description
+* Scope Type
+* ProductCode (if Product scope)
+* OrganizationId (if Org scope)
+
+### Group Detail Page
+
+Sections:
+
+#### A. Members
+
+* List members
+* Add member
+* Remove member
+
+#### B. Product Access
+
+* List products granted to group
+* Grant product
+* Revoke product
+
+#### C. Roles
+
+* List roles assigned to group
+* Assign role
+* Remove role
+
+---
+
+## 4. Roles Viewer (Read-Only)
+
+### Role Catalog Page
+
+* List roles by product
+* Display:
+
+  * RoleCode
+  * Product
+  * Description (if available)
+
+No editing required in this phase.
+
+---
+
+## 5. Access Overview (Optional but HIGHLY recommended)
+
+Dashboard-style page showing:
+
+* total users
+* users with direct access
+* users with inherited access
+* number of groups
+* top groups by membership
+
+---
+
+## 6. API Integration
+
+Use existing endpoints:
+
+### Users
+
+* `/users`
+* `/users/{userId}/products`
+* `/users/{userId}/roles`
+* `/users/{userId}/groups`
+* `/users/{userId}/access-snapshot`
+
+### Groups
+
+* `/groups`
+* `/groups/{groupId}`
+* `/groups/{groupId}/members`
+* `/groups/{groupId}/products`
+* `/groups/{groupId}/roles`
+
+### Tenant Products
+
+* `/tenants/{tenantId}/products`
+
+Add API calls ONLY if:
+
+* UI requires aggregated data not currently available
+
+---
+
+## 7. Authorization Rules (UI Level)
+
+* Only show UI to:
+
+  * PlatformAdmin
+  * TenantAdmin
+
+* Hide or disable actions for unauthorized users
+
+* Respect tenant isolation:
+
+  * no cross-tenant visibility
+
+---
+
+## 8. UX Requirements
+
+### General
+
+* Clean, modern layout (Jira-style preferred)
+* Use existing design system if present
+* Use consistent icons (Remix Icons if already adopted)
+
+### Interaction Patterns
+
+* Inline edit where possible
+* Modal dialogs for:
+
+  * add user to group
+  * assign role
+  * grant product
+
+### Feedback
+
+* success toast
+* error toast
+* loading states
+
+---
+
+## 9. Validation (UI Level)
+
+* prevent duplicate assignments
+* validate required fields before submit
+* display backend validation errors clearly
+
+---
+
+## 10. State Management
+
+* Use existing frontend state pattern (React Query / Redux / etc.)
+* Cache:
+
+  * user list
+  * group list
+  * access snapshot (short-lived)
+
+---
+
+## 11. Testing Requirements
+
+### Functional
+
+* create group
+* add/remove members
+* assign/revoke product access
+* assign/remove roles
+* view effective access
+
+### Regression
+
+* no impact on existing login flows
+* no broken routes
+
+### UX
+
+* forms validate correctly
+* loading states render
+* error handling works
+
+---
+
+## 12. Acceptance Criteria
+
+* Admin can manage users, groups, and access end-to-end via UI
+* Direct and inherited access are clearly visible
+* All actions correctly call backend APIs
+* No unauthorized actions are possible
+* UI reflects backend state accurately
+* Effective access is understandable and traceable
+
+---
+
+## Implementation Notes
+
+* Do NOT over-engineer permissions UI yet
+* Focus on clarity of access relationships
+* Ensure effective access view is accurate (this is critical for trust)
+* Keep UI modular for future expansion
+
+---
+
+## Output Report
+
+Create:
+
+/analysis/LS-COR-AUT-005-report.md
+
+Include:
+
+* UI pages implemented
+* components created
+* API integrations used
+* validation behavior
+* test results
+* screenshots or descriptions
+* known gaps
+* assumptions

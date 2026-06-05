@@ -1,0 +1,57 @@
+Create a new standalone ASP.NET Core Web API project named `platform-audit-event-service` using .NET 8.
+
+The service is a standalone, independently deployable, portable Audit/Event Service.
+
+Purpose:
+- receive activity feeds from distributed systems
+- normalize them into a canonical audit/event model
+- persist immutable, tamper-evident audit records
+- support secure retrieval for platform admin, tenant, user, reporting, and compliance interfaces
+- provide an event-ready foundation for future integrations and downstream consumers
+
+Architecture requirements:
+- clean enterprise structure
+- domain-agnostic
+- not tied to any single product, UI, tenant model, or identity provider
+- service must support both audit records and event ingestion concepts
+
+Create this project structure:
+
+platform-audit-event-service/
+  Controllers/
+  Services/
+  Repositories/
+  Models/
+  DTOs/
+  Validators/
+  Middleware/
+  Jobs/
+  Utilities/
+  Data/
+  Configuration/
+  Docs/
+  Examples/
+  analysis/
+  Program.cs
+  appsettings.json
+  appsettings.Development.json
+  README.md
+
+Requirements:
+- include `GET /HealthCheck`
+- configure Swagger/OpenAPI
+- configure dependency injection
+- add centralized exception middleware
+- add standardized API response wrapper
+- add startup logging
+- make nullability and typing strong
+- keep code production-friendly
+
+In README, describe the service as:
+“Platform Audit/Event Service is a standalone, independently deployable, and portable platform service that ingests business, security, access, administrative, and system activity from distributed systems, normalizes it into a canonical event model, and persists immutable, tamper-evident audit records. It exposes secure, role-aware retrieval interfaces for administrative systems, tenant applications, individual users, reporting tools, compliance workflows, and future downstream integrations.”
+
+Save a report to `/analysis/step1_scaffold.md` with:
+- files created
+- NuGet packages added
+- architecture summary
+- run instructions

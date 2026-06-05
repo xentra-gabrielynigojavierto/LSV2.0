@@ -1,0 +1,306 @@
+LSCC-001 — CareConnect Foundation Stabilization
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-001
+
+Initial implementation report:
+- /analysis/LSCC-001-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-001-XX.md
+
+Examples:
+- /analysis/LSCC-001-report.md
+- /analysis/LSCC-001-01.md
+- /analysis/LSCC-001-02.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Stabilize CareConnect so the core referral and scheduling workflow is structurally correct and ready for UI completion work.
+
+Fix the following critical issues:
+
+1. Authorization is incorrectly admin-restricted
+2. Referral and appointment statuses are inconsistent
+3. Data access is tenant-scoped but not properly org-scoped
+4. Provider availability lacks a canonical frontend-safe API
+
+Do NOT redesign the system.
+Do NOT introduce speculative features.
+Make precise, testable, incremental improvements.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Capability-based authorization
+B. Status normalization
+C. Org-participant data scoping
+D. Canonical provider availability API
+E. Tests
+F. Report
+
+Do NOT:
+- redesign UI
+- add analytics
+- add messaging
+- modify unrelated products
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing architecture unless change is required
+2. Separate:
+   - core logic (services/application layer)
+   - API/controllers
+   - DTOs / response contracts
+3. Prefer application services over controller logic
+4. No silent failures — always define fallback behavior
+5. Keep changes incremental and compile-safe
+6. Do NOT delete existing code aggressively
+7. If legacy behavior remains, document it clearly
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+CareConnect already includes:
+- providers
+- referrals
+- appointments
+- availability templates / exceptions / slots
+- notes / attachments / notifications
+- tenant/product integration
+
+Known issues:
+- write endpoints incorrectly require PlatformOrTenantAdmin
+- status models are inconsistent
+- org-level scoping is incomplete
+- availability is fragmented across multiple models
+
+Treat the domain foundation as valid.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. AUTHORIZATION REFACTOR
+--------------------------------------------------
+
+Implement capability-based authorization.
+
+Define permissions:
+
+- careconnect.providers.read
+- careconnect.providers.manage
+- careconnect.referrals.read.own_org
+- careconnect.referrals.create
+- careconnect.referrals.accept
+- careconnect.referrals.decline
+- careconnect.referrals.update_status
+- careconnect.appointments.read.own_org
+- careconnect.appointments.create
+- careconnect.appointments.manage
+- careconnect.schedule.manage
+- careconnect.dashboard.read
+
+Map permissions to roles:
+- CARECONNECT_REFERRER
+- CARECONNECT_RECEIVER
+- TENANT_ADMIN
+
+Replace admin-only mutation guards with proper permission checks.
+
+Expected behavior:
+- referrer can create referrals
+- provider can accept/decline
+- users can manage appointments based on role
+
+Add minimal comments at key logic points:
+Example:
+- // LSCC-001: CareConnect permission enforcement
+
+--------------------------------------------------
+B. STATUS NORMALIZATION
+--------------------------------------------------
+
+Canonical referral statuses:
+- New
+- Accepted
+- Scheduled
+- Completed
+- Declined
+- Cancelled
+
+Canonical appointment statuses:
+- Pending
+- Confirmed
+- Completed
+- Cancelled
+- Rescheduled
+- NoShow
+
+Requirements:
+1. Use canonical enums everywhere
+2. Refactor services, DTOs, validation
+3. Implement compatibility mapping for legacy statuses
+
+Fallback behavior:
+- map legacy statuses explicitly
+- fail clearly if mapping is not possible
+
+--------------------------------------------------
+C. ORG-PARTICIPANT SCOPING
+--------------------------------------------------
+
+Implement org-scoped visibility:
+
+Law firm users:
+- see only their org referrals/appointments
+
+Provider users:
+- see only assigned/received referrals
+
+Tenant admins:
+- retain broader visibility if allowed
+
+Rules:
+- enforce in backend (not UI only)
+- centralize logic (no duplication)
+
+Fallback:
+- if org context is missing → deny access (do NOT widen access)
+
+--------------------------------------------------
+D. PROVIDER AVAILABILITY API
+--------------------------------------------------
+
+Implement canonical endpoint:
+
+GET /api/careconnect/providers/:providerId/availability
+
+Query:
+- from
+- to
+- serviceId (optional)
+- locationId (optional)
+
+Response must include:
+- provider summary
+- timezone
+- service/location context
+- resolved bookable slots
+- applied availability rules
+
+Rules:
+1. Frontend must NOT combine templates/exceptions/slots
+2. Hide internal complexity behind application service
+3. Use clean DTO
+
+Fallback behavior:
+- no slots → return empty list (valid response)
+- invalid date → validation error
+- provider not found → correct error response
+
+--------------------------------------------------
+E. TESTS
+--------------------------------------------------
+
+Add tests for:
+
+1. Referrer can create referral (non-admin)
+2. Provider can accept referral
+3. Provider can decline referral
+4. Unauthorized user blocked
+5. Org scoping enforced (referrals)
+6. Org scoping enforced (appointments)
+7. Availability endpoint returns slots
+8. Availability empty state works
+9. Legacy status mapping works (if applicable)
+
+--------------------------------------------------
+F. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-001-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what was not implemented
+
+2. Files changed
+
+3. Authorization changes
+- permissions
+- endpoints affected
+
+4. Status changes
+- enums
+- mapping strategy
+
+5. Org scoping
+- how enforced
+- assumptions
+
+6. Availability API
+- route
+- request params
+- response structure
+
+7. Tests
+- coverage summary
+
+8. Risks / follow-ups
+
+9. Recommended next step (LSCC-002)
+
+==================================================
+IMPLEMENTATION SEQUENCE
+==================================================
+
+1. Inspect existing code
+2. Identify auth enforcement points
+3. Implement permissions + role mapping
+4. Refactor authorization checks
+5. Normalize status handling
+6. Add org scoping layer
+7. Implement availability service + endpoint
+8. Add tests
+9. Generate report
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+LSCC-001 is complete ONLY if:
+
+1. Authorization is no longer admin-blocked
+2. Status models are consistent
+3. Org-scoped access is enforced
+4. Availability endpoint is implemented
+5. Tests validate behavior
+6. Report exists at:
+/analysis/LSCC-001-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Inspect first. Then implement with precision.
+Do not guess. Do not overbuild.
+Stay aligned with existing architecture.

@@ -1,0 +1,134 @@
+You are working inside the existing LegalSynq repo.
+
+This step is implementation-only for the foundation scaffold of the new platform admin area.
+
+Important naming update:
+Use `control_center` as the product name and `/control-center` as the URL prefix.
+Do NOT use `admin_portal` or `/admin-portal` in new code.
+
+Critical constraints:
+- Use the exact same stack and architectural conventions as the existing operator portal in `apps/web`
+- Keep this inside the same Next.js app
+- Do not introduce a new framework, UI library, state library, or API style
+- Reuse the existing auth/session, shell, Tailwind, App Router, and API proxy patterns
+- Keep pages as async Server Components unless interactivity requires a leaf Client Component
+- Use the `@/` import alias
+- Use raw Tailwind, matching existing conventions
+- Use the existing dual API approach:
+  - server-side: typed server wrapper over `serverApi`
+  - client-side: typed client wrapper over `apiClient` via BFF proxy route
+
+Business boundary:
+Control Center is for LegalSynq platform admins only.
+It supports platform administration and tenant support.
+It must not implement tenant workflow operations.
+
+Your goal in this step:
+Create the Phase 1 foundation scaffold for `/control-center`.
+
+Implement exactly these items:
+
+1. Add a stricter auth guard:
+- update `apps/web/src/lib/auth-guards.ts`
+- add `requirePlatformAdmin()`
+- it must only allow true platform admins
+- it must be consistent with existing guard patterns
+- do not break existing `requireAdmin()` behavior
+
+2. Add Control Center navigation builder:
+- create `apps/web/src/lib/control-center-nav.ts`
+- export a function like `buildControlCenterNav(session)`
+- return nav groups/items for:
+  - Dashboard
+  - Tenants
+  - Tenant Users
+  - Roles & Permissions
+  - Product Entitlements
+  - Support Tools
+  - Audit Logs
+  - Platform Settings
+  - Monitoring
+- keep the nav type compatible with the existing sidebar/nav model
+
+3. Add a dedicated shell:
+- create `apps/web/src/components/shell/control-center-shell.tsx`
+- mirror the existing AppShell structure and styling
+- use the Control Center nav builder instead of the product/operator nav builder
+- preserve the same shell behavior and visual style as the operator portal
+
+4. Add the new route group and layout:
+- create `apps/web/src/app/(control-center)/layout.tsx`
+- guard it with `requirePlatformAdmin()`
+- render the new `ControlCenterShell`
+- keep implementation consistent with existing route group layouts
+
+5. Add the Control Center dashboard route:
+- create `apps/web/src/app/(control-center)/control-center/page.tsx`
+- this should be a minimal async Server Component
+- render a grid of module cards linking to future routes:
+  - /control-center/tenants
+  - /control-center/tenant-users
+  - /control-center/roles
+  - /control-center/products
+  - /control-center/support
+  - /control-center/audit-logs
+  - /control-center/settings
+  - /control-center/monitoring
+- styling must match the operator portal card/list conventions
+- use placeholder counts or descriptive text only; do not invent backend calls yet
+
+6. Add the identity BFF proxy:
+- create `apps/web/src/app/api/identity/[...path]/route.ts`
+- mirror the existing catch-all BFF proxy pattern already used for other services
+- proxy to the identity service through the same gateway strategy already used elsewhere
+- preserve auth header/cookie handling conventions
+
+7. Add typed stubs for Control Center domain:
+- create `apps/web/src/types/control-center.ts`
+- create minimal typed interfaces for:
+  - TenantSummary
+  - TenantDetail
+  - TenantUserSummary
+  - RoleSummary
+  - ProductEntitlementSummary
+  - AuditLogEntry
+  - PlatformSetting
+  - SystemHealthSummary
+
+8. Add typed API wrappers:
+- create `apps/web/src/lib/control-center-api.ts`
+- mirror the same typed wrapper pattern used by the operator portal’s existing service API modules
+- export server and client variants
+- use stub methods only if backend endpoints are not ready
+- add TODO comments where endpoint contracts are not yet confirmed
+
+9. Update middleware only if needed:
+- inspect existing `middleware.ts`
+- make sure `/control-center` is included in the same cookie-gate strategy as the rest of the protected app
+- do not change middleware to decode tokens or perform deep auth logic
+
+Implementation rules:
+- Do not build tenants, tenant users, roles, products, support, audit, settings, or monitoring pages yet beyond placeholder links/cards
+- Do not refactor unrelated operator portal code
+- Do not add a UI component library
+- Do not add react-hook-form, redux, zustand, or other new architectural dependencies
+- Do not break existing routes
+- Keep code small, clean, and compilable
+
+Output requirements:
+1. First show the file-by-file implementation plan
+2. Then generate the code
+3. Then provide a short report with these sections:
+
+# Control Center Phase 1 Report
+
+## Files Created
+## Files Updated
+## Routing Added
+## Auth Changes
+## API Proxy Added
+## Remaining TODOs
+## Any Backend Dependencies or Unknowns
+
+Also save that report to:
+`/control_center_phase1_report.md`

@@ -1,0 +1,142 @@
+Run CareConnect Step 24: apply the notes/attachments migration and test referral notes, appointment notes, and attachment metadata end to end.
+
+Goal:
+Verify that the new coordination layer works in practice:
+- migration applies cleanly
+- referral notes can be created and listed
+- appointment notes can be created and listed
+- attachment metadata can be created and listed
+- all reads/writes remain tenant-scoped
+- attachment endpoints remain metadata-only
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect scheduling and booking are already working
+- Notes and attachment-metadata code has already been generated and reviewed
+- Migration should already exist and be safe to apply
+- This step is for applying and testing, not adding new features
+
+Tasks
+
+1. Apply the CareConnect migration for notes and attachments.
+Expected migration name:
+- AddReferralAppointmentNotesAndAttachments
+
+2. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+3. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+4. Confirm prerequisite data exists:
+- at least one Referral exists
+- at least one Appointment exists
+If prerequisites are missing, identify exactly what is missing before note/attachment tests continue.
+
+5. Test referral note creation using:
+- POST /careconnect/api/referrals/{id}/notes
+
+Use a sample payload like:
+{
+  "noteType": "Scheduling",
+  "content": "Called provider office to confirm intake instructions.",
+  "isInternal": true
+}
+
+6. Verify referral notes listing using:
+- GET /careconnect/api/referrals/{id}/notes
+
+Expected:
+- newest first
+- newly created note present
+- tenant-scoped
+- authenticated read works
+
+7. Test appointment note creation using:
+- POST /careconnect/api/appointments/{id}/notes
+
+Use a sample payload like:
+{
+  "noteType": "Outcome",
+  "content": "Patient confirmed they will attend the scheduled visit.",
+  "isInternal": false
+}
+
+8. Verify appointment notes listing using:
+- GET /careconnect/api/appointments/{id}/notes
+
+Expected:
+- newest first
+- newly created note present
+- tenant-scoped
+- authenticated read works
+
+9. Test referral attachment metadata creation using:
+- POST /careconnect/api/referrals/{id}/attachments
+
+Use a sample payload like:
+{
+  "fileName": "referral-intake-form.pdf",
+  "contentType": "application/pdf",
+  "fileSizeBytes": 245760,
+  "externalDocumentId": "DOC-REF-1001",
+  "externalStorageProvider": "SynqDocs",
+  "status": "Pending",
+  "notes": "Metadata-only placeholder for future document linkage."
+}
+
+10. Verify referral attachment metadata listing using:
+- GET /careconnect/api/referrals/{id}/attachments
+
+Expected:
+- newly created metadata row present
+- tenant-scoped
+- no actual file upload/storage performed
+
+11. Test appointment attachment metadata creation using:
+- POST /careconnect/api/appointments/{id}/attachments
+
+Use a sample payload like:
+{
+  "fileName": "appointment-summary.pdf",
+  "contentType": "application/pdf",
+  "fileSizeBytes": 102400,
+  "externalDocumentId": "DOC-APT-1001",
+  "externalStorageProvider": "SynqDocs",
+  "status": "Pending",
+  "notes": "Metadata-only placeholder for appointment-linked document."
+}
+
+12. Verify appointment attachment metadata listing using:
+- GET /careconnect/api/appointments/{id}/attachments
+
+13. Validate authorization behavior:
+- reads without token => 401
+- writes with StandardUser token => 403 if current rules require PlatformOrTenantAdmin
+- admin writes => success
+
+14. Validate metadata-only behavior:
+- confirm no actual file bytes are uploaded or stored
+- confirm endpoints only create metadata records
+
+15. Output:
+- migration command used
+- whether migration succeeded
+- referral note request used
+- appointment note request used
+- referral attachment metadata request used
+- appointment attachment metadata request used
+- whether lists returned expected data
+- whether 401/403 behavior was correct
+- whether attachment endpoints remained metadata-only
+
+Important:
+Do not add new schema or features in this step.
+Do not implement real file upload/storage or SynqDocs integration yet.
+Do not add notifications or reminders yet.
+This step is only to validate the notes and metadata layer end to end.

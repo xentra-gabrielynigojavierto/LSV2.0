@@ -1,0 +1,384 @@
+Implement the next CareConnect scheduling phase for LegalSynq: AppointmentSlots + slot generation + Appointments.
+
+Goal:
+Turn the existing scheduling foundation into a bookable scheduling model by adding:
+1. AppointmentSlots
+2. slot generation from ProviderAvailabilityTemplates
+3. Appointments
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are already configured
+- CareConnect already supports:
+  - Providers
+  - Categories
+  - Referrals
+  - Referral status history
+  - workflow rules
+  - Facilities
+  - ServiceOfferings
+  - ProviderAvailabilityTemplates
+- Tenant context, role-based auth, audit fields, and exception handling already exist
+
+Important:
+This step should create the initial bookable scheduling model only.
+Do NOT implement yet:
+- scheduling exceptions / blackout dates
+- rescheduling
+- recurring booking workflows
+- appointment status history
+- notifications
+- documents
+- payments
+- geo search
+
+Requirements
+
+==================================================
+PART 1 — NEW DOMAIN ENTITIES
+==================================================
+
+1. Create AppointmentSlot entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- ProviderId : Guid
+- FacilityId : Guid
+- ServiceOfferingId : Guid?
+- ProviderAvailabilityTemplateId : Guid?
+- StartAtUtc : DateTime
+- EndAtUtc : DateTime
+- Capacity : int
+- ReservedCount : int
+- Status : string
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+Allowed slot statuses:
+- Open
+- Blocked
+- Closed
+
+2. Create Appointment entity
+
+Fields:
+- Id : Guid
+- TenantId : Guid
+- ReferralId : Guid
+- ProviderId : Guid
+- FacilityId : Guid
+- ServiceOfferingId : Guid?
+- AppointmentSlotId : Guid?
+- ScheduledStartAtUtc : DateTime
+- ScheduledEndAtUtc : DateTime
+- Status : string
+- Notes : string?
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+- CreatedByUserId : Guid?
+- UpdatedByUserId : Guid?
+
+Allowed appointment statuses for this phase:
+- Scheduled
+- Confirmed
+- Completed
+- Cancelled
+- NoShow
+
+Keep domain clean:
+- no EF attributes
+- use UTC timestamps
+- use enterprise-friendly naming
+
+==================================================
+PART 2 — EF CORE MAPPINGS
+==================================================
+
+3. Add EF Core mappings for AppointmentSlots and Appointments
+
+Create tables:
+- AppointmentSlots
+- Appointments
+
+Keys:
+- AppointmentSlots: Id
+- Appointments: Id
+
+Indexes for AppointmentSlots:
+- (TenantId, ProviderId, StartAtUtc)
+- (TenantId, FacilityId, StartAtUtc)
+- (TenantId, ServiceOfferingId, StartAtUtc) if ServiceOfferingId is used
+- (TenantId, Status)
+- unique or near-unique protection against duplicate slots for the same provider/template/time if appropriate
+
+Indexes for Appointments:
+- (TenantId, ReferralId)
+- (TenantId, ProviderId, ScheduledStartAtUtc)
+- (TenantId, AppointmentSlotId) if AppointmentSlotId is used
+- (TenantId, Status)
+
+Relationships:
+- AppointmentSlot belongs to Provider
+- AppointmentSlot belongs to Facility
+- AppointmentSlot optionally belongs to ServiceOffering
+- AppointmentSlot optionally references ProviderAvailabilityTemplate
+- Appointment belongs to Referral
+- Appointment belongs to Provider
+- Appointment belongs to Facility
+- Appointment optionally belongs to ServiceOffering
+- Appointment optionally belongs to AppointmentSlot
+
+4. Update CareConnectDbContext
+- add DbSets
+- register configurations cleanly
+
+5. Add migration
+Create migration:
+- AddAppointmentSlotsAndAppointments
+
+==================================================
+PART 3 — SLOT GENERATION
+==================================================
+
+6. Implement slot generation service
+
+Create a service such as:
+- ISlotGenerationService
+- SlotGenerationService
+
+Purpose:
+Generate bookable AppointmentSlots from ProviderAvailabilityTemplates for a requested date range.
+
+Input:
+- ProviderId
+- FromDateUtc
+- ToDateUtc
+
+Behavior:
+- load active ProviderAvailabilityTemplates for the provider and tenant
+- for each day in range, match templates by DayOfWeek
+- create slots between StartTimeLocal and EndTimeLocal
+- use SlotDurationMinutes
+- set Capacity from template
+- set ReservedCount = 0
+- set Status = Open
+- set ProviderAvailabilityTemplateId
+- set ServiceOfferingId if template has one
+
+Important:
+- generate slots in UTC using the current simplified assumption
+- do not solve full time zone complexity yet
+- avoid duplicate slot creation if generation is run twice for the same provider/date range/template
+- keep generation tenant-scoped
+
+7. Add slot generation endpoint
+
+Implement:
+- POST /api/providers/{id}/slots/generate
+
+Request DTO:
+- FromDateUtc : DateTime
+- ToDateUtc : DateTime
+
+Authorization:
+- PlatformOrTenantAdmin only
+
+Validation:
+- ToDateUtc >= FromDateUtc
+- range should be reasonable (for example max 60 days in one request)
+- provider must exist in tenant
+
+Response:
+- count of slots created
+- provider id
+- date range
+
+==================================================
+PART 4 — SLOT SEARCH / LISTING
+==================================================
+
+8. Add slot query endpoint
+
+Implement:
+- GET /api/slots
+
+Optional query params:
+- providerId
+- facilityId
+- serviceOfferingId
+- from
+- to
+- status
+- page
+- pageSize
+
+Rules:
+- tenant-scoped
+- page default 1
+- pageSize default 20
+- pageSize max 100
+- return paged response
+
+Slot response DTO should include:
+- Id
+- ProviderId
+- ProviderName
+- FacilityId
+- FacilityName
+- ServiceOfferingId
+- ServiceOfferingName
+- StartAtUtc
+- EndAtUtc
+- Capacity
+- ReservedCount
+- AvailableCount
+- Status
+
+AvailableCount should be derived as:
+- Capacity - ReservedCount
+
+Authorization:
+- AuthenticatedUser
+
+==================================================
+PART 5 — APPOINTMENT BOOKING
+==================================================
+
+9. Add appointment creation endpoint
+
+Implement:
+- POST /api/appointments
+
+Request DTO:
+- ReferralId
+- AppointmentSlotId
+- Notes
+
+Behavior:
+- tenant-scoped
+- referral must exist in tenant
+- slot must exist in tenant
+- slot must be Open
+- ReservedCount must be < Capacity
+- create Appointment
+- set ScheduledStartAtUtc and ScheduledEndAtUtc from slot
+- set ProviderId / FacilityId / ServiceOfferingId from slot
+- set Status = Scheduled
+- increment slot ReservedCount by 1
+- if slot becomes full, either keep Status = Open with ReservedCount=Capacity or set to Closed; choose one simple rule and keep it consistent
+- save appointment and slot update together
+
+10. Add appointment list and get endpoints
+
+Implement:
+- GET /api/appointments
+- GET /api/appointments/{id}
+
+List endpoint optional filters:
+- referralId
+- providerId
+- status
+- from
+- to
+- page
+- pageSize
+
+Authorization:
+- AuthenticatedUser
+
+Appointment response DTO:
+- Id
+- ReferralId
+- ProviderId
+- ProviderName
+- FacilityId
+- FacilityName
+- ServiceOfferingId
+- ServiceOfferingName
+- AppointmentSlotId
+- ScheduledStartAtUtc
+- ScheduledEndAtUtc
+- Status
+- Notes
+- CreatedAtUtc
+- UpdatedAtUtc
+
+==================================================
+PART 6 — VALIDATION AND BUSINESS RULES
+==================================================
+
+11. Validation rules
+
+Slot generation:
+- provider must exist
+- date range valid
+- date range not excessive
+
+Slot listing:
+- page >= 1
+- pageSize >= 1
+- pageSize <= 100
+
+Appointment creation:
+- ReferralId required
+- AppointmentSlotId required
+- slot must be Open
+- slot must have remaining capacity
+- referral and slot must belong to same tenant
+
+12. Business rules for this phase
+- no double creation of identical slots for the same provider/template/time
+- appointments are initially created only from a slot
+- one slot can hold multiple appointments only up to Capacity
+- do not implement rescheduling or appointment status transitions yet
+
+==================================================
+PART 7 — AUTHORIZATION
+==================================================
+
+13. Authorization rules
+
+Public:
+- GET /health
+- GET /info
+
+Admin-only:
+- POST /api/providers/{id}/slots/generate
+- POST /api/appointments
+
+Authenticated users:
+- GET /api/slots
+- GET /api/appointments
+- GET /api/appointments/{id}
+
+Use existing policies:
+- AuthenticatedUser
+- PlatformOrTenantAdmin
+
+==================================================
+PART 8 — OUTPUT REQUIRED
+==================================================
+
+14. After implementation, output:
+- files created/updated
+- migration command
+- endpoint list
+- how slot generation avoids duplicates
+- how booking enforces capacity
+- sample curl requests for:
+  - slot generation
+  - slot search
+  - appointment booking
+  - appointment listing
+
+15. Code quality expectations
+- clean namespaces
+- async EF Core
+- minimal duplication
+- production-minded
+- no breaking changes to existing CareConnect behavior
+- preserve strict tenant isolation
+- UTC timestamps everywhere

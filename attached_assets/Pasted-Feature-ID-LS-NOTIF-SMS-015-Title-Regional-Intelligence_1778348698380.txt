@@ -1,0 +1,491 @@
+Feature ID: LS-NOTIF-SMS-015
+
+Title:
+Regional Intelligence, Provider Quality Scoring, and Adaptive Routing Optimization
+
+Objective:
+Enhance the multi-provider SMS routing platform with regional intelligence, provider quality scoring, latency/delivery-performance analytics, and adaptive routing optimization using historical operational telemetry from Notification Service.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- SMS delivery telemetry
+- provider quality scoring
+- routing optimization logic
+- regional delivery intelligence
+- adaptive routing decisions
+- optimization analytics APIs
+
+Control Center must only consume Notification Service APIs and render optimization visibility/admin UI. Do not duplicate scoring, analytics, or adaptive routing logic in Control Center.
+
+Requirements:
+- Implement provider quality scoring inside Notification Service.
+- Implement regional intelligence inside Notification Service.
+- Add adaptive routing modes to the existing SMS routing engine.
+- Preserve all existing routing modes from LS-NOTIF-SMS-014.
+- Preserve Twilio and Vonage behavior.
+- Do not introduce AI/ML routing in this feature.
+- Do not call external providers from optimization/dashboard APIs.
+- Do not expose provider credentials, webhook URLs, CredentialsJson, SettingsJson, auth tokens, raw provider payloads, or full phone numbers.
+- Keep Control Center as UI/admin consumer only.
+- Preserve all existing LS-NOTIF-SMS-001 through LS-NOTIF-SMS-014 behavior.
+
+Implementation Requirements:
+1. Add provider quality metric calculation using local Notification Service operational data.
+2. Add provider quality snapshot persistence.
+3. Add regional/country inference for SMS recipients where safely possible.
+4. Add regional delivery analytics.
+5. Add adaptive routing modes:
+   - adaptive_quality
+   - adaptive_balanced
+   - adaptive_regional
+6. Integrate adaptive routing modes into the existing SmsRoutingEngine.
+7. Add safe fallback behavior when telemetry is insufficient.
+8. Add admin APIs for provider quality, latency, regional analytics, and optimization insights.
+9. Add Control Center optimization visibility UI if feasible.
+10. Preserve cost-aware, health-aware, priority, hybrid, and regional routing from LS-NOTIF-SMS-014.
+11. Preserve cost analytics, alerting, escalation, incident UI, and dashboard behavior.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, SmsRoutingDecision, SmsRoutingPolicy, SmsCostAnalytics, SmsDashboard, SmsOperationalAlert, ProviderRoutingService, SmsRoutingEngine, Control Center routing UI, and endpoint patterns where appropriate.
+- Do NOT rewrite the Notification Service delivery pipeline.
+- Do NOT bypass existing contact enforcement, preference checks, audit, retry/dead-letter, attempt persistence, or routing decision persistence.
+- Do NOT hardcode adaptive routing directly inside provider adapters.
+- Do NOT make provider adapters aware of quality scoring or routing policy.
+- Do NOT implement real-time ML, LLM, or predictive modeling.
+- Do NOT implement carrier-direct routing.
+- Do NOT implement FX conversion.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-015-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS routing engine findings
+3. Existing routing policy/decision findings
+4. Existing provider capability findings
+5. Existing delivery/reconciliation telemetry findings
+6. Existing cost analytics findings
+7. Existing Control Center routing UI findings
+8. Files added
+9. Files modified
+10. Database/schema/config changes
+11. API/interface changes
+12. UI/route changes, if implemented
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Routing and Telemetry Architecture
+- Identify:
+  - SmsRoutingEngine implementation from LS-NOTIF-SMS-014
+  - SmsRoutingPolicy modes and fields
+  - SmsRoutingDecision persistence
+  - SmsProviderCapabilityService
+  - Provider health data available locally
+  - NotificationAttempt delivery status fields
+  - NotificationAttempt latency/timestamp fields
+  - retry/failover fields
+  - reconciliation outcome fields
+  - cost fields from LS-NOTIF-SMS-013
+  - routing decision data from LS-NOTIF-SMS-014
+  - Control Center SMS routing page/API client
+  - existing migration/startup schema conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Provider Quality Snapshot Model
+Add a Notification Service-local entity for persisted provider quality snapshots.
+
+Suggested entity:
+SmsProviderQualitySnapshot
+
+Suggested fields:
+- Id Guid
+- ProviderType string
+- ProviderConfigId Guid? nullable
+- ProviderOwnershipMode string? nullable
+- TenantId Guid? nullable
+- Region string? nullable
+- CountryCode string? nullable
+- WindowStart DateTime
+- WindowEnd DateTime
+- TotalAttempts int
+- DeliveredAttempts int
+- FailedAttempts int
+- RetryAttempts int
+- DeadLetterAttempts int
+- ReconciledAttempts int
+- ReconciliationFailures int
+- AverageLatencyMs decimal? nullable
+- DeliverySuccessRate decimal
+- FailureRate decimal
+- RetryRate decimal
+- DeadLetterRate decimal
+- ReconciliationFailureRate decimal
+- AverageEffectiveCost decimal? nullable
+- CostPerDeliveredMessage decimal? nullable
+- QualityScore decimal
+- CostEfficiencyScore decimal? nullable
+- HealthPenalty decimal
+- CalculatedAt DateTime
+
+Requirements:
+- Store safe operational metrics only.
+- Do not store phone numbers.
+- Do not store recipient JSON.
+- Do not store provider credentials or provider payloads.
+- Support provider-level, tenant-provider-level, and regional snapshots where practical.
+- Use existing EF/migration conventions.
+- Add indexes for:
+  - ProviderType, CalculatedAt
+  - TenantId, ProviderType, CalculatedAt
+  - CountryCode, ProviderType, CalculatedAt
+  - ProviderConfigId, CalculatedAt
+
+STEP 3 — Define Quality Scoring Configuration
+Add configuration for quality scoring.
+
+Suggested config:
+SmsProviderQuality:
+- Enabled bool default true
+- SnapshotWindowMinutes int default 1440
+- CalculationIntervalMinutes int default 60
+- MinimumAttemptCount int default 20
+- DeliverySuccessWeight decimal default 0.45
+- FailurePenaltyWeight decimal default 0.25
+- RetryPenaltyWeight decimal default 0.10
+- ReconciliationPenaltyWeight decimal default 0.10
+- CostEfficiencyWeight decimal default 0.10
+- HealthPenaltyWeight decimal default 0.10
+- DefaultQualityScore decimal default 50
+- InsufficientDataScore decimal default 50
+
+Requirements:
+- Safe defaults.
+- Scores should be bounded, preferably 0–100.
+- Insufficient telemetry must degrade safely.
+- No provider secrets in configuration.
+- Document score calculation.
+
+STEP 4 — Add Regional/Country Inference Service
+Add a lightweight regional inference service.
+
+Suggested interface:
+ISmsRegionalInferenceService
+
+Suggested methods:
+- string? InferCountryCode(string? recipientPhone)
+- string? InferRegion(string? countryCode)
+
+Requirements:
+- Do not overbuild.
+- Prefer simple E.164 prefix mapping initially.
+- If existing codebase has phone parsing utility/library, reuse it.
+- Do not introduce a heavy dependency unless clearly justified.
+- Do not persist raw phone numbers in new tables.
+- Use inferred country/region only as operational routing metadata.
+- If country cannot be inferred, return null and allow fallback behavior.
+
+Suggested minimal prefix mapping:
+- +1 -> US/CA/NANP; if distinction unavailable use NANP or US and document limitation
+- +44 -> GB
+- +52 -> MX
+- +61 -> AU
+- +91 -> IN
+- +33 -> FR
+- +49 -> DE
+
+Documentation must clearly state this is approximate unless using a robust parser.
+
+STEP 5 — Add Quality Calculation Service
+Add service to calculate provider quality snapshots from local telemetry.
+
+Suggested interface:
+ISmsProviderQualityService
+
+Suggested methods:
+- CalculateSnapshotsAsync(DateTime windowStart, DateTime windowEnd, CancellationToken ct)
+- GetLatestSnapshotAsync(providerType, tenantId, providerConfigId, countryCode, ct)
+- QuerySnapshotsAsync(query, ct)
+- GetProviderScoresAsync(query, ct)
+
+Calculation inputs:
+- NotificationAttempt.Channel == sms
+- Provider
+- ProviderConfigId
+- ProviderOwnershipMode
+- TenantId
+- Status
+- AttemptNumber / IsFailover
+- CreatedAt / CompletedAt
+- LastReconciliationOutcome
+- ReconciliationAttemptCount
+- EstimatedCostAmount / ActualCostAmount
+
+Suggested calculations:
+- DeliverySuccessRate = delivered/successful-or-total depending existing status semantics; document exact rule.
+- FailureRate = failed + dead_letter / total.
+- RetryRate = attempts with AttemptNumber > 1 or IsFailover / total.
+- ReconciliationFailureRate = reconciliation failures / reconciled attempts.
+- AverageLatencyMs = CompletedAt - CreatedAt where both available.
+- AverageEffectiveCost = average ActualCost ?? EstimatedCost.
+- CostPerDeliveredMessage = total effective cost / delivered count.
+- QualityScore = weighted score bounded 0–100.
+- CostEfficiencyScore = normalized score where lower cost per delivered is better.
+
+Requirements:
+- Use local data only.
+- No external provider calls.
+- No SMS sends/retries/reconciliation.
+- Must handle zero attempts safely.
+- Must respect MinimumAttemptCount.
+- Persist snapshots.
+- Avoid unbounded queries.
+- Use UTC consistently.
+
+STEP 6 — Add Quality Calculation Worker
+Add optional worker/job to calculate quality snapshots.
+
+Suggested worker:
+SmsProviderQualityWorker
+
+Behavior:
+- Uses existing BackgroundService pattern.
+- Reads SmsProviderQuality.Enabled.
+- Runs every CalculationIntervalMinutes.
+- Calculates over SnapshotWindowMinutes.
+- Uses IServiceScopeFactory.
+- Respects CancellationToken.
+- Logs failures without crashing service.
+- Disabled or enabled according to safest existing operational convention; if uncertain, enabled=false by default.
+
+Requirements:
+- No provider calls.
+- No SMS sends.
+- Safe bounded window.
+- Idempotent enough for repeated calculation.
+- Does not block delivery.
+
+STEP 7 — Add Adaptive Routing Modes
+Extend routing mode support.
+
+New modes:
+- adaptive_quality
+- adaptive_balanced
+- adaptive_regional
+
+Mode behavior:
+
+adaptive_quality:
+- Select provider with highest latest QualityScore among candidates.
+- If no candidate has sufficient data, fall back to priority mode.
+
+adaptive_balanced:
+- Combine:
+  - quality score
+  - effective estimated cost
+  - health penalty
+  - failure/retry/reconciliation penalty
+- Select best composite score.
+- If data is insufficient, fall back to hybrid or priority.
+
+adaptive_regional:
+- Infer recipient country/region.
+- Prefer provider with best quality score for that country/region.
+- If no regional score exists, fall back to adaptive_quality.
+- If no quality score exists, fall back to priority.
+
+Requirements:
+- Existing modes remain unchanged.
+- Candidate provider set must still come from ProviderRoutingService / tenant config routes.
+- Adaptive routing must not select excluded providers.
+- Adaptive routing must respect MaxEstimatedCostPerMessage if configured.
+- Adaptive routing must respect RequireHealthyProvider if configured.
+- Routing engine must persist decision reason explaining fallback or selected score.
+- No external provider calls during route selection.
+
+STEP 8 — Capture Region/Country in Routing Decisions
+Extend routing decision persistence if needed.
+
+Suggested fields on SmsRoutingDecision:
+- InferredCountryCode string? nullable
+- InferredRegion string? nullable
+- ProviderQualityScore decimal? nullable
+- AdaptiveScore decimal? nullable
+- AdaptiveInputsJson string? nullable
+
+Requirements:
+- Do not store raw phone.
+- Store safe operational routing metadata only.
+- Existing routing decisions remain valid.
+- Use migration/safety-net if adding fields.
+- If schema change is not needed, store safe adaptive metadata in existing HealthSnapshotJson or equivalent and document.
+
+STEP 9 — Integrate Regional Inference Into Send Flow
+Update send routing path so recipient country/region can be inferred before routing.
+
+Requirements:
+- Use recipient phone only transiently.
+- Do not persist raw phone in routing decision or quality snapshots.
+- If phone unavailable or not inferable, routing engine should fall back safely.
+- Preserve existing send flow and compliance enforcement.
+- Compliance/contact enforcement still happens before routing.
+
+STEP 10 — Add Optimization Analytics APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/routing/quality
+- GET /v1/admin/sms/routing/quality/trends
+- GET /v1/admin/sms/routing/latency
+- GET /v1/admin/sms/routing/regional
+- GET /v1/admin/sms/routing/optimization
+
+Common filters:
+- tenantId
+- provider
+- providerConfigId
+- providerOwnershipMode
+- countryCode
+- region
+- from
+- to
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- APIs are read-only.
+- Do not call external providers.
+- Do not expose credentials, phone numbers, recipient JSON, raw payloads.
+- Return safe aggregate/snapshot data.
+- Use bounded defaults.
+
+STEP 11 — Extend Control Center Routing UI If Feasible
+Extend existing Control Center SMS Routing page from LS-NOTIF-SMS-014.
+
+Suggested UI additions:
+- Provider quality score table
+- Provider quality trend chart
+- Regional performance table
+- Latency analytics section
+- Adaptive routing insight cards
+- Decision reason drill-down for adaptive selections
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate scoring logic.
+- No credentials/phone numbers displayed.
+- Use existing route/page patterns.
+- If too large, document as next feature.
+
+STEP 12 — Documentation
+Update documentation/report notes for:
+- quality scoring formula
+- regional inference limitations
+- adaptive routing mode behavior
+- fallback behavior
+- quality snapshot lifecycle
+- worker configuration
+- optimization APIs
+- Control Center UI additions, if implemented
+
+Documentation must explain:
+- adaptive routing uses historical telemetry only.
+- it does not call providers live during route selection.
+- insufficient data falls back safely.
+- country inference is approximate unless robust parser is used.
+- quality score is operational optimization, not contractual SLA.
+
+STEP 13 — Validation
+Perform validation/testing for:
+
+Quality snapshots:
+- snapshots generated from SMS attempts.
+- zero attempts handled safely.
+- below MinimumAttemptCount uses insufficient/default score.
+- delivered/failed/retry/reconciliation metrics calculated correctly.
+- cost efficiency calculated safely.
+- no phone numbers/credentials stored.
+
+Regional inference:
+- supported E.164 prefixes map correctly.
+- unknown prefixes return null.
+- raw phone not persisted.
+- routing falls back safely when region unavailable.
+
+Adaptive routing:
+- adaptive_quality selects highest quality provider.
+- adaptive_quality falls back to priority when insufficient data.
+- adaptive_balanced considers cost and quality where available.
+- adaptive_regional uses country-specific score where available.
+- adaptive_regional falls back safely when country unknown.
+- excluded providers are not selected.
+- MaxEstimatedCostPerMessage respected.
+- RequireHealthyProvider respected.
+- existing priority/cost/health/hybrid/regional modes unchanged.
+
+Send flow:
+- compliance enforcement remains before routing.
+- selected provider still resolves via runtime resolver.
+- routing decision persists adaptive metadata.
+- no duplicate sends.
+- retry/dead-letter unchanged.
+
+APIs:
+- quality endpoint returns safe scores.
+- trends endpoint works.
+- latency endpoint works.
+- regional endpoint works.
+- optimization endpoint works.
+- filters respected.
+- admin authorization enforced.
+- secrets/phones not exposed.
+
+Worker:
+- configuration loads.
+- worker runs on interval if enabled.
+- worker disabled behavior safe.
+- exceptions logged without crashing.
+
+Control Center UI if implemented:
+- quality table renders.
+- regional analytics render.
+- no credentials/phone numbers displayed.
+- existing SMS routing UI remains intact.
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-014 behavior remains intact.
+- email/in-app notification behavior unchanged.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Provider quality snapshot entity/table
+- Quality scoring configuration
+- Regional inference service
+- Provider quality calculation service
+- Optional quality calculation worker
+- Adaptive routing modes
+- Routing decision adaptive metadata
+- Optimization analytics APIs
+- Optional Control Center routing optimization UI
+- Completed analysis report
+
+Do NOT:
+- Implement AI/ML routing
+- Call external providers from optimization APIs
+- Call external providers during adaptive route selection
+- Store raw phone numbers
+- Expose credentials or secrets
+- Expose webhook URLs
+- Store recipient JSON in quality tables
+- Rewrite delivery pipeline
+- Break existing routing modes
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-014 behavior

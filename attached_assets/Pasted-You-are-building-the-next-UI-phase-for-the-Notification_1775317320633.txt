@@ -1,0 +1,516 @@
+You are building the next UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase starts the Tenant Portal track with Tenant Branding Self-Service.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-006 — Tenant Branding Self-Service
+==================================================
+
+GOAL:
+Build the first tenant-facing self-service Notifications capability in the Tenant Portal.
+
+This phase adds:
+- tenant branding list/detail experience
+- tenant branding create flow
+- tenant branding edit flow
+- branding preview/readiness UX
+- tenant-safe access control and scoping
+
+This is the first Tenant Portal Notifications feature.
+
+Do NOT overbuild.
+Do NOT expose Control Center admin capabilities.
+Do NOT build template editing yet.
+Do NOT build provider editing yet.
+Do NOT redesign the tenant portal shell.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Completed:
+- Control Center foundation and admin flows
+- Global product templates + tenant branding backend (NOTIF-008)
+- Control Center WYSIWYG template UI (NOTIF-UI-005)
+
+This task begins the Tenant Portal track.
+
+==================================================
+IMPLEMENTATION CONTEXT
+==================================================
+
+The Notifications backend already supports:
+- tenant branding CRUD
+- product-type-aware branding
+- branding fallback behavior
+- branded preview support via template preview flow
+- strict tenant context enforcement
+
+Use the real backend APIs.
+Do NOT invent fake APIs.
+
+Relevant existing backend endpoints:
+- GET /notifications/v1/branding
+- POST /notifications/v1/branding
+- GET /notifications/v1/branding/:id
+- PATCH /notifications/v1/branding/:id
+
+If the backend requires tenant context through x-tenant-id, preserve that through the tenant portal API client flow.
+
+==================================================
+TENANT PORTAL SCOPE
+==================================================
+
+This UI is for tenant users inside the Tenant Portal.
+
+Audience:
+- tenant admins
+- tenant operations/configuration users
+
+This UI should allow tenants to:
+- view their branding records by product type
+- create branding records for supported products
+- update branding records they own
+- understand how branding will affect notifications
+
+This UI must NOT allow:
+- editing other tenants’ branding
+- platform/global branding management
+- Control Center-only actions
+
+==================================================
+TENANT PORTAL DESIGN RULES
+==================================================
+
+- Build inside the Tenant Portal, not the Control Center
+- Use tenant portal shell/layout/navigation patterns
+- Keep the UX simpler and safer than the Control Center
+- Do not require manual tenant ID entry
+- Use the tenant’s active/authenticated context automatically
+- Hide platform/internal wording
+- Use clear, tenant-friendly language
+- Keep this feature focused on self-service branding, not general notification administration
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. TENANT BRANDING LANDING PAGE
+--------------------------------------
+
+Build a tenant-facing branding page.
+
+Suggested route:
+- /tenant/notifications/branding
+or the equivalent tenant portal route pattern already used by the platform
+
+Requirements:
+- list branding records belonging to the authenticated tenant only
+- support filtering or grouping by productType
+- clearly show:
+  - product type
+  - brand name
+  - primary color
+  - support email
+  - updated at
+- add a "New Branding" action
+- add an Edit action per row/card
+
+If the tenant currently has no branding records:
+- show a strong empty state
+- explain why branding matters
+- encourage creation of the first branding profile
+
+==================================================
+2. BRANDING CREATE FLOW
+==================================================
+
+Add tenant self-service create flow.
+
+Expected backend endpoint:
+- POST /notifications/v1/branding
+
+The tenant portal must NOT ask the user to manually type tenantId.
+Tenant identity must come from authenticated tenant context.
+
+Create fields at minimum:
+- productType
+- brandName
+- logoUrl
+- primaryColor
+- secondaryColor
+- accentColor
+- textColor
+- backgroundColor
+- buttonRadius
+- fontFamily
+- emailHeaderHtml
+- emailFooterHtml
+- supportEmail
+- supportPhone
+- websiteUrl
+
+Validation requirements:
+- required fields:
+  - productType
+  - brandName
+- basic validation where practical:
+  - email format
+  - URL format
+  - color format
+- backend conflict errors surfaced clearly
+- prevent duplicate branding for the same tenant + productType where backend rejects it
+
+Behavior:
+- on success:
+  - revalidate branding data
+  - return to list or stay in-place with clear success state
+
+Do NOT add file upload infrastructure unless platform asset handling already exists and is trivial to reuse.
+Logo URL input is acceptable for this phase.
+
+==================================================
+3. BRANDING EDIT FLOW
+==================================================
+
+Add tenant self-service edit flow.
+
+Expected backend endpoint:
+- PATCH /notifications/v1/branding/:id
+
+Requirements:
+- tenants can edit only their own branding records
+- prefill the existing values
+- same validation rules as create
+- show success/error states clearly
+- revalidate branding data after update
+
+Do NOT expose tenantId editing.
+
+==================================================
+4. BRANDING DETAIL / PREVIEW UX
+==================================================
+
+Add a detail view or enriched edit view for a branding record.
+
+Requirements:
+- show branding fields cleanly
+- show a lightweight visual preview card using:
+  - brand name
+  - logo URL if present
+  - primary/secondary/accent colors
+  - button radius
+  - support contact info
+- indicate product type clearly
+- make it understandable how this branding influences notifications
+
+Optional if clean:
+- preview a branded sample email card locally in UI using the branding values
+- do not fake backend rendering if it would be misleading
+
+Keep it simple and useful.
+
+==================================================
+5. PRODUCT TYPE EXPERIENCE
+==================================================
+
+Branding is product-type-scoped.
+
+Requirements:
+- make product type clearly visible everywhere
+- support the currently available product type:
+  - careconnect
+- design the UI so future product types can be added cleanly without redesign
+- use badges, tabs, or segmented filters if helpful
+
+Do NOT hardcode the UX in a way that only works for one product forever.
+
+==================================================
+6. TENANT CONTEXT / AUTH
+==================================================
+
+This is critical.
+
+Requirements:
+- use the authenticated tenant’s context automatically
+- do NOT require manual tenant selection
+- do NOT require manual tenant ID input
+- preserve x-tenant-id injection through the tenant-side notifications API wrapper or shared API client
+
+If tenant context is missing:
+- show a clear safe failure state
+- do not make unsafe API calls
+
+All branding CRUD must remain tenant-safe.
+
+==================================================
+7. TENANT-SAFE API CLIENT / ACTIONS
+==================================================
+
+Create or reuse a tenant-side notifications API wrapper and/or server actions pattern for the Tenant Portal.
+
+Requirements:
+- use the tenant portal auth/session model
+- inject x-tenant-id from actual tenant context
+- preserve Authorization headers/tokens as required
+- keep tenant-side mutations server-safe
+- do not reuse Control Center-only assumptions if that would blur boundaries
+
+If a dedicated tenant notifications client is clearer, create one.
+
+Mutation areas:
+- create branding
+- update branding
+
+Read areas:
+- list branding
+- get branding detail if needed
+
+==================================================
+8. UX / FORM COMPONENTS
+==================================================
+
+Create reusable tenant-safe components where useful, such as:
+- TenantBrandingForm
+- BrandingPreviewCard
+- BrandingEmptyState
+- ProductTypeBadge
+- ColorSwatchField
+- HtmlSnippetField (if header/footer HTML is included)
+
+Requirements:
+- use simple, predictable forms
+- loading state
+- success state
+- backend error display
+- disabled submit while pending
+- clear cancel path
+
+Do NOT overbuild a design studio.
+
+==================================================
+9. ERROR / EMPTY / UNSUPPORTED STATES
+==================================================
+
+Handle clearly:
+- no branding records for tenant
+- duplicate product branding conflict
+- invalid URL/email/color input
+- missing tenant context
+- backend service unavailable
+- unsupported future product types if encountered
+
+Do NOT let tenant users see raw internal errors without translation into clear UI messaging.
+
+==================================================
+10. WHAT NOT TO BUILD IN NOTIF-UI-006
+==================================================
+
+Do NOT build yet:
+- tenant template editing
+- tenant template override UI
+- tenant provider setup
+- tenant usage/billing portal
+- tenant suppression mutation flows
+- global template management
+- cross-tenant admin tools
+- asset uploader
+- advanced preview based on live backend render if that requires extra backend work not already present
+
+This phase is strictly Tenant Branding Self-Service.
+
+==================================================
+11. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. tenant branding page exists in the tenant portal
+2. tenant branding list works
+3. tenant branding create works
+4. tenant branding edit works
+5. tenant users never enter tenantId manually
+6. tenant context is handled correctly and safely
+7. only tenant-owned branding records are shown/editable
+8. loading / success / error states are handled
+9. empty states are handled clearly
+10. no Control Center/admin-only capabilities are exposed
+11. UI compiles/runs cleanly inside the main platform
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-006-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+- What was built
+- Scope completed vs requested scope
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+List all files:
+- New files with purpose
+- Modified files with description of changes
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+Break down all implemented features:
+- branding list
+- create flow
+- edit flow
+- preview/detail UX
+- tenant-safe auth/context handling
+- any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+List all endpoints used, grouped by:
+- branding reads
+- branding mutations
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+Explain:
+- request flow
+- tenant context flow
+- server action / mutation flow
+- cache/revalidation flow
+- any tenant-side API client design
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+Describe:
+- form validation
+- backend error handling
+- duplicate conflict handling
+- missing tenant-context handling
+- empty states
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT
+--------------------------------------
+- how tenant context is derived
+- how auth is enforced
+- how x-tenant-id is injected
+- behavior when tenant context is missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE
+--------------------------------------
+- cache tags invalidated
+- revalidation approach
+- performance considerations / known inefficiencies
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+List all gaps:
+- missing features
+- backend limitations
+- assumptions made
+- technical debt if any
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+List problems during implementation:
+- tenant-context issues
+- route/contract mismatches
+- branding UX constraints
+- validation challenges
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+Provide exact steps:
+- how to start the system
+- how to access/test the feature
+- any tenant requirements
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+Answer clearly:
+- Is NOTIF-UI-006 complete? (Yes / Mostly / Partial)
+- Is the tenant portal ready for the next notifications feature? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+List:
+- next tenant portal features to build
+- remaining backend dependencies
+- whether tenant template visibility or tenant provider read views should come next
+
+==================================================
+CRITICAL: REPORT GENERATION IS REQUIRED
+==================================================
+
+You MUST generate the report file after completing the implementation.
+
+This is NOT optional.
+
+If the report is not generated, the task is considered incomplete.
+
+File path must be:
+
+/analysis/NOTIF-UI-006-report.md
+
+Do NOT skip sections.
+Do NOT claim features that are not implemented.
+Do NOT hide limitations.
+
+==================================================
+EXECUTION
+==================================================
+
+Build the full NOTIF-UI-006 scope now.
+Do not overbuild.
+Keep the UI tenant-safe, simpler than the Control Center, and aligned to the existing branding backend.
+Generate the required report at the end.

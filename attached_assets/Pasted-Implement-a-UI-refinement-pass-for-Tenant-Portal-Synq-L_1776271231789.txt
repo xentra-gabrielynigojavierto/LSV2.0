@@ -1,0 +1,233 @@
+Implement a UI refinement pass for:
+
+Tenant Portal → Synq Liens → Case Detail
+Tenant Portal → Synq Liens → Lien Detail
+
+This is a PRECISION ALIGNMENT + SPACING + CONSISTENCY update.
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+- DO NOT change:
+  - functionality
+  - data
+  - services/APIs
+  - routing
+  - role-access
+  - provider-mode
+  - component structure (unless required for alignment)
+
+- DO NOT redesign anything
+- DO NOT introduce new features
+
+This task is:
+👉 VISUAL POLISH ONLY
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Make the UI feel like a single, consistent design system by fixing:
+
+- alignment
+- spacing
+- padding
+- container consistency
+- divider polish
+- panel balance
+
+--------------------------------------------------
+1. GLOBAL PAGE CONTAINER ALIGNMENT (CRITICAL)
+--------------------------------------------------
+
+Ensure ALL major elements align to the SAME horizontal boundaries:
+
+- Header panel
+- Tabs row
+- Left panel
+- Right panel
+
+Fix:
+- left edge alignment
+- right edge alignment
+- consistent page padding
+
+There must be:
+👉 ONE consistent page container
+
+--------------------------------------------------
+2. HEADER PANEL NORMALIZATION
+--------------------------------------------------
+
+The header must behave like a standard card:
+
+- same border radius as other panels
+- same internal padding
+- same left/right alignment
+- no visual “detachment”
+
+Fix:
+- inconsistent padding
+- tighter alignment with tabs
+- vertical spacing below header
+
+--------------------------------------------------
+3. TABS ROW ALIGNMENT
+--------------------------------------------------
+
+Fix common issues:
+
+- tabs slightly misaligned with header/card edges
+- inconsistent horizontal spacing
+
+Tabs must:
+- align perfectly with header panel content edges
+- maintain consistent vertical spacing above and below
+
+--------------------------------------------------
+4. LEFT + RIGHT PANEL GRID ALIGNMENT
+--------------------------------------------------
+
+Fix:
+
+- grid gap inconsistencies
+- uneven spacing between panels
+- divider misalignment
+
+Ensure:
+- left and right panels share same vertical start
+- consistent horizontal gap
+- same outer margins as header
+
+--------------------------------------------------
+5. DIVIDER (EXPAND/COLLAPSE) POLISH
+--------------------------------------------------
+
+Current functionality is correct — refine UX:
+
+Fix:
+- vertical centering
+- small hit area
+- floating feel
+
+Update:
+- increase clickable area slightly
+- add subtle hover background
+- ensure PERFECT vertical centering relative to panels
+- ensure divider does NOT break layout alignment
+
+--------------------------------------------------
+6. CARD / PANEL CONSISTENCY
+--------------------------------------------------
+
+Normalize ALL panels:
+
+- identical border radius
+- identical border style
+- identical padding
+- identical header spacing
+
+Fix:
+- double padding (nested spacing issues)
+- inconsistent section margins
+
+--------------------------------------------------
+7. SECTION SPACING SYSTEM
+--------------------------------------------------
+
+Standardize vertical rhythm:
+
+- consistent gap between cards
+- consistent gap inside cards
+- no random spacing differences
+
+Apply:
+- same margin-bottom across sections
+- same padding inside all cards
+
+--------------------------------------------------
+8. FIELD GRID CONSISTENCY
+--------------------------------------------------
+
+Fix metadata fields:
+
+- label spacing
+- value alignment
+- column gaps
+
+Ensure:
+- labels use consistent font size + color
+- values aligned cleanly
+- grid columns evenly spaced
+
+--------------------------------------------------
+9. RIGHT PANEL (COMMUNICATIONS) POLISH
+--------------------------------------------------
+
+Refine layout:
+
+- Email button spacing
+- SMS button alignment
+- contact list spacing
+
+Ensure:
+- buttons same width
+- equal spacing between sections
+- icons aligned consistently
+
+Optional polish:
+- slightly stronger hierarchy for primary action (Email)
+
+--------------------------------------------------
+10. TYPOGRAPHY HIERARCHY (NO FONT CHANGE)
+--------------------------------------------------
+
+Do NOT change fonts.
+
+But fix:
+- inconsistent font weights
+- inconsistent label/value contrast
+
+Ensure:
+- titles > section headers > labels > values
+- consistent muted color for labels
+- consistent emphasis for values
+
+--------------------------------------------------
+11. EMPTY STATE CONSISTENCY
+--------------------------------------------------
+
+Ensure:
+
+- empty sections use consistent messaging
+- spacing matches non-empty sections
+- no layout collapse issues
+
+--------------------------------------------------
+12. FINAL VALIDATION
+--------------------------------------------------
+
+Verify:
+
+- header, tabs, panels all perfectly aligned
+- no visual drift between Case and Lien pages
+- divider visually integrated
+- spacing feels uniform across entire page
+- right panel clean and focused on communications
+- no functionality broken
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- UI feels like ONE cohesive system
+- No misalignment between header, tabs, panels
+- Consistent spacing everywhere
+- Divider feels intentional and integrated
+- Case and Lien screens visually match
+- No logic or behavior changes
+
+Execute FULL refinement.
+Do NOT modify business logic.
+Do NOT redesign — only refine.

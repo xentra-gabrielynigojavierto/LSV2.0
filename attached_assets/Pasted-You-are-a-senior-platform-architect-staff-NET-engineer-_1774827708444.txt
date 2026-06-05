@@ -1,0 +1,424 @@
+You are a senior platform architect, staff .NET engineer, and security engineer.
+
+Your task is to harden the current **.NET Documents Service with ClamAV scanning** and upgrade it from a strong production-capable implementation into an **enterprise-grade document security platform**.
+
+## Primary Goal
+
+Take the existing .NET Documents Service scanning implementation and make it enterprise-grade by addressing the current operational, durability, observability, and compliance gaps.
+
+This is a hardening and platform-maturity phase.
+
+### Important constraints
+
+* Keep the current .NET Documents Service intact and build on top of it
+* Do NOT remove existing APIs
+* Do NOT break existing document access flows
+* Preserve the current clean architecture
+* Preserve the current security model
+* Keep the Node.js service untouched
+* Prefer backward-compatible changes
+
+---
+
+## Current Known Gaps to Address
+
+The current implementation is strong, but still has these limitations:
+
+1. **In-memory scan queue is not production-safe**
+
+   * jobs are lost on restart
+   * documents can remain stuck in `PENDING`
+
+2. **No retry strategy**
+
+   * transient scanner/storage failures become permanent `FAILED`
+
+3. **Single worker bottleneck**
+
+   * limited scan throughput
+
+4. **Queue backpressure blocks uploads**
+
+   * current wait-mode channel can stall request handling
+
+5. **Missing `SCAN_ACCESS_DENIED` audit event**
+
+   * blocked access due to scan state is not fully audited
+
+6. **Observability is insufficient**
+
+   * no queue depth metrics
+   * no scan duration metrics
+   * no failed-scan alerts
+   * no ClamAV health monitoring
+
+7. **ClamAV dependency not hardened**
+
+   * no health-check surface
+   * no resilience/circuit-breaker strategy
+
+---
+
+## Objective
+
+Implement the next evolution of the scanning subsystem so it is suitable for enterprise use, regulated environments, and higher-scale production workloads.
+
+---
+
+## Required Hardening Scope
+
+### 1. Durable scan queue
+
+Replace or augment the in-memory queue with a **durable production queue**.
+
+Preferred options:
+
+* Redis Streams
+* SQS
+* or another durable queue if already appropriate in the repo
+
+Requirements:
+
+* scan jobs survive service restarts
+* queued jobs are not lost on crash
+* worker can resume processing after restart
+* keep the queue behind an abstraction such as `IScanJobQueue`
+
+Use configuration-driven selection:
+
+* `ScanWorker:QueueProvider = memory | redis`
+* keep memory mode for local dev
+* use durable mode for enterprise/prod
+
+If Redis Streams is selected, implement it properly.
+
+---
+
+### 2. Retry strategy
+
+Add retry logic for failed scan jobs.
+
+Requirements:
+
+* retry on transient failures:
+
+  * ClamAV connection issues
+  * timeouts
+  * storage read issues
+* exponential backoff
+* configurable max retries
+* permanent failure should mark document/version `FAILED`
+* retries must be auditable/logged
+
+Suggested config:
+
+* `ScanWorker:MaxRetryAttempts`
+* `ScanWorker:InitialRetryDelaySeconds`
+* `ScanWorker:MaxRetryDelaySeconds`
+
+---
+
+### 3. Worker scalability
+
+Improve scan processing throughput.
+
+Requirements:
+
+* support configurable worker concurrency
+* allow multiple scan workers/tasks
+* avoid unsafe concurrent processing of the same job
+* preserve correctness of status updates and audit events
+
+Suggested config:
+
+* `ScanWorker:WorkerCount`
+
+---
+
+### 4. Backpressure behavior
+
+Change upload behavior so queue saturation is handled in an enterprise-safe way.
+
+Current issue:
+
+* queue full causes upload request blocking
+
+Required behavior:
+
+* when queue is saturated, fail fast with a clear error
+* return appropriate HTTP response (e.g. `429` or `503`)
+* include clear machine-readable error code
+* log and surface queue saturation
+
+Do NOT silently block uploads indefinitely.
+
+---
+
+### 5. Complete audit coverage
+
+Implement the missing audit event for blocked access.
+
+Requirements:
+
+* emit `SCAN_ACCESS_DENIED` whenever access is blocked due to:
+
+  * `PENDING`
+  * `FAILED`
+  * `INFECTED`
+* include relevant scan status in audit detail
+* keep audit behavior consistent with current service patterns
+
+Also review all scan-related audit events for completeness.
+
+---
+
+### 6. Observability and metrics
+
+Add production-grade observability for the scanning subsystem.
+
+Required metrics/hooks:
+
+* queue depth
+* scans started
+* scans completed clean
+* scans infected
+* scans failed
+* average / percentile scan duration
+* retry count
+* queue saturation events
+* ClamAV connectivity/health state
+
+Expose metrics in a platform-friendly way.
+
+Preferred:
+
+* Prometheus-compatible endpoint
+* structured metrics hooks
+* health endpoint integration
+
+Add or enhance:
+
+* `/health`
+* `/health/ready`
+
+Health should reflect:
+
+* DB
+* storage provider
+* queue provider
+* ClamAV availability (where applicable)
+
+---
+
+### 7. ClamAV hardening
+
+Improve resilience around ClamAV integration.
+
+Requirements:
+
+* add health-check logic for ClamAV
+* detect unavailable scanner early
+* avoid hanging behavior
+* improve timeout handling
+* consider a lightweight resilience pattern:
+
+  * retry where appropriate
+  * fail closed
+  * optional circuit-breaker style protection if feasible
+
+Do not weaken security:
+
+* no “treat failed scan as clean”
+* no bypass unless explicitly configured for non-prod
+
+---
+
+### 8. Production readiness documentation
+
+Document the final hardened architecture.
+
+Include:
+
+* durable queue design
+* retry behavior
+* concurrency model
+* metrics exposed
+* health checks
+* runbook notes
+* production deployment recommendations
+
+---
+
+## Implementation Guidance
+
+### Preserve architecture
+
+Maintain clear boundaries:
+
+* Domain → abstractions and entities
+* Application → orchestration and policies
+* Infrastructure → queue, ClamAV, storage, metrics, health implementations
+* API → endpoints and hosted workers
+
+### Prefer abstractions
+
+Keep implementations swappable:
+
+* `IScanJobQueue`
+* queue provider factory
+* health-check abstractions if needed
+
+### Keep defaults safe
+
+Production-safe defaults preferred:
+
+* fail closed
+* durable queue in non-dev environments if possible
+* access denied unless scan rules permit
+
+### Backward compatibility
+
+* preserve current APIs
+* preserve upload endpoint shape
+* preserve scan status semantics
+* do not break existing frontend expectations without documenting it
+
+---
+
+## Suggested Delivery Phases
+
+### Phase 1 — Durable queue design and implementation
+
+Implement durable queue provider support.
+
+Create:
+`/analysis/dotnet_enterprise_phase1_durable_queue.md`
+
+Include:
+
+* provider selected
+* architecture
+* config
+* files changed
+* fallback behavior
+* verification steps
+
+---
+
+### Phase 2 — Retry and worker scalability
+
+Implement retries, backoff, and configurable concurrency.
+
+Create:
+`/analysis/dotnet_enterprise_phase2_retries_and_scaling.md`
+
+Include:
+
+* retry policy
+* concurrency strategy
+* duplicate processing protections
+* files changed
+* verification steps
+
+---
+
+### Phase 3 — Backpressure and error handling
+
+Implement queue saturation handling and fail-fast upload behavior.
+
+Create:
+`/analysis/dotnet_enterprise_phase3_backpressure.md`
+
+Include:
+
+* API behavior changes
+* error model
+* logs/alerts
+* verification steps
+
+---
+
+### Phase 4 — Audit completion and observability
+
+Implement missing audit coverage and metrics/health integration.
+
+Create:
+`/analysis/dotnet_enterprise_phase4_audit_and_observability.md`
+
+Include:
+
+* metrics added
+* audit events added
+* health checks
+* files changed
+* verification steps
+
+---
+
+### Phase 5 — ClamAV hardening and production review
+
+Implement scanner hardening and finalize enterprise review.
+
+Create:
+`/analysis/dotnet_enterprise_phase5_clamav_hardening.md`
+
+Include:
+
+* ClamAV resilience improvements
+* health strategy
+* config
+* remaining risks
+* verification steps
+
+Also create:
+`/analysis/dotnet_enterprise_final_summary.md`
+
+The final summary must include:
+
+* architecture overview
+* queue design
+* retry strategy
+* worker scaling model
+* observability model
+* production deployment guidance
+* remaining risks
+* recommended next backlog
+
+---
+
+## Deliverables
+
+Required analysis files:
+
+* `/analysis/dotnet_enterprise_phase1_durable_queue.md`
+* `/analysis/dotnet_enterprise_phase2_retries_and_scaling.md`
+* `/analysis/dotnet_enterprise_phase3_backpressure.md`
+* `/analysis/dotnet_enterprise_phase4_audit_and_observability.md`
+* `/analysis/dotnet_enterprise_phase5_clamav_hardening.md`
+* `/analysis/dotnet_enterprise_final_summary.md`
+
+Also make real code changes in the .NET Documents Service.
+
+---
+
+## Success Criteria
+
+This hardening effort is successful when:
+
+* scan jobs survive restart/crash
+* transient scan failures retry automatically
+* multiple workers can process safely
+* queue saturation fails fast, not hangs
+* blocked access is fully audited
+* health endpoints reflect queue/scanner readiness
+* metrics exist for operational visibility
+* the service remains secure, modular, and maintainable
+
+---
+
+## Start now
+
+1. inspect the current .NET Documents Service ClamAV implementation
+2. implement Phase 1 durable queue support
+3. generate `/analysis/dotnet_enterprise_phase1_durable_queue.md`
+4. continue through the remaining phases in order

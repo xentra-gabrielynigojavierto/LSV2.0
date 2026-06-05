@@ -1,0 +1,252 @@
+Implement LS-LIENS-CASE-004-01 — Notes Tab Functional Fix.
+
+Goal:
+Fix the Case Detail → Notes tab so note creation, display, and filtering work reliably using the existing UI. This is NOT a redesign — only make the current implementation functional and stable.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+Location:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Notes
+
+The Notes tab UI already exists.
+Issues:
+- Notes may not persist correctly
+- New notes may not appear immediately
+- Filtering/search may not work reliably
+- Zustand/local state may not be wired correctly
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only fix:
+- note creation
+- note rendering
+- filtering/search
+- local persistence behavior
+
+Do NOT:
+- redesign UI
+- change layout
+- change styling
+- add new features
+- wire backend APIs (keep local for now)
+
+--------------------------------------------------
+DATA SOURCE FIX
+--------------------------------------------------
+
+1. Ensure a single source of truth for notes:
+- Combine:
+  - TEMP_NOTES (fallback)
+  - Zustand notes (user-created)
+
+2. Create a merged dataset:
+
+Example:
+const allNotes = [...userNotes, ...TEMP_NOTES]
+
+3. Ensure:
+- user-created notes appear immediately after submission
+- no duplication on re-render
+
+--------------------------------------------------
+ZUSTAND STORE FIX
+--------------------------------------------------
+
+Verify or fix lien-store:
+
+Ensure:
+- addCaseNote() correctly pushes a new note
+- note includes:
+  - id (unique)
+  - text
+  - author
+  - timestamp
+  - category
+
+Example:
+addCaseNote: (note) =>
+  set((state) => ({
+    caseNotes: [
+      {
+        id: generateId(),
+        timestamp: new Date().toISOString(),
+        ...note
+      },
+      ...state.caseNotes
+    ]
+  }))
+
+--------------------------------------------------
+NOTE CREATION FIX
+--------------------------------------------------
+
+Fix handleSubmit:
+
+Ensure:
+- empty notes are blocked
+- category is included
+- author is derived from session
+- timestamp is created
+- state updates immediately
+
+After submit:
+- clear textarea
+- reset category to 'general'
+
+--------------------------------------------------
+RENDERING FIX
+--------------------------------------------------
+
+Ensure timeline uses:
+- merged dataset (not TEMP only)
+- sorted correctly:
+  - newest first (default)
+  - oldest if toggled
+
+Pinned logic:
+- pinned notes always appear first
+- then sorted notes
+
+--------------------------------------------------
+SEARCH FIX
+--------------------------------------------------
+
+Search must filter against:
+- note.text
+- note.author
+
+Case-insensitive:
+
+const matchesSearch =
+  note.text.toLowerCase().includes(search.toLowerCase()) ||
+  note.author.toLowerCase().includes(search.toLowerCase())
+
+--------------------------------------------------
+CATEGORY FILTER FIX
+--------------------------------------------------
+
+Ensure category filter works:
+
+- All → show all
+- General → category === 'general'
+- Internal → category === 'internal'
+- Follow-Up → category === 'follow-up'
+
+--------------------------------------------------
+SORT FIX
+--------------------------------------------------
+
+Ensure sort toggle works:
+
+- newest → descending timestamp
+- oldest → ascending timestamp
+
+--------------------------------------------------
+EMPTY STATE FIX
+--------------------------------------------------
+
+Ensure correct conditions:
+
+1. No notes at all:
+→ "No notes yet"
+
+2. Filter applied but no match:
+→ "No notes match the current filters"
+
+--------------------------------------------------
+AUTHOR FIX
+--------------------------------------------------
+
+Derive author from session:
+
+const authorName =
+  session?.email
+    ? formatName(session.email)
+    : 'User'
+
+Ensure consistent formatting.
+
+--------------------------------------------------
+DATE DISPLAY FIX
+--------------------------------------------------
+
+Ensure:
+- timestamp is valid ISO string
+- relative time works (e.g., "2h ago")
+- no "Invalid Date" rendering
+
+--------------------------------------------------
+NO FAKE PERSISTENCE RULE
+--------------------------------------------------
+
+Notes remain:
+- local (Zustand only)
+
+Do NOT:
+- simulate backend save
+- fake persistence across refresh
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE changes:
+Create:
+/analysis/LS-LIENS-CASE-004-01-report.md
+
+2. Initialize with:
+- issue summary
+- root cause
+- fix plan
+
+3. DURING:
+Update per fix:
+- store fix
+- submit fix
+- render fix
+- filter fix
+
+4. FINAL:
+- validation results
+- what works now
+- remaining limitations
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Inspect current Notes implementation
+T002 — Fix Zustand store behavior
+T003 — Fix note creation flow
+T004 — Fix merged dataset rendering
+T005 — Fix search logic
+T006 — Fix category filter
+T007 — Fix sorting logic
+T008 — Fix empty states
+T009 — Final validation
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- New notes appear immediately after adding
+- Notes persist in Zustand during session
+- Search works correctly
+- Category filter works correctly
+- Sort toggle works correctly
+- No duplicate notes
+- No invalid date issues
+- No UI regressions
+
+Execute FULL fix.
+Do NOT redesign the UI.
+Do NOT introduce backend calls.
+Keep implementation clean and minimal.

@@ -1,0 +1,560 @@
+You are implementing BLOCK 4 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B04-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1, Block 2, and Block 3 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- Do not perform migration cutover, dual write, or Identity field removal in this block.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B04 — Product Entitlements + Settings + Migration Utility Foundation
+================================================================
+
+OBJECTIVE
+Extend the standalone Tenant service so it becomes a true platform control layer by adding:
+1. tenant product entitlements,
+2. tenant capability flags,
+3. default product behavior,
+4. tenant settings storage and APIs,
+5. the first migration utility foundation for Identity -> Tenant data synchronization planning and dry-run execution.
+
+This block must remain standalone, portable, and backend-first.
+
+================================================================
+CONTEXT FROM BLOCKS 1–3 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 established:
+- standalone Tenant service
+- tenant_db
+- core Tenant entity
+- base APIs
+- service on port 5005
+- gateway wiring
+- migration-aware mapping from Identity -> Tenant
+
+Block 2 established:
+- expanded tenant profile
+- TenantBranding entity
+- branding APIs
+- public branding endpoints
+
+Block 3 established:
+- TenantDomain entity
+- domain management APIs
+- public resolution endpoints
+- compatibility with legacy Tenant.Subdomain
+- groundwork for future read switch
+
+Build on top of that work.
+Do not recreate the service from scratch.
+Do not replace the current foundation.
+
+This block must prepare Tenant service to express:
+- what products a tenant has,
+- what features/capabilities are enabled for that tenant,
+- what configurable settings belong to the tenant,
+- and how future migration from Identity can be safely executed and validated.
+
+================================================================
+BLOCK 4 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- TENANT-E05-S01 — Product Assignment Model
+- TENANT-E05-S02 — Capability Flags
+- TENANT-E05-S03 — Default Product
+- TENANT-E05-S04 — Entitlements API
+- TENANT-E06-S01 — Settings Store
+- TENANT-E06-S02 — Typed Core Settings
+- TENANT-E06-S03 — Extensible Settings
+- TENANT-E06-S04 — Settings API
+- TENANT-E00-S03 (FOUNDATION ONLY) — Initial Migration Utility
+- TENANT-E00-S07 (FOUNDATION ONLY) — Reconciliation / Dry-Run Reporting
+
+IMPORTANT:
+In this block, the migration utility is foundation-only:
+- no production cutover,
+- no dual write,
+- no read switch,
+- no Identity ownership removal.
+
+================================================================
+SCOPE
+================================================================
+
+A) Tenant product entitlement model
+
+Create a generic, portable product entitlement model owned by Tenant service.
+
+Do NOT hardcode LegalSynq-specific business logic into the domain model.
+Product names/keys may exist as data, but the service design must remain generic.
+
+Recommended entity:
+- TenantProductEntitlement
+
+Recommended minimum fields:
+- Id
+- TenantId
+- ProductKey
+- ProductDisplayName (optional snapshot for convenience)
+- IsEnabled
+- IsDefault
+- Tier or PlanCode (nullable)
+- EffectiveFromUtc (nullable)
+- EffectiveToUtc (nullable)
+- CreatedAtUtc
+- UpdatedAtUtc
+
+Rules:
+- One tenant can have many product entitlements
+- ProductKey should be normalized, stable, and generic
+- At most one active/default product per tenant
+- If a new default is assigned, explicitly handle prior default
+- Keep the model portable to other systems, not LegalSynq-only
+
+Suggested example product keys as data only (not hardcoded assumptions):
+- liens
+- careconnect
+- fund
+- control-center
+- task
+
+B) Capability flags model
+
+Create a tenant capability model for fine-grained enablement.
+
+Recommended entity:
+- TenantCapability
+
+Recommended minimum fields:
+- Id
+- TenantId
+- ProductEntitlementId (nullable if tenant-global)
+- CapabilityKey
+- IsEnabled
+- CreatedAtUtc
+- UpdatedAtUtc
+
+Rules:
+- Capability can be product-scoped or tenant-global
+- CapabilityKey must be normalized and portable
+- Avoid LegalSynq-only naming in the domain design
+- Capabilities should support future feature-flag style use without introducing a full external flag platform
+
+Examples of capability keys as data only:
+- branding.advanced
+- domain.custom
+- portal.readonly
+- notifications.custom-reply-to
+- product.case-management
+
+C) Default product model / behavior
+
+Add service logic to support:
+- one default product per tenant
+- default must belong to an enabled entitlement
+- when a new default is set:
+  - either auto-demote prior default, or
+  - reject the change
+Choose one explicit behavior and document it in the report.
+Preferred behavior: auto-demote the prior default for operator convenience.
+
+D) Tenant settings model
+
+Create a flexible tenant settings store that supports both:
+1. typed core settings, and
+2. extensible namespaced settings
+
+Recommended entity:
+- TenantSetting
+
+Recommended minimum fields:
+- Id
+- TenantId
+- SettingKey
+- SettingValue
+- ValueType
+- Scope (nullable or enum if needed)
+- ProductKey (nullable, if settings can be product-scoped)
+- CreatedAtUtc
+- UpdatedAtUtc
+
+Recommended ValueType enum:
+- String
+- Boolean
+- Number
+- Json
+
+Rules:
+- SettingKey must be normalized and namespaced-friendly
+- Examples:
+  - platform.default-product
+  - portal.locale.default
+  - portal.timezone.default
+  - notifications.reply-to
+  - branding.login.tagline
+- Keep the design portable and reusable
+- Do not overbuild a dynamic config platform; keep it minimal but solid
+
+E) Typed core settings support
+
+Implement explicit service support for a small core set of typed settings:
+- platform.default-product
+- portal.locale.default
+- portal.timezone.default
+
+These can be stored in the generic TenantSetting store, but service methods/validation must treat them as first-class supported settings.
+
+Rules:
+- locale should accept IETF/BCP47-like strings (reasonable validation)
+- timezone should be validated reasonably (string format validation acceptable; full tzdb validation optional if too heavy)
+- default product must correspond to an enabled entitlement
+
+F) API contracts
+
+Add admin/internal APIs for entitlements and settings.
+
+Entitlements APIs:
+- GET /api/v1/tenants/{tenantId}/products
+- POST /api/v1/tenants/{tenantId}/products
+- PUT /api/v1/tenants/{tenantId}/products/{entitlementId}
+- optionally DELETE or soft-disable endpoint if aligned to current patterns
+
+Capabilities APIs:
+- GET /api/v1/tenants/{tenantId}/capabilities
+- POST /api/v1/tenants/{tenantId}/capabilities
+- PUT /api/v1/tenants/{tenantId}/capabilities/{capabilityId}
+
+Settings APIs:
+- GET /api/v1/tenants/{tenantId}/settings
+- GET /api/v1/tenants/{tenantId}/settings/{settingKey}
+- PUT /api/v1/tenants/{tenantId}/settings/{settingKey}
+- optionally POST if your current API style prefers create/update separation
+
+Convenience APIs (optional but recommended if clean):
+- GET /api/v1/tenants/{tenantId}/configuration-summary
+This may aggregate:
+  - default product
+  - enabled products
+  - selected core settings
+Only implement this if it fits naturally without bloat.
+
+Rules:
+- Follow current auth patterns (AdminOnly for management endpoints)
+- DTOs must remain generic and portable
+- Request/response shapes must be stable and API-consumer friendly
+
+G) Validation rules
+
+Add validation for:
+- ProductKey required and normalized
+- CapabilityKey required and normalized
+- SettingKey required and normalized
+- no duplicate enabled entitlement rows for same tenant/product unless explicitly allowed
+- at most one default product per tenant
+- default product must be enabled
+- setting value format consistent with ValueType
+- locale/timezone validation for typed core settings
+- namespaced setting key format
+- effective date range validity where used
+- capability uniqueness (tenant + optional product + key)
+
+H) Persistence / schema
+
+Add EF Core persistence for:
+- TenantProductEntitlement
+- TenantCapability
+- TenantSetting
+
+Expected:
+- new tables
+- indexes on TenantId
+- indexes on keys
+- uniqueness constraints where practical
+- EF migration for Block 4
+
+Recommended indexes:
+- TenantProductEntitlement: TenantId, ProductKey, IsDefault
+- TenantCapability: TenantId, CapabilityKey, ProductEntitlementId
+- TenantSetting: TenantId, SettingKey, ProductKey
+
+If filtered uniqueness is not practical in MySQL, enforce with service-layer validation and document it clearly.
+
+I) Migration utility foundation (IMPORTANT)
+
+Implement a foundation-only migration utility for Identity -> Tenant synchronization planning and dry-run reporting.
+
+Purpose in this block:
+- inspect existing Identity tenant data shape
+- compare Identity tenant rows to Tenant tenant rows
+- prepare a reusable utility/service for future migration
+- support dry-run mode only if full write mode would be too risky for this block
+
+Recommended deliverables:
+1. A migration utility service/class/command under Tenant service or a related tooling location
+2. A dry-run reconciliation report output
+3. Mapping verification between:
+   - Identity tenants
+   - Tenant tenants
+4. Clear reporting of:
+   - missing tenants in Tenant
+   - mismatched codes
+   - mismatched names
+   - mismatched active/status interpretations
+   - missing subdomain/domain relationships
+   - missing logo refs
+   - counts
+
+Rules:
+- Prefer dry-run mode in this block
+- If you implement write mode, it must be explicit and disabled by default
+- Do not trigger automatic migration during service startup
+- Do not perform read switch/cutover
+- Do not modify Identity ownership boundaries
+
+Suggested output:
+- write a reconciliation artifact or structured result to /analysis/TENANT-B04-migration-dry-run.md or similar
+- also summarize the findings in /analysis/TENANT-B04-report.md
+
+J) Consumer readiness
+
+Design this block so future consumers can use it for:
+- Control Center admin configuration
+- Gateway/default routing decisions
+- future product-aware UI bootstrap
+- future migration execution
+
+Do not modify the frontend in this block unless absolutely necessary.
+This block is backend-first and consumer-ready.
+
+================================================================
+NON-GOALS / MUST NOT DO
+================================================================
+
+Do NOT implement in this block:
+- read switch from Identity to Tenant
+- dual write from Identity to Tenant
+- removal of tenant fields from Identity
+- product-specific business rules for LegalSynq apps
+- DNS verification
+- custom domain verification workflow
+- notification service integration
+- document upload flow
+- external billing/CRM integration
+- gateway cutover to Tenant as mandatory resolver
+- hard deletion of tenant records if current pattern uses soft deactivation
+
+================================================================
+TECH STACK / IMPLEMENTATION RULES
+================================================================
+
+Backend:
+- C# / .NET only
+- ASP.NET Core only
+- Entity Framework Core only
+- MySQL only
+
+Patterns:
+- Reuse existing project structure:
+  - Tenant.Domain
+  - Tenant.Application
+  - Tenant.Infrastructure
+  - Tenant.Api
+- Reuse existing middleware / DI / endpoint conventions from earlier blocks
+- Keep service portable and generic
+
+Database:
+- Continue using tenant_db
+- Add EF migration for this block
+- Do not require direct DB access from other services to tenant_db
+- If the migration utility needs to inspect Identity data, use safe configured access patterns only; do not introduce shared runtime ownership
+
+Port / runtime:
+- Keep service on 5005
+- Keep current shell script integration working
+
+================================================================
+DATA MODEL GUIDANCE
+================================================================
+
+Recommended entities:
+
+1) TenantProductEntitlement
+- Id : Guid
+- TenantId : Guid
+- ProductKey : string
+- ProductDisplayName : string?
+- IsEnabled : bool
+- IsDefault : bool
+- Tier : string?
+- EffectiveFromUtc : DateTime?
+- EffectiveToUtc : DateTime?
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+2) TenantCapability
+- Id : Guid
+- TenantId : Guid
+- ProductEntitlementId : Guid?
+- CapabilityKey : string
+- IsEnabled : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+3) TenantSetting
+- Id : Guid
+- TenantId : Guid
+- SettingKey : string
+- SettingValue : string
+- ValueType : TenantSettingValueType
+- ProductKey : string?
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+Recommended enums:
+- TenantSettingValueType: String, Boolean, Number, Json
+
+Optional helper services:
+- ProductEntitlementService
+- TenantSettingsService
+- MigrationDryRunService / TenantMigrationPlanner
+
+Only add optional helper classes if they fit naturally and remain maintainable.
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. A dedicated product entitlement model exists in Tenant service persistence.
+2. A dedicated capability model exists in Tenant service persistence.
+3. A dedicated settings model exists in Tenant service persistence.
+4. tenant_db has a new migration for Block 4 schema changes.
+5. A tenant can be assigned product entitlements through admin APIs.
+6. A tenant can have capability flags managed through admin APIs.
+7. A tenant can have settings managed through admin APIs.
+8. Default product rules are enforced.
+9. Core typed settings are supported and validated.
+10. Existing Blocks 1–3 functionality still works.
+11. A migration utility foundation exists and can produce a dry-run reconciliation view against Identity data.
+12. No read switch, dual write, or Identity decoupling is attempted in this block.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- migration creation success
+- Tenant service startup success
+- DB connection success for tenant_db
+- health endpoint response
+- create product entitlement
+- list product entitlements
+- update product entitlement
+- default product auto-demotion or validation behavior
+- create capability flag
+- list capability flags
+- update capability flag
+- create/update/get typed core settings
+- invalid setting value/type validation
+- invalid locale/timezone validation
+- duplicate product/capability validation
+- migration dry-run utility execution and report generation
+- ensure Blocks 1–3 endpoints still function
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B04-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B04 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what Blocks 1–3 established
+- why entitlements/settings are needed now
+- how this block prepares future migration without cutover
+
+## 3. Data Model Changes
+- TenantProductEntitlement structure
+- TenantCapability structure
+- TenantSetting structure
+- enum/value-type model
+- default-product strategy
+- uniqueness strategy
+
+## 4. API Contract
+- entitlement endpoints
+- capability endpoints
+- settings endpoints
+- any summary/convenience endpoint added
+- final request/response shapes
+
+## 5. Migration Utility Foundation
+- how Identity data is inspected
+- dry-run behavior
+- reconciliation output format
+- what is intentionally deferred
+
+## 6. Implementation Summary
+- files added
+- files modified
+- migrations added
+- validation rules added
+
+## 7. Database Changes
+- tables added/altered
+- indexes/constraints
+- migration name
+
+## 8. Validation Results
+- build
+- startup
+- entitlement tests
+- capability tests
+- settings tests
+- migration dry-run tests
+- backward compatibility checks for Blocks 1–3
+
+## 9. Known Gaps / Deferred Items
+- cutover deferred
+- dual write deferred
+- read switch deferred
+- Identity decoupling deferred
+- DNS verification deferred
+- external references deferred
+- notification integration deferred
+
+## 10. Next Recommended Block
+State that the next logical block is:
+BLOCK 5 — Migration Execution + Dual Write Preparation
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse current code patterns
+- Prefer minimal, correct, production-oriented code
+- Keep scope tight to Block 4
+- Preserve portability
+- Do not introduce breaking architectural drift
+
+Now execute this block end-to-end and write the report as you go.

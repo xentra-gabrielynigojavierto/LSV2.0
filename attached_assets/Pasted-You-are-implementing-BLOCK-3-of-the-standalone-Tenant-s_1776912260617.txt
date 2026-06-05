@@ -1,0 +1,470 @@
+You are implementing BLOCK 3 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B03-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1 and Block 2 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- Do not perform migration cutover, dual write, or Identity field removal in this block.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B03 — Domains & Tenant Resolution
+================================================================
+
+OBJECTIVE
+Extend the standalone Tenant service so it can become the canonical owner of tenant domain and subdomain resolution in a future cutover. This block must add:
+1. a tenant domain ownership model,
+2. domain/subdomain resolution services,
+3. public and internal resolution endpoints,
+4. uniqueness and status controls for domains,
+5. groundwork for a future read switch from Identity to Tenant for tenant lookup.
+
+This block must remain standalone, portable, and backend-first.
+
+================================================================
+CONTEXT FROM BLOCKS 1 AND 2 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 established:
+- standalone Tenant service
+- tenant_db
+- core tenant entity
+- base APIs
+- service on port 5005
+- gateway wiring
+- health/info
+- migration-aware mapping from Identity -> Tenant
+
+Block 2 established:
+- expanded tenant profile fields
+- TenantBranding one-to-one model
+- branding APIs
+- public branding endpoints
+- richer validation
+
+Build on top of that work.
+Do not recreate the service from scratch.
+Do not replace the current foundation.
+
+Block 2 also intentionally deferred:
+- domain ownership model
+- domain verification workflow
+- product entitlements
+- settings store
+- migration utility
+- dual write
+- read switch
+- Identity decoupling
+
+In this block, implement only the Block 3 scope.
+
+================================================================
+BLOCK 3 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- TENANT-E04-S01 — Tenant Domain Entity
+- TENANT-E04-S02 — Resolution Service
+- TENANT-E04-S03 — Public Resolution API
+- TENANT-E04-S04 — Domain Status Model
+
+================================================================
+SCOPE
+================================================================
+
+A) Create a dedicated tenant domain ownership model
+
+Add a dedicated domain entity owned by Tenant service.
+
+The model must support:
+- one tenant owning multiple domains/subdomains over time
+- one primary active subdomain per tenant (business rule can be enforced in service logic if needed)
+- public/internal resolution by:
+  - exact host/domain
+  - subdomain
+  - tenant code
+- room for future custom domain verification without implementing it now
+
+Recommended entity name:
+- TenantDomain
+
+Recommended minimum fields:
+- Id
+- TenantId
+- Host
+- DomainType
+- Status
+- IsPrimary
+- CreatedAtUtc
+- UpdatedAtUtc
+
+Where:
+- Host = exact host string to match against requests
+  - examples:
+    - acme.legalsynq.net
+    - careconnect.legalsynq.net
+    - portal.clientdomain.com
+- DomainType = enum or equivalent, minimum:
+  - Subdomain
+  - CustomDomain
+- Status = enum or equivalent, minimum:
+  - Pending
+  - Active
+  - Inactive
+  - VerificationRequired
+  - VerificationFailed
+- IsPrimary = boolean
+
+Rules:
+- Keep this generic and portable
+- Do not hardcode LegalSynq-only product semantics
+- Do not implement DNS verification yet
+- Normalize host matching behavior (case-insensitive, trimmed)
+- Prevent duplicate active host ownership across tenants
+
+B) Preserve current compatibility with Block 1/2 Tenant model
+
+Current Tenant entity already has a `Subdomain` field from migration compatibility with Identity.
+In this block:
+- do NOT remove Tenant.Subdomain
+- do NOT break existing APIs
+- TenantDomain should become the canonical future model
+- Tenant.Subdomain can remain as a compatibility field
+- document the relationship between:
+  - Tenant.Subdomain
+  - TenantDomain.Host
+  - IsPrimary = true
+  - DomainType = Subdomain
+
+C) Resolution service
+
+Add a domain resolution service that can resolve a tenant by:
+1. exact host
+2. subdomain
+3. tenant code
+
+Resolution behavior should be explicit and safe.
+
+Required behaviors:
+- Exact host match:
+  - input: full host like `acme.legalsynq.net`
+  - output: resolved tenant summary
+- Subdomain match:
+  - input: subdomain like `acme`
+  - output: resolved tenant summary based on primary/active subdomain
+- Tenant code match:
+  - input: tenant code
+  - output: resolved tenant summary
+
+Resolution result should include, at minimum:
+- tenantId
+- code
+- displayName
+- status
+- matchedHost if applicable
+- matchedBy (Host / Subdomain / Code)
+- branding summary if easily available and consistent with existing service patterns
+- primaryColor/logo fields only if appropriate for consumer convenience
+
+Keep the response safe for public lookup where needed.
+
+D) Public and internal API contracts
+
+Add public and internal resolution endpoints.
+
+Internal/admin endpoints:
+- GET /api/v1/tenants/{tenantId}/domains
+- POST /api/v1/tenants/{tenantId}/domains
+- PUT /api/v1/tenants/{tenantId}/domains/{domainId}
+- optionally PATCH or dedicated endpoint to set primary if needed
+- optionally DELETE or soft deactivate domain if aligned to current conventions
+
+Public/internal resolution endpoints:
+- GET /api/v1/public/resolve/by-host/{host}
+- GET /api/v1/public/resolve/by-subdomain/{subdomain}
+- GET /api/v1/public/resolve/by-code/{code}
+
+If route-safe encoding is awkward for full hosts, you may instead use:
+- GET /api/v1/public/resolve/by-host?host=acme.legalsynq.net
+
+Use the most robust approach for ASP.NET Core routing and gateway compatibility.
+
+Rules:
+- Public endpoints must be anonymous/read-only
+- Internal domain management endpoints must follow current auth patterns
+- Public resolution responses must not expose sensitive internal data
+- Keep DTOs generic and portable
+
+E) Domain management rules
+
+Implement domain management rules at the service layer:
+
+1. Host uniqueness
+- Active hosts must be globally unique
+- Prevent two tenants from owning the same active host
+
+2. Subdomain uniqueness
+- A primary active subdomain-style host must be unique
+
+3. Primary domain rules
+- A tenant can have at most one primary active subdomain domain record
+- if a new subdomain primary is assigned, ensure prior primary is demoted or validation fails
+- choose one explicit behavior and document it
+
+4. Status-aware resolution
+- Only active domains should resolve publicly
+- pending/verification-required/failed/inactive should not resolve publicly
+
+5. Host normalization
+- lower-case
+- trim whitespace
+- strip protocol if mistakenly supplied
+- do not store path/query fragments
+- validate host format
+
+F) Validation
+
+Add validation for:
+- valid hostname/domain format
+- subdomain-safe values
+- no protocol in stored hosts after normalization
+- uniqueness constraints
+- allowed status transitions if you implement transition rules
+- allowed domain type values
+
+G) Persistence / schema
+
+Add EF Core persistence for the domain model in tenant_db.
+
+Expected:
+- new domain table
+- indexes for host uniqueness and tenant lookups
+- migration for Block 3
+
+Recommended indexes:
+- unique index on normalized active host if feasible
+- index on TenantId
+- index on Host
+- index on Status
+
+If filtered indexes are not practical in MySQL/EF for active-only uniqueness, enforce with service-layer validation and document it clearly.
+
+H) Consumer readiness
+
+Design resolution contracts so they can later support:
+- API Gateway tenant resolution
+- Next.js login/public bootstrap flows
+- future replacement of Identity tenant lookup logic
+
+Do not modify the frontend in this block unless absolutely necessary.
+This block is backend-first and consumer-ready.
+
+================================================================
+NON-GOALS / MUST NOT DO
+================================================================
+
+Do NOT implement in this block:
+- migration script from Identity to Tenant
+- dual write from Identity to Tenant
+- read switch from Identity to Tenant
+- removal of tenant fields from Identity
+- product entitlements
+- settings store
+- external references
+- notification service integration
+- custom domain DNS verification workflow
+- document upload flow
+- gateway read cutover to Tenant
+- hard deletion of tenant records if current pattern uses soft deactivation
+
+================================================================
+TECH STACK / IMPLEMENTATION RULES
+================================================================
+
+Backend:
+- C# / .NET only
+- ASP.NET Core only
+- Entity Framework Core only
+- MySQL only
+
+Patterns:
+- Reuse existing project structure:
+  - Tenant.Domain
+  - Tenant.Application
+  - Tenant.Infrastructure
+  - Tenant.Api
+- Reuse existing middleware / DI / endpoint conventions from earlier blocks
+- Keep service portable and generic
+
+Database:
+- Continue using tenant_db
+- Add EF migration for this block
+- Do not require direct access from other services to tenant_db
+
+Port / runtime:
+- Keep service on 5005
+- Keep current shell script integration working
+
+================================================================
+DATA MODEL GUIDANCE
+================================================================
+
+Recommended entity:
+
+1) TenantDomain
+- Id : Guid
+- TenantId : Guid
+- Host : string
+- DomainType : TenantDomainType enum
+- Status : TenantDomainStatus enum
+- IsPrimary : bool
+- CreatedAtUtc : DateTime
+- UpdatedAtUtc : DateTime
+
+Recommended enums:
+
+TenantDomainType:
+- Subdomain
+- CustomDomain
+
+TenantDomainStatus:
+- Pending
+- Active
+- Inactive
+- VerificationRequired
+- VerificationFailed
+
+Optional but useful fields if consistent with current design:
+- VerifiedAtUtc
+- Notes
+- LastValidationError
+
+Only add optional fields if they are truly helpful now and not speculative bloat.
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. A dedicated TenantDomain model exists in Tenant service persistence.
+2. tenant_db has a new migration for the domain model.
+3. A tenant can own domain/subdomain records through internal APIs.
+4. Resolution service can resolve by exact host.
+5. Resolution service can resolve by subdomain.
+6. Resolution service can resolve by tenant code.
+7. Public resolution endpoints exist and work without auth.
+8. Public resolution only returns active domains.
+9. Duplicate active host ownership is prevented.
+10. Existing Block 1 and Block 2 functionality still works.
+11. Tenant.Subdomain compatibility is preserved for now.
+12. No migration cutover or Identity decoupling is attempted in this block.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- migration creation success
+- Tenant service startup success
+- DB connection success for tenant_db
+- health endpoint response
+- create tenant domain record
+- list tenant domains
+- update tenant domain record
+- set/demote primary behavior
+- resolve by exact host
+- resolve by subdomain
+- resolve by tenant code
+- inactive/pending domains do not resolve publicly
+- duplicate host validation
+- invalid hostname validation
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B03-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B03 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what Blocks 1 and 2 established
+- why TenantDomain is needed now
+- how this block preserves compatibility with Tenant.Subdomain
+
+## 3. Data Model Changes
+- TenantDomain structure
+- enum/status model
+- normalization and uniqueness strategy
+- primary-domain strategy
+
+## 4. Resolution Design
+- by-host logic
+- by-subdomain logic
+- by-code logic
+- what qualifies as publicly resolvable
+
+## 5. API Contract
+- internal domain management endpoints
+- public resolution endpoints
+- request/response shapes
+
+## 6. Implementation Summary
+- files added
+- files modified
+- migrations added
+- validation rules added
+
+## 7. Database Changes
+- tables added/altered
+- indexes/constraints
+- migration name
+
+## 8. Validation Results
+- build
+- startup
+- CRUD tests
+- resolution tests
+- uniqueness tests
+- invalid input tests
+
+## 9. Known Gaps / Deferred Items
+- DNS verification deferred
+- migration utility deferred
+- dual write deferred
+- read switch deferred
+- Identity decoupling deferred
+- product entitlements deferred
+- settings deferred
+
+## 10. Next Recommended Block
+State that the next logical block is:
+BLOCK 4 — Product Entitlements + Settings
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse current code patterns
+- Prefer minimal, correct, production-oriented code
+- Keep scope tight to Block 3
+- Preserve portability
+- Do not introduce breaking architectural drift
+
+Now execute this block end-to-end and write the report as you go.

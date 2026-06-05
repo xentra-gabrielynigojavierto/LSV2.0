@@ -1,0 +1,454 @@
+```text
+# LS-ID-TNT-017-002 — User Access Audit
+
+## FEATURE OBJECTIVE
+
+Implement a comprehensive **User Access Audit** layer that captures and exposes security-relevant access events across the platform, including:
+- successful access to protected products/pages
+- denied access attempts
+- permission-denied API actions
+- login / logout / session invalidation events where applicable
+- audit-friendly access traces tied to actor, tenant, session, and target resource
+
+This feature extends the audit system beyond **permission-change events** into **permission-usage and access events**, enabling:
+- security monitoring
+- compliance reporting
+- anomaly investigation
+- operational debugging of “who accessed what, when, and whether it was allowed”
+
+This is primarily an **audit capture + query readiness feature**. It does NOT require full analytics or anomaly detection UI.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- permission model is complete
+- backend enforcement is complete
+- UI gating is complete
+- permission-change audit is complete
+- audit viewer is complete
+
+What is missing:
+- we know **who changed access**
+- but we do NOT yet fully know **who used access**, **who was denied**, and **what resources were accessed**
+
+This feature closes that governance/compliance gap.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- behavioral analytics dashboards
+- anomaly detection engines
+- SIEM integrations
+- external monitoring platform connectors
+- non-security business events (case edits, financial activity, etc.) unless they are already part of access enforcement flow
+- broad redesign of the existing audit pipeline
+- speculative capture points not grounded in actual code
+- full export/reporting UI
+
+ONLY IMPLEMENT:
+- canonical audit capture for user access events
+- denied-access and permission-denied event capture
+- session/auth access events where appropriate and already supported by current architecture
+- consistent event schema
+- integration with the centralized audit pipeline already in place
+- report-first implementation and honest documentation of coverage
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental governance / observability feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, authorization, governance, audit capture, and audit viewer behavior
+- validate the actual auth/access enforcement surfaces before instrumenting them
+- reuse the centralized audit publishing pipeline already in the system
+- keep tenant isolation intact
+- include explicit fail-safe behavior (audit failure must not block access flow)
+- NOT introduce placeholder logic
+- document exact access-event coverage honestly
+- avoid event storms by making deliberate capture decisions
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-002-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-002 — User Access Audit
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Access Event Surface Inventory
+## 4. Audit Event Schema Design
+## 5. Capture Strategy
+## 6. Coverage Scope Selection
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Query / Viewer Readiness Notes
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL ACCESS / AUTH SURFACES
+
+Inspect the actual codebase and identify all existing access-related enforcement points where user access events can be captured.
+
+You must identify and document at minimum:
+
+### Authentication/session surfaces
+- login success
+- login failure (if available and appropriate)
+- logout
+- session invalidation / access-updated re-login path
+- auth/me checks if they are meaningful to capture
+
+### Product / route access surfaces
+- route-level product access checks
+- product access-denied flows
+- route guards / middleware / server guard functions
+
+### Backend permission / product enforcement surfaces
+- `RequireProductAccessFilter`
+- `RequirePermissionFilter`
+- product/permission denied result creators
+- any existing authorization middleware / endpoint filters across services
+
+### Existing audit access events
+The LS-ID-TNT-017-004 report notes canonical `audit.log.accessed` events already exist in the audit service query layer. Validate:
+- where these are emitted
+- whether they are query-only or actual application access events
+- whether they overlap with this ticket’s goal
+
+Do NOT assume all access events are already captured. Inspect actual code paths.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Access Event Surface Inventory
+
+---
+
+## STEP 2 — DEFINE THE AUDIT EVENT TYPES FOR ACCESS USAGE
+
+Define a canonical event taxonomy for user access audit.
+
+Examples of acceptable event types, if grounded in real code:
+- `identity.auth.login.succeeded`
+- `identity.auth.login.failed`
+- `identity.auth.logout`
+- `identity.session.invalidated`
+- `security.product.access.denied`
+- `security.permission.access.denied`
+- `security.product.access.granted`
+- `security.protected.resource.accessed`
+
+Requirements:
+- only define event types that map to real, capturable events
+- keep names consistent with the existing event taxonomy style from LS-ID-TNT-017-001
+- differentiate clearly between:
+  - successful access
+  - denied access
+  - auth/session transitions
+
+For each event type, define:
+- event name
+- actor
+- tenant scope
+- resource/target
+- before/after or metadata fields as appropriate
+
+Update report:
+## 4. Audit Event Schema Design
+
+---
+
+## STEP 3 — CHOOSE THE CAPTURE STRATEGY
+
+You must choose a deliberate capture strategy that balances audit value with noise.
+
+Decide and document:
+- which successful accesses should be captured
+- which denied accesses should be captured
+- at what layer each event should be emitted:
+  - auth service
+  - route guard
+  - permission filter
+  - product access filter
+  - BFF / middleware
+- which events are too noisy and should be excluded
+
+Requirements:
+- denied access events are high priority
+- successful access events should focus on meaningful protected-resource access, not every static page render
+- avoid flooding the audit pipeline with low-value noise
+- preserve fail-safe, non-blocking behavior
+
+Examples:
+- Capture denied product and permission checks at the filter/middleware level
+- Capture successful access only at meaningful resource/API boundaries, not every polling request
+- Capture session invalidation when access_version mismatch forces re-login
+
+Update report:
+## 5. Capture Strategy
+## 6. Coverage Scope Selection
+
+---
+
+## STEP 4 — REUSE THE EXISTING AUDIT PUBLISHING PIPELINE
+
+Reuse the existing centralized audit infrastructure already validated in LS-ID-TNT-017-001.
+
+Requirements:
+- use `IAuditPublisher` / `AuditPublisher` where appropriate
+- preserve fire-and-forget / fail-safe behavior
+- do not introduce a second audit pipeline
+- keep event payloads structured and tenant-scoped
+
+If some services or filters cannot directly depend on the existing publisher today, implement the smallest coherent extension required and document why.
+
+Update report:
+## 8. Backend Implementation
+
+---
+
+## STEP 5 — INSTRUMENT DENIED ACCESS EVENTS
+
+Denied access is the highest-value security signal and must be covered first.
+
+Instrument the actual permission/product enforcement paths so denied access emits audit events.
+
+Likely targets (validate before implementing):
+- `RequireProductAccessFilter` → emit event when product access denied
+- `RequirePermissionFilter` → emit event when permission denied
+- route/product access guard surfaces in the web app or gateway if they are meaningful and server-side
+- auth/session invalidation path when `/auth/me` rejects stale `access_version`
+
+Requirements:
+- capture actor, tenant, product/resource, required permission/product, and outcome
+- do not block the denial flow if audit publishing fails
+- avoid duplicate events for the same denial path if the same request passes multiple layers
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 6 — INSTRUMENT SUCCESSFUL ACCESS EVENTS SELECTIVELY
+
+Add successful access auditing only where it is operationally meaningful.
+
+Examples (validate before use):
+- successful login
+- access to protected product API groups
+- access to sensitive audit/governance resources
+- successful view of protected report execution results
+
+Requirements:
+- do NOT emit an event for every low-value background request
+- prefer high-value protected resource access over generic page hits
+- if successful access capture is already partially present somewhere, reuse/extend it rather than duplicating it
+
+Document clearly:
+- what successful events are captured
+- what is intentionally excluded
+- why
+
+Update report:
+## 5. Capture Strategy
+## 6. Coverage Scope Selection
+## 8. Backend Implementation
+
+---
+
+## STEP 7 — CAPTURE SESSION / AUTH EVENTS WHERE APPROPRIATE
+
+If the current auth flow supports it cleanly, capture:
+- login success
+- logout
+- session invalidation due to access changes
+- possibly login failure if the current code path can safely emit it
+
+Requirements:
+- do not weaken auth security
+- do not log sensitive secrets
+- keep payloads minimal and useful
+- if login failure capture is noisy or difficult to do safely, document and defer it
+
+Update report:
+## 8. Backend Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 8 — ENSURE TENANT ISOLATION AND SECURITY
+
+Requirements:
+- every access-audit event must carry tenant scope when applicable
+- platform-admin cross-tenant actions must still be attributable correctly
+- no cross-tenant leakage in audit records
+- unauthorized access attempts must be attributable without exposing protected data
+
+Document how tenant scope is resolved in each major capture path.
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 9 — PREPARE FOR AUDIT VIEWER REUSE
+
+This ticket may not require UI changes, but it must produce events that the existing audit viewer can consume meaningfully.
+
+Requirements:
+- eventType names must be queryable
+- descriptions should be readable
+- before/after/metadata payloads should be useful in the viewer
+- if event fields are not viewer-friendly, improve them now
+- do not require a separate viewer just for access audit events
+
+Document how LS-ID-TNT-017-004 can surface these new events.
+
+Update report:
+## 9. Query / Viewer Readiness Notes
+
+---
+
+## STEP 10 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- audit publishing pipeline
+- permission-change audit
+- tenant permission UI
+- control center governance UI
+- product access enforcement
+- permission enforcement
+- session/auth behavior
+- existing product behavior
+- service startup/build stability
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Denied access
+- product access denied → audit event emitted
+- permission denied → audit event emitted
+- denied event contains actor, tenant, product/resource, required permission
+- main denial flow still returns correct 403 and is not blocked by audit failures
+
+### Successful access
+- selected high-value protected access emits event
+- noisy/low-value requests are not over-captured
+- no duplicate events for the same action path
+
+### Session/auth
+- session invalidation emits event if implemented
+- login/logout events emit correctly if implemented
+- no auth-flow regressions
+
+### Fail-safe
+- simulate audit publish failure → main flow continues
+
+### Regression
+- permission-change audit still works
+- audit viewer still loads
+- existing authorization flows still work
+- no new build/runtime errors
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what access events are now captured
+- what event types were added
+- what layers were instrumented
+- what successful events are intentionally excluded
+- how tenant scope is enforced
+- how the existing audit viewer can consume these events
+- what remains deferred
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Real access / auth surfaces were analyzed from code
+✔ Canonical user-access audit event types were defined and implemented
+✔ Denied product/permission access is captured
+✔ Meaningful successful access events are captured selectively
+✔ Existing centralized audit pipeline is reused
+✔ Fail-safe, non-blocking behavior is preserved
+✔ Tenant isolation remains intact
+✔ Existing authorization and audit behavior does not regress
+✔ The resulting events are usable by the existing audit viewer
+✔ Coverage and limitations are documented honestly
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working user access audit capture across the validated security/access surfaces
+2. Reuse of the centralized audit publishing pipeline
+3. Audit events consumable by the existing audit viewer
+4. Completed report:
+/analysis/LS-ID-TNT-017-002-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

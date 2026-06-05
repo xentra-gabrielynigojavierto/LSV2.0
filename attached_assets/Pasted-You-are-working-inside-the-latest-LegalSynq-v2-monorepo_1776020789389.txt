@@ -1,0 +1,327 @@
+You are working inside the latest LegalSynq v2 monorepo.
+
+Goal:
+Recreate the SynqLien frontend UI/UX screens inside the v2 application using the existing v2 branding and layout conventions, but for this task implement FRONTEND ONLY.
+
+Critical scope restriction:
+- Do NOT integrate backend APIs yet
+- Do NOT connect to database
+- Do NOT implement real persistence
+- Do NOT build server actions for business workflows
+- Do NOT wire real auth/business logic beyond existing shell requirements
+- All pages should be UI/UX prototypes inside the real v2 app structure
+- Navigation must be clickable so users can move through screens and experience the flow
+
+Primary objective:
+Take the standalone SynqLien frontend structure/layout and recreate it as a clickable v2-branded SynqLien experience inside the current Next.js app.
+
+Important architecture rule:
+The standalone frontend is the visual and UX reference.
+Do NOT attempt to import Angular runtime code directly.
+Do NOT iframe it.
+Rebuild the screens in the existing v2 stack as React/Next pages and components.
+
+Branding direction:
+- Apply v2 LegalSynq branding
+- Keep the original SynqLien layout and workbench feel as closely as practical
+- Preserve the source screen structure, panel organization, table/card placement, and user journey where possible
+- Modernize only where necessary to align with the v2 brand system
+- Use the current v2 shell, top bar, spacing, icons, and styling patterns wherever possible
+
+Implementation mode:
+This is a clickable prototype pass.
+Use mock/static UI data only.
+Use local mock data files or constants.
+Buttons, menus, tabs, table rows, cards, and CTAs should navigate to relevant next pages or open UI panels/modals where appropriate.
+No real submission logic is required.
+
+Required deliverable behavior:
+- User can click through the SynqLien product screens
+- Each nav item opens a corresponding screen
+- Main CTAs route to the appropriate next page
+- Table rows can open detail pages or detail drawers
+- Filters/search/forms only need visual behavior unless simple local-state interaction is easy
+- Use sample/mock records that look domain-appropriate for lien operations
+
+Technical target:
+apps/web
+
+Preserve:
+- existing v2 product shell
+- existing v2 route conventions
+- existing v2 product switcher and product framing
+- existing v2 branding language/patterns
+
+Do not prioritize:
+- API contracts
+- real backend models
+- real data fetching
+- persistence
+- admin security changes
+- business-rule enforcement
+
+Pages to create or restyle as clickable UI prototypes under /lien:
+- /lien/dashboard
+- /lien/cases
+- /lien/cases/[id]
+- /lien/liens
+- /lien/liens/[id]
+- /lien/bill-of-sales
+- /lien/bill-of-sales/[id]
+- /lien/servicing
+- /lien/servicing/[id]
+- /lien/contacts
+- /lien/contacts/[id]
+- /lien/batch-entry
+- /lien/document-handling
+- /lien/document-handling/[id]
+- /lien/user-management
+- /lien/user-management/[id] if appropriate
+
+Navigation requirements:
+- Ensure the left nav for SynqLien includes clickable entries for:
+  - Dashboard
+  - Cases
+  - Liens
+  - Bill of Sales
+  - Servicing
+  - Contacts
+  - Batch Entry
+  - Document Handling
+  - User Management
+- Each item must route to a real screen
+- Keep the user experience cohesive across pages
+- Include breadcrumbs or page headers where useful
+
+UI/UX expectations by page:
+
+1) Dashboard
+Create a polished operational dashboard matching the original layout as closely as practical, adapted into v2 branding.
+Include:
+- KPI cards
+- recent activity panel
+- task/queue style panels
+- status summaries/charts if already easy in UI-only mode
+- quick action buttons that navigate to other SynqLien pages
+
+Use mock data only.
+
+2) Cases
+Build a strong case workbench screen.
+Include:
+- search bar
+- filter area
+- table/list of cases
+- status badges
+- action menu/buttons
+- “Add New Case” button
+- clickable rows to case detail screen
+
+Use local static mock case records.
+
+3) Case Detail
+Create a realistic detail screen for a single case.
+Include:
+- summary header
+- related party info
+- tabs or sections
+- related liens/documents/activity panels
+- action buttons
+- links to related pages like lien detail, document handling, contacts
+
+No real editing logic required.
+
+4) Liens
+Create a lien listing / management screen.
+Include:
+- search/filter toolbar
+- cards or table
+- status/type/value fields
+- create/view actions
+- clickable records to lien detail page
+
+5) Lien Detail
+Create a realistic detail experience.
+Include:
+- lien summary
+- case linkage
+- owner/holder information
+- history/timeline section
+- documents section
+- related actions/buttons
+
+6) Bill of Sales
+Create a bill of sales workbench.
+Include:
+- summary cards
+- listing table
+- status indicators
+- date/type filters
+- clickable rows to detail page
+
+7) Bill of Sales Detail
+Include:
+- transaction summary
+- linked lien/case info
+- parties involved
+- document/status panels
+- activity/history sidebar or section
+
+8) Servicing
+Create an operational servicing queue page.
+Include:
+- status filters
+- servicing worklist
+- assignment-style UI
+- priority indicators
+- row click to servicing detail
+
+9) Servicing Detail
+Include:
+- record summary
+- action history
+- notes panel
+- linked case/lien/contact references
+- action buttons with no backend logic
+
+10) Contacts
+Create a contacts directory relevant to SynqLien.
+Include:
+- search
+- contact type filter
+- organization/person views
+- list/table/cards
+- row click to contact detail
+
+Contacts should include sample types such as:
+- law firms
+- providers
+- lien holders
+- case managers
+- internal users
+
+11) Contact Detail
+Include:
+- profile header
+- organization info
+- communication details
+- related cases/liens/documents
+- notes/activity placeholder
+
+12) Batch Entry
+Create a bulk intake/import screen.
+Include:
+- upload area UI
+- stepper or structured workflow feel
+- validation preview area
+- import summary panels
+- downloadable template / example buttons as UI only
+- no real file processing required
+
+13) Document Handling
+Create a document operations screen.
+Include:
+- document list
+- type/status/category filters
+- upload button UI
+- linked entity info
+- row click to document detail
+
+14) Document Detail
+Include:
+- preview placeholder
+- metadata panel
+- linked case/lien/contact references
+- processing status
+- history/activity section
+
+15) User Management
+Create a product user management UI.
+Include:
+- user list
+- role/status filters
+- invite/add user button
+- row click to detail page
+- permissions/role display panels
+
+16) User Detail
+Include:
+- user summary
+- role assignments
+- product access areas
+- activity placeholder
+- action buttons
+
+Design system guidance:
+- Keep the original SynqLien layout structure where feasible
+- Adapt colors, typography, spacing, cards, buttons, and shell behavior to v2 branding
+- Use consistent v2 page headers, content padding, card styling, and iconography
+- Prefer a clean enterprise SaaS feel
+- Do not over-redesign away from the original source layout
+- Retain the recognizable workbench structure from the source frontend
+
+Componentization requirements:
+Create reusable UI components instead of giant page files. Suggested component areas:
+- page header / breadcrumb
+- KPI card
+- filter toolbar
+- data table
+- detail summary header
+- status badge
+- side panel / detail drawer
+- activity timeline
+- mock chart/widget
+- quick actions panel
+
+Use local mock data:
+- Create mock data files/constants for cases, liens, contacts, bills of sale, servicing items, documents, and users
+- Keep the data realistic and domain-appropriate
+- Centralize mocks so backend integration can replace them later
+
+Interactivity requirements:
+- Use local state for tabs, filters, drawers, modals, dropdowns, and accordions if needed
+- Search/filter can be superficial client-side behavior only
+- Forms can be visual only
+- Save/submit buttons may show toast/snackbar or route to another page, but must not persist anything
+
+Routing requirements:
+- Ensure primary buttons and rows are clickable and route correctly
+- Ensure breadcrumbs and “back” behavior feel coherent
+- Do not leave dead-end blank pages
+
+Quality requirements:
+- Type-safe
+- clean build
+- no broken links
+- no dead routes
+- no backend dependency required for these screens
+- polished enough for stakeholder walkthrough/demo
+
+Do not do in this task:
+- API integration
+- DB integration
+- auth redesign
+- workflow engine logic
+- real upload processing
+- real CRUD
+- permission enforcement changes
+- server-side business actions
+
+Deliverables:
+1. Implement the clickable SynqLien frontend prototype screens inside v2
+2. Apply v2 branding while preserving the original source layout as much as practical
+3. Use local mock/static data
+4. Ensure all main screens are navigable
+5. Save a report to:
+
+/analysis/LS-SYNQLIEN-V2-UIUX-PROTOTYPE-report.md
+
+The report must include:
+- pages created or updated
+- reusable components added
+- mock data structures added
+- routing/navigation behavior implemented
+- source-layout preservation notes
+- branding adaptations made for v2
+- known UI-only limitations
+- build status

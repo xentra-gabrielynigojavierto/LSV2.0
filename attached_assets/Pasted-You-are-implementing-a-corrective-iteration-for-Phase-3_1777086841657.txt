@@ -1,0 +1,141 @@
+You are implementing a corrective iteration for Phase 3 Block 2 of LegalSynq Support Service.
+
+ITERATION ID:
+SUP-TNT-02-01
+
+ITERATION NAME:
+Migration Default Correction
+
+Report file:
+ /analysis/SUP-TNT-02-01-report.md
+
+PRIMARY OBJECTIVE:
+Correct the SUP-TNT-02 migration defaults for ticket ownership and visibility fields before the migration is applied to any real database.
+
+CONTEXT:
+SUP-TNT-02 added ticket ownership fields:
+- requester_type
+- external_customer_id
+- visibility_scope
+
+The implementation passed build, but the generated migration showed incorrect database defaults:
+- requester_type default ''
+- visibility_scope default ''
+
+The intended defaults are:
+- requester_type = 'InternalUser'
+- visibility_scope = 'Internal'
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT change the ownership model.
+3. DO NOT add customer APIs.
+4. DO NOT add customer UI.
+5. DO NOT add Identity integration.
+6. DO NOT add Comms/email/SLA/Task logic.
+7. DO NOT weaken tenant isolation.
+8. DO NOT create a new feature migration if the existing migration has not been applied yet.
+9. Prefer correcting the existing SUP-TNT-02 migration because this is a pre-apply correction.
+10. Preserve existing C# property defaults.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-TNT-02-01-report.md
+
+Update it incrementally.
+
+STEP 2 — CODEBASE ANALYSIS:
+Inspect and document:
+- The SUP-TNT-02 migration file
+- SupportDbContext configuration for SupportTicket
+- SupportTicket C# property defaults
+- SupportDbContextModelSnapshot
+- Any enum conversion configuration for requester_type and visibility_scope
+
+STEP 3 — CORRECT MIGRATION DEFAULTS:
+Fix the migration so the AddColumn definitions use:
+
+requester_type:
+- type: varchar(20)
+- nullable: false
+- defaultValue: "InternalUser"
+
+visibility_scope:
+- type: varchar(20)
+- nullable: false
+- defaultValue: "Internal"
+
+external_customer_id:
+- remains nullable
+- no default value required
+
+If EF uses enum-to-string conversion:
+- ensure max length remains 20
+- ensure default values are stored as strings, not numeric enum values
+
+STEP 4 — CORRECT EF MODEL CONFIGURATION:
+Ensure SupportDbContext config explicitly applies:
+- HasConversion<string>() for RequesterType
+- HasMaxLength(20)
+- HasDefaultValue(TicketRequesterType.InternalUser) OR equivalent string-safe default
+
+and:
+- HasConversion<string>() for VisibilityScope
+- HasMaxLength(20)
+- HasDefaultValue(TicketVisibilityScope.Internal) OR equivalent string-safe default
+
+Make sure generated DB values are string enum names.
+
+STEP 5 — CORRECT MODEL SNAPSHOT:
+Ensure SupportDbContextModelSnapshot reflects:
+- requester_type default InternalUser
+- visibility_scope default Internal
+- not empty string
+
+If snapshot correction is needed, apply it carefully.
+
+STEP 6 — VALIDATION:
+Validate:
+1. Existing migrated rows will receive requester_type='InternalUser'
+2. Existing migrated rows will receive visibility_scope='Internal'
+3. New rows inserted without explicit values get correct DB defaults
+4. C# defaults still match DB defaults
+5. No changes to external_customer_id behavior
+6. No new public APIs added
+7. No UI changes added
+
+STEP 7 — BUILD / TEST:
+Run:
+- dotnet build apps/services/support/Support.Api/Support.Api.csproj
+- dotnet build apps/services/support/Support.Tests/Support.Tests.csproj
+- If available, run migration script generation:
+  dotnet ef migrations script
+
+STEP 8 — FINAL REPORT:
+Complete:
+
+# SUP-TNT-02-01 Report
+
+## 1. Codebase Analysis
+## 2. Defect Identified
+## 3. Migration Corrections
+## 4. EF Model Configuration Corrections
+## 5. Snapshot Corrections
+## 6. Validation Results
+## 7. Build / Test Results
+## 8. Files Changed
+## 9. Known Gaps / Deferred Items
+## 10. Final Readiness Assessment
+
+DONE CRITERIA:
+- requester_type DB default is InternalUser
+- visibility_scope DB default is Internal
+- C# defaults and DB defaults align
+- EF snapshot matches corrected defaults
+- No unrelated changes introduced
+- Build passes
+- Report complete
+
+If validation fails:
+- do not claim success
+- document blocker and root cause.

@@ -1,0 +1,235 @@
+You are working inside the LegalSynq tenant portal codebase.
+
+Goal:
+Redesign the tenant portal shell to follow the updated LegalSynq brand system and a Jira-inspired product-shell layout, and standardize all UI icons using Remix Icon.
+
+Brand assets available:
+- `/mnt/data/legalsynq-logo.png`
+- `/mnt/data/legalsynq-logo-white.png`
+- `/mnt/data/e18898a6-fffa-4db3-9d6e-307dd6af6fed.png` (brand reference)
+
+Icon system:
+- Use Remix Icon exclusively: https://remixicon.com/
+- Do NOT use mixed icon sets (no Heroicons, Lucide, FontAwesome, etc.)
+- Icons must be consistent across:
+  - top bar
+  - sidebar navigation
+  - buttons
+  - dropdowns
+  - empty states
+  - status indicators
+
+--------------------------------------------------
+
+PRIMARY UX REQUIREMENTS
+
+- Persistent top navigation bar
+- Product switcher in top bar
+- Dynamic left sidebar based on selected product
+- Existing pages, routing, and auth must continue to work
+
+--------------------------------------------------
+
+BRAND SYSTEM (MANDATORY)
+
+Use the reference image as the source of truth.
+
+Approved visual modes:
+
+1. NAVY (primary shell)
+   - Deep navy background
+   - White LegalSynq logo
+   - Used for top bar
+
+2. LIGHT (workspace)
+   - White / light gray background
+   - Used for sidebar + main content
+
+3. ORANGE (accent)
+   - Used ONLY for:
+     - active states
+     - selected product indicator
+     - highlights
+     - badges
+     - CTA emphasis
+   - NEVER use as full-page background except for intentional sections
+
+Design tone:
+- Enterprise
+- Clean
+- High signal / low noise
+- Legal-tech professional
+- Jira-inspired layout, NOT Jira styling
+
+--------------------------------------------------
+
+ICON SYSTEM (REMIX ICON)
+
+Install and use Remix Icon:
+
+Option A (preferred):
+- Install via npm:
+  npm install remixicon
+
+- Import CSS globally:
+  import 'remixicon/fonts/remixicon.css'
+
+Option B:
+- Use CDN if project prefers (check repo conventions)
+
+Usage rules:
+
+1. Use `<i class="ri-...">` pattern
+2. Size consistency:
+   - 16px (text inline)
+   - 18–20px (sidebar)
+   - 20–24px (top bar / primary actions)
+
+3. Color behavior:
+   - default: neutral gray
+   - active: navy or orange (depending on context)
+   - hover: slightly darker tone
+   - NEVER random colors
+
+4. Icon mapping examples (use these consistently):
+
+Top bar:
+- Product switcher → `ri-apps-2-line`
+- Search → `ri-search-line`
+- Notifications → `ri-notification-3-line`
+- User menu → `ri-user-3-line`
+
+Sidebar:
+- Dashboard → `ri-dashboard-line`
+- Providers (CareConnect) → `ri-hospital-line`
+- Referrals → `ri-file-list-3-line`
+- Appointments → `ri-calendar-event-line`
+- Messages/Notes → `ri-chat-3-line`
+- Settings → `ri-settings-3-line`
+
+Actions:
+- Add → `ri-add-line`
+- Edit → `ri-pencil-line`
+- Delete → `ri-delete-bin-line`
+- Filter → `ri-filter-3-line`
+- Map → `ri-map-pin-line`
+
+--------------------------------------------------
+
+LAYOUT REQUIREMENTS
+
+1. TOP BAR
+- Navy background
+- White logo
+- Product switcher with icon (`ri-apps-2-line`)
+- Active product highlighted with orange accent
+- Include user/account area if present
+
+2. PRODUCT SWITCHER
+- Show only accessible products
+- Clicking switches routes
+- Use Remix icons for each product if appropriate
+- Selected product should have:
+  - orange underline OR
+  - subtle orange pill
+
+3. SIDEBAR
+- Light background
+- Product-specific navigation only
+- Each item:
+  - Remix icon (left)
+  - label (right)
+- Active item:
+  - navy text
+  - orange accent indicator (bar or background tint)
+
+4. MAIN CONTENT
+- Light workspace
+- Preserve existing pages
+- Clean layout and spacing
+
+--------------------------------------------------
+
+IMPLEMENTATION TASKS
+
+1. Analyze existing layout
+- Find root layout
+- Identify nav/sidebar/header logic
+- Identify current icon usage (remove/replace)
+
+2. Create product config system
+Single source of truth for:
+- product id
+- name
+- route prefix
+- icon (Remix icon class)
+- roles
+- sidebar items (each with Remix icon)
+
+3. Build new shell components
+- top-product-bar
+- product-sidebar
+- product-shell
+- product-config
+- optional product-context
+
+4. Replace all icons with Remix Icon
+- Remove other icon libraries if safe
+- Update:
+  - sidebar
+  - buttons
+  - headers
+  - dropdowns
+- Ensure consistency
+
+5. Dynamic navigation
+- Product selection controls sidebar
+- Route determines selected product
+- Deep links still work
+
+6. Styling
+- Apply LegalSynq brand rules strictly
+- Navy top bar
+- Light workspace
+- Orange accents only
+- No random colors
+
+7. Validation
+Ensure:
+- Top bar renders with correct branding
+- Remix icons render correctly everywhere
+- Sidebar updates per product
+- Active states are correct
+- No broken imports
+- No mixed icon systems remain
+
+--------------------------------------------------
+
+DELIVERABLE
+
+Write report to:
+
+/analysis/step6_legalsynq_branded_product_shell.md
+
+Report format:
+1. Executive summary
+2. Current layout findings
+3. Branding decisions applied
+4. Icon system implementation (Remix Icon)
+5. Product navigation model
+6. Files created
+7. Files modified
+8. Routing behavior
+9. Session/product access behavior
+10. Validation results
+11. Remaining limitations
+
+--------------------------------------------------
+
+IMPORTANT
+
+- This is NOT a mockup — implement directly in code
+- Do NOT leave placeholder icons
+- Do NOT mix icon systems
+- Follow LegalSynq branding strictly
+- Keep implementation clean, scalable, and production-ready

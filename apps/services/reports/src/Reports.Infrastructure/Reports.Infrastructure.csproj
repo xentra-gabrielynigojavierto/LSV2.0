@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Reports.Contracts\Reports.Contracts.csproj" />
+    <ProjectReference Include="..\Reports.Domain\Reports.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\..\shared\audit-client\LegalSynq.AuditClient\LegalSynq.AuditClient.csproj" />
+    <ProjectReference Include="..\..\..\..\..\shared\building-blocks\BuildingBlocks\BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.*" />
+    <PackageReference Include="ClosedXML" Version="0.102.3" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <PackageReference Include="QuestPDF" Version="2024.3.0" />
+    <PackageReference Include="SSH.NET" Version="2024.1.0" />
+    <PackageReference Include="AWSSDK.S3" Version="3.7.305.22" />
+    <PackageReference Include="MySqlConnector" Version="2.3.7" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,245 @@
+Feature ID: UIX-005-01
+Feature Title: Permissions UI Hardening & TenantAdmin Enablement
+
+Implement UIX-005-01 for the LegalSynq Control Center and Identity service.
+
+Context:
+- UIX-005 is complete
+- Current state:
+  - permission catalog exists
+  - role → permission assignment works
+  - effective permissions are visible on user detail
+  - group permissions are currently informational
+- Remaining gaps:
+  - TenantAdmin cannot yet use role-permission management in their own tenant scope
+  - permission catalog / role-permission UI needs stronger category grouping and scanability
+  - a few UX refinements are needed to make permissions management feel complete
+- This is a short hardening iteration, not a redesign
+
+Objective:
+Improve the permissions-management experience by:
+- enabling TenantAdmin to manage role-permission assignments safely within their tenant scope
+- improving permission category grouping and readability
+- polishing small UX gaps in the permission catalog and role-permission surfaces
+
+========================================
+CORE RULES
+========================================
+
+1. Extend UIX-005; do not rewrite it
+2. Backend remains the source of truth for permissions and effective access
+3. TenantAdmin must never gain cross-tenant permission management
+4. PlatformAdmin behavior must remain intact
+5. Keep group permissions informational unless already safely supported
+6. This is a hardening pass, not a new feature family
+
+========================================
+MVP SCOPE FOR UIX-005-01
+========================================
+
+Implement these improvements:
+
+1. TenantAdmin Enablement
+- allow TenantAdmin to view/manage role-permission assignments within their own tenant scope where appropriate
+- preserve PlatformAdmin broader access
+- preserve non-admin blocking
+
+2. Category Grouping UI
+Improve permission catalog and role-permission management UI with clearer category grouping:
+- visually group permissions by category
+- make category headers obvious
+- keep search/filter behavior intact
+- ensure assigned vs available permissions remain clear
+
+3. Minor UX Improvements
+Improve:
+- empty states
+- success/error clarity
+- no-available-permissions state
+- no-assigned-permissions state
+- category-level readability
+- clearer source explanation where needed
+
+========================================
+DO NOT IMPLEMENT IN UIX-005-01
+========================================
+
+Do NOT implement unless trivially required:
+- group direct-permission assignment
+- custom permission creation
+- per-user permission overrides
+- bulk permission assignment
+- advanced compare/diff tools
+- permission analytics
+- MFA/security/session work
+- new audit feature family
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+1. Scope Enablement Review
+Review and update backend permission endpoints so TenantAdmin can safely use them within their own tenant.
+
+Endpoints to verify/harden:
+- GET /identity/api/admin/permissions
+- GET /identity/api/admin/roles/{id}/permissions
+- POST /identity/api/admin/roles/{id}/permissions
+- DELETE /identity/api/admin/roles/{id}/permissions/{permissionId}
+- GET /identity/api/admin/users/{id}/permissions
+
+Requirements:
+- TenantAdmin: allowed only within tenant scope
+- PlatformAdmin: broader scope where intended
+- direct API calls must remain safe even if BFF is bypassed
+- if a role is tenant-scoped or assignable only within a tenant, enforce that explicitly
+- if some roles/permissions are system-only and should remain PlatformAdmin-only, document that clearly
+
+2. Clarify Role / Permission Scope
+If current model includes system roles or system capabilities that should not be tenant-editable:
+- enforce that in backend
+- return a clear 403/400/409 as appropriate
+- document the rule in the report
+
+3. No Model Redesign
+Do not redesign `RoleCapabilityAssignment` or effective-permission resolution unless needed for tenant-safe enforcement.
+
+========================================
+CONTROL CENTER — FRONTEND / BFF
+========================================
+
+1. TenantAdmin Access
+Update the relevant pages/BFF routes so TenantAdmin can access permissions-management surfaces where allowed.
+
+At minimum review:
+- /permissions
+- /roles/[id]
+- related BFF routes for listing/assigning/revoking role permissions
+
+Use `requireAdmin()` where appropriate.
+
+If some permissions/roles remain PlatformAdmin-only, keep the UI honest:
+- either hide those actions
+- or show them disabled with a clear reason
+
+2. Permission Catalog UX
+Improve `/permissions` with clearer category grouping.
+
+Requirements:
+- permissions grouped visibly by category
+- category headers sticky or clearly separated if practical
+- search/filter still works
+- product filtering still works if already present
+- empty state and filtered-empty state are explicit
+
+3. Role-Permission Panel UX
+Improve role-permission management surface with:
+- category grouping for assigned permissions and/or available permissions
+- clearer “already assigned” vs “available”
+- better empty states:
+  - no permissions assigned to this role
+  - no remaining permissions available
+- clearer helper text for TenantAdmin vs PlatformAdmin if behavior differs
+- better inline success/error feedback if needed
+
+4. Effective Permissions UX (Minor)
+If practical and low-risk, improve the effective-permissions panel with:
+- category grouping
+- clearer source attribution readability
+- better empty state
+
+Do not redesign the panel. Keep this lightweight.
+
+========================================
+BFF REQUIREMENTS
+========================================
+
+Update BFF handlers as needed for:
+- GET /api/identity/admin/permissions
+- GET /api/identity/admin/roles/[id]/permissions
+- POST /api/identity/admin/roles/[id]/permissions
+- DELETE /api/identity/admin/roles/[id]/permissions/[permissionId]
+- GET /api/identity/admin/users/[id]/permissions
+
+Requirements:
+- use `requireAdmin()` where appropriate
+- do not trust frontend for tenant scoping
+- preserve current error propagation and correlationId behavior
+
+========================================
+TENANTADMIN / PLATFORMADMIN BEHAVIOR
+========================================
+
+TenantAdmin:
+- may view/manage role-permission assignments only within their tenant scope
+- must not gain cross-tenant visibility
+- must not gain system-global permission control if that is reserved for PlatformAdmin
+
+PlatformAdmin:
+- broader access where already intended
+- preserve existing behavior
+
+If there are still areas that remain PlatformAdmin-only after this hardening pass, document them explicitly in the report rather than hiding the limitation.
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation:
+
+1. TenantAdmin can open the permission catalog if allowed by scope
+2. TenantAdmin can open a role-permission page/surface for in-tenant roles if allowed
+3. TenantAdmin can assign a permission to an allowed role
+4. TenantAdmin can revoke a permission from an allowed role
+5. TenantAdmin cannot mutate out-of-scope roles/permissions
+6. PlatformAdmin still works without regression
+7. Permission catalog is easier to scan by category
+8. Role-permission UI is easier to understand
+9. Effective permissions remain backend-truth-based
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-005-01-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Backend Scope / Authorization Changes
+6. BFF Route Changes
+7. TenantAdmin Enablement Details
+8. Permission Catalog UX Improvements
+9. Role-Permission UX Improvements
+10. Effective Permissions UX Improvements
+11. Remaining PlatformAdmin-only Areas
+12. Known Issues / Remaining Gaps
+13. Manual Test Results
+14. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- TenantAdmin access reviewed/enabled where appropriate
+- TenantAdmin cannot cross tenant boundaries
+- PlatformAdmin behavior preserved
+- permission catalog grouping improved
+- role-permission grouping improved
+- empty states improved
+- assigned vs available permissions clearer
+- effective permissions remain backend-truth based
+- any PlatformAdmin-only restrictions documented
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- keep this a short hardening iteration
+- do not redesign permissions architecture
+- keep backend-truth access model intact
+- if a limitation remains, document it clearly instead of faking support
+- save the report to /analysis/UIX-005-01-report.md

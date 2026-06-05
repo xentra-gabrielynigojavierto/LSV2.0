@@ -1,0 +1,691 @@
+You are building the third UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase extends the Control Center with heavier configuration and admin flows.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-003 — Control Center Extended Config & Admin
+==================================================
+
+GOAL:
+Extend the Notifications Control Center so internal/admin users can manage the core configuration surfaces of the Notifications platform.
+
+This phase adds:
+- provider config create flow
+- provider config edit flow
+- channel routing settings update
+- template create flow
+- template version create flow
+- template version draft editing
+- billing plan create/edit
+- billing rate create/edit
+- contact policy create/edit
+
+This is still the Control Center, not the Tenant Portal.
+
+Do NOT overbuild.
+Do NOT redesign the platform shell.
+Do NOT build tenant self-service workflows.
+Do NOT build advanced dashboarding in this phase.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Phase 1 = Control Center
+Phase 2 = Tenant Portal
+
+This task is still within Phase 1 Control Center.
+
+Already implemented:
+- NOTIF-UI-001: read-heavy operations UI
+- NOTIF-UI-002: safe mutation flows
+  - provider validate/test/activate/deactivate
+  - template preview/publish
+  - suppression create/lift
+  - rate-limit create/edit
+
+Build on top of those implementations.
+
+==================================================
+IMPLEMENTATION CONTEXT
+==================================================
+
+The Notifications backend is already merged into the main platform and exposes endpoints under:
+
+/notifications/v1/**
+
+The backend already supports:
+- templates and template versions
+- BYOP provider configs
+- provider channel settings
+- billing plans and billing rates
+- rate-limit policies
+- contact policies
+- strict tenant enforcement
+- server-side auth expectations
+
+Use the real backend.
+Do NOT introduce fake APIs unless a tiny adapter is required to normalize response shapes.
+
+==================================================
+GENERAL UX / DESIGN RULES
+==================================================
+
+- Use the main platform design system / shell
+- Preserve platform-native theme/tokens
+- Keep forms operational, admin-focused, and explicit
+- Prefer modal, drawer, or dedicated admin forms over complex wizards unless clearly necessary
+- Every mutation must surface:
+  - loading state
+  - success state
+  - validation errors
+  - backend error state
+- Use confirmations where state changes are sensitive
+- Prefer backend-driven truth over client-side assumptions
+- Keep tenant context handling exactly consistent with NOTIF-UI-001 and NOTIF-UI-002
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. PROVIDER CONFIG CREATE FLOW
+--------------------------------------
+
+Enhance:
+- /notifications/providers
+
+Add a create flow for provider configs.
+
+Expected backend endpoint:
+- POST /notifications/v1/providers/configs
+
+UI requirements:
+- add "New Provider Config" action
+- open a create form (modal or drawer preferred)
+- form must support at minimum:
+  - provider type
+  - channel
+  - ownership mode if required by backend
+  - display name
+  - credentials / endpoint fields appropriate to selected provider
+  - sender config fields where appropriate
+
+Supported provider types for this phase:
+- SendGrid
+- SMTP
+- Twilio
+
+Behavior:
+- provider-specific fields should change based on selected provider type
+- secret fields must be entered but never echoed back after save
+- on success:
+  - close form
+  - revalidate providers data
+  - show success feedback
+
+Validation:
+- required fields by provider type
+- do not allow incomplete or ambiguous provider configs
+- surface backend validation errors clearly
+
+Do NOT build a multi-step onboarding wizard unless absolutely necessary.
+A structured single-form or dynamic form is preferred.
+
+==================================================
+2. PROVIDER CONFIG EDIT FLOW
+==================================================
+
+Enhance:
+- /notifications/providers
+
+Add an edit flow for existing provider configs.
+
+Expected backend endpoint:
+- PATCH /notifications/v1/providers/configs/:id
+
+UI requirements:
+- add Edit action per provider config row
+- open edit form (modal/drawer/page)
+- prefill editable non-secret fields
+- for secret fields:
+  - show configured/not configured state
+  - allow replacement/rotation
+  - never show plaintext secret values
+
+Behavior:
+- on save:
+  - revalidate providers data
+  - show success state
+- support credential rotation cleanly if backend allows it
+
+Do NOT mix edit flow with validate/test/activate/deactivate buttons in a confusing way.
+Keep actions and edit clearly separated.
+
+==================================================
+3. CHANNEL ROUTING SETTINGS UPDATE
+==================================================
+
+Enhance:
+- /notifications/providers
+
+Add channel settings edit/update flow.
+
+Expected backend endpoint:
+- PUT /notifications/v1/providers/channel-settings/:channel
+
+UI requirements:
+- each channel row/card should support editing:
+  - provider mode
+  - primary provider
+  - fallback provider
+  - allowPlatformFallback
+  - allowAutomaticFailover
+- form should only show valid provider options for that channel
+
+Validation:
+- fallback provider cannot equal primary provider
+- provider config must belong to tenant and match channel
+- invalid combinations must surface clearly
+
+Behavior:
+- on save:
+  - revalidate provider/channel settings data
+  - show clear success/failure state
+
+==================================================
+4. TEMPLATE CREATE FLOW
+==================================================
+
+Enhance:
+- /notifications/templates
+
+Add a create template flow.
+
+Expected backend endpoint:
+- POST /notifications/v1/templates
+
+UI requirements:
+- add "New Template" button
+- open create form with fields:
+  - template key
+  - name
+  - channel
+  - description
+  - status if appropriate
+  - tenant/global scope only if backend supports it and it is safe in Control Center
+
+Validation:
+- required fields
+- channel validity
+- template key should be explicit and predictable
+- surface duplicate key/backend errors clearly
+
+On success:
+- revalidate templates data
+- navigate to template detail or refresh list
+
+==================================================
+5. TEMPLATE VERSION CREATE FLOW
+==================================================
+
+Enhance:
+- /notifications/templates/[id]
+
+Add create-version flow for a template.
+
+Expected backend endpoint:
+- POST /notifications/v1/templates/:id/versions
+
+UI requirements:
+- add "New Version" action on template detail page
+- open form/modal/drawer for version creation
+- fields at minimum:
+  - subjectTemplate (for email, nullable where appropriate)
+  - bodyTemplate
+  - textTemplate if supported
+  - variablesSchemaJson
+  - sampleDataJson if supported/clean
+  - status defaulting to draft if backend expects draft lifecycle
+
+Behavior:
+- create a draft version
+- revalidate template detail/version list on success
+
+Validation:
+- body required where appropriate
+- valid JSON inputs for schema/sample data if raw JSON input is used
+- clear error messages
+
+==================================================
+6. TEMPLATE VERSION DRAFT EDIT FLOW
+==================================================
+
+Enhance:
+- /notifications/templates/[id]
+
+Add edit capability for draft versions.
+
+Expected backend endpoint:
+- PATCH /notifications/v1/templates/:id/versions/:versionId
+If the backend does not currently support this exact endpoint, inspect the actual available route/contract and use the platform-safe equivalent. Do not invent a fake route without documenting it.
+
+UI requirements:
+- edit action only for draft/editable versions
+- open editor for:
+  - subjectTemplate
+  - bodyTemplate
+  - textTemplate
+  - variables schema
+  - sample data if supported
+- preserve existing preview/publish actions from NOTIF-UI-002
+
+Rules:
+- published/current versions should not be casually editable if backend lifecycle forbids it
+- if backend does not support version patching, document that and implement the cleanest partial flow possible
+
+Do NOT build a rich WYSIWYG editor.
+Use structured textareas/JSON fields.
+
+==================================================
+7. BILLING PLAN CREATE / EDIT
+==================================================
+
+Enhance:
+- /notifications/billing
+
+Add billing plan create/edit flows.
+
+Expected backend endpoints:
+- POST /notifications/v1/billing/plans
+- PATCH /notifications/v1/billing/plans/:id
+
+UI requirements:
+- add "New Billing Plan" button
+- add Edit action per plan row
+- plan form fields at minimum:
+  - planName
+  - billingMode
+  - currency
+  - effectiveFrom
+  - effectiveTo nullable
+  - status if supported
+
+Validation:
+- valid currency
+- valid billing mode
+- effective date logic
+- surface overlapping-plan/backend validation errors clearly
+
+Behavior:
+- revalidate billing data on success
+- keep summary/read-only sections from NOTIF-UI-001 intact
+
+==================================================
+8. BILLING RATE CREATE / EDIT
+==================================================
+
+Enhance:
+- /notifications/billing
+
+Add billing rate create/edit flows for a selected plan.
+
+Expected backend endpoints:
+- POST /notifications/v1/billing/plans/:id/rates
+- PATCH /notifications/v1/billing/plans/:id/rates/:rateId
+
+UI requirements:
+- within billing plan detail area or expandable row, allow:
+  - add rate
+  - edit existing rate
+- rate fields at minimum:
+  - usageUnit
+  - channel nullable
+  - providerOwnershipMode nullable
+  - includedQuantity nullable
+  - unitPrice nullable
+  - isBillable
+
+Validation:
+- supported usage unit
+- non-negative numeric values
+- clear handling of nullable fields
+- surface backend conflicts/errors clearly
+
+Do not build a spreadsheet-style editor.
+Use compact forms.
+
+==================================================
+9. CONTACT POLICY CREATE / EDIT
+==================================================
+
+Enhance:
+- /notifications/contacts/policies
+
+Add create/edit flows for contact policies.
+
+Expected backend endpoints:
+- POST /notifications/v1/contacts/policies
+- PATCH /notifications/v1/contacts/policies/:id
+
+UI requirements:
+- add "New Policy" button
+- add Edit action per policy row
+- policy fields at minimum:
+  - channel nullable/global
+  - blockSuppressedContacts
+  - blockUnsubscribedContacts
+  - blockComplainedContacts
+  - blockBouncedContacts
+  - blockInvalidContacts
+  - blockCarrierRejectedContacts
+  - allowManualOverride
+  - status
+
+Behavior:
+- make global vs channel-specific policy clear
+- show warning or note that some backend suppression types remain non-overrideable regardless of policy
+
+Validation:
+- logical combinations only
+- prevent ambiguous/duplicate policy scope where backend rejects it
+
+==================================================
+10. MUTATION INFRASTRUCTURE
+==================================================
+
+Extend the existing Server Actions pattern from NOTIF-UI-002.
+
+Requirements:
+- add new actions to the notifications server actions module or split cleanly by domain if it is becoming too large
+- every action must:
+  - require platform admin auth
+  - preserve tenant context
+  - call real backend endpoint
+  - revalidate correct cache tags after success
+  - return a structured ActionResult
+
+Do NOT bypass the established server-side mutation pattern.
+
+==================================================
+11. COMPONENTS TO ADD
+==================================================
+
+Create reusable admin/config components where useful, such as:
+- ProviderConfigForm
+- ChannelSettingsForm
+- TemplateCreateForm
+- TemplateVersionForm
+- BillingPlanForm
+- BillingRateForm
+- ContactPolicyForm
+- JsonFieldEditor
+- SecretFieldInput
+- ConfirmActionDialog if needed
+
+Do not over-componentize everything.
+Extract reusable pieces that improve clarity and reduce duplication.
+
+==================================================
+12. VALIDATION / UX REQUIREMENTS
+==================================================
+
+All mutation forms must support:
+- loading state
+- success confirmation
+- backend error display
+- disabled submit while pending
+- cancel path
+- safe handling of malformed JSON inputs where applicable
+
+For raw JSON fields:
+- validate before submit if feasible
+- show inline parse errors
+
+For secret fields:
+- never display saved plaintext
+- indicate configured vs not configured
+- allow replacement only
+
+==================================================
+13. CACHE / REVALIDATION
+==================================================
+
+Use existing notifications cache tags.
+
+Revalidate the correct domain after mutation, including:
+- templates
+- providers
+- billing
+- contacts
+
+Document which actions invalidate which tags.
+
+Do not rely on stale views.
+Do not broadly refresh unrelated pages unless necessary.
+
+==================================================
+14. WHAT NOT TO BUILD IN NOTIF-UI-003
+==================================================
+
+Do NOT build yet:
+- tenant portal
+- cross-tenant super-admin workflows
+- notification compose/send UI
+- drag-and-drop template builders
+- WYSIWYG email editor
+- provider analytics dashboard
+- audit event viewer UI
+- advanced charting
+- end-user self-service flows
+
+Keep this phase focused on Control Center config/admin workflows.
+
+==================================================
+15. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. provider config create works
+2. provider config edit works
+3. channel settings update works
+4. template create works
+5. template version create works
+6. template version draft edit works, or backend limitation is clearly documented with the cleanest partial implementation
+7. billing plan create works
+8. billing plan edit works
+9. billing rate create works
+10. billing rate edit works
+11. contact policy create works
+12. contact policy edit works
+13. all mutations use real backend APIs
+14. tenant context is preserved consistently in all mutation requests
+15. loading / success / error states are handled
+16. cache revalidation happens after successful mutations
+17. no tenant portal UI is introduced
+18. UI compiles/runs cleanly inside the main platform
+
+==================================================
+16. OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-003-report.md
+
+==================================================
+17. REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+
+- What was built
+- Scope completed vs requested scope
+- What is read-only vs interactive
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+
+List all files:
+- New files (with purpose)
+- Modified files (with description of changes)
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+
+Break down all implemented features:
+- list each feature/capability
+- describe how it works
+- identify any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+
+List all endpoints used or created, grouped by domain:
+- providers
+- templates
+- billing
+- contacts
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+
+Explain:
+- mutation request flow
+- server action flow
+- cache revalidation flow
+- integration points with existing platform
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+
+Describe:
+- form validation
+- backend error handling
+- success/failure feedback
+- fallback behavior
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT
+--------------------------------------
+
+- how tenant context is handled
+- how auth is enforced
+- how headers/tokens are injected
+- behavior when tenant context is missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE
+--------------------------------------
+
+- cache tags invalidated
+- revalidation approach
+- performance considerations
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+
+List all gaps:
+- missing features
+- backend limitations
+- assumptions made
+- technical debt introduced if any
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+
+List problems during implementation:
+- bugs
+- contract mismatches
+- missing routes
+- shape mismatches
+- UI constraints
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+
+Provide exact steps:
+- how to start the system
+- required environment variables
+- how to access/test the feature
+- any tenant/seed requirements
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+
+Answer clearly:
+- Is NOTIF-UI-003 complete? (Yes / Mostly / Partial)
+- Is it safe for internal use? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+
+List:
+- next features to build
+- improvements needed
+- backend dependencies discovered
+
+==================================================
+IMPORTANT REPORT RULES
+==================================================
+
+- Do NOT skip any section
+- Do NOT claim features that are not implemented
+- Be precise and structured
+- Do NOT hide limitations — document them clearly
+- Prefer clarity over verbosity
+- The report is required for audit and validation
+
+==================================================
+18. EXECUTION
+==================================================
+
+Build the full NOTIF-UI-003 scope now.
+Do not overbuild.
+Keep the UI operational, safe, platform-native, and aligned to the backend.
+Generate the required report at the end.

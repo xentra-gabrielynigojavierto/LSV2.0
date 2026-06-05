@@ -1,0 +1,310 @@
+Feature ID: LS-NOTIF-SMS-007
+
+Title:
+Persisted SMS Reconciliation Outcome Tracking
+
+Objective:
+Persist the latest SMS reconciliation outcome directly on NotificationAttempt so SMS activity logs, summary APIs, and future dashboards can filter/report reconciliation state without relying only on audit events or inferred delivery status.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all SMS reconciliation outcome tracking work must remain isolated within the Notification Service boundary.
+
+Requirements:
+- Do not add SMS reconciliation tracking logic to unrelated services.
+- Do not create shared cross-service SMS abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - persisted SMS reconciliation outcome fields
+  - reconciliation metadata updates
+  - activity API reconciliation filters
+  - summary API reconciliation counts
+- Preserve Notification Service as the only SMS delivery, tracking, reconciliation, and reporting boundary.
+
+Implementation Requirements:
+1. Add persisted reconciliation tracking fields to NotificationAttempt.
+2. Update those fields during manual and batch SMS reconciliation.
+3. Persist lookup failures, skipped outcomes, no-change outcomes, and updated outcomes.
+4. Add reconciliation filters to SMS activity APIs from LS-NOTIF-SMS-006.
+5. Add reconciliation fields to SMS activity response payloads.
+6. Add reconciliation outcome counts to SMS activity summary responses.
+7. Preserve existing audit events from LS-NOTIF-SMS-004.
+8. Preserve outbound SMS send, retry/dead-letter, webhook, compliance, and tenant provider resolution behavior.
+9. Do not add or expand conversational inbound SMS behavior.
+
+Critical Constraints:
+- Reuse existing NotificationAttempt, SmsReconciliationService, SmsActivityService, SmsActivityRepository, audit, migration, and endpoint patterns.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT store provider credentials or secrets in reconciliation fields.
+- Do NOT expose Twilio credentials, tenant provider credentials, CredentialsJson, SettingsJson, auth tokens, or raw provider payloads.
+- Reconciliation tracking must never resend SMS.
+- Reconciliation tracking must not change the semantic result of reconciliation.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-007-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing NotificationAttempt findings
+3. Existing SmsReconciliationService findings
+4. Existing SMS activity API/query findings
+5. Existing summary API findings
+6. Existing audit/event findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. Validation/testing performed
+12. Known gaps/issues
+13. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing SMS Reconciliation and Activity Architecture
+- Identify:
+  - NotificationAttempt entity/table fields
+  - NotificationAttempt repository update patterns
+  - SmsReconciliationService result model and outcome constants
+  - Manual reconciliation endpoints
+  - Batch reconciliation worker behavior
+  - SmsActivityRepository filters and response projection
+  - SmsActivitySummaryDto fields
+  - Existing migration and startup schema safety-net conventions
+  - Existing audit behavior for reconciliation
+- Document findings in the report before implementation.
+
+STEP 2 — Add Reconciliation Tracking Fields to NotificationAttempt
+Add persisted fields to NotificationAttempt.
+
+Recommended fields:
+- LastReconciliationOutcome string? nullable
+- LastReconciledAt DateTime? nullable
+- LastReconciliationErrorCode string? nullable
+- LastReconciliationProviderStatus string? nullable
+- LastReconciliationNormalizedStatus string? nullable
+- ReconciliationAttemptCount int default 0
+
+Requirements:
+- Use existing naming/style conventions.
+- Add EF mapping/migration if required.
+- Add startup safety-net schema updates if that pattern exists.
+- Fields must be nullable except count.
+- Do not store raw provider response bodies.
+- Do not store provider credentials.
+- Keep stored provider status to safe status strings only.
+
+STEP 3 — Add Repository Update Support
+Add a repository method or extend existing update logic to persist reconciliation tracking fields.
+
+Suggested method:
+
+Task UpdateReconciliationTrackingAsync(
+    Guid attemptId,
+    string outcome,
+    string? errorCode,
+    string? providerStatus,
+    string? normalizedStatus,
+    DateTime reconciledAt,
+    CancellationToken cancellationToken = default);
+
+Requirements:
+- Increment ReconciliationAttemptCount.
+- Set LastReconciledAt.
+- Set LastReconciliationOutcome.
+- Set LastReconciliationErrorCode.
+- Set LastReconciliationProviderStatus.
+- Set LastReconciliationNormalizedStatus.
+- Avoid overwriting delivery status incorrectly.
+- Do not interfere with DeliveryStatusService status updates.
+- Preserve existing optimistic/concurrency behavior if present.
+
+STEP 4 — Update SmsReconciliationService
+Update manual and batch reconciliation paths so every reconciliation attempt persists tracking metadata.
+
+Required cases:
+- updated
+- no_change
+- vendor_lookup_failed
+- skipped_missing_provider_message_id
+- skipped_not_sms
+- skipped_unsupported_provider
+- attempt_not_found where no attempt exists, no attempt update required
+- provider_message_not_found
+- missing_provider_config_context
+- provider_config_not_found
+- provider_config_inactive
+- provider_config_invalid
+- provider_runtime_resolution_failed
+
+Requirements:
+- If an attempt exists, reconciliation tracking should be persisted even when no delivery status changes.
+- If provider lookup succeeds, persist vendor provider status and normalized status where available.
+- If provider lookup fails, persist error code and outcome.
+- If an attempt is skipped, persist skip outcome when attempt exists.
+- Do not persist anything for attempt_not_found because no target row exists.
+- Tracking update failures should be logged and should not crash the reconciliation process unless existing repository patterns require failure propagation.
+- Existing reconciliation audit events must remain unchanged.
+
+STEP 5 — Update SMS Activity Query DTOs and Filters
+Extend SMS activity query model from LS-NOTIF-SMS-006 to support:
+
+Filters:
+- lastReconciliationOutcome
+- lastReconciliationErrorCode
+- reconciledFrom
+- reconciledTo
+- hasBeenReconciled
+
+Response fields:
+- lastReconciliationOutcome
+- lastReconciledAt
+- lastReconciliationErrorCode
+- lastReconciliationProviderStatus
+- lastReconciliationNormalizedStatus
+- reconciliationAttemptCount
+
+Requirements:
+- Tenant endpoint remains tenant-scoped.
+- Admin endpoint can filter across tenants where authorized.
+- Existing filters continue to work.
+- Pagination behavior remains unchanged.
+- No credentials or raw provider payloads are exposed.
+- Phone masking remains unchanged.
+
+STEP 6 — Update SMS Activity Summary API
+Extend SMS summary response to include reconciliation counts.
+
+Suggested summary fields:
+- reconciledTotal
+- reconciliationUpdated
+- reconciliationNoChange
+- reconciliationLookupFailed
+- reconciliationSkipped
+- reconciliationProviderConfigFailed
+- neverReconciled
+
+Implementation guidance:
+- Count by LastReconciliationOutcome.
+- `neverReconciled` = attempts where ReconciliationAttemptCount = 0 or LastReconciledAt is null.
+- Preserve existing delivery status counts.
+- Ensure summary respects all query filters including tenant/admin scope.
+
+STEP 7 — Add Indexes if Needed
+Add indexes only if useful and consistent with existing patterns.
+
+Suggested optional indexes:
+- Channel, TenantId, LastReconciliationOutcome, CreatedAt
+- Channel, TenantId, LastReconciledAt
+
+Requirements:
+- Avoid unnecessary indexes if existing query volume is expected to be modest.
+- If adding indexes, use existing migration/startup schema pattern.
+- Do not create indexes on sensitive data.
+
+STEP 8 — Documentation and Configuration
+Update documentation/report notes for:
+- reconciliation tracking fields
+- activity API filters
+- summary counts
+- how reconciliation tracking differs from delivery status
+- how tracking interacts with webhook updates
+- security constraints
+
+Documentation must explain:
+- reconciliation outcome is operational metadata, not a resend trigger
+- webhook delivery status remains authoritative for real-time updates
+- reconciliation tracking records the latest pull-based reconciliation attempt
+- tracking fields do not contain credentials or raw vendor payloads
+
+STEP 9 — Validation
+Perform validation/testing for:
+
+Schema/model:
+- new NotificationAttempt fields exist
+- migration/startup safety-net applies cleanly
+- existing attempts remain valid
+- ReconciliationAttemptCount defaults to 0
+
+Reconciliation tracking:
+- updated outcome persists
+- no_change outcome persists
+- lookup_failed outcome persists with error code
+- skipped_missing_provider_message_id persists when attempt exists
+- skipped_not_sms persists when attempt exists
+- provider_config_not_found persists when attempt exists
+- provider_config_invalid persists when attempt exists
+- provider status/normalized status persists when vendor lookup succeeds
+- attempt_not_found does not attempt to update tracking
+- reconciliation does not resend SMS
+- existing delivery status update logic remains unchanged
+
+Activity API:
+- filter by lastReconciliationOutcome works
+- filter by lastReconciliationErrorCode works
+- filter by reconciled date range works
+- filter by hasBeenReconciled works
+- response includes reconciliation tracking fields
+- tenant scope is preserved
+- admin scope is preserved
+- phone numbers remain masked
+- credentials are not exposed
+
+Summary API:
+- reconciledTotal count works
+- updated count works
+- no_change count works
+- lookup_failed count works
+- skipped count works
+- provider config failure count works
+- neverReconciled count works
+- summary respects tenant/admin filters
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS send unchanged
+- LS-NOTIF-SMS-002 preference enforcement unchanged
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- LS-NOTIF-SMS-004 vendor reconciliation behavior preserved
+- LS-NOTIF-SMS-005 tenant provider runtime resolution preserved
+- LS-NOTIF-SMS-006 activity APIs remain backward compatible
+- email/in-app notification behavior unchanged
+
+Security and boundary:
+- no provider credentials are stored in new fields
+- no raw provider payloads are stored
+- no full phone numbers exposed in activity APIs
+- all work remains inside Notification Service
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- NotificationAttempt reconciliation tracking fields
+- Migration/startup schema support
+- Repository update method for reconciliation tracking
+- SmsReconciliationService tracking integration
+- SMS activity API reconciliation filters
+- SMS activity response reconciliation fields
+- SMS summary reconciliation counts
+- Updated documentation/report
+- Completed analysis report
+
+Do NOT:
+- Introduce placeholder implementations
+- Break existing notification flows
+- Break LS-NOTIF-SMS-001 Twilio provider integration
+- Break LS-NOTIF-SMS-002 preference enforcement
+- Break LS-NOTIF-SMS-003 inbound compliance behavior
+- Break LS-NOTIF-SMS-004 reconciliation behavior
+- Break LS-NOTIF-SMS-005 tenant runtime provider resolution
+- Break LS-NOTIF-SMS-006 activity APIs
+- Expand inbound conversational SMS behavior
+- Move SMS reconciliation tracking outside Notification Service
+- Add SMS reconciliation tracking to unrelated services
+- Store provider credentials or secrets
+- Store raw provider response payloads
+- Expose full phone numbers unnecessarily
+- Resend SMS during reconciliation tracking

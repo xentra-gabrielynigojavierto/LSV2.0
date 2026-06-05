@@ -1,0 +1,180 @@
+Implement LS-LIENS-UI-009 — Notifications Integration.
+
+Goal:
+Integrate real notifications into SynqLiens using the same architecture pattern as prior modules, so users can see and act on real system events.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create this file immediately:
+     /analysis/LS-LIENS-UI-009-report.md
+
+2. Initialize the report with:
+   - Feature ID
+   - Objective
+   - Initial analysis plan
+   - Known notification UI surfaces
+   - Expected backend/shared notification endpoints
+
+3. DURING implementation:
+   - After EACH major step, UPDATE the report
+   - Do NOT wait until the end
+   - Treat the report as a LIVE IMPLEMENTATION LOG
+
+4. Each update must include:
+   - Step ID (e.g., T001, T002, etc.)
+   - What was implemented
+   - Files created/modified
+   - Issues encountered
+   - Fixes applied
+   - Current status
+
+5. FINAL step:
+   - Convert the same report into final structured summary
+   - Do NOT create a new report file
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES
+--------------------------------------------------
+
+- Follow same architecture as:
+  Cases, Liens, Servicing, Documents, Contacts, Bill of Sale, Audit
+
+- Enforce:
+  API → Service → Mapper → UI
+
+- No direct HTTP in components
+- No mock data
+- Preserve UI layout
+- Use service layer only
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Initial Analysis
+- Analyze backend/shared notification APIs for:
+  - list retrieval
+  - unread count
+  - mark-as-read
+  - mark-all-read
+  - dismiss if supported
+  - target entity metadata
+- Log findings in report
+
+T002 — Create Types Layer
+Create:
+- notifications.types.ts
+
+Include:
+- notification DTOs
+- UI notification item models
+- actor reference model if provided
+- target entity reference model
+- query/filter models
+
+Update report after completion
+
+T003 — Create API Layer
+Create:
+- notifications.api.ts
+
+Implement raw calls for available notification endpoints only.
+
+NO UI logic
+
+Update report after completion
+
+T004 — Create Mapper Layer
+Create:
+- notifications.mapper.ts
+
+Map:
+- notification item
+- unread/read display model
+- category labels
+- target entity references
+- timestamp formatting-safe fields
+
+NO duplication
+NO mapping in components
+
+Update report after completion
+
+T005 — Create Service Layer
+Create:
+- notifications.service.ts
+
+Expose:
+- getNotifications()
+- getUnreadCount()
+- markNotificationRead()
+- markAllNotificationsRead()
+- dismissNotification() if supported
+
+Service = ONLY data access layer
+
+Update report after completion
+
+T006 — Notification UI Surface
+- Choose the appropriate notification UI surface in the current shell with minimal disruption
+- Wire real notification retrieval
+- Add loading/error/empty states
+- Preserve shell layout
+
+Update report after completion
+
+T007 — Read/Unread Lifecycle
+- Implement unread badge if supported
+- Implement mark-as-read / mark-all-read if supported
+- Refresh UI correctly after mutations
+
+Update report after completion
+
+T008 — Entity Navigation
+- Route notification clicks to real entity pages where backend target metadata supports it
+- Handle unsupported or invalid targets safely
+
+Update report after completion
+
+T009 — Remove Mock Data
+- Remove any static/placeholder notification usage from production flows
+
+Update report after completion
+
+T010 — Unsupported Features
+- Disable/hide unsupported actions such as dismiss or preferences if APIs are missing
+- Document all gaps clearly
+
+Update report after completion
+
+T011 — Final Validation
+- Verify build
+- Verify API integration
+- Verify shell stability
+- Finalize report with:
+  - executive summary
+  - before/after data flow
+  - APIs used
+  - architecture validation
+  - risks/blockers
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Report created FIRST and updated incrementally
+- Notifications use real backend/shared-service data
+- No mock notification data remains
+- Users can view real notifications
+- Read/unread is real where supported
+- Notification clicks route to real entity targets where supported
+- Service-layer pattern enforced
+- Shell layout unchanged
+- Report is complete and traceable
+
+Execute FULL implementation.
+DO NOT stop at analysis.
+DO NOT delay report creation.

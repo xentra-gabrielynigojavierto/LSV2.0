@@ -1,0 +1,304 @@
+```text
+Project: E9.1
+Title: Control Center Workflow Operations List — Cross-Product Read-Only Visibility
+
+You are implementing the first Control Center workflow UI phase.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E9.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current Control Center structure, admin routing, data-source boundaries, tenant/platform visibility rules, available workflow APIs, and any existing table/filter conventions.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - Control Center UI changes
+   - API/BFF changes
+   - filter/search/status behavior
+   - permission/visibility behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for detail drawer or needs iteration
+
+REPORT FORMAT
+
+# E9.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Control Center Workflow List Notes
+## API / BFF Notes
+## Filter / Search / Status Notes
+## Permission / Visibility Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose a read-only workflow operations list in the LegalSynq Control Center so platform/admin users can view workflows across products and tenants in one place, inspect their current status and step, and identify items that need attention.
+
+This phase is read-only operational visibility only. It is not workflow execution, workflow authoring, or tenant-portal UI.
+
+SCOPE INCLUDES
+
+- new Control Center workflow operations list screen
+- cross-product workflow listing
+- status/current-step/product/tenant visibility
+- basic filtering and search
+- read-only row actions (such as View or Open)
+- admin/tenant visibility rules
+- documentation/reporting
+
+DO NOT BUILD
+
+- workflow execution actions in Control Center
+- workflow template administration
+- workflow designer UI
+- Control Center detail drawer if not needed for this phase
+- direct browser calls to Flow if a Control Center BFF/API pattern exists
+- broad Control Center redesign
+- tenant-portal changes
+- analytics dashboards beyond the list itself
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- implement Control Center as an operational read-only workflow queue/list
+- preserve product/service boundaries
+- prefer Control Center BFF/API access instead of direct browser coupling to Flow if that pattern exists in the app
+- show cross-product workflow context clearly (SynqLien, CareConnect, SynqFund)
+- show tenant context clearly
+- enforce platform/tenant visibility rules appropriately
+- keep the UI compact, operational, and aligned with existing Control Center patterns
+- avoid adding execution controls in this phase
+
+CURRENT CONTEXT
+
+The backend/platform already supports:
+- WorkflowInstance as the execution authority
+- product correlation/mapping
+- hardened ownership-aware execution endpoints
+- validated workflow execution across products
+- tenant-portal workflow UI already exposed in SynqLien
+
+Control Center workflow UI has not yet been exposed. This phase should create the first read-only operational workflow surface for admins.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. CONTROL CENTER SCREEN
+
+Create a new Control Center workflow operations list screen.
+
+Requirements:
+- add a dedicated route/page within the Control Center area for workflows
+- use the existing Control Center navigation/layout conventions
+- present workflows in a list/table/grid suitable for operational monitoring
+- the page should load safely even if workflow data is unavailable
+- the page should not require any tenant-portal context
+
+Preferred row fields:
+- workflow name/title if available
+- workflow status
+- current step
+- product
+- tenant
+- source entity type
+- source entity id/reference
+- assigned user/role if available
+- started at
+- last updated / completed at if available
+
+At minimum, the page must allow an admin to understand:
+- what workflow this is
+- which product it belongs to
+- which tenant it belongs to
+- where it is in the process
+
+2. DATA SOURCE / API BOUNDARY
+
+Use the appropriate Control Center/API pattern for admin reads.
+
+Requirements:
+- prefer Control Center UI -> Control Center BFF/API -> backend services
+- do not directly couple the browser to Flow unless the app has no BFF/admin API boundary and documenting that choice is unavoidable
+- if a new Control Center API endpoint is needed, keep it read-only and minimal
+- aggregate or proxy only the data needed for the list
+- preserve auth/session handling consistent with current Control Center patterns
+
+Possible backend options:
+- a read-only Control Center endpoint that queries Flow for workflow list data
+- a product/platform aggregation endpoint if that is already standard in the repo
+
+Document the choice clearly.
+
+3. CROSS-PRODUCT WORKFLOW LISTING
+
+The list must support visibility across at least:
+- SynqLien
+- CareConnect
+- SynqFund
+
+Requirements:
+- show product identity clearly in each row
+- do not build three separate pages in this phase
+- if the backend returns a generic product key, map it to a user-friendly label in the UI
+- if some products have no seeded data in the current environment, the UI should still support filtering/display for them
+
+4. FILTERING / SEARCH
+
+Implement useful operational filters.
+
+Minimum filters:
+- product
+- status
+- tenant
+- search by source entity id / workflow id / title if practical
+
+Requirements:
+- filters should align with existing Control Center patterns/components if available
+- status should use clear values such as:
+  - Active
+  - Pending
+  - Completed
+  - Failed
+  - Cancelled
+- search should be lightweight and useful, not a full advanced query builder
+- document the exact filter/search fields supported
+
+5. STATUS / STEP VISUALIZATION
+
+Requirements:
+- render workflow status clearly, preferably with a badge/chip
+- render current step in a readable compact way
+- do not expose raw internal engine terminology unnecessarily
+- distinguish business/product context from workflow context (e.g. product and source entity should not be confused with workflow status)
+
+6. ROW ACTIONS
+
+This phase is read-only.
+
+Requirements:
+- support row actions such as:
+  - View
+  - Open
+  - optional deep link to the source product record if easy/safe
+- do NOT add advance/complete/cancel actions in this phase
+- if a detail page/drawer is not yet implemented, a placeholder “View” action may route to a future-safe detail path or be omitted; document the choice
+
+7. PERMISSION / VISIBILITY MODEL
+
+Requirements:
+- define who can see the Control Center workflow list
+- recommended:
+  - PlatformAdmin: cross-tenant visibility
+  - TenantAdmin: tenant-scoped visibility only, if the current Control Center model supports tenant-scoped admin views
+- do not expose cross-tenant workflow visibility to ordinary product users
+- if tenant scoping cannot yet be fully enforced in the current Control Center frontend, document the limitation and enforce it server-side where possible
+
+The backend/API must remain authoritative for visibility.
+
+8. UI / UX BEHAVIOR
+
+Requirements:
+- support loading state
+- support empty state
+- support API unavailable/error state
+- keep the page operational and compact
+- do not make the UI dependent on workflow execution data being perfect; tolerate missing assignee/step/title fields gracefully
+- follow current Control Center table/list styling and interaction conventions
+
+9. FRONTEND ARCHITECTURE
+
+Requirements:
+- use the app’s existing Control Center data-fetching patterns
+- do not introduce a large new frontend state-management library
+- keep the workflow list implementation modular so E9.2 (detail drawer/page) can build on it
+- separate:
+  - page/container
+  - data service / API client
+  - row/status rendering helpers
+
+10. VALIDATION
+
+You MUST validate and record in the report:
+
+Screen / UI
+- Control Center workflow list route/page renders
+- table/list shows expected workflow fields
+- loading / empty / error states work
+
+API / BFF
+- browser uses the intended Control Center API/BFF path
+- auth/session handling remains consistent
+- cross-product workflow data loads or degrades gracefully
+
+Filters / Search
+- product filter works
+- status filter works
+- tenant filter works if supported in this phase
+- search works for the chosen supported field(s)
+
+Permissions
+- visibility is restricted appropriately
+- ordinary users do not gain cross-tenant workflow visibility
+- server-side/API-side visibility rules are preserved
+
+Runtime / Build
+- frontend compiles successfully
+- any backend/BFF project changed still compiles
+- Control Center remains stable and operational
+
+11. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- where the Control Center workflow list page lives
+- what API/BFF endpoint(s) it uses
+- what filters/search fields are supported
+- what permission assumptions were made
+- what remains for E9.2 (detail drawer/page)
+
+12. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E9.1 unless strictly required:
+- workflow detail drawer/page
+- workflow execution actions in Control Center
+- workflow template administration
+- analytics dashboards
+- tenant-portal changes
+- broad UI redesign
+- advanced saved filters/query builder
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current Control Center routing/layout/navigation structure and determine the best insertion point for a Workflows page.
+2. Create /analysis/E9.1-report.md immediately and begin logging assumptions/actions.
+3. Identify or create the minimal read-only API/BFF endpoint needed for workflow list data.
+4. Build the workflow operations list page using existing Control Center table/filter patterns.
+5. Add status/product/tenant/source-context rendering.
+6. Add product/status/tenant/search filtering.
+7. Add loading/empty/error handling.
+8. Validate permission/visibility behavior.
+9. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E9.1 is successful when:
+- Control Center has a read-only workflow operations list page
+- admins can see workflows across products in one place
+- rows clearly show status, current step, product, tenant, and source record context
+- filters/search are operational
+- browser/API boundaries remain correct
+- the implementation is ready for E9.2 detail drawer/page follow-up
+
+FAILURE CONDITION
+
+E9.1 fails if:
+- the UI becomes an execution surface instead of a read-only operations view
+- the browser is coupled directly to Flow without justification
+- cross-product or tenant context is unclear
+- visibility rules are not preserved
+- the Control Center becomes unstable or heavily redesigned
+```

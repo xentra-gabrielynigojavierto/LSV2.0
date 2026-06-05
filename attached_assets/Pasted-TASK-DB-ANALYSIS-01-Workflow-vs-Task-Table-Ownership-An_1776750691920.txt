@@ -1,0 +1,337 @@
+TASK-DB-ANALYSIS-01 — Workflow vs Task Table Ownership Analysis
+
+OBJECTIVE:
+Analyze the current Flow/Liens/Task database schemas and produce a precise ownership decision for workflow-related tables and models: which should move to the Task service, which should remain in Flow, and which should only be referenced by Task without being migrated.
+
+CONTEXT / DECISION RULE:
+Use this rule consistently:
+
+- If the data answers: "what work should a person do and how is that work managed?" → it belongs in Task
+- If the data answers: "where is the process instance in its orchestration lifecycle?" → it belongs in Flow
+
+Task owns:
+- task stages
+- task-stage transitions
+- task governance settings
+- task templates
+- task generation rules
+- task reminders
+- task notes/history
+- task linkage to workflow instance / workflow step
+
+Flow owns:
+- workflow definitions
+- workflow step graph / orchestration model
+- workflow instance runtime
+- workflow advancement/completion state
+- process orchestration internals
+
+IMPORTANT:
+- Do NOT implement any schema changes in this prompt
+- Do NOT migrate any data in this prompt
+- This is an analysis + recommendation prompt only
+- MUST create the report FIRST and update it incrementally
+- MUST inspect the actual codebase and database schema definitions before making conclusions
+- NO assumptions without code/schema evidence
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-DB-ANALYSIS-01-report.md
+
+Initialize with:
+
+# TASK-DB-ANALYSIS-01 Report — Workflow vs Task Table Ownership
+
+## 1. Codebase / Schema Discovery
+## 2. Flow Tables Identified
+## 3. Liens Task / Workflow Tables Identified
+## 4. Task Service Tables Identified
+## 5. Ownership Classification Matrix
+## 6. Tables That Should Move to Task
+## 7. Tables That Should Stay in Flow
+## 8. Tables That Should Be Referenced Only
+## 9. Risks / Ambiguities
+## 10. Recommended Migration Sequence
+## 11. Final Recommendation Summary
+
+Update this report AFTER EVERY MAJOR STEP.
+
+--------------------------------------------------
+STEP 1 — DISCOVER THE ACTUAL SCHEMA SOURCES
+--------------------------------------------------
+
+Inspect the codebase and identify all relevant schema sources, including but not limited to:
+
+- EF Core entities/configurations/migrations
+- SQL scripts
+- DbContext files
+- repository query targets
+- migration history for:
+  - Flow service
+  - Task service
+  - Liens service
+
+Find all workflow-related and task-related tables/models currently used across:
+- apps/services/flow
+- apps/services/task
+- apps/services/liens
+
+Document:
+- where schemas are defined
+- which service owns each schema definition
+- which migrations mention workflow/task structures
+
+Update:
+## 1. Codebase / Schema Discovery
+
+--------------------------------------------------
+STEP 2 — INVENTORY FLOW TABLES / MODELS
+--------------------------------------------------
+
+Identify all Flow tables/models related to:
+- workflow definitions
+- workflow stages/steps
+- transitions
+- workflow instances
+- runtime state
+- step progression
+- orchestration metadata
+- callbacks/events/outbox if persisted
+
+For each table/model found, capture:
+- name
+- purpose
+- key columns
+- whether it is config, runtime, or integration support
+
+Update:
+## 2. Flow Tables Identified
+
+--------------------------------------------------
+STEP 3 — INVENTORY LIENS TASK / WORKFLOW-ADJACENT TABLES
+--------------------------------------------------
+
+Identify all Liens tables/models related to:
+- task runtime
+- task generation
+- task templates
+- governance
+- workflow config for My Tasks / task board
+- stage config / transitions
+- task linkage to case/lien/workflow
+- generated metadata
+- duplicate prevention metadata
+
+For each table/model found, capture:
+- name
+- purpose
+- key columns
+- whether it is task execution, product config, or workflow orchestration
+
+Update:
+## 3. Liens Task / Workflow Tables Identified
+
+--------------------------------------------------
+STEP 4 — INVENTORY TASK SERVICE TABLES
+--------------------------------------------------
+
+Identify all current Task tables/models already implemented, including:
+- tasks
+- notes
+- history
+- stage configs
+- governance settings
+- templates
+- reminders
+- linked entities
+- workflow linkage fields
+- generation metadata columns
+- any other runtime/config tables
+
+For each one, capture:
+- name
+- purpose
+- key columns
+- whether it is runtime, config, or integration
+
+Update:
+## 4. Task Service Tables Identified
+
+--------------------------------------------------
+STEP 5 — CLASSIFY OWNERSHIP
+--------------------------------------------------
+
+Build a classification matrix for every relevant workflow-related / task-related table or model found.
+
+For each item, classify as one of:
+
+1. MOVE TO TASK
+2. STAY IN FLOW
+3. REFERENCE FROM TASK ONLY
+4. KEEP IN LIENS (product-specific only)
+5. DEPRECATED / TRANSITIONAL
+
+For each classification, provide:
+- table/model name
+- current owning service
+- recommended owning service
+- rationale
+- confidence level
+
+Use the decision rule strictly:
+- human work management = Task
+- process orchestration = Flow
+
+Update:
+## 5. Ownership Classification Matrix
+
+--------------------------------------------------
+STEP 6 — IDENTIFY WHAT SHOULD MOVE TO TASK
+--------------------------------------------------
+
+Specifically call out all tables/models/config that should move to Task, especially if they are currently in Liens or Flow-adjacent structures.
+
+Examples to look for:
+- task-stage config used by My Tasks
+- task transitions distinct from Flow process transitions
+- governance settings
+- templates
+- generation rules
+- reminders
+- task metadata tied to task creation / duplication logic
+
+For each item, explain:
+- why it belongs in Task
+- whether it is generic or still product-specific
+- whether it should move as-is, be generalized, or be split
+
+Update:
+## 6. Tables That Should Move to Task
+
+--------------------------------------------------
+STEP 7 — IDENTIFY WHAT SHOULD STAY IN FLOW
+--------------------------------------------------
+
+Specifically call out all tables/models that should remain in Flow.
+
+Examples to look for:
+- workflow definitions
+- step graph / transitions for orchestration
+- workflow instance runtime
+- current step state
+- orchestration event state
+
+For each item, explain:
+- why it must remain in Flow
+- why moving it to Task would be a design mistake
+
+Update:
+## 7. Tables That Should Stay in Flow
+
+--------------------------------------------------
+STEP 8 — IDENTIFY WHAT TASK SHOULD ONLY REFERENCE
+--------------------------------------------------
+
+Identify any workflow/process entities that Task should not own but should reference via fields such as:
+- WorkflowInstanceId
+- WorkflowStepKey
+- source entity references
+- linked entities
+
+For each such item, explain:
+- what Task should store locally
+- what should remain external
+- whether the relationship is one-way or synchronized
+
+Update:
+## 8. Tables That Should Be Referenced Only
+
+--------------------------------------------------
+STEP 9 — IDENTIFY RISKS / AMBIGUITIES
+--------------------------------------------------
+
+Call out ambiguous areas, such as:
+- task-stage config that looks similar to workflow-stage config
+- product-specific generation metadata
+- Liens-specific governance that may need generic vs product overlays
+- duplicate-prevention metadata
+- transitional runtime tables still present during migration
+
+For each ambiguity, recommend:
+- move
+- stay
+- split
+- defer
+
+Update:
+## 9. Risks / Ambiguities
+
+--------------------------------------------------
+STEP 10 — RECOMMENDED MIGRATION SEQUENCE
+--------------------------------------------------
+
+Based on the findings, propose the safest implementation order for any future database/schema migration work.
+
+The sequence should distinguish:
+- what must move first
+- what can remain referenced only
+- what should never move
+- what should be deprecated after cutover
+
+Include:
+- low-risk first moves
+- high-risk items to defer
+- dependencies between moves
+
+Update:
+## 10. Recommended Migration Sequence
+
+--------------------------------------------------
+STEP 11 — FINAL SUMMARY
+--------------------------------------------------
+
+Produce a final summary table with columns:
+
+| Current Table / Model | Current Service | Recommended Disposition | Future Owner | Why |
+
+Then provide a concise recommendation:
+
+- which workflow-related tables belong in Task
+- which must stay in Flow
+- whether any current Flow-adjacent config should be split into:
+  - task execution config
+  - orchestration config
+
+Update:
+## 11. Final Recommendation Summary
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+This prompt is successful only if:
+
+1. Replit inspects the actual code/schema definitions
+2. All relevant workflow/task tables are inventoried
+3. Each table/model is explicitly classified
+4. The report clearly distinguishes:
+   - move to Task
+   - stay in Flow
+   - reference only
+5. The recommendation is grounded in the real codebase, not assumptions
+
+--------------------------------------------------
+DELIVERABLE
+--------------------------------------------------
+
+Primary deliverable:
+- /analysis/TASK-DB-ANALYSIS-01-report.md
+
+Do not make code changes beyond what is needed to inspect and document the schema.
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

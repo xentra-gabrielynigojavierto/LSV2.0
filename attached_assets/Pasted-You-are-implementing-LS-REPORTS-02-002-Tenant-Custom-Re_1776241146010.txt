@@ -1,0 +1,526 @@
+You are implementing **LS-REPORTS-02-002 — Tenant Custom Report Override (Inheritance Model)** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story introduces the first tenant override inheritance layer so a tenant can derive a tenant-specific report configuration from an assigned and published `ReportTemplate` without modifying the global template itself.
+
+This is a foundation story for tenant customization. Do NOT implement the full drag-and-drop builder yet.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-02-002-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not write code before this.
+
+## 2. Update the report continuously
+After each major step, update the report with:
+- step completed
+- files created
+- files modified
+- schema/migration notes
+- implementation notes
+- validation results
+- issues encountered
+- decisions made
+- build/run/API status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- full drag-and-drop report builder UI
+- free-form query designer
+- scheduling
+- report execution
+- pricing engine enforcement
+- end-user UI
+- user-level saved views
+- advanced formula parsing/execution
+
+## 4. Preserve architecture
+- API layer must use DTOs
+- API layer must call a service layer
+- API layer must NOT call repositories directly
+- Repository layer remains persistence-focused
+- Domain entities must not be returned directly from endpoints
+
+## 5. Preserve existing functionality
+Do not break:
+- existing template APIs
+- versioning behavior
+- assignment APIs
+- tenant catalog resolution
+- published-version rules
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-02-002 — Tenant Custom Report Override (Inheritance Model)**
+
+---
+
+# OBJECTIVE
+Introduce a tenant override model that allows a tenant to derive a tenant-specific report configuration from a published `ReportTemplate` without changing the global template itself.
+
+This story must establish the inheritance foundation so a tenant can:
+- inherit a globally managed template
+- override selected configurable aspects
+- keep a clear link to the source template
+- preserve global governance while allowing tenant-specific flexibility
+
+This is the first step toward:
+- tenant custom report variants
+- tier-based customization
+- future report builder UX
+- controlled report personalization by tenant and product
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Tenant Override Domain / Persistence Model
+Add a persistence entity for tenant overrides.
+
+### 1. TenantReportOverride
+Suggested fields:
+- `Id`
+- `TenantId`
+- `ReportTemplateId`
+- `BaseTemplateVersionNumber`
+- `NameOverride` (nullable)
+- `DescriptionOverride` (nullable)
+- `LayoutConfigJson` (nullable)
+- `ColumnConfigJson` (nullable)
+- `FilterConfigJson` (nullable)
+- `FormulaConfigJson` (nullable)
+- `HeaderConfigJson` (nullable)
+- `FooterConfigJson` (nullable)
+- `IsActive`
+- `RequiredFeatureCode` (nullable)
+- `MinimumTierCode` (nullable)
+- `CreatedAtUtc`
+- `CreatedByUserId`
+- `UpdatedAtUtc`
+- `UpdatedByUserId`
+
+### Rules
+- This entity stores tenant-specific overrides while preserving inheritance to the base template
+- It must link to a base template and base template version number
+- At this stage, JSON override fields are acceptable storage for future builder/editor features
+
+---
+
+## B. EF Core Configuration
+Create fluent configuration for the new entity.
+
+### Expected table
+- `rpt_TenantReportOverrides`
+
+### Requirements
+- define key
+- define FK to `rpt_ReportDefinitions` via `ReportTemplateId` mapping
+- add sensible indexes
+- enforce string length limits where appropriate
+- add uniqueness protection for one active override per tenant/template where feasible
+
+### Recommended indexes / constraints
+- index on `TenantId`
+- index on `ReportTemplateId`
+- composite index on `(TenantId, ReportTemplateId)`
+- if feasible, enforce uniqueness semantics for active override handling in code and/or DB design
+
+---
+
+## C. Migration
+Create and apply a migration for the new override table.
+
+Choose a sensible migration name, for example:
+- `AddTenantReportOverrides`
+
+Apply the migration if DB is available.
+Document:
+- migration files
+- schema changes
+- migration success/failure
+- any environment-specific adjustments
+
+---
+
+## D. Repository Support
+Add repository support for tenant overrides.
+
+### Required capabilities
+- create override
+- update override
+- get override by id
+- get override by tenant + template
+- list overrides by tenant
+- deactivate override
+- resolve source inputs for effective tenant report
+
+Preferred approach:
+- create a dedicated repository:
+  - `ITenantReportOverrideRepository`
+
+Keep override concerns separate from assignment repository.
+
+---
+
+## E. Service Layer
+Create:
+- `ITenantReportOverrideService`
+- `TenantReportOverrideService`
+
+### Responsibilities
+- validate eligibility to override
+- enforce one-active-override-per-tenant-per-template rule
+- validate template exists
+- validate published version exists
+- validate tenant has valid assignment to template
+- create/update/deactivate override
+- resolve effective tenant report definition
+- optionally call `IAuditAdapter`
+
+The API layer must not call repositories directly.
+
+---
+
+## F. Override Rules
+Implement at minimum:
+
+### Rule 1 — Assignment dependency
+Override is allowed only when:
+- template exists
+- template has a published version
+- template is assigned to the tenant (globally or tenant-targeted)
+
+### Rule 2 — One active override
+A tenant may have at most one active override per template.
+
+### Rule 3 — Base version anchoring
+When override is created, capture the current published version number as `BaseTemplateVersionNumber`.
+
+### Rule 4 — Effective resolution
+When resolving effective tenant report:
+1. resolve base template
+2. resolve published version
+3. resolve tenant override if present
+4. overlay override fields on top of base metadata/version-derived output
+5. return a coherent effective response
+
+### Rule 5 — Soft deactivate
+Deleting an override should be soft-deactivate if possible rather than physical delete.
+
+---
+
+## G. Request DTOs
+Create request DTOs for:
+
+### CreateTenantReportOverrideRequest
+Fields:
+- `TenantId`
+- `NameOverride`
+- `DescriptionOverride`
+- `LayoutConfigJson`
+- `ColumnConfigJson`
+- `FilterConfigJson`
+- `FormulaConfigJson`
+- `HeaderConfigJson`
+- `FooterConfigJson`
+- `IsActive`
+- `CreatedByUserId`
+- optional:
+  - `RequiredFeatureCode`
+  - `MinimumTierCode`
+
+### UpdateTenantReportOverrideRequest
+Fields:
+- same override fields as above
+- `IsActive`
+- `UpdatedByUserId`
+
+### TenantEffectiveReportQuery
+Fields:
+- `TenantId`
+
+---
+
+## H. Response DTOs
+Create response DTOs for:
+
+### TenantReportOverrideResponse
+Include:
+- `OverrideId`
+- `TenantId`
+- `TemplateId`
+- `BaseTemplateVersionNumber`
+- override fields
+- `IsActive`
+- `RequiredFeatureCode`
+- `MinimumTierCode`
+- `CreatedAtUtc`
+- `UpdatedAtUtc`
+
+### TenantEffectiveReportResponse
+Include:
+- base template metadata
+- published version metadata
+- override metadata if present
+- resolved effective values:
+  - `EffectiveName`
+  - `EffectiveDescription`
+  - `EffectiveLayoutConfigJson`
+  - `EffectiveColumnConfigJson`
+  - `EffectiveFilterConfigJson`
+  - `EffectiveFormulaConfigJson`
+  - `EffectiveHeaderConfigJson`
+  - `EffectiveFooterConfigJson`
+- base linkage info:
+  - `TemplateId`
+  - `TenantId`
+  - `PublishedVersionNumber`
+  - `BaseTemplateVersionNumber`
+  - `HasOverride`
+
+Do not return raw entities directly.
+
+---
+
+## I. API Surface
+Add endpoints such as:
+
+### Override management
+- `POST /api/v1/tenant-templates/{templateId}/overrides`
+- `PUT /api/v1/tenant-templates/{templateId}/overrides/{overrideId}`
+- `GET /api/v1/tenant-templates/{templateId}/overrides/{overrideId}`
+- `GET /api/v1/tenant-templates/{templateId}/overrides?tenantId={tenantId}`
+- `DELETE /api/v1/tenant-templates/{templateId}/overrides/{overrideId}`
+
+### Effective tenant report resolution
+- `GET /api/v1/tenant-templates/{templateId}/effective?tenantId={tenantId}`
+
+If you prefer a slightly different but consistent path structure, keep it coherent and document it.
+
+---
+
+## J. Validation and Error Handling
+Implement at minimum:
+
+### Override creation
+- `TenantId` required
+- template must exist
+- published version must exist
+- tenant must have valid assignment to template
+- only one active override per tenant + template
+- `CreatedByUserId` required
+
+### Override update
+- override must exist
+- `UpdatedByUserId` required
+- assignment/template validity must still hold
+
+### Effective resolution
+- `TenantId` required
+- template must exist
+- template must be assigned to tenant
+- published version must exist
+
+### Conflict behavior
+- duplicate active override should return `409`
+
+### Status code guidance
+- `400` invalid request
+- `404` template/override not found
+- `409` duplicate/conflict
+- `500` unexpected failure
+
+Use lightweight, consistent responses.
+
+---
+
+## K. Audit Hook Readiness
+If low-risk and clean, add non-blocking `IAuditAdapter` calls on:
+- `tenant.override.created`
+- `tenant.override.updated`
+- `tenant.override.deactivated`
+- `tenant.effective.report.resolved`
+
+Use the same warning-only pattern as previous stories.
+
+---
+
+## L. Preserve Existing APIs
+Ensure existing template management and assignment APIs continue to work unchanged unless minor compatibility-safe adjustments are needed.
+
+---
+
+## M. Health & Readiness Compatibility
+Preserve:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+Build and startup must remain healthy.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. tenant override persistence entity exists
+2. EF configuration exists for tenant overrides
+3. migration exists for tenant override table
+4. repository support exists for tenant override operations
+5. service layer exists for tenant override logic
+6. override APIs exist
+7. effective tenant report resolution API exists
+8. tenant override can only be created for assigned templates with published versions
+9. one-active-override-per-tenant-per-template rule is enforced
+10. effective resolution returns base + override-derived output
+11. DTOs isolate API from persistence/domain entities
+12. service builds successfully
+13. service starts successfully
+14. `/api/v1/health` works
+15. `/api/v1/ready` works
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-02-002-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Add tenant override entity and EF configuration
+Create the new domain entity and persistence configuration.
+Update the report.
+
+## Step 3 — Create and apply migration
+Generate migration for the override table and apply it if DB is available.
+Update the report with output and schema notes.
+
+## Step 4 — Add repository support
+Implement `ITenantReportOverrideRepository` and its EF/mock implementations.
+Update the report.
+
+## Step 5 — Add service layer
+Create `ITenantReportOverrideService` and `TenantReportOverrideService`.
+Implement validation, one-active-override rule, assignment/published-version checks, effective resolution, and optional audit hooks.
+Update the report.
+
+## Step 6 — Add DTOs
+Create request/response DTOs for override APIs and effective resolution.
+Update the report.
+
+## Step 7 — Add override management endpoints
+Implement the required override endpoints under `/api/v1/tenant-templates/{templateId}/overrides`.
+Update the report.
+
+## Step 8 — Add effective resolution endpoint
+Implement:
+- `GET /api/v1/tenant-templates/{templateId}/effective?tenantId={tenantId}`
+
+Ensure it returns resolved base + override output.
+Update the report.
+
+## Step 9 — Add validation and conflict handling
+Enforce assignment dependency, published-version requirement, one-active-override rule, and required field validation.
+Update the report.
+
+## Step 10 — Validate
+Run build/startup validation and exercise the new endpoints against DB if available.
+At minimum validate:
+- create override for assigned template with published version
+- reject override for unassigned template
+- reject duplicate active override
+- get override by id
+- list overrides by tenant/template
+- effective resolution with override
+- effective resolution without override
+- deactivate override
+- health/ready still pass
+
+Update the report.
+
+## Step 11 — Finalize report
+Complete `/analysis/LS-REPORTS-02-002-report.md` with:
+- schema summary
+- migration summary
+- endpoint summary
+- validation results
+- build/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- tenant override inheritance foundation exists
+- tenant can store a template override safely
+- effective report resolution works
+- assignment and published-version rules are enforced
+- architecture remains clean
+- schema and APIs are ready for future tenant customization UX and tier gating
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-02-002** exactly as described.

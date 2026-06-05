@@ -1,0 +1,260 @@
+You are implementing **LS-REPORTS-08-002 — Server-Derived Actor Identity Enforcement** for the LegalSynq Reports Service.
+
+## Platform Context
+You have already completed:
+- Full reporting platform (templates, execution, export, scheduling)
+- Report Designer v2 (saved views, calculated fields, formatting)
+- Launch readiness (JWT auth, tenant context)
+- Saved view tenant ownership enforcement (LS-REPORTS-08-001)
+
+This story eliminates **client-supplied actor spoofing** and ensures all user attribution is derived from authenticated server context.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Create:
+
+/analysis/LS-REPORTS-08-002-report.md
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step include:
+- files modified
+- DTO fields ignored/removed
+- services updated
+- audit alignment changes
+- validation scenarios
+- issues encountered
+- decisions made
+
+## 3. Keep scope controlled
+DO NOT:
+- redesign APIs
+- introduce new features
+- change UI unless trivial cleanup
+- modify tenant enforcement logic
+
+Focus ONLY on:
+👉 removing trust in client-supplied actor identity
+
+## 4. Preserve architecture
+- actor must come from server context ONLY
+- use application-safe abstraction (do NOT reference BuildingBlocks directly in Application)
+- ensure consistency across all services
+
+---
+
+# STORY ID
+LS-REPORTS-08-002 — Server-Derived Actor Identity Enforcement
+
+---
+
+# OBJECTIVE
+Ensure all actor/user attribution is derived from authenticated context and cannot be spoofed by client input.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+# A. Identify All Actor Fields
+
+Search for usage of:
+- RequestedByUserId
+- CreatedByUserId
+- UpdatedByUserId
+- PublishedByUserId
+- any similar fields
+
+Across:
+- DTOs
+- Services
+- Audit calls
+- Execution
+- Export
+- Scheduling
+- Views
+- Templates
+
+---
+
+# B. Actor Context Source
+
+Use:
+
+ICurrentTenantContext.UserId
+
+(already introduced in LS-REPORTS-08-001)
+
+---
+
+# C. Service Layer Enforcement
+
+For ALL services:
+
+Replace patterns like:
+var actorId = request.RequestedByUserId;
+
+With:
+var actorId = _currentTenantContext.UserId;
+
+---
+
+## If UserId is NULL:
+- block operation
+- return 403 Forbidden or 401 Unauthorized (match existing pattern)
+
+DO NOT fallback to:
+- request values
+- hardcoded "system"
+- null
+
+---
+
+# D. Affected Services
+
+Update actor handling in:
+
+- ReportExecutionService
+- ReportExportService
+- ReportScheduleService
+- TenantReportViewService
+- Template management services
+- Assignment services
+- Override services
+
+---
+
+# E. DTO Handling Strategy
+
+## Keep DTO fields (DO NOT remove yet)
+- maintain backward compatibility
+
+## But:
+- IGNORE all client-supplied actor fields
+- DO NOT use them anywhere in logic
+
+Optional:
+- log if client sends mismatched values (debug only)
+
+---
+
+# F. Audit Integration
+
+Ensure ALL audit events use:
+
+actorUserId = _currentTenantContext.UserId
+
+NOT:
+- request DTO values
+
+---
+
+# G. Scheduling Special Case
+
+For scheduled runs:
+
+Choose and apply consistently:
+
+## Recommended:
+- use schedule.CreatedByUserId as business actor
+- OR use current user for "Run Now"
+- system-triggered runs must still be attributable
+
+DO NOT lose attribution.
+
+---
+
+# H. Execution & Export
+
+Ensure:
+- execution requests ignore RequestedByUserId
+- export requests ignore RequestedByUserId
+- actor always comes from context
+
+---
+
+# I. Validation Scenarios
+
+Test:
+
+## Valid Case
+- authenticated user executes report → actor = JWT user → SUCCESS
+
+## Spoof Attempt
+- client sends different RequestedByUserId → ignored → system uses JWT user → SUCCESS
+
+## Missing Context
+- no UserId in context → BLOCKED
+
+## Scheduling
+- created schedule stores correct actor
+- run-now uses current user
+- background run uses correct attribution
+
+---
+
+# J. Files Likely Modified
+
+- all services using actor fields
+- DTO usage points
+- audit service calls
+- possibly minor endpoint adjustments
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. client-supplied actor IDs are ignored
+2. execution uses server-derived actor
+3. export uses server-derived actor
+4. scheduling uses server-derived actor
+5. saved views use server-derived actor
+6. template/admin actions use server-derived actor
+7. audit events use server-derived actor
+8. spoofing actor identity is not possible
+9. missing actor context blocks operations
+10. build passes successfully
+11. no regression in functionality
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file
+2. Identify all actor field usages
+3. Replace with server-derived context
+4. Update audit calls
+5. Handle scheduling edge cases
+6. Validate all flows
+7. Finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- Files Modified
+- Actor Handling Changes
+- Audit Changes
+- Validation Results
+- Issues Encountered
+- Decisions Made
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- actor identity is fully server-derived
+- no client spoofing possible
+- audit and ownership are consistent
+- system remains stable
+
+---
+
+Now implement LS-REPORTS-08-002 exactly as described.

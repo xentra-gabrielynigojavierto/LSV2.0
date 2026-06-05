@@ -1,0 +1,354 @@
+You are implementing BLK-CC-02 — CareConnect Onboarding Reliability & Recovery (Phase 2) for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-CC-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block builds directly on:
+   - BLK-TS-01 (Tenant Core Foundation)
+   - BLK-TS-02 (Tenant Infrastructure & Activation)
+   - BLK-ID-01 (Identity tenant decoupling)
+   - BLK-ID-02 (Identity membership APIs)
+   - BLK-CC-01 (CareConnect onboarding switch)
+
+5. This is a RELIABILITY / RECOVERY block.
+   DO NOT redesign the provider lifecycle.
+   DO NOT reintroduce tenant creation in Identity.
+   DO NOT change the shared provider registry model.
+
+6. The purpose of this block is to eliminate the Phase 1 partial-failure gap:
+   - tenant created in Tenant service
+   - Identity membership assignment fails
+   - provider remains COMMON_PORTAL
+   - retry gets CODE_TAKEN / blocked
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Make CareConnect provider onboarding resilient and recoverable.
+
+After this block:
+
+- onboarding can safely resume after partial failure
+- tenant provisioning becomes effectively idempotent from the CareConnect point of view
+- provider is not stranded in COMMON_PORTAL after tenant creation partially succeeds
+- retries do NOT require manual cleanup
+
+--------------------------------------------------
+
+CURRENT KNOWN GAP
+
+BLK-CC-01 documented this exact risk:
+
+1. Tenant service provisions tenant successfully
+2. Identity membership assignment fails
+3. Provider is NOT marked TENANT
+4. Retry of provisioning hits duplicate code / tenant already exists
+5. Flow cannot complete automatically
+
+This block must resolve that gap cleanly.
+
+--------------------------------------------------
+
+PART A — AUDIT CURRENT FAILURE WINDOW
+
+--------------------------------------------------
+
+Audit the current onboarding path and document:
+
+- where tenant provisioning succeeds
+- where Identity tenant assignment can fail
+- where provider state is currently written
+- what retry behavior currently does
+
+You MUST identify the exact service/methods involved and preserve existing successful behavior.
+
+Likely areas:
+- ProviderOnboardingService
+- Tenant service client
+- Identity membership client
+- provider repository / provider aggregate update path
+
+--------------------------------------------------
+
+PART B — PERSIST RECOVERY STATE IN CARECONNECT
+
+--------------------------------------------------
+
+Introduce minimal recovery state on the Provider record (or equivalent product-owned onboarding state), such as:
+
+- PendingTenantId (nullable Guid)
+- PendingTenantCode (nullable string)
+- PendingTenantSubdomain (nullable string)
+- TenantOnboardingStatus (enum/string) — example values:
+  - None
+  - ProvisioningStarted
+  - TenantProvisioned
+  - IdentityAssigned
+  - Completed
+  - Failed
+- LastOnboardingError (nullable string)
+- LastOnboardingAttemptAtUtc (nullable DateTime)
+
+You MUST keep this pragmatic.
+Do NOT create an overbuilt workflow engine.
+Do NOT create a second tenant master.
+
+Rules:
+- CareConnect owns onboarding recovery state only
+- Tenant service still owns canonical tenant data
+- Identity still owns user ↔ tenant membership
+
+--------------------------------------------------
+
+PART C — MAKE ONBOARDING RESUMABLE
+
+--------------------------------------------------
+
+Refactor ProviderOnboardingService so onboarding becomes resumable.
+
+Target behavior:
+
+### Case 1 — brand new onboarding
+1. Validate provider is eligible
+2. Call Tenant service to provision tenant
+3. Persist returned tenant info into pending fields
+4. Attempt Identity membership assignment
+5. On success:
+   - provider.MarkTenantProvisioned(tenantId)
+   - clear pending fields
+   - mark onboarding completed
+
+### Case 2 — retry after partial failure
+If provider has pending tenant info already stored:
+- DO NOT call Tenant service provision again immediately
+- reuse existing PendingTenantId / PendingTenantCode / PendingTenantSubdomain
+- retry Identity membership assignment
+- on success:
+  - complete onboarding
+  - clear pending fields
+
+### Case 3 — duplicate code / pre-existing tenant known from prior attempt
+If tenant already exists and matches the stored pending tenant state:
+- treat as resumable
+- do NOT fail permanently just because code is taken
+
+--------------------------------------------------
+
+PART D — IDENTITY ASSIGNMENT RECOVERY
+
+--------------------------------------------------
+
+Use the existing BLK-ID-02 membership APIs.
+
+Requirements:
+- retries must call AssignTenant again safely
+- AssignTenant / AssignRoles idempotency should be leveraged
+- no duplicate Identity user
+- no duplicate role assignments
+- no duplicate provider record
+
+You MUST preserve:
+- IdentityUserId reuse
+- User.TenantId update behavior
+- tenant-role assignment behavior
+
+--------------------------------------------------
+
+PART E — FAILURE HANDLING MODEL
+
+--------------------------------------------------
+
+Implement explicit handling for:
+
+1. Tenant service succeeds, Identity fails
+   - store pending tenant state
+   - provider remains non-TENANT until membership succeeds
+   - retry resumes from pending state
+
+2. Tenant service returns duplicate code
+   - if no pending state exists, surface conflict
+   - if pending state exists and code/subdomain match prior attempt, allow recovery path
+
+3. Identity service unavailable
+   - preserve pending state
+   - mark onboarding status appropriately
+   - return retryable failure
+
+4. Provider already TENANT
+   - reject cleanly / idempotent success as appropriate
+
+5. Provider not COMMON_PORTAL
+   - reject cleanly
+
+6. Missing IdentityUserId
+   - reject cleanly
+
+--------------------------------------------------
+
+PART F — OPTIONAL RECOVERY ENDPOINT (IF NEEDED)
+
+--------------------------------------------------
+
+If current UX/service structure benefits from it, add a dedicated authenticated recovery endpoint such as:
+
+POST /api/provider/onboarding/resume-tenant
+
+Use this only if needed.
+If the existing `provision-tenant` endpoint can safely resume based on stored pending state, prefer that and keep API surface smaller.
+
+Do NOT add unnecessary endpoints.
+
+--------------------------------------------------
+
+PART G — FRONTEND / UX BEHAVIOR
+
+--------------------------------------------------
+
+Preserve existing UX as much as possible.
+
+Required behavior:
+- provider still sees onboarding CTA only in COMMON_PORTAL stage
+- duplicate code errors still surface correctly for true conflicts
+- retryable failure should surface as:
+  - “Your workspace setup is in progress” or
+  - “We found an existing setup attempt. Retry to complete.”
+- success response still returns portal URL
+
+If needed, add minimal UI messaging for resume/retry flows.
+Do NOT redesign the onboarding page.
+
+--------------------------------------------------
+
+PART H — DATA INTEGRITY RULES
+
+--------------------------------------------------
+
+You MUST preserve these invariants:
+
+- one provider record only
+- one Identity user only
+- one canonical tenant in Tenant service
+- provider does not become TENANT until Identity assignment succeeds
+- retries do not create duplicate tenants
+- retries do not create duplicate memberships/roles
+
+Document any unavoidable temporary states clearly.
+
+--------------------------------------------------
+
+PART I — MIGRATION / BACKWARD COMPATIBILITY
+
+--------------------------------------------------
+
+If new provider fields are added:
+- add EF migration(s)
+- ensure safe defaults for existing records
+- existing providers without pending state must behave normally
+
+Do NOT require manual data backfill for current providers unless absolutely necessary.
+
+--------------------------------------------------
+
+PART J — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Normal onboarding still succeeds
+2. Tenant service success + Identity failure leaves recoverable pending state
+3. Retry resumes successfully without reprovisioning tenant
+4. No duplicate tenant created on retry
+5. No duplicate Identity user created
+6. No duplicate role assignments created
+7. Provider transitions to TENANT only after membership succeeds
+8. Duplicate code still returns conflict when it is a true unrelated conflict
+9. dotnet build CareConnect.Api succeeds
+10. dotnet build CareConnect.Tests succeeds
+11. Next.js / TypeScript build succeeds if frontend touched
+
+If possible, add or update automated tests around:
+- partial failure
+- retry/resume
+- idempotency
+
+--------------------------------------------------
+
+PART K — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-CC-02-report.md
+
+# BLK-CC-02 Report
+
+## 1. Summary
+
+## 2. Failure Window Analysis
+- Exact partial-failure gap addressed
+
+## 3. Recovery State Model
+- Fields/statuses added
+- Why they are sufficient
+
+## 4. Service Flow Changes
+- Normal flow
+- Retry/resume flow
+
+## 5. Identity Recovery Integration
+- How AssignTenant / AssignRoles are reused safely
+
+## 6. Frontend / UX Impact
+- What changed, what stayed the same
+
+## 7. Data Consistency / Idempotency
+- How duplicates are prevented
+
+## 8. Changed Files
+- Full file paths
+
+## 9. Methods / Endpoints Updated
+- Service methods
+- endpoint handlers
+- client methods
+
+## 10. GitHub Commits (MANDATORY)
+- Include ALL commit IDs for this block
+- Example:
+  - abc1234 — Add pending onboarding state to Provider
+  - def5678 — Make onboarding retry resumable
+
+## 11. Validation Results
+
+## 12. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- redesign provider lifecycle stages
+- reintroduce tenant creation in Identity
+- create duplicate tenant records
+- add unrelated onboarding features
+- overbuild workflow/state machinery
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- onboarding is recoverable after partial failure
+- retries do not create duplicate tenants or users
+- CareConnect safely completes provider transition to TENANT
+- report saved at:
+  /analysis/BLK-CC-02-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

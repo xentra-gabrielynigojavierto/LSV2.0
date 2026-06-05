@@ -1,0 +1,300 @@
+You are implementing **LS-REPORTS-09-002 — Formatting Application Layer** for the LegalSynq Reports Service.
+
+## Platform Context
+You have already completed:
+- Templates, Versioning, Assignment, Overrides
+- Execution Engine (real data)
+- Export Engine (CSV/XLSX/PDF)
+- Scheduling + Delivery
+- Audit Integration
+- Production integrations (Email, SFTP, S3, Liens adapter)
+- Full UI (Admin + Tenant + Builder)
+- Launch Readiness & Platform Integration
+- Report Designer Enhancements (Saved Views, Calculated Fields, Filters)
+
+Formatting configuration already exists but is NOT yet applied to output.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Create:
+
+`/analysis/LS-REPORTS-09-002-report.md`
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step include:
+- files modified
+- logic added
+- formatting rules implemented
+- validation results
+- issues encountered
+- decisions made
+
+## 3. Keep scope controlled
+DO NOT implement:
+- conditional formatting (colors, highlighting)
+- localization engine
+- UI redesign
+- advanced templating
+- client-side formatting logic
+
+Focus ONLY on:
+👉 applying existing formatting config to execution + export output
+
+## 4. Preserve architecture
+- formatting is a **presentation layer transformation**
+- DO NOT mutate raw values permanently
+- DO NOT push formatting into SQL or data adapters
+- DO NOT duplicate formatting logic across services
+
+---
+
+# STORY ID
+**LS-REPORTS-09-002 — Formatting Application Layer**
+
+---
+
+# OBJECTIVE
+Apply formatting rules so they affect:
+- report viewer output (UI grid)
+- export outputs (CSV, XLSX, PDF)
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+# A. Formatting Service
+
+Create:
+
+`ReportFormattingService`
+
+## Responsibilities
+- accept:
+  - raw rows (post-query, post-formula)
+  - formatting config
+- return:
+  - formatted result set
+
+## Design
+- stateless
+- reusable
+- no DB access
+- no external dependencies
+
+---
+
+# B. Formatting Config Mapping
+
+Use existing:
+- `FormattingConfigJson`
+
+Parse into:
+- column → formatting rule
+
+Each rule should include:
+- column key
+- format type
+- options
+
+---
+
+# C. Supported Formatting Types
+
+Implement the following:
+
+---
+
+## 1. Currency
+- apply:
+  - prefix (e.g., "$")
+  - decimal places
+- include thousand separators
+
+Example:
+1234.5 → $1,234.50
+
+---
+
+## 2. Number
+- decimal precision
+- thousand separators
+
+---
+
+## 3. Percentage
+- optional multiply by 100 (decide once, document)
+- append `%`
+- apply precision
+
+---
+
+## 4. Date / DateTime
+- apply format string
+- examples:
+  - yyyy-MM-dd
+  - MM/dd/yyyy
+
+---
+
+## 5. Boolean
+- map:
+  - true → custom label (e.g., "Yes")
+  - false → custom label (e.g., "No")
+
+---
+
+## 6. Text
+- pass-through
+- optional fallback for nulls
+
+---
+
+# D. Execution Pipeline Integration
+
+Modify:
+
+`ReportExecutionService`
+
+## After:
+- query execution
+- calculated fields
+
+Add:
+- formatting step
+
+## Flow:
+Raw Data → Calculated Fields → Formatting → Response
+
+---
+
+## Output Structure
+
+Each cell/column should support:
+- raw value (for internal use)
+- formatted value (for UI/export)
+
+If current DTO cannot support both:
+- minimally extend it OR
+- replace value with formatted string (acceptable for v1 if consistent)
+
+---
+
+# E. Export Integration
+
+Apply formatting in:
+- CSV export
+- XLSX export
+- PDF export
+
+## Rules
+- use formatted values
+- preserve column order and labels
+- ensure consistency with UI
+
+---
+
+# F. UI Integration
+
+## Viewer
+- should display formatted values directly
+- no extra formatting logic in frontend
+
+---
+
+# G. Error Handling
+
+- if formatting fails:
+  - fallback to raw value
+  - do NOT break execution
+
+- log warning (if logging exists)
+
+---
+
+# H. Performance
+
+- operate in-memory
+- avoid reflection-heavy logic
+- avoid per-cell expensive operations
+
+---
+
+# I. Validation
+
+Ensure:
+- unknown format types are ignored safely
+- invalid options fallback gracefully
+- no exceptions bubble up to user
+
+---
+
+# J. Files Likely Modified
+
+- `ReportExecutionService`
+- export services
+- formatting config parser
+- DTOs (if needed)
+- new `ReportFormattingService`
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. formatting rules applied to execution results
+2. formatting rules applied to CSV export
+3. formatting rules applied to XLSX export
+4. formatting rules applied to PDF export
+5. all format types behave correctly
+6. formatting does not break formulas
+7. formatting does not mutate raw values
+8. UI displays formatted values correctly
+9. invalid formatting does not break execution
+10. build passes
+11. no regression in execution/export flows
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file
+2. Implement `ReportFormattingService`
+3. Parse formatting config
+4. Apply formatting in execution pipeline
+5. Apply formatting in export pipeline
+6. Validate each format type
+7. Validate UI display
+8. Validate export outputs
+9. Finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- Files Modified
+- Formatting Rules Implemented
+- Execution Integration Summary
+- Export Integration Summary
+- Validation Results
+- Issues Encountered
+- Decisions Made
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- formatting is applied consistently across UI and exports
+- formatting layer is centralized and reusable
+- system remains stable and performant
+
+---
+
+Now implement **LS-REPORTS-09-002** exactly as described.

@@ -1,0 +1,153 @@
+You are implementing LS-LIENS-UI-01 for the LegalSynq Liens v2 migration.
+
+Feature ID: LS-LIENS-UI-01
+Feature Title: V1 UI Baseline Adoption for V2
+
+Objective:
+Use the SynqLiens v1 UI as the basis for the v2 implementation. Preserve the v1 screen layouts, page structure, and user flows where they are product-specific, but keep the v2 platform shell intact, specifically the v2 top navigation and side navigation. The goal is to make the v2 SynqLiens experience feel like the familiar v1 product inside the standardized v2 shell.
+
+Critical architecture rules:
+1. Do NOT replace the v2 top nav or side nav.
+2. Use the v1 SynqLiens UI as the basis for page internals, screen composition, flow sequencing, and business-facing layout patterns.
+3. Follow the existing v2 Angular architecture and frontend conventions.
+4. Do NOT do a major redesign.
+5. Do NOT wire deep real APIs in this feature unless needed only to preserve component structure. This feature is about UI baseline migration/alignment.
+6. Preserve donor SynqLiens behavior and terminology as much as practical.
+7. Prepare the resulting structure so later features can wire real APIs cleanly.
+8. Where v1 and v2 conflict, adapt only what is necessary and document it clearly.
+9. Continue using v2 shared architecture assumptions so later integrations will use v2 shared services, not v1 service patterns.
+
+Implementation scope:
+- Analyze the SynqLiens v1 frontend UI structure and flows
+- Analyze the v2 frontend shell, layout, routes, and module structure
+- Identify major v1 SynqLiens screens/modules/pages
+- Map those screens into the v2 route/module structure
+- Recreate/adapt v1 page internals inside the v2 shell
+- Preserve the major user workflows and transitions from v1
+- Identify reusable layout/component patterns from v1
+- Document gaps, conflicts, and adaptations
+- Ensure the resulting UI foundation is ready for later API wiring
+
+Expected outcome:
+- v2 shell remains intact
+- SynqLiens product pages inside that shell follow the v1 layout and flow model
+- Routes/modules are organized in a maintainable v2 way
+- Key screen internals are migrated/adapted from v1
+- Gaps and deviations are explicitly documented
+
+Detailed requirements:
+
+A. V1 UI assessment and inventory
+- Inspect the v1 SynqLiens frontend and inventory the major screens, page types, and user flows
+- Identify product-specific screens such as list/detail/workflow pages, dashboards, case pages, lien pages, settlement pages, search/filter/listing pages, detail panels, forms, tabs, modals, and action zones as applicable
+- Determine which of these are active/core versus obsolete/duplicate/legacy
+- Produce a mapping of v1 screen to intended v2 placement
+
+B. V2 shell preservation
+- Keep the existing v2 top nav and side nav
+- Do not reintroduce the v1 app shell as the global frame
+- Render SynqLiens pages within the v2 shell only
+- Ensure shell layout, responsiveness, route wrappers, and page containers still work correctly
+
+C. V1 page-internal layout adoption
+Within each relevant SynqLiens page:
+- preserve v1 page structure
+- preserve information grouping
+- preserve panel/section arrangement
+- preserve list/detail composition
+- preserve action placement where practical
+- preserve form grouping/order where practical
+- preserve tab/section progression where practical
+
+Do not do unnecessary modernization or rearrangement. Adapt only for:
+- v2 shell compatibility
+- component framework compatibility
+- maintainability
+- accessibility
+- responsive stability
+
+D. Workflow preservation
+Preserve the recognizable business flow sequence from v1 as much as practical, including:
+- list to detail transitions
+- major drill-down paths
+- section organization
+- typical user navigation progression
+- product-specific interaction patterns
+
+If a flow must change because of v2 shell/platform constraints, document the change and why it was necessary.
+
+E. Route/module alignment
+- Organize the migrated UI under the v2 Angular route/module structure
+- Keep route names and module grouping consistent with v2 standards and SynqLiens terminology
+- Avoid brittle one-off routing hacks
+- Prepare routes/components for later API integration
+
+F. Reusable component identification
+Identify repeated patterns from v1 and reuse/adapt them in v2 where appropriate, such as:
+- list/grid/table shells
+- detail headers
+- summary cards
+- tabs/section containers
+- search/filter toolbars
+- action bars
+- modal/dialog patterns
+- reusable form sections
+
+Do not duplicate the same UI pattern inconsistently across screens.
+
+G. Gap/conflict analysis
+Document all meaningful gaps between v1 UI expectations and v2 shell/platform constraints, including:
+- navigation conflicts
+- layout width/container conflicts
+- old component dependencies
+- obsolete widgets
+- role/context assumptions
+- tenant/product context differences
+- deprecated legacy pages
+- styling/component incompatibilities
+
+For each gap, classify it as:
+- adopt
+- adapt
+- defer
+- replace
+
+H. Structural quality expectations
+- Avoid throwaway mock-only page structure
+- Build the component/page structure so it can later connect to real state and real APIs
+- Centralize shared patterns where feasible
+- Do not hardcode fragile assumptions that later features must undo
+
+Technical expectations:
+- Inspect the codebase carefully before changing structure
+- Reuse existing v2 layout wrappers, shell components, routing conventions, and UI primitives where appropriate
+- Reuse/adapt v1 layouts and components where feasible
+- Keep code organized and maintainable
+- Do not break other products or shared shell behavior
+- Keep changes focused on establishing the SynqLiens UI baseline
+
+Files and reporting:
+1. Make the required code changes in the appropriate v2 frontend files
+2. Create a report at exactly:
+   /analysis/LS-LIENS-UI-01-report.md
+
+The report must include:
+- Executive summary
+- V1 screens/pages identified
+- V1 to v2 screen/route mapping
+- What was migrated/adapted
+- What was preserved from v1
+- How the v2 top/side nav were retained
+- Reusable components/patterns identified
+- Gaps/conflicts found
+- Any deferred items
+- Files changed
+- Risks/issues/blockers
+- Recommended next UI wiring step
+
+Execution instructions:
+- Do the implementation, not just analysis
+- Make best-effort practical changes in the codebase
+- If some parts cannot be completed due to missing assets/dependencies/context, complete as much as possible and document the rest clearly in the report
+- Do not stop at planning only
+- Save the final report in /analysis before finishing

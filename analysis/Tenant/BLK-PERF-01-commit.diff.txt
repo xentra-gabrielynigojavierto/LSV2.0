@@ -1,0 +1,458 @@
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs
+index f7354594..1c06bdb2 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/PublicNetworkEndpoints.cs
+@@ -46,18 +46,13 @@ public static class PublicNetworkEndpoints
+                 return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                     detail: "Request origin could not be verified.");
+ 
+-            var networks = await repo.GetAllByTenantAsync(tenantId.Value, ct);
++            // BLK-PERF-01: Single query — replaces the N+1 loop of
++            // GetAllByTenantAsync + N×GetWithProvidersAsync.
++            var rows = await repo.GetAllWithProviderCountAsync(tenantId.Value, ct);
+ 
+-            var summaries = new List<PublicNetworkSummary>(networks.Count);
+-            foreach (var n in networks)
+-            {
+-                var detail = await repo.GetWithProvidersAsync(tenantId.Value, n.Id, ct);
+-                summaries.Add(new PublicNetworkSummary(
+-                    n.Id,
+-                    n.Name,
+-                    n.Description,
+-                    detail?.NetworkProviders.Count ?? 0));
+-            }
++            var summaries = rows
++                .Select(r => new PublicNetworkSummary(r.Id, r.Name, r.Description ?? string.Empty, r.ProviderCount))
++                .ToList();
+ 
+             return Results.Ok(summaries);
+         }).AllowAnonymous();
+@@ -151,7 +146,13 @@ public static class PublicNetworkEndpoints
+             if (network == null)
+                 return Results.NotFound();
+ 
+-            var providers = await repo.GetNetworkProvidersAsync(tenantId.Value, id, ct);
++            // BLK-PERF-01: Providers already loaded by GetWithProvidersAsync via Include.
++            // Eliminated the redundant second GetNetworkProvidersAsync call (saved one round-trip).
++            var providers = network.NetworkProviders
++                .Where(np => np.Provider != null)
++                .Select(np => np.Provider!)
++                .OrderBy(p => p.Name)
++                .ToList();
+ 
+             var items = providers
+                 .Select(p => new PublicProviderItem(
+diff --git a/apps/services/careconnect/CareConnect.Api/Endpoints/ReferralEndpoints.cs b/apps/services/careconnect/CareConnect.Api/Endpoints/ReferralEndpoints.cs
+index 810be1b7..5109f912 100644
+--- a/apps/services/careconnect/CareConnect.Api/Endpoints/ReferralEndpoints.cs
++++ b/apps/services/careconnect/CareConnect.Api/Endpoints/ReferralEndpoints.cs
+@@ -28,6 +28,8 @@ public static class ReferralEndpoints
+             var isProviderOrg = string.Equals(ctx.OrgType, "PROVIDER", StringComparison.OrdinalIgnoreCase);
+             var isAdmin = ctx.IsPlatformAdmin || ctx.Roles.Contains(Roles.TenantAdmin);
+ 
++            // BLK-PERF-01: Clamp page size to protect against unbounded result-set queries.
++            // Default 20; maximum 100 — callers requesting more receive exactly 100.
+             var query = new GetReferralsQuery
+             {
+                 Status             = p.Status,
+@@ -37,8 +39,8 @@ public static class ReferralEndpoints
+                 Urgency            = p.Urgency,
+                 CreatedFrom        = p.CreatedFrom,
+                 CreatedTo          = p.CreatedTo,
+-                Page               = p.Page ?? 1,
+-                PageSize           = p.PageSize ?? 20,
++                Page               = Math.Max(1, p.Page ?? 1),
++                PageSize           = Math.Clamp(p.PageSize ?? 20, 1, 100),
+             };
+ 
+             if (ctx.IsPlatformAdmin)
+diff --git a/apps/services/careconnect/CareConnect.Application/Repositories/INetworkRepository.cs b/apps/services/careconnect/CareConnect.Application/Repositories/INetworkRepository.cs
+index 34394f10..da52f092 100644
+--- a/apps/services/careconnect/CareConnect.Application/Repositories/INetworkRepository.cs
++++ b/apps/services/careconnect/CareConnect.Application/Repositories/INetworkRepository.cs
+@@ -6,6 +6,11 @@ namespace CareConnect.Application.Repositories;
+ public interface INetworkRepository
+ {
+     Task<List<ProviderNetwork>> GetAllByTenantAsync(Guid tenantId, CancellationToken ct = default);
++
++    // BLK-PERF-01: Single-query alternative to GetAllByTenantAsync + N×GetWithProvidersAsync.
++    // Returns each network with its provider count without loading full provider entities.
++    Task<List<(Guid Id, string Name, string? Description, int ProviderCount)>> GetAllWithProviderCountAsync(Guid tenantId, CancellationToken ct = default);
++
+     Task<ProviderNetwork?> GetByIdAsync(Guid tenantId, Guid id, CancellationToken ct = default);
+     Task<ProviderNetwork?> GetWithProvidersAsync(Guid tenantId, Guid id, CancellationToken ct = default);
+     Task<bool> NameExistsAsync(Guid tenantId, string name, Guid? excludeId = null, CancellationToken ct = default);
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ActivationRequestConfiguration.cs b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ActivationRequestConfiguration.cs
+index 1a9cc021..7a8273ed 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ActivationRequestConfiguration.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ActivationRequestConfiguration.cs
+@@ -42,6 +42,12 @@ public class ActivationRequestConfiguration : IEntityTypeConfiguration<Activatio
+         builder.HasIndex(a => new { a.Status, a.CreatedAtUtc })
+             .HasDatabaseName("IX_ActivationRequests_Status_CreatedAt");
+ 
++        // BLK-PERF-01: Tenant-scoped admin queue + analytics filter on TenantId + Status + date.
++        // The existing (Status, CreatedAtUtc) index does not include TenantId, causing tenant
++        // admin activation queue reads to scan across all tenants before applying the tenant filter.
++        builder.HasIndex(a => new { a.TenantId, a.Status, a.CreatedAtUtc })
++            .HasDatabaseName("IX_ActivationRequests_TenantId_Status_CreatedAt");
++
+         // Deduplication key: one active request per referral+provider pair
+         builder.HasIndex(a => new { a.ReferralId, a.ProviderId })
+             .HasDatabaseName("IX_ActivationRequests_ReferralId_ProviderId");
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/BlockedProviderAccessLogConfiguration.cs b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/BlockedProviderAccessLogConfiguration.cs
+index a5ae26f4..e8fbbbff 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/BlockedProviderAccessLogConfiguration.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/BlockedProviderAccessLogConfiguration.cs
+@@ -54,5 +54,10 @@ public class BlockedProviderAccessLogConfiguration
+ 
+         builder.HasIndex(x => x.AttemptedAtUtc)
+                .HasDatabaseName("IX_BlockedProviderAccessLogs_AttemptedAtUtc");
++
++        // BLK-PERF-01: Tenant-scoped dashboard counts filter on (TenantId, AttemptedAtUtc).
++        // Without this, dashboard rolling-window queries scan all rows ordered by date.
++        builder.HasIndex(x => new { x.TenantId, x.AttemptedAtUtc })
++               .HasDatabaseName("IX_BlockedProviderAccessLogs_TenantId_AttemptedAtUtc");
+     }
+ }
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/NetworkProviderConfiguration.cs b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/NetworkProviderConfiguration.cs
+index bbd56552..59972748 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/NetworkProviderConfiguration.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/NetworkProviderConfiguration.cs
+@@ -24,6 +24,12 @@ public class NetworkProviderConfiguration : IEntityTypeConfiguration<NetworkProv
+ 
+         builder.HasIndex(np => new { np.ProviderNetworkId, np.ProviderId }).IsUnique();
+ 
++        // BLK-PERF-01: GetNetworkProvidersAsync filters on (TenantId, ProviderNetworkId).
++        // The existing unique index on (ProviderNetworkId, ProviderId) does not lead on TenantId,
++        // so tenant-scoped network provider list queries would scan all rows for that network.
++        builder.HasIndex(np => new { np.TenantId, np.ProviderNetworkId })
++               .HasDatabaseName("IX_NetworkProviders_TenantId_ProviderNetworkId");
++
+         builder.HasOne(np => np.Provider)
+                .WithMany()
+                .HasForeignKey(np => np.ProviderId)
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ReferralConfiguration.cs b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ReferralConfiguration.cs
+index 99bdd575..8c77d6ed 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ReferralConfiguration.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/ReferralConfiguration.cs
+@@ -55,6 +55,10 @@ public class ReferralConfiguration : IEntityTypeConfiguration<Referral>
+             .HasDatabaseName("IX_Referrals_TenantId_ProviderId");
+         builder.HasIndex(r => new { r.TenantId, r.CreatedAtUtc })
+             .HasDatabaseName("IX_Referrals_TenantId_CreatedAtUtc");
++        // BLK-PERF-01: Composite for admin dashboard / analytics queries that filter on
++        // TenantId + Status + CreatedAtUtc simultaneously (e.g. status counts within date window).
++        builder.HasIndex(r => new { r.TenantId, r.Status, r.CreatedAtUtc })
++            .HasDatabaseName("IX_Referrals_TenantId_Status_CreatedAtUtc");
+         builder.HasIndex(r => new { r.ReferringOrganizationId, r.Status })
+             .HasDatabaseName("IX_Referrals_ReferringOrgId_Status");
+         builder.HasIndex(r => new { r.ReceivingOrganizationId, r.Status })
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ActivationRequestRepository.cs b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ActivationRequestRepository.cs
+index 1a25a94e..d47e4187 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ActivationRequestRepository.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ActivationRequestRepository.cs
+@@ -1,4 +1,5 @@
+ // LSCC-009: Activation request repository.
++// BLK-PERF-01: Read-only queries use AsNoTracking() to avoid EF Core change-tracking overhead.
+ using CareConnect.Application.Repositories;
+ using CareConnect.Domain;
+ using CareConnect.Infrastructure.Data;
+@@ -21,12 +22,15 @@ public class ActivationRequestRepository : IActivationRequestRepository
+         CancellationToken ct = default)
+     {
+         return await _db.ActivationRequests
++            .AsNoTracking()
+             .FirstOrDefaultAsync(a => a.ReferralId == referralId && a.ProviderId == providerId, ct);
+     }
+ 
+     public async Task<ActivationRequest?> GetByIdAsync(Guid id, CancellationToken ct = default)
+     {
++        // BLK-PERF-01: AsNoTracking — admin read-only detail; approval goes through SaveChangesAsync.
+         return await _db.ActivationRequests
++            .AsNoTracking()
+             .Include(a => a.Provider)
+             .Include(a => a.Referral)
+             .FirstOrDefaultAsync(a => a.Id == id, ct);
+@@ -34,7 +38,9 @@ public class ActivationRequestRepository : IActivationRequestRepository
+ 
+     public async Task<List<ActivationRequest>> GetPendingAsync(CancellationToken ct = default)
+     {
++        // BLK-PERF-01: AsNoTracking — admin queue read; sorted by IX_ActivationRequests_Status_CreatedAt.
+         return await _db.ActivationRequests
++            .AsNoTracking()
+             .Where(a => a.Status == ActivationRequestStatus.Pending)
+             .Include(a => a.Provider)
+             .Include(a => a.Referral)
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/AppointmentRepository.cs b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/AppointmentRepository.cs
+index e343f340..f3dcb880 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/AppointmentRepository.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/AppointmentRepository.cs
+@@ -1,3 +1,4 @@
++// BLK-PERF-01: Read-only queries use AsNoTracking() to avoid EF Core change-tracking overhead.
+ using CareConnect.Application.Repositories;
+ using CareConnect.Domain;
+ using CareConnect.Infrastructure.Data;
+@@ -51,7 +52,9 @@ public class AppointmentRepository : IAppointmentRepository
+ 
+     public async Task<Appointment?> GetByIdAsync(Guid tenantId, Guid id, CancellationToken ct = default)
+     {
++        // BLK-PERF-01: AsNoTracking — read-only detail; mutations go through SaveStatusUpdateAsync etc.
+         return await _db.Appointments
++            .AsNoTracking()
+             .Where(a => a.TenantId == tenantId && a.Id == id)
+             .Include(a => a.Provider)
+             .Include(a => a.Facility)
+@@ -59,7 +62,8 @@ public class AppointmentRepository : IAppointmentRepository
+             .FirstOrDefaultAsync(ct);
+     }
+ 
+-    // LSCC-002: referringOrgId/receivingOrgId added for org-participant scoping
++    // LSCC-002: referringOrgId/receivingOrgId added for org-participant scoping.
++    // BLK-PERF-01: AsNoTracking applied — list is read-only; filters applied before materialization.
+     public async Task<(List<Appointment> Items, int TotalCount)> SearchAsync(
+         Guid tenantId,
+         Guid? referralId,
+@@ -74,6 +78,7 @@ public class AppointmentRepository : IAppointmentRepository
+         CancellationToken ct = default)
+     {
+         var query = _db.Appointments
++            .AsNoTracking()
+             .Where(a => a.TenantId == tenantId)
+             .Include(a => a.Provider)
+             .Include(a => a.Facility)
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/NetworkRepository.cs b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/NetworkRepository.cs
+index 42703333..3f01a2c9 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/NetworkRepository.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/NetworkRepository.cs
+@@ -1,3 +1,5 @@
++// BLK-PERF-01: All read-only queries use AsNoTracking() to avoid EF Core change-tracking overhead.
++// GetAllWithProviderCountAsync added to eliminate N+1 in the public network list endpoint.
+ using CareConnect.Application.Repositories;
+ using CareConnect.Domain;
+ using CareConnect.Infrastructure.Data;
+@@ -18,20 +20,41 @@ public class NetworkRepository : INetworkRepository
+     public async Task<List<ProviderNetwork>> GetAllByTenantAsync(Guid tenantId, CancellationToken ct = default)
+     {
+         return await _db.ProviderNetworks
++            .AsNoTracking()
+             .Where(n => n.TenantId == tenantId && !n.IsDeleted)
+             .OrderBy(n => n.Name)
+             .ToListAsync(ct);
+     }
+ 
++    // BLK-PERF-01: Replaces the N+1 pattern in PublicNetworkEndpoints GET / where each
++    // network in the list triggered a separate GetWithProvidersAsync round-trip.
++    // A single query projects network fields + sub-query COUNT() of NetworkProviders.
++    public async Task<List<(Guid Id, string Name, string? Description, int ProviderCount)>> GetAllWithProviderCountAsync(
++        Guid tenantId, CancellationToken ct = default)
++    {
++        return await _db.ProviderNetworks
++            .AsNoTracking()
++            .Where(n => n.TenantId == tenantId && !n.IsDeleted)
++            .OrderBy(n => n.Name)
++            .Select(n => ValueTuple.Create(
++                n.Id,
++                n.Name,
++                (string?)n.Description,
++                n.NetworkProviders.Count()))
++            .ToListAsync(ct);
++    }
++
+     public async Task<ProviderNetwork?> GetByIdAsync(Guid tenantId, Guid id, CancellationToken ct = default)
+     {
+         return await _db.ProviderNetworks
++            .AsNoTracking()
+             .FirstOrDefaultAsync(n => n.TenantId == tenantId && n.Id == id && !n.IsDeleted, ct);
+     }
+ 
+     public async Task<ProviderNetwork?> GetWithProvidersAsync(Guid tenantId, Guid id, CancellationToken ct = default)
+     {
+         return await _db.ProviderNetworks
++            .AsNoTracking()
+             .Include(n => n.NetworkProviders)
+                 .ThenInclude(np => np.Provider)
+             .FirstOrDefaultAsync(n => n.TenantId == tenantId && n.Id == id && !n.IsDeleted, ct);
+@@ -57,6 +80,7 @@ public class NetworkRepository : INetworkRepository
+     public async Task<NetworkProvider?> GetMembershipAsync(Guid networkId, Guid providerId, CancellationToken ct = default)
+     {
+         return await _db.NetworkProviders
++            .AsNoTracking()
+             .FirstOrDefaultAsync(np => np.ProviderNetworkId == networkId && np.ProviderId == providerId, ct);
+     }
+ 
+@@ -69,6 +93,7 @@ public class NetworkRepository : INetworkRepository
+     public async Task<List<Provider>> GetNetworkProvidersAsync(Guid tenantId, Guid networkId, CancellationToken ct = default)
+     {
+         return await _db.NetworkProviders
++            .AsNoTracking()
+             .Where(np => np.ProviderNetworkId == networkId && np.TenantId == tenantId)
+             .Include(np => np.Provider)
+             .Select(np => np.Provider)
+@@ -87,7 +112,7 @@ public class NetworkRepository : INetworkRepository
+         string? name, string? phone, string? npi, string? city,
+         int limit = 20, CancellationToken ct = default)
+     {
+-        var q = _db.Providers.AsQueryable();
++        var q = _db.Providers.AsNoTracking().AsQueryable();
+ 
+         // NPI exact match — highest priority, most specific
+         if (!string.IsNullOrWhiteSpace(npi))
+@@ -128,13 +153,13 @@ public class NetworkRepository : INetworkRepository
+ 
+     public async Task<Provider?> GetProviderByIdGlobalAsync(Guid id, CancellationToken ct = default)
+     {
+-        return await _db.Providers.FirstOrDefaultAsync(p => p.Id == id, ct);
++        return await _db.Providers.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
+     }
+ 
+     public async Task<Provider?> GetProviderByNpiAsync(string npi, CancellationToken ct = default)
+     {
+         var trimmed = npi.Trim();
+-        return await _db.Providers.FirstOrDefaultAsync(p => p.Npi == trimmed, ct);
++        return await _db.Providers.AsNoTracking().FirstOrDefaultAsync(p => p.Npi == trimmed, ct);
+     }
+ 
+     public async Task AddProviderToRegistryAsync(Provider provider, CancellationToken ct = default)
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ProviderRepository.cs b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ProviderRepository.cs
+index 4af31f48..e49cc3b2 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ProviderRepository.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ProviderRepository.cs
+@@ -1,3 +1,4 @@
++// BLK-PERF-01: All read-only queries use AsNoTracking() to avoid EF Core change-tracking overhead.
+ using CareConnect.Application.DTOs;
+ using CareConnect.Application.Helpers;
+ using CareConnect.Application.Repositories;
+@@ -29,7 +30,9 @@ public class ProviderRepository : IProviderRepository
+             .Select(p => p.Id)
+             .ToListAsync(ct);
+ 
++        // BLK-PERF-01: AsNoTracking — provider list is read-only; no change tracking needed.
+         var items = await _db.Providers
++            .AsNoTracking()
+             .Where(p => ids.Contains(p.Id))
+             .Include(p => p.ProviderCategories)
+                 .ThenInclude(pc => pc.Category)
+@@ -50,7 +53,9 @@ public class ProviderRepository : IProviderRepository
+             .Select(p => p.Id)
+             .ToListAsync(ct);
+ 
++        // BLK-PERF-01: AsNoTracking — marker data is read-only.
+         return await _db.Providers
++            .AsNoTracking()
+             .Where(p => ids.Contains(p.Id))
+             .Include(p => p.ProviderCategories)
+                 .ThenInclude(pc => pc.Category)
+@@ -60,7 +65,9 @@ public class ProviderRepository : IProviderRepository
+ 
+     public async Task<Provider?> GetByIdAsync(Guid tenantId, Guid id, CancellationToken ct = default)
+     {
++        // BLK-PERF-01: AsNoTracking — read-only detail fetch.
+         return await _db.Providers
++            .AsNoTracking()
+             .Where(p => p.TenantId == tenantId && p.Id == id)
+             .Include(p => p.ProviderCategories)
+                 .ThenInclude(pc => pc.Category)
+@@ -102,7 +109,9 @@ public class ProviderRepository : IProviderRepository
+ 
+     public async Task<Provider?> GetByIdCrossAsync(Guid id, CancellationToken ct = default)
+     {
++        // BLK-PERF-01: AsNoTracking — cross-tenant read used for public referral validation; read-only.
+         return await _db.Providers
++            .AsNoTracking()
+             .Where(p => p.Id == id)
+             .Include(p => p.ProviderCategories)
+                 .ThenInclude(pc => pc.Category)
+@@ -113,7 +122,8 @@ public class ProviderRepository : IProviderRepository
+     {
+         // Providers are a platform-wide marketplace; all active providers from all tenants
+         // are discoverable. The tenantId parameter is retained for future analytics/audit use.
+-        var q = _db.Providers.AsQueryable();
++        // BLK-PERF-01: AsNoTracking on base query — all search/marker flows are read-only.
++        var q = _db.Providers.AsNoTracking().AsQueryable();
+ 
+         if (!string.IsNullOrWhiteSpace(query.Name))
+             q = q.Where(p => p.Name.Contains(query.Name));
+@@ -163,7 +173,9 @@ public class ProviderRepository : IProviderRepository
+ 
+     public async Task<List<Provider>> GetUnlinkedAsync(Guid tenantId, CancellationToken ct = default)
+     {
++        // BLK-PERF-01: AsNoTracking — admin read-only list.
+         return await _db.Providers
++            .AsNoTracking()
+             .Where(p => p.TenantId == tenantId && p.IsActive && p.OrganizationId == null)
+             .OrderBy(p => p.Name)
+             .ToListAsync(ct);
+@@ -172,6 +184,7 @@ public class ProviderRepository : IProviderRepository
+     public async Task<Provider?> GetByOrganizationIdAsync(Guid organizationId, CancellationToken ct = default)
+     {
+         return await _db.Providers
++            .AsNoTracking()
+             .FirstOrDefaultAsync(p => p.OrganizationId == organizationId, ct);
+     }
+ 
+@@ -179,6 +192,7 @@ public class ProviderRepository : IProviderRepository
+     public async Task<Provider?> GetByIdentityUserIdAsync(Guid identityUserId, CancellationToken ct = default)
+     {
+         return await _db.Providers
++            .AsNoTracking()
+             .FirstOrDefaultAsync(p => p.IdentityUserId == identityUserId, ct);
+     }
+ }
+diff --git a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ReferralRepository.cs b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ReferralRepository.cs
+index 0ac6533c..3d280a02 100644
+--- a/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ReferralRepository.cs
++++ b/apps/services/careconnect/CareConnect.Infrastructure/Repositories/ReferralRepository.cs
+@@ -1,3 +1,4 @@
++// BLK-PERF-01: All read-only queries use AsNoTracking() to avoid EF Core change-tracking overhead.
+ using CareConnect.Application.DTOs;
+ using CareConnect.Application.Repositories;
+ using CareConnect.Domain;
+@@ -21,11 +22,15 @@ public class ReferralRepository : IReferralRepository
+ 
+         if (query.CrossTenantReceiver && query.ReceivingOrgId.HasValue)
+         {
+-            q = _db.Referrals.Where(r => r.ReceivingOrganizationId == query.ReceivingOrgId.Value);
++            q = _db.Referrals
++                .AsNoTracking()
++                .Where(r => r.ReceivingOrganizationId == query.ReceivingOrgId.Value);
+         }
+         else
+         {
+-            q = _db.Referrals.Where(r => r.TenantId == tenantId);
++            q = _db.Referrals
++                .AsNoTracking()
++                .Where(r => r.TenantId == tenantId);
+         }
+ 
+         if (!string.IsNullOrWhiteSpace(query.Status))
+@@ -80,6 +85,7 @@ public class ReferralRepository : IReferralRepository
+     public async Task<Referral?> GetByIdAsync(Guid tenantId, Guid id, CancellationToken ct = default)
+     {
+         return await _db.Referrals
++            .AsNoTracking()
+             .Where(r => r.TenantId == tenantId && r.Id == id)
+             .Include(r => r.Provider)
+             .FirstOrDefaultAsync(ct);
+@@ -88,6 +94,7 @@ public class ReferralRepository : IReferralRepository
+     public async Task<Referral?> GetByIdGlobalAsync(Guid id, CancellationToken ct = default)
+     {
+         return await _db.Referrals
++            .AsNoTracking()
+             .Where(r => r.Id == id)
+             .Include(r => r.Provider)
+             .FirstOrDefaultAsync(ct);
+@@ -115,6 +122,7 @@ public class ReferralRepository : IReferralRepository
+     public async Task<List<ReferralStatusHistory>> GetHistoryByReferralAsync(Guid tenantId, Guid referralId, CancellationToken ct = default)
+     {
+         return await _db.ReferralStatusHistories
++            .AsNoTracking()
+             .Where(h => h.TenantId == tenantId && h.ReferralId == referralId)
+             .OrderByDescending(h => h.ChangedAtUtc)
+             .ToListAsync(ct);
+@@ -129,6 +137,7 @@ public class ReferralRepository : IReferralRepository
+     public async Task<List<ReferralProviderReassignment>> GetProviderReassignmentsByReferralAsync(Guid tenantId, Guid referralId, CancellationToken ct = default)
+     {
+         return await _db.ReferralProviderReassignments
++            .AsNoTracking()
+             .Where(r => r.TenantId == tenantId && r.ReferralId == referralId)
+             .OrderBy(r => r.ReassignedAtUtc)
+             .ToListAsync(ct);

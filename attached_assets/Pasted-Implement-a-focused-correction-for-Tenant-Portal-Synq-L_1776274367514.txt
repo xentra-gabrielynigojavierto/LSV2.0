@@ -1,0 +1,261 @@
+Implement a focused correction for:
+
+Tenant Portal → Synq Liens → Case Detail
+Tenant Portal → Synq Liens → Lien Detail
+
+Goal:
+1. Restore and correctly position the expand/collapse interaction between the two middle panels
+2. Balance the header layout visually
+3. Unify this behavior into a reusable LayoutSplit component
+
+This is NOT a redesign.
+This is an interaction + alignment + reuse correction.
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT (MANDATORY)
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create:
+     /analysis/LS-LIENS-UI-013-02-report.md
+
+2. Initialize with:
+   - Objective
+   - Current issue summary
+   - Expected expand/collapse behavior
+   - Header imbalance observations
+   - Plan for reusable LayoutSplit component
+
+3. DURING implementation:
+   - Update after each step
+   - Include:
+     - step id
+     - files modified
+     - issue found
+     - fix applied
+     - current status
+
+4. FINAL:
+   - Final summary
+   - validation results
+   - reusable component details
+   - remaining UI gaps if any
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only fix:
+1. Middle panel expand/collapse interaction
+2. Divider positioning
+3. Header content balance
+4. Reusability via LayoutSplit component
+
+Do NOT modify:
+- top nav
+- side nav
+- fonts
+- colors
+- service/API logic
+- routing
+- role-access
+- provider-mode
+- data fields
+- business logic
+
+--------------------------------------------------
+CURRENT ISSUES TO FIX
+--------------------------------------------------
+
+1. Expand/collapse control is not properly positioned
+2. Divider appears vertically centered instead of layout-aligned
+3. Header is visually unbalanced
+4. Expand/collapse logic duplicated across pages instead of reusable
+
+--------------------------------------------------
+REQUIRED BEHAVIOR (MIDDLE PANELS)
+--------------------------------------------------
+
+State 1: split
+- left panel visible
+- right panel visible
+
+State 2: left-expanded
+- left panel expands
+- right panel hidden
+
+State 3: right-expanded
+- right panel expands
+- left panel hidden
+
+Restore:
+- always able to return to split
+
+--------------------------------------------------
+DIVIDER POSITION FIX (CRITICAL)
+--------------------------------------------------
+
+Reposition the expand/collapse control:
+
+- Align with TOP of the two-column layout
+- Position just BELOW the tabs row
+- Vertically align with:
+  - top of "Plaintiff" panel
+  - top of "Email" panel
+
+DO NOT:
+- vertically center across full height
+- let it float relative to content
+
+The divider must feel attached to the layout boundary.
+
+--------------------------------------------------
+DIVIDER VISUAL RULES
+--------------------------------------------------
+
+- Keep existing button styling
+- Keep hover + active states
+- Keep connector line
+
+Refine:
+- shorten connector line height (do not span full panel)
+- ensure perfect vertical alignment with panel top padding
+- maintain horizontal centering between panels
+
+--------------------------------------------------
+REUSABLE COMPONENT (NEW REQUIREMENT)
+--------------------------------------------------
+
+Create a reusable component:
+
+👉 LayoutSplit (or equivalent)
+
+Purpose:
+- standardize split-panel behavior across the app
+- prevent duplicated logic in Case and Lien pages
+
+--------------------------------------------------
+LayoutSplit REQUIREMENTS
+--------------------------------------------------
+
+Props (suggested):
+
+- left: ReactNode
+- right: ReactNode
+- defaultMode: 'split' | 'left' | 'right'
+- className (optional)
+
+Internal State:
+- split
+- left-expanded
+- right-expanded
+
+Responsibilities:
+
+1. Layout
+- render two-column layout
+- handle responsive widths
+
+2. Divider Control
+- render expand/collapse buttons
+- position at top-aligned boundary (NOT center)
+- manage interaction states
+
+3. Behavior
+- toggle between split / left / right
+- preserve smooth layout transitions
+- prevent overflow issues
+
+4. Styling
+- respect parent container padding
+- not break alignment system
+- not introduce new colors or tokens
+
+--------------------------------------------------
+REFACTOR REQUIREMENT
+--------------------------------------------------
+
+- Replace existing panel logic in:
+  - Case Detail
+  - Lien Detail
+
+WITH LayoutSplit usage
+
+- Remove duplicated PanelMode logic from pages
+- Keep pages clean and declarative
+
+Example usage:
+
+<LayoutSplit
+  left={<CaseMainContent />}
+  right={<CommunicationPanel />}
+/>
+
+--------------------------------------------------
+HEADER BALANCING (REQUIRED)
+--------------------------------------------------
+
+Fix header layout:
+
+LEFT:
+- Title (dominant)
+- Subtitle (proper spacing)
+
+RIGHT:
+- Structured metadata grid (grid-cols-4)
+- Clean alignment
+- Even spacing
+
+Ensure:
+- left and right visually balanced
+- no flex-wrap chaos
+- action button aligned with metadata baseline
+
+--------------------------------------------------
+LAYOUT RULES
+--------------------------------------------------
+
+- Preserve current spacing system
+- Preserve card styles
+- Preserve rounded containers
+- Preserve tabs alignment
+
+--------------------------------------------------
+VALIDATION CHECKLIST
+--------------------------------------------------
+
+Header:
+- balanced left/right
+- metadata grid aligned
+- action button aligned
+
+Divider:
+- positioned at top (NOT center)
+- visually attached to layout
+- controls usable and visible
+
+Panels:
+- split works
+- left-expanded works
+- right-expanded works
+- restore works
+
+Reusability:
+- LayoutSplit used in both pages
+- no duplicated logic remains
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Divider is correctly positioned at top of layout
+- Expand/collapse behavior fully functional
+- Header visually balanced
+- LayoutSplit component created and used
+- Case and Lien pages share same layout logic
+- No regression to existing UI polish
+- No logic or workflow changes
+
+Execute ONLY this correction + refactor.
+Do NOT redesign.
+Do NOT change fonts, colors, or navigation.

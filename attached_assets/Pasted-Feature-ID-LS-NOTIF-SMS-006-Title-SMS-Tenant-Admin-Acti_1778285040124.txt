@@ -1,0 +1,205 @@
+Feature ID: LS-NOTIF-SMS-006
+
+Title:
+SMS Tenant/Admin Activity Logs and Reporting APIs
+
+Objective:
+Add SMS activity log filtering and reporting APIs inside Notification Service so outbound SMS activity can be identified, filtered, and displayed by tenant, admin/platform activity, provider config, ownership mode, delivery status, and reconciliation outcome.
+
+Scope:
+- Backend/API only.
+- Notification Service boundary only.
+- Focus on outbound SMS activity visibility.
+- Do not add UI in this feature.
+
+Requirements:
+1. Provide APIs to query SMS activity logs by tenant.
+2. Distinguish tenant-owned SMS activity from platform/admin SMS activity.
+3. Filter SMS activity by:
+   - tenantId
+   - channel=sms
+   - provider
+   - providerConfigId
+   - providerOwnershipMode
+   - providerMessageId
+   - status
+   - failureCategory
+   - date range
+   - reconciliation outcome where available
+4. Return enough data for future tenant/admin dashboard display.
+5. Preserve existing audit, attempt, notification, reconciliation, and provider metadata models.
+6. Do not expose Twilio credentials, auth tokens, or provider secrets.
+7. Do not expose full phone numbers unless existing API conventions explicitly allow it.
+8. Use existing masking conventions for recipient/contact values.
+9. Keep implementation isolated inside Notification Service.
+
+Required Report File:
+Create this file first and update it incrementally:
+
+/analysis/LS-NOTIF-SMS-006-report.md
+
+The report must include:
+1. Initial codebase analysis
+2. Existing NotificationAttempt/logging/audit findings
+3. Existing tenant/provider metadata findings
+4. Existing reconciliation metadata findings
+5. Files added
+6. Files modified
+7. Database/schema/config changes
+8. API/interface changes
+9. Validation/testing performed
+10. Known gaps/issues
+11. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Logging and Activity Data
+Identify existing data sources for SMS activity:
+- Notification
+- NotificationAttempt
+- Audit events
+- SMS reconciliation audit/results
+- ProviderConfigId
+- ProviderOwnershipMode
+- ProviderMessageId
+- TenantId
+- Status/failure fields
+- CreatedAt/UpdatedAt timestamps
+
+Document findings in the report before implementation.
+
+STEP 2 — Define SMS Activity Query Model
+Add a Notification Service-local query DTO/model supporting:
+- tenantId
+- includePlatformActivity
+- provider
+- providerConfigId
+- providerOwnershipMode
+- providerMessageId
+- status
+- failureCategory
+- fromDate
+- toDate
+- limit
+- offset
+
+Add response DTOs suitable for dashboard display:
+- notificationId
+- attemptId
+- tenantId
+- channel
+- provider
+- providerConfigId
+- providerOwnershipMode
+- providerMessageId
+- status
+- failureCategory
+- maskedRecipient
+- createdAt
+- updatedAt
+- sentAt/completedAt where available
+- lastError where safe
+- reconciliationState where available
+
+STEP 3 — Add Repository Query Support
+Add bounded query methods for SMS activity.
+
+Requirements:
+- Filter by tenantId.
+- Filter platform/admin activity separately.
+- Filter only channel=sms.
+- Support pagination.
+- Support date range.
+- Avoid unbounded full-table scans.
+- Add indexes only if needed and consistent with existing migration patterns.
+- Do not return provider credentials.
+
+STEP 4 — Add Activity API Endpoints
+Add endpoints consistent with existing Notification Service API style.
+
+Suggested endpoints:
+- GET /v1/sms/activity
+- GET /v1/sms/activity/summary
+
+The activity endpoint should return paginated records.
+
+The summary endpoint should return aggregate counts such as:
+- total
+- sent
+- delivered
+- failed
+- pending/processing
+- retrying
+- dead-letter
+- reconciled
+- reconciliation failures where available
+
+Requirements:
+- Existing authentication/authorization patterns must be used.
+- Tenant users should only see tenant-scoped activity.
+- Platform/admin users may include platform/admin activity and tenant activity where authorized.
+- Do not expose provider secrets.
+- Mask recipient phone numbers.
+
+STEP 5 — Admin vs Tenant Attribution
+Implement clear activity attribution.
+
+Tenant-owned activity:
+- TenantId = tenant id
+- ProviderOwnershipMode = tenant
+- ProviderConfigId present when tenant config was used
+
+Platform/admin activity:
+- ProviderOwnershipMode = platform
+- ProviderConfigId null or platform config id where available
+- TenantId = platform tenant or system/admin context where existing model supports it
+
+Requirements:
+- Do not infer admin activity from provider alone.
+- Use existing tenant/provider metadata first.
+- If attribution is ambiguous, return an explicit attribution value such as `unknown` rather than guessing.
+
+STEP 6 — Audit and Security Review
+Ensure response payloads:
+- never include CredentialsJson
+- never include authToken
+- never include raw provider config secrets
+- never include full phone numbers unless existing conventions allow it
+- include masked recipient/contact values only
+- include providerMessageId only if already treated as operational metadata
+
+STEP 7 — Validation
+Validate:
+- tenant can query its own SMS activity
+- platform/admin can filter by tenant
+- platform/admin can filter platform-owned activity
+- filtering by providerConfigId works
+- filtering by providerOwnershipMode works
+- filtering by status works
+- filtering by date range works
+- pagination works
+- summary counts match filtered activity
+- credentials are not exposed
+- phone numbers are masked
+- email/in-app behavior is unchanged
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-005 behavior remains unchanged
+
+Expected Deliverables:
+- SMS activity query DTOs
+- SMS activity repository/query methods
+- SMS activity API endpoint
+- SMS activity summary API endpoint
+- Tenant/admin attribution logic
+- Security-safe response shaping
+- Updated documentation
+- Completed analysis report
+
+Do NOT:
+- Add UI
+- Add conversational inbound SMS
+- Add new SMS providers
+- Expose provider credentials
+- Expose full phone numbers unnecessarily
+- Move logic outside Notification Service
+- Modify unrelated services except for build/config compatibility
+- Break existing outbound SMS, compliance, reconciliation, or tenant-provider runtime behavior

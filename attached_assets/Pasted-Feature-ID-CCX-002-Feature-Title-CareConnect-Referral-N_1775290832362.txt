@@ -1,0 +1,255 @@
+Feature ID: CCX-002
+Feature Title: CareConnect Referral Notifications & Delivery Wiring
+
+Implement CCX-002 for the LegalSynq CareConnect product.
+
+Context:
+- CareConnect already supports provider discovery, referral creation/detail, and parts of referral workflow
+- Platform IAM, admin portal, permissions, and audit foundations are already implemented
+- Current product gap:
+  - referral workflow notifications are not yet fully wired
+  - product actions can occur without reliable recipient notification
+- This feature is specifically for REFERRAL notifications only
+
+IMPORTANT:
+- Appointment notifications are explicitly OUT OF SCOPE for this feature
+- Do NOT implement appointment booked / confirmed / cancelled / rescheduled / completed notifications in CCX-002
+- Keep this feature focused on referral events and delivery reliability
+
+Objective:
+Wire referral lifecycle events to real notification creation/delivery so CareConnect becomes operationally usable for referral workflows.
+
+This feature should cover:
+- referral submitted
+- referral accepted
+- referral rejected
+- referral cancelled
+
+And should ensure:
+- correct recipients
+- tenant/org-safe targeting
+- idempotent delivery behavior
+- logging / reporting of success or failure
+
+========================================
+CORE RULES
+========================================
+
+1. Referral notifications only
+2. Appointment notifications are excluded from this feature
+3. Backend remains the source of truth for notification triggering
+4. Use existing notification infrastructure if available
+5. If notification delivery infrastructure is partial, implement the smallest safe working path and document limitations clearly
+6. Prevent duplicate sends on retry/replay of the same workflow action
+7. Preserve tenant/org boundaries in recipient selection
+
+========================================
+MVP SCOPE FOR CCX-002
+========================================
+
+Implement referral notification delivery for these events:
+
+1. Referral Submitted
+2. Referral Accepted
+3. Referral Rejected
+4. Referral Cancelled
+
+For each event:
+- create notification records
+- resolve recipients correctly
+- attempt delivery via existing notification path
+- record outcome/status
+- avoid duplicate sends for the same action
+
+========================================
+OUT OF SCOPE
+========================================
+
+Do NOT implement in this feature:
+- appointment notifications of any kind
+- reminder jobs
+- notification preferences UI
+- notification center/inbox UI
+- SMS
+- push notifications
+- escalation workflows
+- generalized campaign or template studio
+- notification analytics dashboard
+- unrelated workflow changes
+
+========================================
+BACKEND — CARECONNECT / NOTIFICATION INTEGRATION
+========================================
+
+Implement or complete the backend workflow needed for referral notifications.
+
+1. Referral Event Triggers
+Wire notification creation into the referral lifecycle mutations that already exist or are completed as part of current CareConnect workflow.
+
+At minimum verify/implement notification triggers for:
+- referral submit
+- referral accept
+- referral reject
+- referral cancel
+
+Do not invent alternate workflow actions if existing route names already exist. Preserve current CareConnect API style.
+
+2. Recipient Resolution
+Use real domain relationships as the source of truth.
+
+At minimum:
+
+Referral Submitted:
+- notify receiving provider organization users
+- optionally notify submitting/referring user if straightforward and already available
+
+Referral Accepted:
+- notify referring law firm organization users
+- optionally notify submitting/referring user
+
+Referral Rejected:
+- notify referring law firm organization users
+- optionally notify submitting/referring user
+
+Referral Cancelled:
+- notify both participating organizations where appropriate
+
+Recipient resolution requirements:
+- do not use ad hoc email strings if real user/org relationships already exist
+- maintain tenant/org-safe targeting
+- do not notify out-of-scope or unrelated users
+
+3. Notification Persistence / Delivery
+If a notification model/table already exists, reuse it.
+If not, add the smallest safe persistent model needed.
+
+Minimum fields needed if persistence is added:
+- Id
+- TenantId
+- EventType
+- TargetType
+- TargetId
+- RecipientUserId and/or RecipientOrganizationId
+- Channel
+- Subject
+- Body or TemplatePayload
+- Status
+- DedupeKey or IdempotencyKey
+- CreatedAtUtc
+- SentAtUtc nullable
+- FailureReason nullable
+
+If your existing notification service already defines equivalent fields, use that instead.
+
+4. Delivery Path
+Use existing notification infrastructure if present.
+
+Preferred behavior:
+- create notification record
+- dispatch email through current notification service/provider
+- mark success/failure
+- log failures
+
+If the actual outbound delivery provider is not fully configured:
+- still create notification records
+- use current dev/test fallback behavior
+- document limitations clearly in the report
+
+5. Idempotency / Duplicate Prevention
+Implement a safe dedupe mechanism so retried workflow mutations do not create/send duplicate notifications for the same referral event.
+
+Examples of acceptable approaches:
+- dedupe key built from referralId + eventType + statusTransition + timestamp bucket if needed
+- unique constraint if current model supports it
+- idempotent dispatch layer if already present
+
+Use the simplest correct mechanism in the current codebase.
+
+6. Audit / Logging
+Where possible:
+- emit audit/security/operational event for notification trigger
+- log delivery success/failure with enough detail for debugging
+- include correlation info if already used in the platform
+
+========================================
+FRONTEND — CARECONNECT
+========================================
+
+Keep frontend scope minimal and honest.
+
+1. Referral Detail / Mutation UX
+For referral actions that now trigger notifications:
+- continue showing success/failure for the main mutation
+- if notification sending is part of the mutation result, surface meaningful feedback only if appropriate
+- do not block the UX unnecessarily on non-critical downstream display concerns unless business rules require it
+
+2. Optional Read-Only Status (Only if Easy)
+If the backend already returns or can cheaply return notification status for the referral:
+- optionally show a small read-only section on referral detail
+- keep it lightweight
+- do not build a notification center
+
+If not easy, skip UI status and document that backend delivery is implemented without frontend exposure.
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation:
+
+1. Submitting a referral triggers notifications to the correct recipients
+2. Accepting a referral triggers notifications to the correct recipients
+3. Rejecting a referral triggers notifications to the correct recipients
+4. Cancelling a referral triggers notifications to the correct recipients
+5. Duplicate sends are prevented on retried actions
+6. Delivery outcomes are persisted and/or logged
+7. Tenant/org recipient boundaries remain correct
+8. No appointment notifications were added in this feature
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/CCX-002-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Referral Events Wired
+6. Recipient Resolution Rules
+7. Notification Persistence / Delivery Implementation
+8. Idempotency / Duplicate Prevention
+9. Backend Endpoints / Workflow Hooks Updated
+10. Frontend Changes
+11. Out-of-Scope Confirmation
+12. Known Issues / Delivery Limitations
+13. Manual Test Results
+14. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- referral submitted notification works
+- referral accepted notification works
+- referral rejected notification works
+- referral cancelled notification works
+- correct recipients are targeted
+- duplicate sends prevented
+- delivery result persisted or logged
+- tenant/org boundaries preserved
+- no appointment notifications implemented
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- keep this feature referral-only
+- do not drift into appointment notification work
+- use existing infrastructure where possible
+- implement the smallest safe delivery path that makes referral workflow operational
+- if delivery provider setup is incomplete, document it clearly instead of faking full production readiness
+- save the report to /analysis/CCX-002-report.md

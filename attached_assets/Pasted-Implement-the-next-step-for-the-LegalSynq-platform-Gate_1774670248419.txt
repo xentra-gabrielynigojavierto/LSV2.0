@@ -1,0 +1,114 @@
+Implement the next step for the LegalSynq platform: Gateway JWT validation and route forwarding.
+
+Context:
+- The monorepo already contains Gateway.Api and Identity service
+- Identity is fully working with:
+  - MySQL + EF Core
+  - users, tenants, roles
+  - password hashing
+  - login endpoint
+  - JWT issuance
+- Gateway currently exists but is still minimal
+
+Goal:
+Upgrade Gateway.Api so it becomes the front door for the platform and validates JWTs issued by Identity.
+
+Requirements
+
+1. Add required NuGet packages
+Add the minimum packages needed for:
+- JWT bearer authentication
+- reverse proxy / route forwarding
+
+Use stable .NET 8-compatible packages.
+Use YARP for reverse proxy.
+
+2. Add JWT bearer authentication to Gateway
+Configure Gateway to validate bearer tokens using configuration values from appsettings:
+- Jwt:Issuer
+- Jwt:Audience
+- Jwt:SigningKey
+
+Use the same settings format as Identity so they can match.
+
+3. Add authorization setup
+Configure authentication and authorization middleware.
+Do not add advanced policies yet.
+
+4. Add public endpoints in Gateway
+Keep or add:
+- GET /health
+- GET /info
+
+These should not require authentication.
+
+5. Add reverse proxy support
+Use YARP to forward requests from Gateway to Identity.
+
+Initial route mapping:
+- /identity/{**catch-all} -> Identity service
+
+Example:
+- Gateway receives /identity/api/users
+- forwards to Identity service /api/users
+
+6. Configure Identity cluster destination
+Use configuration for the downstream Identity service URL.
+For development, use:
+- Identity service base URL = http://localhost:5001
+
+7. Protect proxied routes
+Require JWT authentication for proxied Identity routes by default, except allow anonymous access for:
+- /identity/health
+- /identity/info
+- /identity/api/auth/login
+
+If needed, configure route-level authorization in YARP.
+
+8. Add appsettings.json and appsettings.Development.json updates
+Add:
+- Jwt settings
+- ReverseProxy routes
+- ReverseProxy clusters
+
+Keep config clean and minimal.
+
+9. Keep the Gateway code production-minded
+- clean Program.cs
+- no unnecessary boilerplate
+- clear service name and environment handling
+- consistent /health and /info responses
+
+10. Do NOT add yet
+Do not add:
+- Fund proxy routes
+- Liens proxy routes
+- CareConnect proxy routes
+- custom authorization policies
+- rate limiting
+- correlation ID middleware
+- Swagger aggregation
+
+11. Testing expectations
+After implementation, output:
+- files changed
+- package commands used
+- test URLs
+- how to call login through Gateway
+- how to call a protected Identity endpoint through Gateway using Bearer token
+
+12. Example target behavior
+Public:
+- GET http://localhost:5000/health
+- GET http://localhost:5000/info
+- POST http://localhost:5000/identity/api/auth/login
+
+Protected:
+- GET http://localhost:5000/identity/api/users
+  requires Authorization: Bearer <token>
+
+13. Important constraints
+- Keep Identity service unchanged unless absolutely necessary
+- Gateway should validate the JWT locally
+- Use the same issuer/audience/signing key configuration values as Identity
+- Keep the implementation minimal, clean, and extensible

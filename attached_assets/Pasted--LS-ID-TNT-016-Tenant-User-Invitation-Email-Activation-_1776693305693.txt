@@ -1,0 +1,468 @@
+# LS-ID-TNT-016 — Tenant User Invitation Email + Activation Flow
+
+## FEATURE OBJECTIVE
+
+Implement a complete, production-ready **tenant user invitation and activation flow** that connects the Tenant Portal invite action to the running Notification service and allows invited users to securely activate their account.
+
+This feature must complete the user onboarding lifecycle by adding:
+
+- invitation token generation
+- invite email dispatch through Notification service
+- secure invite acceptance flow
+- password setup / account activation
+- invite status handling
+- audit events for invite lifecycle
+
+This is the missing execution layer between:
+- tenant user management
+- notification delivery
+- first-time user activation
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- tenant user management exists
+- roles and permissions exist
+- invite-based user creation exists at a base level
+- notification service is now running
+- real identity / authorization / audit stack is complete
+
+What is missing:
+- invite email delivery through Notification service
+- secure activation token lifecycle
+- acceptance flow for invited users
+- end-to-end onboarding completion
+
+Without this feature:
+- inviting a user is not operationally complete
+- onboarding remains manual or partially broken
+- Flow / My Tasks integration will be weaker because org users are not fully lifecycle-managed
+
+This feature closes that gap.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- direct email sending from Identity service
+- plaintext password emails
+- auto-activating invited users without acceptance
+- broad redesign of login pages
+- SSO / external identity provider flows
+- magic-link passwordless auth
+- notification service redesign
+- speculative multi-step onboarding wizard
+- duplicate user creation on re-invite
+
+ONLY IMPLEMENT:
+- invitation token lifecycle
+- notification-service email dispatch
+- invite acceptance validation
+- password setup + activation
+- invited user status transitions
+- resend/re-invite behavior
+- report-first implementation and honest documentation of coverage
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental identity lifecycle feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-002 — User Access Audit
+- LS-ID-TNT-017-002-01 — Selective Successful Access Audit
+- LS-ID-TNT-017-003 — Governance Mutation Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-017-006 — Audit Correlation Engine
+- LS-ID-TNT-017-008 — Audit Analytics
+- LS-ID-TNT-017-008-01 — Audit Anomaly Detection
+- LS-ID-TNT-017-008-02 — Audit Alerting Engine
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing user lifecycle, authorization, audit, and notification behavior
+- validate the actual current invite/user model before changing it
+- use Notification service for email delivery rather than direct sending
+- keep backend authority intact
+- include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- document exact invite/activation lifecycle behavior
+- keep re-invite behavior idempotent and safe
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-016-report.md
+
+Initialize with:
+
+# LS-ID-TNT-016 — Tenant User Invitation Email + Activation Flow
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Invite / User Lifecycle Analysis
+## 4. Notification Service Integration Analysis
+## 5. Invite Token Model Design
+## 6. Invite / Activation Lifecycle Design
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Frontend / UX Implementation
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL CURRENT INVITE FLOW
+
+Inspect the current codebase and document the real invite/user onboarding behavior.
+
+You must identify and document:
+- how "Invite User" currently works in Tenant Portal
+- what backend endpoint is used
+- whether invited users are already created in DB
+- what user status model exists today
+- whether any invitation token fields/tables already exist
+- whether activation UI/page already exists
+- whether LS-ID-TNT-007 created partial invite behavior only
+- whether email sending currently happens anywhere for invites
+- whether password setup is currently handled or missing
+
+Do NOT assume invitation lifecycle completeness until verified.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Invite / User Lifecycle Analysis
+
+---
+
+## STEP 2 — ANALYZE THE NOTIFICATION SERVICE INTEGRATION PATH
+
+Inspect the current notification integration pattern and determine how Identity should dispatch invite emails.
+
+You must identify and document:
+- how other services call Notification service today
+- whether a notification client or HTTP wrapper already exists
+- how password reset email integration was implemented in LS-ID-TNT-006
+- what payload structure Notification service expects
+- whether templates are supported and how they are referenced
+- whether Notification service supports idempotency / correlation metadata
+- what fallback/error behavior exists when notification dispatch fails
+
+Preferred:
+- reuse existing Notification client/pattern from password reset flows if present
+
+Update report:
+## 4. Notification Service Integration Analysis
+
+---
+
+## STEP 3 — DESIGN THE INVITE TOKEN MODEL
+
+Implement a secure invite token design.
+
+Requirements:
+- token must be cryptographically strong and not guessable
+- token must be time-bound
+- token must support validation, expiry, and single-use behavior
+- do not store plaintext token if the existing architecture favors hashed token storage
+- model must support re-invite / resend safely
+
+Fields to support (adapt to existing schema if similar fields already exist):
+- InviteTokenHash or equivalent
+- InviteExpiresAtUtc
+- InvitedAtUtc
+- InvitedByUserId
+- InviteAcceptedAtUtc
+- InviteStatus or equivalent lifecycle status
+
+If an invitation table is more appropriate than user-column fields based on current schema, use the smallest coherent design and document why.
+
+Update report:
+## 5. Invite Token Model Design
+
+---
+
+## STEP 4 — DEFINE THE INVITE / ACTIVATION LIFECYCLE
+
+Implement a clear lifecycle with deterministic states.
+
+Minimum lifecycle:
+- Invited
+- Active
+- Disabled
+
+Behavior rules:
+1. Admin invites new user
+   - user record created or updated in Invited state
+   - invite token generated
+   - expiration set
+   - invite email sent through Notification service
+2. User clicks invite link
+   - token validated
+   - expiry checked
+   - invited user loaded
+3. User sets password / completes activation
+   - account becomes Active
+   - token invalidated
+   - acceptance timestamp stored
+4. Re-invite existing invited user
+   - regenerate token
+   - refresh expiry
+   - resend email
+   - do NOT create duplicate user
+5. Inviting already active user
+   - either block with clear message or support resend-onboarding only if current behavior warrants it
+   - document the chosen rule
+
+Update report:
+## 6. Invite / Activation Lifecycle Design
+
+---
+
+## STEP 5 — IMPLEMENT BACKEND INVITE TOKEN + EMAIL DISPATCH
+
+Add the backend logic required for invitation completion.
+
+Requirements:
+- invite/create endpoint must generate or refresh invite token
+- invite flow must create correct invite link URL
+- invite flow must dispatch email through Notification service
+- invite dispatch must include safe template data, e.g.:
+  - tenant name
+  - invited by
+  - invite link
+  - expiration window
+- failure behavior must be explicit:
+  - if user creation succeeds but email fails, do not corrupt invite state
+  - document whether API returns partial-success, retry-needed, or similar
+
+Use Notification service, not direct email provider calls.
+
+Update report:
+## 8. Backend Implementation
+
+---
+
+## STEP 6 — IMPLEMENT INVITE ACCEPTANCE + ACTIVATION ENDPOINTS
+
+Add the minimum secure endpoints needed for acceptance.
+
+Likely required:
+- validate invite token endpoint
+- activate account endpoint
+
+Requirements:
+- validate token existence and expiry
+- reject reused or invalid tokens
+- allow invited user to set password securely
+- activate user only after successful password setup
+- clear/invalidate token after acceptance
+- preserve existing password policy enforcement
+- ensure audit events are emitted for invite lifecycle milestones
+
+Document exact endpoints and contracts.
+
+Update report:
+## 8. Backend Implementation
+
+---
+
+## STEP 7 — IMPLEMENT FRONTEND INVITE ACCEPTANCE UI
+
+Add the minimum UX needed for activation.
+
+Likely page:
+- `/invite`
+- or `/activate-invite`
+
+Requirements:
+- parse token from URL
+- validate token before showing form
+- display clear invalid/expired invite state
+- show password setup form
+- submit activation
+- show success state and redirect to login
+- keep UX simple and secure
+- do not redesign unrelated login flows
+
+Also ensure Tenant Portal Invite User flow surfaces the email invitation outcome clearly.
+
+Update report:
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 8 — IMPLEMENT RE-INVITE / RESEND BEHAVIOR
+
+Support real operational re-invite behavior.
+
+Requirements:
+- re-invite must not duplicate users
+- existing invited user should receive new token / expiry
+- old token should no longer work once regenerated
+- resend behavior should be explicit in API/UI
+- if current UI only supports a generic re-invite from the invite action, keep it minimal and correct
+
+Document exact behavior for:
+- invited but expired
+- invited but not accepted
+- active user already exists with same email
+
+Update report:
+## 6. Invite / Activation Lifecycle Design
+## 8. Backend Implementation
+## 9. Frontend / UX Implementation
+
+---
+
+## STEP 9 — EMIT AUDIT EVENTS FOR INVITE LIFECYCLE
+
+Use the existing audit infrastructure to capture key invite lifecycle events.
+
+At minimum, if supported cleanly:
+- `identity.user.invited`
+- `identity.user.invitation.sent`
+- `identity.user.invitation.accepted`
+- `identity.user.invitation.resent`
+- `identity.user.invitation.expired` (only if there is a real evaluation point where this becomes observable)
+
+Requirements:
+- reuse centralized audit pipeline
+- include tenant scope
+- include actor attribution
+- do not over-log low-value noise
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 10 — PRESERVE AUTHORIZATION, TENANT ISOLATION, AND NOTIFICATION SAFETY
+
+Requirements:
+- only authorized tenant admins can invite users
+- invited users must remain tenant-scoped correctly
+- notification payload must not leak secrets
+- invite link must be environment-correct
+- token must never be exposed beyond intended one-time use
+- backend must remain authoritative
+
+Document:
+- tenant scope handling
+- actor attribution
+- notification error handling
+- security considerations
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Invite
+- invite brand-new user → user created in Invited state, email sent
+- invite existing invited user → token refreshed, email resent, no duplicate user
+- invite existing active user → correct behavior per chosen rule
+- notification failure path behaves predictably
+
+### Acceptance
+- valid token loads activation page
+- expired token rejected
+- invalid token rejected
+- accepted token cannot be reused
+- successful password setup activates user
+- login works after activation
+
+### Audit
+- invite lifecycle events emitted correctly
+- tenant scope preserved
+
+### Regression
+- existing user management still works
+- password reset still works
+- notification service integration for other flows still works
+- no build/runtime regressions
+- no auth/permission regressions
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- how invitation email delivery works
+- how invite tokens are stored and validated
+- how activation works
+- how re-invite/resend behaves
+- what audit events were added
+- what remains deferred, if anything
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Tenant admins can invite users and trigger invite emails through Notification service
+✔ Secure invite tokens are generated, stored, and validated correctly
+✔ Invited users can accept invitation and activate their account
+✔ Re-invite/resend behavior is safe and idempotent
+✔ Existing audit pipeline captures key invite lifecycle events
+✔ Tenant isolation and authorization are preserved
+✔ Existing user management and password reset behavior do not regress
+✔ Coverage and limitations are documented honestly
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working invitation email dispatch through Notification service
+2. Working invite token and activation flow
+3. Safe re-invite / resend behavior
+4. Invite lifecycle audit coverage
+5. Completed report:
+/analysis/LS-ID-TNT-016-report.md
+
+---
+
+END OF IMPLEMENTATION

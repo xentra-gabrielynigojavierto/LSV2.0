@@ -1,0 +1,373 @@
+You are building the next UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase continues the Tenant Portal track.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-007 — Tenant Template Visibility (Read-Only)
+==================================================
+
+GOAL:
+Provide tenant users with read-only visibility into notification templates that apply to them, scoped strictly by product type, including branding-aware preview.
+
+This phase is READ-ONLY.
+
+Do NOT allow editing, overriding, or publishing.
+
+==================================================
+CRITICAL DOMAIN RULE — PRODUCT FIRST (MANDATORY)
+==================================================
+
+Templates are strictly product-scoped.
+
+The UI MUST enforce a product-first access pattern.
+
+This is NOT optional.
+
+Requirements:
+
+1. A product MUST be selected BEFORE any templates are displayed
+2. Templates must NEVER be shown across multiple products at once
+3. All template queries MUST include productType
+4. The UI must clearly indicate the active product context at all times
+
+Allowed UX patterns:
+
+Preferred (RECOMMENDED):
+- Route-based:
+  /tenant/notifications/templates/[productType]
+
+Example:
+  /tenant/notifications/templates/careconnect
+
+Alternative:
+- Product selector (tabs/dropdown) with enforced selection state
+
+DO NOT:
+- load templates without productType
+- show cross-product template lists
+- allow ambiguous product context
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Completed:
+- NOTIF-008 — backend (global templates + branding)
+- NOTIF-UI-005 — Control Center template system
+- NOTIF-UI-006 — Tenant Branding Self-Service
+
+This is the NEXT step:
+Tenant can now SEE templates, but NOT edit them.
+
+==================================================
+TENANT PORTAL SCOPE
+==================================================
+
+Audience:
+- tenant admins
+- tenant users
+
+Capabilities:
+- view templates by product
+- view template versions
+- preview templates with tenant branding
+- understand what will be sent to their users
+
+Restrictions:
+- NO editing templates
+- NO publishing
+- NO creating versions
+- NO provider config
+- NO cross-tenant visibility
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. PRODUCT SELECTION ENTRY
+--------------------------------------
+
+Entry route:
+- /tenant/notifications/templates
+
+Behavior:
+- DO NOT show templates immediately
+- require product selection first
+
+UI:
+- product selector (cards, tabs, or dropdown)
+
+Supported product types:
+- careconnect
+- synqlien
+- synqfund
+- synqrx
+- synqpayout
+
+After selection:
+- navigate to:
+  /tenant/notifications/templates/[productType]
+
+==================================================
+2. TEMPLATE LIST (PRODUCT-SCOPED)
+==================================================
+
+Route:
+- /tenant/notifications/templates/[productType]
+
+Backend:
+- GET /notifications/v1/templates/global?productType={productType}
+
+Display ONLY templates for that product.
+
+Columns / cards:
+- templateKey
+- name
+- channel
+- current version indicator
+- last updated
+- optional category
+
+UX:
+- clean table or card list
+- empty state if none exist
+- show active product clearly at top
+
+==================================================
+3. TEMPLATE DETAIL VIEW
+==================================================
+
+Route:
+- /tenant/notifications/templates/[productType]/[templateId]
+
+Backend:
+- GET /notifications/v1/templates/global/:id
+- GET /notifications/v1/templates/global/:id/versions
+
+Display:
+- template metadata
+- product type (read-only)
+- channel
+- versions list
+
+Versions list:
+- version number
+- status (draft / published)
+- created at
+- published at
+- highlight current version
+
+Actions:
+- View Version
+- Preview Version
+
+NO EDIT BUTTONS
+
+==================================================
+4. TEMPLATE VERSION VIEW
+==================================================
+
+Display selected version content:
+
+- subject (if email)
+- HTML content (render safely)
+- text content
+- variables schema (if available)
+- sample data (if available)
+
+Also display:
+- note that content is controlled by platform
+- tenant cannot modify
+
+==================================================
+5. BRANDED PREVIEW (CRITICAL FEATURE)
+==================================================
+
+Backend:
+- POST /notifications/v1/templates/global/:id/versions/:versionId/preview
+
+Payload:
+- tenantId (from context)
+- productType (from route)
+- templateData (user input)
+
+UI Requirements:
+
+Preview Panel must show:
+- subject
+- rendered HTML
+- text version
+
+Preview Input:
+- dynamic form based on variables
+- allow user to input sample values
+
+Branding Awareness:
+- show which branding is applied:
+  - brand name
+  - logo (if available)
+  - colors summary
+
+Fallback Behavior:
+- if tenant branding does not exist:
+  show:
+    "Default branding applied"
+
+IMPORTANT:
+- preview must use REAL backend call
+- do NOT simulate preview
+
+==================================================
+6. TENANT CONTEXT (MANDATORY)
+==================================================
+
+Tenant must NEVER enter tenantId manually.
+
+Requirements:
+- derive tenant from session (requireOrg or equivalent)
+- inject x-tenant-id automatically in API layer
+
+If tenant context missing:
+- show safe error state
+- do NOT call backend
+
+==================================================
+7. TENANT API CLIENT / DATA FLOW
+==================================================
+
+Create or reuse tenant-safe notifications API client.
+
+Requirements:
+- include Authorization header
+- inject x-tenant-id
+- handle errors consistently
+
+Read-only endpoints:
+- templates list
+- template detail
+- versions
+- preview
+
+NO mutation endpoints used in this phase.
+
+==================================================
+8. UI COMPONENTS
+==================================================
+
+Create reusable components:
+
+- ProductSelector
+- TemplateList
+- TemplateDetailView
+- VersionList
+- VersionViewer
+- TemplatePreviewPanel
+- BrandingIndicator
+- EmptyState
+
+Requirements:
+- loading state
+- error state
+- empty state
+- responsive layout
+
+==================================================
+9. ERROR / EMPTY STATES
+==================================================
+
+Handle clearly:
+
+- no templates for product
+- missing product selection
+- preview failure
+- missing variables
+- missing branding
+- backend errors
+
+Messages must be tenant-friendly.
+
+==================================================
+10. WHAT NOT TO BUILD
+==================================================
+
+Do NOT build:
+
+- template editing
+- template override
+- provider configuration
+- campaign UI
+- drag-and-drop editor
+- Control Center features
+- asset upload system
+- cross-product views
+
+==================================================
+11. ACCEPTANCE CRITERIA
+==================================================
+
+All must be true:
+
+1. product must be selected before templates load
+2. templates are always product-scoped
+3. template list works per product
+4. template detail works
+5. version list works
+6. version viewer works
+7. branded preview works via backend
+8. tenantId is NEVER manually entered
+9. tenant context is enforced
+10. no editing capabilities exist
+11. UI compiles and runs cleanly
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-007-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+Include ALL sections:
+
+1. IMPLEMENTATION SUMMARY  
+2. FILES CREATED / MODIFIED  
+3. FEATURES IMPLEMENTED  
+4. API / BACKEND INTEGRATION  
+5. DATA FLOW / ARCHITECTURE  
+6. VALIDATION & TESTING  
+7. ERROR HANDLING  
+8. TENANT / AUTH CONTEXT  
+9. CACHE / PERFORMANCE  
+10. KNOWN GAPS / LIMITATIONS  
+11. ISSUES ENCOUNTERED  
+12. RUN INSTRUCTIONS  
+13. READINESS ASSESSMENT  
+14. NEXT STEPS  
+
+==================================================
+CRITICAL
+==================================================
+
+If report is NOT generated:
+→ TASK IS INCOMPLETE
+
+==================================================
+EXECUTION
+==================================================
+
+Build NOTIF-UI-007 now.
+
+STRICTLY enforce product-first template access.
+
+Use real backend APIs.
+
+Keep UI tenant-safe and read-only.
+
+Generate the required report at the end.

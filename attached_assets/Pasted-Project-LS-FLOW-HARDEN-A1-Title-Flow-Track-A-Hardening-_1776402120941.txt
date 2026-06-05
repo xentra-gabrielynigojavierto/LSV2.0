@@ -1,0 +1,395 @@
+Project: LS-FLOW-HARDEN-A1
+Title: Flow Track A Hardening — Atomic Ownership, Integration Tests, E2E Validation, and Auth Tightening
+
+You are implementing the first post-P5 hardening track for the Flow execution engine.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-HARDEN-A1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around ownership enforcement, auth behavior, environment configuration, test fixtures, and any limitations in the local environment.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - ownership enforcement changes
+   - product passthrough changes
+   - auth/security hardening changes
+   - integration tests added
+   - E2E validation results
+   - diagnostics/error-code changes
+   - build/run notes
+   - known gaps/issues
+   - recommendation: ready for rollout or needs iteration
+
+REPORT FORMAT
+
+# LS-FLOW-HARDEN-A1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Atomic Ownership Enforcement Notes
+## Product Passthrough Changes
+## Authentication / Security Hardening Notes
+## Integration Test Coverage
+## End-to-End Validation Results
+## Diagnostics / Error Handling Notes
+## Documentation Changes
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Harden the Phase 5 Flow execution engine for production rollout by:
+- closing the ownership TOCTOU window
+- moving ownership validation into Flow atomically
+- updating product passthrough endpoints to use the hardened Flow execution path
+- adding integration tests for the highest-risk security and execution paths
+- running full positive E2E validation across SynqLien, CareConnect, and SynqFund
+- tightening service-token auth behavior
+- improving diagnostics and execution error consistency
+
+This phase is about hardening and verification, not adding new workflow power.
+
+SCOPE INCLUDES
+
+- Flow-side atomic ownership-aware execution endpoints
+- product endpoint updates to call the new hardened Flow endpoints
+- integration tests for IDOR, tenant isolation, auth, transition integrity, and concurrency
+- full positive happy-path validation for SynqLien, CareConnect, and SynqFund
+- auth hardening for service tokens and caller context
+- diagnostics/logging/error code standardization
+- documentation updates
+
+DO NOT BUILD
+
+- full outbox / async execution
+- new workflow branching features
+- timer engine / SLA engine
+- major UI redesign
+- full BPM/rules engine
+- shared DB access between products and Flow
+- large platform authorization redesign
+- external partner integrations
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve Flow as the source of truth for workflow ownership
+- eliminate the current pre-check plus second-call ownership validation pattern
+- ensure ownership, parent correlation, tenant, and capability checks happen atomically inside Flow on execution requests
+- keep product services API-first and DB-isolated
+- add automated test coverage for high-risk paths
+- demonstrate at least one successful positive workflow happy-path for each target product
+- tighten service-token auth handling without breaking user-based flows
+- keep the result production-safe and well documented
+
+CURRENT CONTEXT FROM PHASE 5
+
+Flow already has:
+- WorkflowInstance as execution authority
+- lightweight step/state engine
+- execution APIs
+- product passthrough execution endpoints
+- service-token support via MultiAuth
+- ownership checks in product passthrough based on pre-listing workflow mappings
+- structured logs and controller scopes
+
+Known hardening gaps from Phase 5:
+- TOCTOU window because ownership is checked in product service before a second execution call to Flow
+- no integration test suite for the Phase 5 surface
+- no fully recorded positive happy-path E2E validation in the report
+- service-token handling needs tighter environment and claim validation
+- diagnostics/error code consistency can be improved
+
+IMPLEMENTATION REQUIREMENTS
+
+1. ATOMIC OWNERSHIP ENFORCEMENT IN FLOW
+
+Goal:
+Move ownership and parent-correlation validation fully into Flow so it is checked atomically in the same request that reads or mutates workflow execution state.
+
+Requirements:
+- add new Flow endpoints that include parent/product context in the route and validate ownership server-side in Flow
+- the endpoint must validate in one request:
+  - tenant match
+  - product match
+  - sourceEntityType match
+  - sourceEntityId / parent match
+  - workflow instance ownership
+  - caller authorization/capability
+- support at minimum:
+  - get workflow instance by parent context
+  - advance workflow instance by parent context
+  - complete workflow instance by parent context
+- the legacy direct instance execution endpoints may remain, but product services should be updated to use the new atomic ownership-aware endpoints
+- return a clear deny response such as 404 or a documented equivalent error code when the workflow instance does not belong to the parent context
+
+Recommended endpoint shape:
+- GET  /api/v1/product-workflows/{product}/{sourceEntityType}/{sourceEntityId}/{workflowInstanceId}
+- POST /api/v1/product-workflows/{product}/{sourceEntityType}/{sourceEntityId}/{workflowInstanceId}/advance
+- POST /api/v1/product-workflows/{product}/{sourceEntityType}/{sourceEntityId}/{workflowInstanceId}/complete
+
+Rules:
+- do not rely on product services to do the authoritative ownership check
+- do not introduce shared DB access from product services
+
+2. PRODUCT PASSTHROUGH UPDATE
+
+Requirements:
+- update Liens, CareConnect, and Fund product endpoints to call the new atomic ownership-aware Flow endpoints
+- remove the old pre-check plus second-call pattern from product passthrough execution paths
+- keep product logic thin and orchestration-only
+- preserve existing auth and tenant context propagation
+- ensure product endpoints still map correct product slug + source entity type values
+
+3. INTEGRATION TEST SUITE
+
+Add automated integration tests for the highest-risk paths.
+
+Minimum required coverage:
+
+A. Ownership / IDOR
+- advancing a workflow through the wrong parent route must fail closed
+- getting a workflow through the wrong parent route must fail closed
+- completing a workflow through the wrong parent route must fail closed
+
+B. Tenant isolation
+- tenant A cannot read or mutate tenant B workflow instance
+- service token with wrong tenant cannot operate on another tenant's workflow
+
+C. Capability enforcement
+- user lacking required product capability cannot start, list, advance, or complete
+- product-scoped user for one product cannot operate another product's workflow
+
+D. Multi-auth behavior
+- valid user JWT works where expected
+- valid service token works where expected
+- invalid issuer/audience fails
+- missing tenant claims fail
+- missing secret / invalid signing key behavior is explicit
+
+E. Transition integrity
+- stale expectedCurrentStepKey returns 409
+- inactive instance advance/complete returns 409
+- concurrent writers result in 409 concurrent_state_change
+
+F. Product correlation
+- SynqLien route cannot mutate CareConnect-owned workflow
+- CareConnect route cannot mutate Fund-owned workflow
+- Fund route cannot mutate Liens-owned workflow
+
+Suggested test layers:
+- Flow API integration tests
+- Product API passthrough integration tests
+- Auth scheme tests
+- Concurrency tests where feasible
+
+4. FULL POSITIVE END-TO-END VALIDATION
+
+You MUST run and record successful positive happy-path scenarios.
+
+Required product scenarios:
+
+A. SynqLien
+- create or identify a valid lien/case record
+- start workflow
+- get workflow instance
+- get current step
+- advance one step
+- complete workflow if the definition allows completion in this path
+- verify final status
+- verify mapping correlation
+- verify audit path
+- verify notification path where applicable
+
+B. CareConnect
+- create or identify a valid referral record
+- start workflow
+- get workflow instance
+- advance one step
+- verify status transition
+- verify mapping correlation
+- verify audit path
+- verify notification path where applicable
+
+C. SynqFund
+- create or identify a valid application record
+- start workflow
+- get workflow instance
+- advance one step
+- verify status transition
+- verify mapping correlation
+- verify audit path
+- verify notification path where applicable
+
+The report MUST include:
+- exact request sequence
+- representative payloads
+- response status codes
+- state before/after
+- workflowInstanceId and sourceEntity correlation proof
+- what was validated manually vs automatically
+
+If the local environment cannot run a full happy path for any reason, do the maximum safe subset and document the exact blocker precisely. Do not claim success without evidence.
+
+5. AUTHENTICATION / SECURITY HARDENING
+
+Requirements:
+- tighten service-token validation:
+  - issuer must match
+  - audience must match
+  - subject must be present and valid
+  - tenant claim must be present and consistent
+- make caller type explicit in request context:
+  - user
+  - service
+  - service-on-behalf-of-user if actor is present
+- ensure service tokens do not bypass:
+  - tenant checks
+  - parent ownership checks
+  - product capability checks if those still apply to execution
+- clearly document auth modes:
+  - user bearer
+  - service token
+  - fallback behavior if any
+- in non-development environments, startup or configuration validation should fail clearly if service-token auth is expected but the required secret/config is missing
+- preserve existing user-based flows
+
+6. DIAGNOSTICS / ERROR HANDLING CONSISTENCY
+
+Requirements:
+- standardize error codes/messages for execution and ownership paths
+- ensure at minimum the following codes are used consistently where applicable:
+  - workflow_instance_not_owned
+  - expected_step_mismatch
+  - instance_not_active
+  - concurrent_state_change
+  - flow_unavailable
+  - flow_upstream_error
+  - invalid_service_token
+  - missing_tenant_context
+- ensure logs for execution endpoints always include:
+  - workflowInstanceId
+  - tenantId
+  - productKey
+  - sourceEntityType
+  - sourceEntityId
+  - callerType
+  - actor or subject where available
+- ensure operationally useful logs exist for:
+  - ownership-denied requests
+  - invalid transition attempts
+  - auth failures
+  - upstream execution failures
+
+7. HEALTH / READINESS / CONFIGURATION SAFETY
+
+Requirements:
+- improve readiness diagnostics if useful to indicate:
+  - DB connectivity
+  - auth configuration present
+  - engine dependencies registered
+- document required environment/configuration for:
+  - user JWT
+  - service tokens
+  - E2E script execution
+- ensure missing critical config produces explicit, diagnosable behavior
+
+8. DOCUMENTATION
+
+Update documentation under /apps/services/flow/docs and relevant product notes if needed.
+
+Required docs:
+- README.md
+- architecture.md
+- merge-phase-5-hardening-notes.md or merge-phase-A1-notes.md
+
+Document:
+- atomic ownership enforcement model
+- product passthrough changes
+- auth modes and claim requirements
+- integration test matrix
+- E2E scenario summary
+- remaining known deferrals
+
+9. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope unless absolutely required:
+- transactional outbox
+- async execution pipeline
+- richer branching/timers/SLA engine
+- full BPM semantics
+- major UI changes
+- large authorization redesign
+- RS256/JWKS rollout unless already trivial and safe
+
+VALIDATION
+
+You MUST confirm and record in the report:
+
+Repository / Architecture
+- Flow remains bounded and API-first
+- product services use Flow APIs, not DB access
+- ownership enforcement now happens atomically in Flow for product execution paths
+
+Security / Auth
+- service-token validation is tightened
+- missing/invalid tenant claims fail
+- invalid issuer/audience fail
+- caller type is distinguishable in Flow
+
+Integration Tests
+- ownership / IDOR tests exist
+- tenant isolation tests exist
+- auth tests exist
+- concurrency / stale state tests exist
+- product correlation tests exist
+
+Positive E2E
+- at least one successful happy-path workflow per product is executed and recorded
+- state transitions are shown
+- workflow ownership and mapping are proven
+- audit/notification evidence is recorded where applicable
+
+Diagnostics
+- error codes are consistent
+- logs are structured enough for rollout debugging
+
+Platform Integrity
+- no regression in existing services
+- gateway and product endpoints still work
+- existing user-based workflow flows are not broken unless explicitly documented
+
+EXECUTION ORDER
+
+1. Inspect current Phase 5 ownership flow and identify the exact TOCTOU path.
+2. Create /analysis/LS-FLOW-HARDEN-A1-report.md immediately and begin logging assumptions and actions.
+3. Implement Flow-side atomic ownership-aware endpoints.
+4. Update product passthrough endpoints to use the new Flow atomic endpoints.
+5. Add and run integration tests for IDOR, tenant isolation, auth, transition integrity, and product correlation.
+6. Tighten service-token validation and caller-type context handling.
+7. Standardize diagnostics and execution error codes.
+8. Run and record full positive happy-path E2E scenarios for SynqLien, CareConnect, and SynqFund.
+9. Update docs and runbook notes.
+10. Finalize the report with exact evidence, remaining gaps, and rollout recommendation.
+
+SUCCESS CONDITION
+
+Track A hardening is successful when:
+- the TOCTOU ownership window is closed
+- product execution calls are atomically ownership-validated in Flow
+- automated integration tests cover the highest-risk paths
+- successful happy-path E2E flows are recorded for SynqLien, CareConnect, and SynqFund
+- service auth is tightened and clearly documented
+- diagnostics are consistent and strong enough for production rollout
+
+FAILURE CONDITION
+
+Track A hardening fails if:
+- product execution still relies on pre-check plus second-call ownership validation
+- high-risk paths remain untested
+- positive happy-path execution is still not demonstrated
+- service auth remains ambiguous or weak
+- diagnostics are insufficient for supportability

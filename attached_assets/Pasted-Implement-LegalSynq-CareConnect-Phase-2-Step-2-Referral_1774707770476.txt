@@ -1,0 +1,251 @@
+Implement LegalSynq CareConnect Phase 2 — Step 2: Referral status history.
+
+Context:
+- CareConnect service already exists and is working
+- Gateway is already routing /careconnect/*
+- Identity and JWT are already working
+- MySQL + EF Core are already configured
+- CareConnect already supports tenant-scoped CRUD for:
+  - Providers
+  - Categories
+  - Referrals
+- Standardized exception handling, tenant context, role-based auth, and audit field patterns already exist
+- Provider search may already exist or may be added separately
+- Lightweight workflow rules may be added in a later step; for this step focus on recording status changes and exposing status history
+
+Goal:
+Add referral status history tracking so every real status change is preserved and queryable.
+
+Scope for this step:
+1. create ReferralStatusHistory entity and persistence
+2. record history rows when referral status changes
+3. add history query endpoint
+4. keep tenant isolation strict
+5. do NOT enforce complex workflow rules yet beyond basic valid status value checks unless necessary for current code consistency
+
+Important:
+Keep the implementation minimal, clean, production-minded, and consistent with the current architecture.
+
+==================================================
+PART 1 — REFERRAL STATUS CONSTANTS
+==================================================
+
+1. Create a constants class for referral statuses
+Create a CareConnect-specific constants class such as:
+- ReferralStatuses
+
+Allowed statuses:
+- New
+- Received
+- Contacted
+- Scheduled
+- Completed
+- Cancelled
+
+2. Add a helper for allowed statuses if useful
+If helpful, expose:
+- All statuses collection
+- method to validate whether a string is a valid referral status
+
+For this step:
+- validate that status values are in the allowed list
+- do not add complex transition rules yet unless already trivial to support
+
+==================================================
+PART 2 — REFERRAL STATUS HISTORY ENTITY
+==================================================
+
+3. Create domain entity
+Create:
+- ReferralStatusHistory
+
+Properties:
+- Id : Guid
+- ReferralId : Guid
+- TenantId : Guid
+- OldStatus : string
+- NewStatus : string
+- ChangedByUserId : Guid?
+- ChangedAtUtc : DateTime
+- Notes : string?
+
+Keep Domain clean:
+- no EF attributes
+- use UTC timestamps
+- use enterprise-friendly naming
+
+4. Add EF Core mapping
+Create IEntityTypeConfiguration<ReferralStatusHistory>.
+
+Table name:
+- ReferralStatusHistories
+
+Primary key:
+- Id
+
+Indexes:
+- (TenantId, ReferralId)
+- (TenantId, ChangedAtUtc)
+
+Column lengths:
+- OldStatus : 50
+- NewStatus : 50
+- Notes : 2000 optional
+
+Relationship:
+- many ReferralStatusHistories to one Referral
+- configure FK on ReferralId
+
+5. Update CareConnectDbContext
+Add DbSet<ReferralStatusHistory>
+Register configuration cleanly
+
+6. Add migration
+Create migration:
+- AddReferralStatusHistory
+
+Place it in the existing migrations folder under CareConnect.Infrastructure.
+
+==================================================
+PART 3 — STATUS HISTORY RECORDING
+==================================================
+
+7. Enhance referral update flow
+Refactor the existing PUT /api/referrals/{id} flow so that it:
+- loads the referral tenant-scoped
+- compares existing status with incoming status
+- if status changed:
+  - validate the new status is in the allowed status list
+  - create a ReferralStatusHistory row
+- if status did not change:
+  - do not create a history row
+
+8. History creation behavior
+When a status change is detected:
+- create a new ReferralStatusHistory row
+- set:
+  - Id = new Guid
+  - ReferralId
+  - TenantId
+  - OldStatus
+  - NewStatus
+  - ChangedByUserId from ICurrentRequestContext if available
+  - ChangedAtUtc = DateTime.UtcNow
+  - Notes from update request if appropriate, or null if you prefer not to reuse general referral notes
+
+9. Save update and history together
+Persist the referral update and history insert in the same DbContext save operation so they commit together.
+
+10. Tenant isolation
+All update logic must remain tenant-scoped:
+- find referral by Id + TenantId
+- if not found within tenant scope, return 404
+
+==================================================
+PART 4 — HISTORY QUERY ENDPOINT
+==================================================
+
+11. Add new endpoint
+Implement:
+- GET /api/referrals/{id}/history
+
+Behavior:
+- requires authenticated user
+- tenant-scoped
+- if referral does not belong to tenant in token, return 404
+- returns ordered history rows
+
+12. Create response DTO
+Create a clean DTO such as:
+- ReferralStatusHistoryResponse
+
+Fields:
+- Id
+- ReferralId
+- OldStatus
+- NewStatus
+- ChangedByUserId
+- ChangedAtUtc
+- Notes
+
+13. Ordering
+Return history in a consistent order.
+Use newest first unless there is already an established CareConnect pattern.
+
+==================================================
+PART 5 — VALIDATION AND ERROR HANDLING
+==================================================
+
+14. Validate status values
+When creating or updating referrals:
+- Status must be one of:
+  - New
+  - Received
+  - Contacted
+  - Scheduled
+  - Completed
+  - Cancelled
+
+If invalid:
+- return 400 using the existing standardized exception handling pattern
+
+15. Keep exception handling centralized
+Use the existing standardized exception handling pattern already in the solution.
+Do not add ad hoc error JSON in endpoints.
+
+Expected mappings:
+- validation failures -> 400
+- not found -> 404
+- unauthorized -> 401 if applicable
+- forbidden -> 403 if applicable
+- unexpected -> 500 with safe message
+
+==================================================
+PART 6 — AUTHORIZATION
+==================================================
+
+16. Keep authorization rules unchanged unless required
+- GET /health -> anonymous
+- GET /info -> anonymous
+- GET /api/referrals -> AuthenticatedUser
+- GET /api/referrals/{id} -> AuthenticatedUser
+- GET /api/referrals/{id}/history -> AuthenticatedUser
+- POST /api/referrals -> PlatformOrTenantAdmin
+- PUT /api/referrals/{id} -> PlatformOrTenantAdmin
+
+Do not broaden access.
+
+==================================================
+PART 7 — OUTPUT REQUIRED
+==================================================
+
+17. After implementation, output:
+- files created/updated
+- migration command used
+- allowed referral statuses
+- how history rows are created
+- sample curl requests for:
+  - valid status change
+  - no-op status update
+  - history retrieval
+
+18. Code quality expectations
+- clean namespaces
+- async EF Core access
+- minimal duplication
+- no breaking changes to existing provider/category/referral CRUD
+- keep code production-minded
+- UTC timestamps everywhere
+- preserve tenant isolation strictly
+
+19. Do NOT add yet
+Do not implement:
+- workflow transition rules beyond basic allowed status value validation
+- maps
+- geo search
+- scheduling engine
+- notifications
+- documents
+- payments
+- background jobs
+- advanced sorting

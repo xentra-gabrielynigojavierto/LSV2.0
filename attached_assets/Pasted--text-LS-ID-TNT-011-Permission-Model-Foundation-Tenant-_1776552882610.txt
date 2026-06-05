@@ -1,0 +1,424 @@
+```text
+# LS-ID-TNT-011 — Permission Model Foundation (Tenant + Product + UI Boundaries)
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity/authorization feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing identity lifecycle, onboarding, access, and enforcement behavior
+- Introduce permissions as a first-class model without breaking existing role/product/group behavior
+- Keep backend, API, data model, and future UI concerns clearly separated
+- Include explicit default/fallback behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Prefer a simple, deterministic permission model over a complex policy engine
+- Preserve tenant isolation in every new mapping and lookup
+- Clearly define UI ownership boundaries even if full UI implementation is deferred
+
+---
+
+## FEATURE OBJECTIVE
+
+Establish the foundational permission model for LegalSynq by introducing:
+- tenant-level permission catalog
+- product-level permission catalog
+- tenant role → permission mapping
+- product role → permission mapping
+- effective permission resolution model
+- backend permission-check contract
+- explicit governance boundaries between Tenant Portal and Control Center
+
+This feature is about building the foundation for fine-grained authorization, not yet full permission enforcement across all products.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Full permission enforcement across all product APIs
+- Permission-aware product UI hiding/disabling everywhere
+- Role creation UI
+- Full Control Center permission UI
+- Full Tenant Portal permission UI
+- ABAC / policy engines / scripting
+- Audit dashboard UI
+- Broad auth redesign
+- Page redesign
+- Product permission matrix editors beyond what is minimally required to validate and store the model
+
+ONLY IMPLEMENT:
+- Permission data/catalog model
+- Role-permission mapping model
+- Effective permission resolution logic
+- Backend contract/helper/service for future permission checks
+- Minimal API/query surface needed to validate and inspect the model
+- Explicit UI boundary definitions for future work
+- Minimal non-invasive admin/developer-facing verification hooks only if necessary
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-011-report.md
+
+Initialize with:
+
+# LS-ID-TNT-011 — Permission Model Foundation (Tenant + Product + UI Boundaries)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Role / Product / Group Model Analysis
+## 4. Existing Authorization / Claim Model Analysis
+## 5. Permission Model Design
+## 6. Tenant Permission Catalog
+## 7. Product Permission Catalog
+## 8. Role-Permission Mapping Design
+## 9. Effective Permission Resolution Design
+## 10. UI Boundary Definition
+## 11. Files Changed
+## 12. Schema / Data Changes
+## 13. Backend Implementation
+## 14. API / Contract Changes
+## 15. Testing Results
+## 16. Known Issues / Gaps
+## 17. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Roles
+- existing tenant/system roles
+- existing product roles
+- how roles are stored and assigned
+- any existing role classification flags (system/product/platform/tenant)
+- where role assignment is enforced today
+
+### Products / groups
+- current product model and codes
+- current user-product assignment model
+- current group model and memberships
+- whether groups currently influence access only by product or also by role
+
+### Claims / effective access
+- current JWT claims (`product_codes`, `tenant_roles`, `product_roles`, `access_version`, etc.)
+- where effective access is calculated today
+- whether there is already a reusable access service/helper that could be extended to permissions
+- whether permissions could eventually be emitted in JWT or should remain resolved server-side for now
+
+### UI/admin surfaces
+- what identity/admin UI already exists
+- what future tenant portal and control center surfaces are implied by the current architecture
+
+DO NOT assume model details until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Role / Product / Group Model Analysis
+## 4. Existing Authorization / Claim Model Analysis
+
+---
+
+## STEP 2 — DESIGN THE PERMISSION MODEL
+
+Design the smallest coherent permission model that fits the validated current architecture.
+
+You must define:
+
+### Tenant permissions
+- permissions for tenant-wide/platform-within-tenant operations
+- naming convention: `tenant.<domain>.<action>`
+
+Examples:
+- `tenant.users.view`
+- `tenant.users.manage`
+- `tenant.groups.manage`
+- `tenant.settings.manage`
+- `tenant.audit.view`
+- `tenant.products.assign`
+
+### Product permissions
+- permissions scoped to product actions
+- naming convention: `<product>.<domain>.<action>`
+
+Examples:
+- `liens.view`
+- `liens.edit`
+- `liens.approve`
+- `fund.view`
+- `fund.approve`
+- `careconnect.manage_referrals`
+
+### Design principles
+- centrally defined
+- deterministic
+- extensible
+- no tenant-specific custom permission creation in this feature
+- no dynamic policy evaluation
+
+Update report:
+## 5. Permission Model Design
+## 6. Tenant Permission Catalog
+## 7. Product Permission Catalog
+
+---
+
+## STEP 3 — IMPLEMENT PERMISSION CATALOG STORAGE
+
+Implement the minimum validated model needed to store and query permission catalogs.
+
+Possible approaches (choose based on codebase fit and document why):
+- DB tables/entities
+- seeded reference data
+- configuration-backed catalog plus DB mappings
+- mixed model (catalog in seed/config, mappings in DB)
+
+Requirements:
+- tenant permission catalog must be centrally defined
+- product permission catalog must be centrally defined
+- structure must support future UI management without redesign
+- identifiers/names must be stable
+- lookups must be efficient
+
+Document:
+- exact entities/tables/config used
+- whether migrations were required
+- how permission catalogs are seeded or registered
+
+Update report:
+## 12. Schema / Data Changes
+## 13. Backend Implementation
+
+---
+
+## STEP 4 — IMPLEMENT ROLE → PERMISSION MAPPINGS
+
+Implement the minimum mapping model required for:
+
+### Tenant roles → tenant permissions
+- `TenantAdmin`
+- `TenantUser`
+- any other validated tenant-level roles that exist
+
+### Product roles → product permissions
+- current validated product roles only
+- map them to product permission sets based on real product/role inventory found in the codebase
+
+Requirements:
+- mappings must be queryable
+- mappings must support future edit/management UIs
+- mappings must be explicit, not inferred from role names alone
+- default mappings must be documented clearly
+
+If the current role inventory is incomplete or inconsistent:
+- document it
+- implement the safest coherent baseline mapping possible
+- do not fabricate an overly broad role matrix
+
+Update report:
+## 8. Role-Permission Mapping Design
+## 12. Schema / Data Changes
+## 13. Backend Implementation
+
+---
+
+## STEP 5 — IMPLEMENT EFFECTIVE PERMISSION RESOLUTION
+
+Implement the service/helper/logic that computes effective permissions for a user.
+
+Inputs may include:
+- tenant-level roles
+- product roles
+- product assignments
+- group membership (if groups currently imply any role or access relation)
+- tenant context
+
+Requirements:
+- produce clearly separated effective permission sets:
+  - tenant permissions
+  - product permissions
+- use union-based resolution by default unless the existing architecture requires otherwise
+- keep the logic centralized and reusable
+- make it future-compatible with enforcement work in later features
+
+IMPORTANT:
+- Do NOT yet enforce these permissions broadly in product APIs
+- This feature is about resolution and contract, not full rollout of permission checks
+
+Update report:
+## 9. Effective Permission Resolution Design
+## 13. Backend Implementation
+
+---
+
+## STEP 6 — DEFINE BACKEND PERMISSION CHECK CONTRACT
+
+Create the standard contract that future features will use for permission enforcement.
+
+Examples:
+- `HasTenantPermission(userId, tenantId, permission)`
+- `HasProductPermission(userId, tenantId, productCode, permission)`
+- `GetEffectivePermissions(userId, tenantId)`
+
+Requirements:
+- contract must align to the implemented resolution model
+- contract must be usable by downstream services later
+- it can be interface/service/helper based
+- it must not overcommit to a future enforcement mechanism you have not validated
+
+If a minimal API endpoint is needed for inspection/testing/admin verification, add it carefully and document scope.
+
+Update report:
+## 13. Backend Implementation
+## 14. API / Contract Changes
+
+---
+
+## STEP 7 — DEFINE UI OWNERSHIP BOUNDARIES
+
+Formally define and document where future permission-management UI belongs.
+
+### Tenant Portal (future LS-ID-TNT-012)
+Should own:
+- tenant role visibility
+- tenant role → tenant permission mapping
+- user effective permission visibility if appropriate
+
+Should NOT own:
+- creation of new permission definitions
+- global product permission design
+- platform-wide role catalogs
+
+### Control Center (future LS-ID-TNT-013)
+Should own:
+- product permission catalog management
+- product role → permission mapping
+- platform governance over product roles/permissions
+
+Requirements:
+- document these boundaries clearly in the report
+- if minimal code comments/config metadata help future implementation, add them without building full UI now
+
+Update report:
+## 10. UI Boundary Definition
+
+---
+
+## STEP 8 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document:
+- existing role assignments continue to work
+- existing product/group assignment flows continue to work
+- LS-ID-TNT-001 through LS-ID-TNT-010 do not regress
+- no login/access break occurs because permissions are introduced
+- users without resolved permissions in legacy scenarios are handled by explicit defaults derived from existing roles
+
+You must define the fallback behavior clearly:
+- existing users inherit permissions from current roles
+- no user is silently stripped of capabilities solely because permissions are newly introduced
+
+Update report:
+## 9. Effective Permission Resolution Design
+## 15. Testing Results
+## 16. Known Issues / Gaps
+
+---
+
+## STEP 9 — TESTING
+
+Test and document each scenario.
+
+### Catalog / mapping
+- tenant permissions can be queried
+- product permissions can be queried
+- tenant role mappings resolve correctly
+- product role mappings resolve correctly
+
+### Effective resolution
+- user with tenant role resolves tenant permissions
+- user with product role resolves product permissions
+- user with multiple roles resolves union correctly
+- legacy user with existing role assignments gets expected permissions
+- tenant isolation is preserved in lookups
+
+### Regression
+- login still works
+- invite flow still works
+- accept-invite still works
+- password reset still works
+- users list still works
+- product access enforcement from LS-ID-TNT-009/010 still works
+- product/group assignment flows still works
+- null-safe rendering remains intact
+
+Update report:
+## 15. Testing Results
+
+---
+
+## STEP 10 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 16. Known Issues / Gaps
+## 17. Final Status = Complete
+
+Your final report must clearly state:
+- what permission model was implemented
+- where permission catalogs live
+- what mappings were created
+- how effective permissions are resolved
+- what backend permission-check contract now exists
+- what UI ownership boundaries were defined
+- what remains deferred for full permission enforcement and UI management
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Tenant permission catalog exists and is queryable
+✔ Product permission catalog exists and is queryable
+✔ Tenant role → permission mappings exist
+✔ Product role → permission mappings exist
+✔ Effective permission resolution logic exists and is documented
+✔ Backend permission-check contract exists for future enforcement
+✔ UI ownership boundaries (Tenant Portal vs Control Center) are clearly defined
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-010 flows do not regress
+✔ Tenant isolation remains intact
+✔ Permission model is extensible without redesign
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working permission model foundation
+2. Working role-to-permission mapping foundation
+3. Working effective permission resolution contract
+4. Clear Tenant Portal vs Control Center UI boundary definition
+5. Completed report:
+/analysis/LS-ID-TNT-011-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

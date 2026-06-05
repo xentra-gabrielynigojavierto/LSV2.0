@@ -1,0 +1,311 @@
+Implement UIX-002 (Tenant User Management MVP) based on the approved tenant user management design.
+
+Feature ID: UIX-002
+Feature Title: Tenant User Management (Roles, Permissions, Groups)
+
+Scope strictly limited to MVP unless explicitly marked as scaffold-only.
+
+========================================
+OBJECTIVE
+========================================
+
+Implement the first real version of tenant user management for the LegalSynq Control Center so tenant admins can manage:
+
+- users
+- organization memberships
+- admin/system roles
+- groups
+- permissions visibility
+- effective access summary
+
+This feature belongs in the separate Control Center / admin portal.
+
+Do NOT mix this into the operator portal.
+
+========================================
+CORE DESIGN RULES
+========================================
+
+Keep these concepts separate:
+
+1. User
+2. UserOrganizationMembership
+3. Admin/System Roles
+4. Groups
+5. Permissions
+6. Product Roles
+
+Important:
+- Product roles continue to control workflow behavior
+- Admin/system roles control tenant management authority
+- Groups are tenant-scoped reusable bundles for permissions and/or functional team membership
+- Backend remains the security boundary
+- Frontend shapes UX only
+
+Do NOT collapse product workflow roles into admin roles.
+
+========================================
+MVP SCOPE
+========================================
+
+Implement MVP support for:
+
+1. Users
+- users list
+- user detail
+- active/inactive state
+- invite user
+- resend invite
+- activate/deactivate user
+- effective access summary
+
+2. Organization Memberships
+- view memberships
+- assign user to organization
+- set primary organization
+- remove membership can be scaffold-only if needed, but must be clearly marked
+
+3. Admin/System Roles
+- support these roles:
+  - TenantAdmin
+  - OrganizationManager
+  - SecurityManager
+  - StandardUser
+- view assigned roles
+- assign/revoke roles
+
+4. Groups
+- groups list
+- group detail
+- create group
+- assign/remove users to/from groups
+- show permissions granted by group
+
+5. Permissions Visibility
+- permissions catalog/read model
+- show where permissions come from:
+  - direct admin role
+  - group
+- show effective permission summary
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+1. Data Model / Schema
+Implement or extend the required schema for:
+
+- Users
+- UserOrganizationMemberships
+- Roles
+- UserRoleAssignments
+- Permissions
+- Groups
+- GroupMemberships
+- GroupPermissionAssignments
+
+If some tables already exist, extend them rather than duplicating them.
+
+For each table:
+- ensure tenant scoping is correct
+- ensure foreign keys and indexes are reasonable
+- keep the model implementation-ready, not purely conceptual
+
+2. API Endpoints
+Implement or scaffold the following endpoints:
+
+Users
+- GET /identity/api/admin/users
+- GET /identity/api/admin/users/{id}
+- POST /identity/api/admin/users/invite
+- POST /identity/api/admin/users/{id}/activate
+- POST /identity/api/admin/users/{id}/deactivate
+
+Memberships
+- POST /identity/api/admin/users/{id}/memberships
+- DELETE /identity/api/admin/users/{id}/memberships/{membershipId}   (scaffold allowed if needed)
+- POST /identity/api/admin/users/{id}/memberships/{membershipId}/set-primary
+
+Roles
+- POST /identity/api/admin/users/{id}/roles
+- DELETE /identity/api/admin/users/{id}/roles/{roleCode}
+
+Groups
+- GET /identity/api/admin/groups
+- GET /identity/api/admin/groups/{id}
+- POST /identity/api/admin/groups
+- POST /identity/api/admin/groups/{id}/members
+- DELETE /identity/api/admin/groups/{id}/members/{userId}
+
+Permissions
+- GET /identity/api/admin/permissions
+
+3. Authorization Rules
+Enforce:
+- TenantAdmin = tenant-scoped only
+- PlatformAdmin = can view/manage across tenants
+- non-admin users cannot access these endpoints
+
+4. Effective Access Summary
+Backend should expose enough data so frontend can show:
+- org memberships
+- admin/system roles
+- group memberships
+- permissions granted via groups/roles
+- product roles visibility if already derivable
+
+========================================
+FRONTEND — CONTROL CENTER / ADMIN PORTAL
+========================================
+
+Implement the admin UI for UIX-002 in the separate admin portal.
+
+1. Pages
+Build these pages:
+
+- /users
+- /users/[id]
+- /groups
+- /groups/[id]
+- /permissions   (read-only catalog / visibility page)
+
+2. Components
+Build or scaffold these components:
+
+- AdminUsersTable
+- AdminUserDetailPanel
+- MembershipList
+- RoleAssignmentPanel
+- EffectiveAccessSummary
+- AdminGroupsTable
+- AdminGroupDetailPanel
+- GroupMembersList
+- PermissionCatalogTable
+- ProductRoleVisibilityPanel   (read-only if available)
+
+3. Users List
+Show:
+- name
+- email
+- active/inactive
+- primary organization
+- groups count
+- admin roles
+- last login if available
+
+4. User Detail
+Show:
+- identity info
+- status
+- memberships
+- admin roles
+- groups
+- effective permissions
+- product role visibility summary if available
+
+Actions:
+- activate
+- deactivate
+- invite/resend invite
+- assign membership
+- assign/revoke role
+
+5. Groups
+Groups list should show:
+- group name
+- description
+- member count
+- permission count
+- active status if modeled
+
+Group detail should show:
+- members
+- granted permissions
+- assign/remove members
+
+6. Permissions
+Read-only page showing:
+- permission code
+- category
+- description
+- which roles/groups may grant it if available
+
+========================================
+UX RULES
+========================================
+
+- This is Control Center only
+- No product workflow pages here
+- No party-facing UI here
+- TenantAdmin sees only tenant-scoped data
+- PlatformAdmin sees platform-wide data
+- Non-admins are redirected away or blocked
+- Show clear empty states and loading states
+- Show correlationId on backend errors where available
+
+========================================
+PHASE 2 ITEMS — DO NOT IMPLEMENT NOW
+========================================
+
+Do NOT fully implement these now unless clearly marked scaffold-only:
+
+- custom role builder
+- per-user permission overrides
+- access review workflows
+- org switching
+- MFA/security session tooling
+- advanced audit screens
+- domain/product enablement admin actions outside read visibility
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-002-report.md
+
+The report must include these sections:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Backend Changes
+6. Database / Migration Changes
+7. API Endpoints Implemented
+8. Frontend Pages Implemented
+9. Components Implemented
+10. Authorization / Scope Handling
+11. Effective Access Model Implemented
+12. Deviations from Requested Design
+13. Known Issues / Blockers
+14. Manual Test Results
+15. What remains for Phase 2
+16. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- users list
+- user detail
+- invite/resend invite
+- activate/deactivate
+- membership assignment
+- primary org assignment
+- role assignment/revocation
+- groups list/detail
+- group membership assignment
+- permissions catalog visibility
+- tenant admin scoping
+- platform admin scoping
+- admin portal route protection
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+When done:
+- save the report to /analysis/UIX-002-report.md
+- keep the implementation aligned to MVP
+- clearly call out anything scaffolded vs fully implemented
+- do not silently skip requested sections

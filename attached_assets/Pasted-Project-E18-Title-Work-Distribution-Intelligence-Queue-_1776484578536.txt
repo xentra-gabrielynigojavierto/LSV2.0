@@ -1,0 +1,441 @@
+Project: E18
+Title: Work Distribution Intelligence — Queue Prioritization, Workload Awareness, Recommendations, and Governed Auto-Assignment
+
+You are implementing the next enterprise platform layer for the LegalSynq workflow/task orchestration system.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E18-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current queue query shapes, SLA status semantics, workload measurement, capacity thresholds, recommendation determinism, explanation metadata, and any limits in user-directory/eligibility data.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - prioritization engine changes
+   - workload / capacity model changes
+   - recommendation API changes
+   - auto-assignment changes
+   - UI changes
+   - audit/logging changes
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for optimization / reporting phase or needs iteration
+
+REPORT FORMAT
+
+# E18 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Queue Prioritization Notes
+## Workload / Capacity Notes
+## Recommendation Engine Notes
+## Recommendation API Notes
+## Auto-Assignment Notes
+## UI Notes
+## Audit / Logging Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Introduce a deterministic, explainable work-distribution intelligence layer so queue work is prioritized correctly, workload is balanced fairly, eligible assignees can be recommended intelligently, and governed auto-assignment can be supported without bypassing the existing assignment model, SLA model, audit model, or security boundaries.
+
+This phase must make work distribution smarter while remaining transparent and governable.
+
+SCOPE INCLUDES
+
+- queue prioritization rules
+- SLA-aware queue ordering
+- workload tracking
+- lightweight capacity model
+- assignment recommendation logic
+- recommendation API
+- governed auto-assignment execution if safe
+- additive queue UI enhancements
+- audit/reporting of assignment decisions
+- documentation/reporting
+
+DO NOT BUILD
+
+- machine learning models
+- opaque heuristic engines
+- predictive analytics
+- workforce scheduling/rostering
+- cross-tenant optimization
+- major UI redesign
+- assignment-service bypasses
+- advanced reporting dashboards
+- complex shift calendars
+- gamification/scoring systems
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep all prioritization and recommendation logic deterministic and explainable
+- preserve E14.1/E14.2 assignment invariants and APIs as the only assignment authority
+- use E10.3 SLA status as a primary prioritization input
+- avoid black-box decisioning
+- expose reasons for recommendations/assignments
+- preserve tenant isolation and eligibility boundaries
+- keep all changes additive
+- avoid creating a second assignment system or a hidden ranking engine
+
+CURRENT CONTEXT
+
+Already completed:
+- E14.1 assignment model hardening
+- E14.2 claim / reassign APIs
+- E15 task inbox / queue UI
+- E10.3 SLA / timer engine
+- E16 timeline / history
+- E17 outbox / ops visibility
+
+Current limitation:
+- queue work is still manually chosen
+- urgent work can compete with less urgent work unless the user manually sorts/filteres
+- workload balancing is not system-aware
+- no governed recommendation or auto-assignment exists
+
+This E18 phase should solve that while keeping decisions transparent.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. QUEUE PRIORITIZATION ENGINE
+
+Implement a deterministic ordering model for queue work.
+
+Requirements:
+- prioritize queue tasks using a documented rule hierarchy
+- use at minimum:
+  - SLA status
+  - DueAt proximity
+  - task age / created time
+  - task priority if already modeled
+- recommended ordering:
+  1. Overdue
+  2. AtRisk / DueSoon
+  3. OnTrack
+- within each tier, order deterministically by:
+  - DueAt ascending when present
+  - then CreatedAt ascending
+  - then Id or another stable tie-breaker
+
+Rules:
+- no random ordering
+- no unstable sort results
+- document exact ranking rules
+- if you compute a score, document how it is derived
+
+2. SLA-AWARE ORDERING
+
+Requirements:
+- E10.3 SLA status must be a primary prioritization input
+- overdue work must always float above at-risk and on-track work
+- at-risk must outrank on-track
+- no less-urgent task should outrank a more urgent one because of recency alone
+
+3. WORKLOAD TRACKING
+
+Implement a lightweight workload model.
+
+Requirements:
+- calculate active task counts per user
+- define which statuses count as “active workload”
+- likely include:
+  - Open
+  - InProgress
+  - maybe Assigned depending on current task model
+- optionally segment by role/org/task type only if safely available and lightweight
+
+Output:
+- active task count per eligible user
+- used by recommendation/auto-assignment
+
+Rules:
+- keep this lightweight and query-efficient
+- do not build a heavy analytics subsystem
+
+4. CAPACITY MODEL
+
+Add a simple configurable capacity model.
+
+Requirements:
+- support a configurable max active tasks per user
+- optionally support:
+  - hard cap
+  - soft threshold
+- recommendation logic should:
+  - deprioritize overloaded users
+  - prefer users below threshold
+
+Rules:
+- do not hardcode magic numbers without config
+- document defaults clearly
+- if all users are above threshold, recommendation logic must still behave deterministically
+
+5. ASSIGNMENT RECOMMENDATION ENGINE
+
+Implement a service that recommends the best assignee for a task.
+
+Inputs at minimum:
+- task id / current assignment mode
+- eligible users for the queue/task
+- SLA urgency
+- workload counts
+- capacity thresholds
+
+Recommended output:
+- recommended user id
+- ranked candidate list (optional if easy/safe)
+- explanation metadata, for example:
+  - eligible by role/org
+  - current active task count
+  - within capacity yes/no
+  - SLA urgency considered
+  - tie-break reason
+
+Rules:
+- deterministic
+- explainable
+- no randomness unless explicitly documented
+- if no candidate is suitable, return “no recommendation” cleanly
+
+6. ELIGIBILITY MODEL
+
+Recommendation logic must only consider valid candidates.
+
+Requirements:
+- use the same eligibility sources/patterns already trusted by claim/reassign
+- role-queue recommendations must only include users eligible for that role
+- org-queue recommendations must only include users eligible for that org
+- preserve tenant boundaries
+- do not invent a weaker/faster eligibility shortcut that bypasses current assignment rules
+
+7. RECOMMENDATION API
+
+Add a read-only recommendation API.
+
+Example:
+- GET /api/v1/workflow-tasks/{id}/recommend-assignee
+
+Response should include:
+- recommended user id (or null)
+- explanation string / structured reasons
+- optionally candidate metadata if safe and useful
+
+Requirements:
+- tenant-safe
+- permission-aware
+- additive only
+- no assignment mutation in this endpoint
+- explainability must be surfaced in the response, not hidden in logs only
+
+8. GOVERNED AUTO-ASSIGNMENT
+
+Implement auto-assignment only through the existing assignment authority.
+
+Example:
+- POST /api/v1/workflow-tasks/{id}/auto-assign
+
+Requirements:
+- must call into the recommendation engine first
+- must then assign through the existing E14.2 assignment transition service / governed path
+- must be auditable
+- must preserve all assignment invariants
+- must not directly mutate assignment fields in DB
+- if no valid candidate exists, fail safely and leave the task in queue
+
+Mode guidance:
+- suggestion/recommendation mode is mandatory
+- actual execution mode is desirable if safe in this phase
+- if full auto-assignment is too risky in one slice, implement recommendation fully and document execution as partially deferred
+
+9. ASSIGNMENT EXPLANATION / TRANSPARENCY
+
+This is mandatory.
+
+Requirements:
+- every recommendation should be explainable in human-readable terms
+- every auto-assignment should record why the selected user was chosen
+- explanations should be available via:
+  - API response
+  - audit/logging
+  - optionally UI hints
+
+Examples:
+- “Recommended because user is eligible, below capacity, and has the lowest active task count.”
+- “No recommendation because all eligible users are above capacity.”
+
+10. QUEUE UI ENHANCEMENTS
+
+Enhance E15 queue UI additively.
+
+Requirements:
+- queue ordering must reflect the prioritization engine
+- show urgency/SLA indicators clearly
+- optionally surface:
+  - recommended next task
+  - recommended assignee (admin/supervisor views only)
+- keep UI additive and lightweight
+- do not redesign the work surface
+
+11. AUDIT / LOGGING
+
+Audit/log the intelligence layer appropriately.
+
+At minimum:
+- recommendation used
+- auto-assignment executed
+- selected user
+- task id
+- workflow instance id if available
+- rationale / explanation
+- actor (system/admin/user)
+- timestamp
+
+Requirements:
+- auto-assignment must be auditable
+- recommendation-only reads can be logged if useful, but do not spam audit if that would create noise; document your choice
+- preserve existing audit style/patterns
+
+12. CONFIGURATION
+
+Support configuration for:
+- max tasks per user
+- soft/hard capacity thresholds if used
+- prioritization rule knobs if any
+- enable/disable recommendation
+- enable/disable auto-assignment
+
+Requirements:
+- sane defaults
+- documented config keys
+- deterministic behavior even with defaults only
+
+13. EDGE CASES / SAFETY
+
+Handle explicitly:
+- no eligible users
+- all users overloaded
+- multiple equally good users
+- missing workload data
+- tasks already directly assigned
+- tasks in invalid status for auto-assignment
+- recommendation loops / repeated reassignment churn
+
+Rules:
+- prefer leaving task in queue over unsafe assignment
+- ties must break deterministically
+- no oscillation between users
+
+14. API / DATA INTEGRATION
+
+Where needed, add the minimum read/write surfaces required.
+
+Potential additions:
+- candidate lookup
+- workload counts by user
+- queue ordering fields in task list DTOs
+- recommendation/explanation fields
+
+Rules:
+- additive only
+- no breaking changes to existing E15 consumers
+- keep response sizes practical
+
+15. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional
+- queue ordering follows documented prioritization
+- urgent tasks sort above less urgent ones
+- workload tracking computes expected counts
+- recommendations are deterministic
+- auto-assignment uses the governed assignment path if implemented
+
+Security
+- no cross-tenant candidate leakage
+- no ineligible users recommended/assigned
+- authorization on recommendation/auto-assign endpoints is correct
+
+Data Integrity
+- E14.1/E14.2 assignment invariants remain intact
+- auto-assignment does not bypass audit
+- recommendation explanations match the actual rule engine
+
+Performance
+- queue sorting remains efficient
+- recommendation queries are reasonable for current scale
+- no obvious N+1 or full-table scan regressions without justification
+
+UI
+- queue UI remains stable
+- urgency ordering/indicators are understandable
+- any recommendation hints are clear and not misleading
+
+Build / Runtime
+- backend builds
+- frontend compiles
+- existing workflow/task/SLA/timeline/outbox surfaces remain stable
+
+16. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- prioritization rules
+- workload definition
+- capacity rules
+- recommendation logic
+- explanation model
+- config keys/defaults
+- what is recommendation-only vs auto-assignment in this phase
+- what remains for future optimization/reporting phases
+
+17. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E18 unless strictly required:
+- ML/predictive assignment
+- workforce rostering
+- shift scheduling
+- cross-tenant balancing
+- advanced analytics dashboards
+- deep fairness models
+- simulation tooling
+- major UI redesign
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect current E15 queue queries, E10.3 SLA fields, and E14.2 assignment services.
+2. Create /analysis/E18-report.md immediately and begin logging assumptions/actions.
+3. Implement queue prioritization rules.
+4. Implement workload and capacity calculation.
+5. Implement recommendation engine and explanation model.
+6. Add recommendation API.
+7. Add governed auto-assignment if safe in this phase.
+8. Add queue UI enhancements.
+9. Add audit/logging for recommendation/auto-assignment decisions.
+10. Validate performance, integrity, and build/runtime behavior.
+11. Finalize the report.
+
+SUCCESS CONDITION
+
+E18 is successful when:
+- queue work is prioritized deterministically and correctly
+- recommendations are explainable and governed
+- workload/capacity influence decisions sensibly
+- auto-assignment, if implemented, uses the existing assignment authority
+- urgent work rises to the top and distribution becomes measurably smarter
+- no regression is introduced to security, auditability, or assignment integrity
+
+FAILURE CONDITION
+
+E18 fails if:
+- prioritization is inconsistent or opaque
+- recommendation/assignment bypasses existing assignment governance
+- users are assigned work for unexplained reasons
+- security/tenant boundaries are weakened
+- the phase turns into a black-box decision engine

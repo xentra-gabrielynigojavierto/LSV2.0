@@ -1,0 +1,76 @@
+Run the final validation step for the CareConnect scheduling foundation and prepare it for commit.
+
+Goal:
+Validate that the scheduling foundation is working end to end and confirm it is ready to be committed as a stable checkpoint.
+
+Context:
+- Gateway, Identity, and CareConnect are already running
+- Scheduling foundation migration is already applied
+- Facility creation has been tested
+- Service Offering creation has been tested
+- Provider Availability Template creation and listing have been tested
+- This step is only for validation and readiness review
+- Do not add new features or change schema in this step
+
+Tasks
+
+1. Review the current scheduling foundation and confirm the implemented scope is exactly:
+- Facilities
+- ProviderFacilities
+- ServiceOfferings
+- ProviderServiceOfferings
+- ProviderAvailabilityTemplates
+
+2. Confirm the following endpoint groups are present and working through Gateway:
+
+Facilities:
+- GET /careconnect/api/facilities
+- POST /careconnect/api/facilities
+- PUT /careconnect/api/facilities/{id}
+
+Service offerings:
+- GET /careconnect/api/service-offerings
+- POST /careconnect/api/service-offerings
+- PUT /careconnect/api/service-offerings/{id}
+
+Availability templates:
+- GET /careconnect/api/providers/{id}/availability-templates
+- POST /careconnect/api/providers/{id}/availability-templates
+- PUT /careconnect/api/availability-templates/{id}
+
+3. Confirm authorization behavior:
+- read endpoints require authenticated user
+- create/update endpoints require PlatformOrTenantAdmin
+- health/info remain anonymous
+- no token => 401 on protected routes
+- wrong role => 403 on protected write routes
+
+4. Confirm tenant isolation behavior:
+- all reads are tenant-scoped
+- all writes are tenant-scoped
+- cross-tenant access would return 404 or filtered results appropriately
+
+5. Confirm validation behavior:
+- facility validation works
+- service offering validation works
+- availability template validation works
+- invalid requests return clean 400 responses
+- no raw stack traces or DB exceptions leak
+
+6. Confirm data/audit behavior:
+- auditable entities stamp CreatedAtUtc / UpdatedAtUtc correctly
+- CreatedByUserId / UpdatedByUserId behavior is correct where applicable
+
+7. Output a concise readiness summary:
+- implemented entities
+- implemented tables
+- working endpoints
+- known limitations
+- recommended next step
+
+8. Provide the exact git commands to commit this as a checkpoint.
+
+Important:
+Do not modify working code unless something is clearly broken.
+Do not add slot generation, appointments, booking, or exceptions yet.
+This step is only to validate the current scheduling foundation and confirm readiness for the next phase.

@@ -1,0 +1,343 @@
+LSCC-003-01 — Workflow Completion & UX Polish
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-003-01
+
+Report path:
+- /analysis/LSCC-003-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Complete the remaining CareConnect workflow gaps and elevate the UI to a production-grade experience.
+
+This iteration focuses on:
+
+1. Referral activity timeline (history visibility)
+2. Appointment lifecycle completion (Confirm, NoShow, Reschedule)
+3. User feedback system (toasts + confirmations)
+4. Dashboard stat improvements
+
+Do NOT redesign backend logic.
+Do NOT introduce new domain models unless absolutely required.
+Do NOT break existing LSCC-003 flows.
+
+This is a workflow completion + UX polish phase.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Referral timeline UI
+B. Appointment actions (Confirm / NoShow)
+C. Appointment reschedule flow
+D. Toast notification system
+E. Action confirmation dialogs
+F. Dashboard stat enhancements
+G. Report
+
+Do NOT:
+- add analytics dashboards beyond simple counts
+- add messaging/chat
+- add billing or lien features
+- redesign core UI structure
+- modify backend contracts unless required for integration
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. MUST use existing backend APIs
+2. MUST respect authorization + org scoping
+3. Separate:
+   - UI components
+   - API layer
+   - state handling
+4. Reuse existing components where possible
+5. No hardcoded statuses
+6. All user actions must provide feedback (success or error)
+7. Avoid duplicating logic already implemented
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-003 already implemented:
+
+- Dashboard (basic)
+- Provider discovery
+- Provider detail + availability preview
+- Referral creation + detail
+- Referral accept/decline
+- Appointment booking
+- Appointment detail + cancel
+
+Backend already supports:
+
+- GET /api/referrals/{id}/history
+- PUT /api/appointments/{id}
+- POST /api/appointments/{id}/reschedule
+
+These must now be surfaced in the UI.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. REFERRAL TIMELINE
+--------------------------------------------------
+
+Route:
+- /careconnect/referrals/{id}
+
+Add component:
+- ReferralTimeline
+
+Behavior:
+- Call:
+  GET /api/referrals/{id}/history
+
+Display:
+- list of events:
+  - status changes
+  - timestamps
+  - notes (if available)
+  - actor (if available)
+
+Requirements:
+- reverse chronological order
+- visually distinguish event types
+- reuse styling from appointment timeline if available
+
+Fallback:
+- no history → show "No activity yet"
+
+--------------------------------------------------
+B. APPOINTMENT CONFIRM / NOSHOW
+--------------------------------------------------
+
+Route:
+- /careconnect/appointments/{id}
+
+Add actions (provider-only):
+
+- Confirm → status = Confirmed
+- Mark NoShow → status = NoShow
+
+API:
+- PUT /api/appointments/{id}
+
+Requirements:
+- visible only to provider role
+- immediate UI update after action
+
+Fallback:
+- API failure → revert UI state + show error
+
+--------------------------------------------------
+C. APPOINTMENT RESCHEDULE
+--------------------------------------------------
+
+Route:
+- /careconnect/appointments/{id}
+
+Add action:
+- Reschedule
+
+Flow:
+1. Click "Reschedule"
+2. Open modal
+3. Fetch availability:
+   GET /api/providers/{id}/availability
+4. Select new slot
+5. Confirm
+
+API:
+- POST /api/appointments/{id}/reschedule
+
+Requirements:
+- reuse SlotPicker or booking components
+- maintain referral context
+- update UI after success
+
+Fallback:
+- slot conflict → refetch
+- no slots → empty state
+
+--------------------------------------------------
+D. TOAST NOTIFICATION SYSTEM
+--------------------------------------------------
+
+Implement global toast system:
+
+Components:
+- ToastProvider
+- Toast
+
+Trigger on:
+- success (accept, decline, confirm, booking, cancel, reschedule)
+- error (API failure)
+
+Requirements:
+- reusable
+- consistent styling
+- auto-dismiss
+- accessible from all components
+
+--------------------------------------------------
+E. ACTION CONFIRMATION DIALOGS
+--------------------------------------------------
+
+Add confirmation UI for:
+
+- Accept referral
+- Decline referral
+- Cancel referral
+- Cancel appointment
+
+Requirements:
+- lightweight modal or inline confirm
+- fast interaction (no heavy blocking UX)
+
+Optional:
+- allow undo pattern where safe
+
+--------------------------------------------------
+F. DASHBOARD STAT IMPROVEMENTS
+--------------------------------------------------
+
+Enhance dashboard counts:
+
+Referrer:
+- active referrals
+- completed referrals
+- upcoming appointments
+
+Provider:
+- new referrals
+- today’s appointments
+- completed appointments
+
+Requirements:
+- reuse existing APIs if possible
+- avoid adding new endpoints unless necessary
+
+Fallback:
+- if data unavailable → display "—"
+
+--------------------------------------------------
+STATE MANAGEMENT
+--------------------------------------------------
+
+- Use existing API service layer
+- Avoid duplicate fetch logic
+- Sync UI with backend responses
+- Use optimistic updates cautiously
+
+--------------------------------------------------
+ERROR HANDLING
+--------------------------------------------------
+
+All flows must include:
+
+- loading state
+- empty state
+- error state
+
+Errors must:
+- show toast
+- revert UI if needed
+
+--------------------------------------------------
+TESTING (MINIMUM)
+--------------------------------------------------
+
+Add tests for:
+
+1. Referral timeline renders history data
+2. Confirm / NoShow actions call correct endpoint
+3. Reschedule flow updates appointment
+4. Toast appears on success/failure
+5. Unauthorized actions handled correctly
+
+If full UI tests not feasible:
+- test API integration layer
+
+--------------------------------------------------
+REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-003-01.md
+
+Report must include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Components added
+- list new UI components
+
+3. API integrations
+- endpoints used per feature
+
+4. Appointment lifecycle coverage
+- confirm / no-show / reschedule
+
+5. Timeline implementation details
+
+6. Toast + confirmation system
+
+7. Dashboard improvements
+
+8. Known limitations
+
+9. Recommended LSCC-003-02 improvements
+
+==================================================
+IMPLEMENTATION SEQUENCE
+==================================================
+
+Follow this order:
+
+1. Referral timeline
+2. Appointment confirm / no-show
+3. Reschedule flow
+4. Toast system
+5. Confirmation dialogs
+6. Dashboard stats
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+LSCC-003-01 is complete ONLY if:
+
+1. Referral timeline is visible and functional
+2. Appointment confirm and no-show actions work
+3. Appointment reschedule flow works end-to-end
+4. Toast notifications exist and trigger correctly
+5. Confirmation dialogs implemented
+6. Dashboard stats improved
+7. Report exists:
+/analysis/LSCC-003-01.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Do not overbuild.
+Focus on completing workflows and improving usability.
+Reuse components wherever possible.
+Ensure all actions provide clear feedback to the user.

@@ -1,0 +1,407 @@
+# LS-COR-AUT-008 — Observability + Scale Hardening
+
+## Objective
+
+Enhance LS-COR-AUT with **observability, performance optimization, and operational tooling** to support production-scale usage.
+
+This feature focuses on:
+
+* visibility into authorization decisions
+* performance improvements for effective access computation
+* operational debugging capabilities
+* audit visibility for administrators
+
+At completion, the system must be:
+
+* observable
+* diagnosable
+* scalable under load
+* supportable in production environments
+
+---
+
+## Architectural Constraints
+
+### Identity
+
+* Do NOT change authentication flow
+* JWT structure remains:
+
+  * `role`
+  * `product_roles`
+  * `access_version`
+
+### Synq Audit
+
+* Continue using Synq Audit as the source of truth for mutation events
+* Do NOT duplicate audit storage
+* UI must consume audit APIs, not recreate logs
+
+### Compatibility
+
+* No breaking changes to LS-COR-AUT-001 through LS-COR-AUT-007
+* Admin UI must remain functional
+
+---
+
+## In Scope
+
+---
+
+## 1. Effective Access Caching
+
+### Problem
+
+Effective access is recomputed at login and potentially in validation paths.
+
+---
+
+### Required Implementation
+
+Introduce caching layer:
+
+### Cache Key
+
+```text
+tenantId:userId:accessVersion
+```
+
+### Cache Value
+
+```json
+EffectiveAccessResult
+```
+
+### TTL
+
+* 2 to 5 minutes (configurable)
+
+---
+
+### Behavior
+
+* On access request:
+
+  * check cache
+  * if hit → return cached result
+  * if miss → compute + cache
+
+* On access change:
+
+  * AccessVersion increments → cache key changes → automatic invalidation
+
+---
+
+### Implementation Options
+
+* In-memory cache (initial)
+* Redis (optional, future-ready)
+
+---
+
+## 2. AccessVersion Optimization
+
+### Problem
+
+Group changes trigger updates across many users.
+
+---
+
+### Required Implementation
+
+#### Batch Updates
+
+* update users in batches instead of row-by-row
+
+#### Optional Async Processing
+
+* queue-based update (background worker)
+
+---
+
+### Requirements
+
+* correctness > optimization
+* ensure no stale access
+
+---
+
+## 3. Authorization Observability (Logging)
+
+### Objective
+
+Provide visibility into **why access was granted or denied**
+
+---
+
+### Required Logging
+
+On each protected endpoint:
+
+Log:
+
+```json
+{
+  "userId": "...",
+  "tenantId": "...",
+  "endpoint": "...",
+  "product": "SYNQ_FUND",
+  "requiredRole": "SYNQFUND_REFERRER",
+  "result": "ALLOW | DENY",
+  "source": "Direct | Group:GroupName",
+  "accessVersion": "..."
+}
+```
+
+---
+
+### Placement
+
+* inside:
+
+  * `RequireProductAccessFilter`
+  * `RequireProductRoleFilter`
+
+---
+
+### Requirements
+
+* structured logging (JSON)
+* avoid sensitive data leakage
+* log only at INFO level (or configurable)
+
+---
+
+## 4. Authorization Debug Endpoint
+
+### Endpoint
+
+```http
+GET /api/tenants/{tenantId}/users/{userId}/access-debug
+```
+
+---
+
+### Response
+
+```json
+{
+  "products": [...],
+  "roles": [...],
+  "sources": {
+    "products": {...},
+    "roles": {...}
+  },
+  "groups": [...],
+  "entitlements": [...],
+  "accessVersion": ...
+}
+```
+
+---
+
+### Purpose
+
+* explain "why user has access"
+* support debugging
+* used by UI and support teams
+
+---
+
+## 5. Audit Viewer UI (Synq Audit Integration)
+
+### Objective
+
+Allow admins to view access changes over time.
+
+---
+
+### UI Page
+
+**Access Audit**
+
+---
+
+### Features
+
+* list audit events:
+
+  * user access changes
+  * group changes
+  * role assignments
+
+* filters:
+
+  * user
+  * group
+  * product
+  * date range
+
+---
+
+### Data Source
+
+* Synq Audit API
+* DO NOT store audit data locally
+
+---
+
+## 6. Admin Debug Tools (UI)
+
+Enhance User Detail Page:
+
+### Add Section: “Access Explanation”
+
+Display:
+
+* product access:
+
+  * direct vs group
+* roles:
+
+  * direct vs group
+* group membership
+* entitlement source
+
+---
+
+### Add “Why?” Button
+
+For each role/product:
+
+Show:
+
+```text
+Granted via:
+- Direct assignment
+- Group: XYZ
+```
+
+---
+
+## 7. Performance Baselines
+
+### Add Metrics
+
+Track:
+
+* login time (with access computation)
+* EffectiveAccessService execution time
+* AccessVersion update duration
+* cache hit/miss ratio
+
+---
+
+### Output
+
+* logs
+* metrics endpoint (optional)
+
+---
+
+## 8. Monitoring Hooks (Optional)
+
+* integrate with:
+
+  * Application Insights / Datadog / etc.
+
+* emit:
+
+  * authorization failures
+  * unusual access patterns
+
+---
+
+## 9. Testing Requirements
+
+---
+
+### Unit Tests
+
+* cache hit/miss behavior
+* correct cache key usage
+* logging format validation
+
+---
+
+### Integration Tests
+
+* access-debug endpoint correctness
+* audit viewer data retrieval
+* cache reduces computation
+
+---
+
+### Performance Tests
+
+* simulate:
+
+  * large group updates
+  * multiple logins
+
+---
+
+### Security Tests
+
+* ensure logs do not expose sensitive data
+* ensure debug endpoint is admin-protected
+
+---
+
+## Acceptance Criteria
+
+* effective access is cached correctly
+* cache invalidates via AccessVersion
+* authorization logs are emitted consistently
+* debug endpoint returns correct data
+* audit viewer UI displays Synq Audit data
+* admin UI shows access explanation
+* performance metrics are captured
+* no breaking changes to existing functionality
+
+---
+
+## Implementation Notes
+
+* start with in-memory cache, keep interface extensible
+* logging must be structured and consistent
+* keep debug endpoint lightweight
+* avoid over-engineering monitoring in first pass
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+/analysis/LS-COR-AUT-008-report.md
+
+---
+
+### Report must include:
+
+1. caching implementation details
+2. accessVersion optimization approach
+3. logging format and placement
+4. debug endpoint details
+5. audit viewer implementation
+6. performance metrics collected
+7. test results
+8. build status
+9. known limitations
+10. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+LS-COR-AUT must be:
+
+* observable
+* diagnosable
+* performant
+* scalable
+
+Ready for real-world enterprise usage.

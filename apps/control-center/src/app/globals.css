@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "remixicon";
+  src: url("/fonts/remixicon.woff2") format("woff2"),
+       url("/fonts/remixicon.woff") format("woff"),
+       url("/fonts/remixicon.ttf") format("truetype");
+  font-display: swap;
+}
+
+@theme {
+  --color-indigo-600: #4f46e5;
+}

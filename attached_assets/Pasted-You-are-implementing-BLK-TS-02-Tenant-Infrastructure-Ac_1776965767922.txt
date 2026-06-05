@@ -1,0 +1,273 @@
+You are implementing BLK-TS-02 — Tenant Infrastructure & Activation for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-TS-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block builds on BLK-TS-01.
+   Tenant service is already the canonical source of truth for tenant/company records.
+
+5. This block must complete Tenant service ownership of:
+   - DNS / subdomain provisioning trigger
+   - tenant product activation
+   - tenant operational metadata needed for downstream onboarding
+
+6. Do NOT refactor Identity yet.
+7. Do NOT refactor CareConnect yet.
+8. Do NOT switch provider onboarding flows yet.
+
+This block is still capability-building inside Tenant service only.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Complete the Tenant service so it fully owns tenant infrastructure and activation concerns.
+
+At the end of this block, Tenant service must be able to:
+
+- trigger / manage tenant DNS provisioning
+- own tenant product activation state
+- expose canonical tenant activation / entitlement data
+- return enough information so downstream services (CareConnect, Identity) can later consume Tenant as the source of truth
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- DNS / subdomain provisioning ownership in Tenant service
+- tenant product activation / entitlement ownership
+- tenant activation workflow inside Tenant service
+- any required service contracts / persistence / endpoints
+- validation and testing
+
+This block does NOT include:
+
+- Identity membership refactor
+- CareConnect onboarding refactor
+- migration/backfill from Identity
+- gateway tenant-resolution refactor
+
+--------------------------------------------------
+
+PART A — DNS / SUBDOMAIN PROVISIONING OWNERSHIP
+
+--------------------------------------------------
+
+A.1 Locate existing provisioning logic
+
+Audit the repo and identify:
+
+- any current `ITenantProvisioningService`
+- any DNS / host / subdomain provisioning logic
+- where it currently lives (Identity or shared/core)
+
+Document what exists and move or align ownership to Tenant service.
+
+--------------------------------------------------
+
+A.2 Tenant service provisioning hook
+
+Implement Tenant-owned provisioning flow so that when a tenant is provisioned or activated, Tenant service becomes the caller/owner of:
+
+- DNS provisioning
+- hostname/subdomain readiness tracking
+- any provisioning status bookkeeping
+
+Do NOT overbuild if the repo already has an implementation.
+Prefer reusing existing provisioning logic but make Tenant service the orchestrator/owner.
+
+--------------------------------------------------
+
+A.3 Provisioning state
+
+Add or confirm fields/state to track provisioning readiness, such as:
+
+- provisioning status
+- provisioned at
+- last provisioning error (optional)
+- hostname/domain readiness
+
+Use current repo conventions if already present.
+
+--------------------------------------------------
+
+PART B — TENANT PRODUCT ACTIVATION OWNERSHIP
+
+--------------------------------------------------
+
+B.1 Canonical tenant product activation
+
+Tenant service must become the source of truth for tenant-level product activation.
+
+Use or align existing Tenant entitlements model:
+
+- `TenantProductEntitlement`
+- or equivalent if already present in repo
+
+Ensure Tenant service can:
+
+- activate a product for a tenant
+- query whether a product is active for a tenant
+- persist activation state canonically
+
+--------------------------------------------------
+
+B.2 CareConnect activation support
+
+Specifically support:
+
+- `SYNQ_CARECONNECT`
+
+This block does NOT yet wire CareConnect onboarding to use it,
+but Tenant service must be ready to say:
+
+- this tenant has CareConnect active
+- this tenant does not have CareConnect active
+
+--------------------------------------------------
+
+B.3 Activation semantics
+
+Define and implement pragmatic activation rules:
+- active / inactive
+- effective timestamp if needed
+- optional metadata / notes if already supported by repo patterns
+
+Do NOT create duplicate entitlement concepts in other services.
+
+--------------------------------------------------
+
+PART C — TENANT ACTIVATION API SURFACE
+
+--------------------------------------------------
+
+Implement or align APIs so Tenant service can support downstream usage.
+
+At minimum, provide endpoints or service methods for:
+
+1. Activate product for tenant
+2. Query product activation for tenant
+3. Trigger / inspect provisioning status for tenant
+
+Use repo/API conventions if similar endpoints already exist.
+
+Suggested examples (adapt to repo style if needed):
+
+- POST /api/v1/tenants/{id}/products/{productCode}/activate
+- GET  /api/v1/tenants/{id}/products
+- GET  /api/v1/tenants/{id}/provisioning-status
+
+If the repo already has equivalent endpoints, extend them instead of duplicating.
+
+--------------------------------------------------
+
+PART D — DOMAIN / PERSISTENCE ALIGNMENT
+
+--------------------------------------------------
+
+Validate and align persistence for:
+
+- tenant provisioning status
+- tenant product entitlements
+- subdomain/domain ownership
+- timestamps/status transitions
+
+Add migrations only if required.
+
+Do NOT create duplicate tables if the current schema already supports the capability.
+
+--------------------------------------------------
+
+PART E — SERVICE LAYER RESPONSIBILITIES
+
+--------------------------------------------------
+
+Ensure the Tenant application/service layer clearly owns:
+
+- code/subdomain readiness
+- provisioning orchestration
+- product activation logic
+- tenant activation status retrieval
+
+Keep responsibilities clean:
+
+Tenant service owns:
+- tenant/company master
+- subdomain/domain ownership
+- tenant product activation
+
+It does NOT own:
+- user accounts
+- JWTs
+- roles
+- provider lifecycle
+- referral logic
+
+--------------------------------------------------
+
+PART F — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST test and document:
+
+1. Tenant provisioning hook can be triggered successfully
+2. Provisioning status is persisted/readable
+3. CareConnect product can be activated for a tenant
+4. Product activation persists correctly
+5. Product activation can be queried correctly
+6. Duplicate activation does not create inconsistent state
+7. dotnet build succeeds
+
+If there are repo-level tests or conventions, follow them.
+If not, provide clear manual validation evidence.
+
+--------------------------------------------------
+
+PART G — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-TS-02-report.md
+
+# BLK-TS-02 Report
+
+## 1. Summary
+## 2. Provisioning Ownership
+## 3. Product Activation
+## 4. API / Service Changes
+## 5. Persistence / Migrations
+## 6. Test Results
+## 7. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- refactor Identity yet
+- refactor CareConnect yet
+- move onboarding flows yet
+- introduce duplicate entitlement systems
+- add unrelated tenant admin UI
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- Tenant service owns provisioning trigger/logic
+- Tenant service owns product activation state
+- `SYNQ_CARECONNECT` activation is supported canonically
+- report saved at:
+  /analysis/BLK-TS-02-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

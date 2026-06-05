@@ -1,0 +1,526 @@
+Feature ID: LS-NOTIF-SMS-018
+
+Title:
+SMS Template Governance, Content Classification, and Delivery Compliance Enforcement
+
+Objective:
+Add enterprise-grade SMS content governance including approved template management, template versioning, tenant-level template governance, content classification, prohibited-content enforcement, variable validation, and delivery compliance controls to ensure outbound SMS payloads are policy-safe before delivery execution.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- SMS template governance
+- template approval lifecycle
+- template versioning
+- content classification
+- prohibited-content enforcement
+- variable validation
+- compliance-safe delivery evaluation
+- template auditability
+- template governance APIs
+
+Control Center must only consume Notification Service APIs and render/administer template governance visibility. Do not duplicate validation, classification, governance, or enforcement logic in Control Center.
+
+Requirements:
+- Implement template governance inside Notification Service.
+- Governance evaluation must occur BEFORE provider execution.
+- Preserve existing routing/orchestration/governance/suppression behavior.
+- Preserve all existing compliance/preference enforcement.
+- Preserve all existing retry/dead-letter semantics.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-017 behavior.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or sensitive recipient metadata.
+- Do not persist raw phone numbers in template governance tables.
+- Keep Control Center as admin/visibility UX only.
+
+Implementation Requirements:
+1. Add SMS template registry persistence.
+2. Add template versioning.
+3. Add template approval lifecycle.
+4. Add content classification rules.
+5. Add prohibited-content enforcement.
+6. Add variable/token validation.
+7. Add delivery compliance evaluation.
+8. Add template audit history.
+9. Add governance decision persistence for content violations.
+10. Add admin APIs for template governance.
+11. Add template analytics/audit APIs.
+12. Add Control Center template governance UI if feasible.
+13. Ensure compliance evaluation degrades safely if classification fails.
+
+Critical Constraints:
+- Reuse existing Notification, NotificationAttempt, governance pipeline, recipient intelligence, routing engine, audit/logging, admin endpoint, migration, and Control Center patterns where appropriate.
+- Do NOT rewrite the Notification Service delivery pipeline.
+- Do NOT bypass existing governance or recipient suppression logic.
+- Do NOT implement AI/LLM content moderation.
+- Do NOT call external compliance/moderation APIs.
+- Do NOT persist raw phone numbers in governance tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-018-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing notification payload/template findings
+3. Existing governance evaluation findings
+4. Existing retry/dead-letter findings
+5. Existing audit/logging findings
+6. Existing Control Center SMS operational UI findings
+7. Files added
+8. Files modified
+9. Database/schema/config changes
+10. API/interface changes
+11. UI/route changes, if implemented
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Payload and Governance Architecture
+- Identify:
+  - existing Notification payload/content fields
+  - current SMS body rendering behavior
+  - current variable replacement behavior
+  - governance evaluation insertion points
+  - retry/dead-letter handling
+  - audit/logging conventions
+  - Control Center SMS operational UI structure
+  - existing admin endpoint conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Template Entity
+Add template registry persistence.
+
+Suggested entity:
+SmsTemplate
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- TemplateKey string
+- Name string
+- Description string? nullable
+- Category string? nullable
+- Status string
+- CurrentVersion int
+- LatestApprovedVersion int? nullable
+- ContentClassification string
+- RequiresApproval bool
+- Enabled bool
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested Status values:
+- draft
+- pending_review
+- approved
+- rejected
+- archived
+
+Suggested ContentClassification values:
+- transactional
+- operational
+- escalation
+- compliance
+- marketing_restricted
+- prohibited
+
+Requirements:
+- TenantId nullable means platform/global template.
+- TemplateKey must be unique per tenant/global scope.
+- Use existing EF/migration conventions.
+- Add indexes:
+  - TenantId, TemplateKey
+  - Status, Enabled
+  - ContentClassification
+
+STEP 3 — Define SMS Template Version Entity
+Add immutable template version history.
+
+Suggested entity:
+SmsTemplateVersion
+
+Suggested fields:
+- Id Guid
+- TemplateId Guid
+- VersionNumber int
+- TemplateBody string
+- VariableSchemaJson string? nullable
+- ContentClassification string
+- ApprovalStatus string
+- ApprovedBy string? nullable
+- ApprovedAt DateTime? nullable
+- RejectionReason string? nullable
+- CreatedAt DateTime
+- CreatedBy string? nullable
+
+Suggested ApprovalStatus values:
+- draft
+- pending_review
+- approved
+- rejected
+
+Requirements:
+- TemplateBody is immutable once approved.
+- Preserve auditability across all versions.
+- Variable schema optional but supported.
+- Use existing EF/migration conventions.
+- Add indexes:
+  - TemplateId, VersionNumber
+  - ApprovalStatus
+  - ApprovedAt
+
+STEP 4 — Define Template Governance Decision Entity
+Persist content-governance outcomes.
+
+Suggested entity:
+SmsTemplateGovernanceDecision
+
+Suggested fields:
+- Id Guid
+- NotificationId Guid? nullable
+- AttemptId Guid? nullable
+- TemplateId Guid? nullable
+- TemplateVersionId Guid? nullable
+- TenantId Guid? nullable
+- DecisionType string
+- ReasonCode string
+- ContentClassification string? nullable
+- VariableValidationPassed bool
+- DecisionMetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested DecisionType values:
+- allow
+- warn
+- block
+- review_required
+
+Suggested ReasonCode values:
+- template_not_found
+- template_not_approved
+- prohibited_content
+- invalid_variables
+- classification_mismatch
+- marketing_restricted
+- unsafe_payload
+- governance_evaluation_error
+
+Requirements:
+- No raw phone persistence.
+- Store safe governance metadata only.
+- Persist all non-allow decisions.
+- Use existing EF/migration conventions.
+- Add indexes:
+  - TenantId, CreatedAt
+  - DecisionType, CreatedAt
+  - ReasonCode, CreatedAt
+  - TemplateId
+
+STEP 5 — Define Template Governance Configuration
+Add safe defaults.
+
+Suggested config:
+SmsTemplateGovernance:
+- Enabled bool default true
+- RequireApprovedTemplates bool default true
+- FailOpenOnEvaluationError bool default true
+- MaxTemplateLength int default 1600
+- MaxVariableCount int default 50
+- AllowInlineUntemplatedMessages bool default false
+- RestrictedCategories:
+  - marketing_restricted
+  - prohibited
+
+Requirements:
+- Safe defaults.
+- Fail-open/fail-closed behavior documented.
+- No secrets in config.
+
+STEP 6 — Add Template Governance Service
+Add central template governance engine.
+
+Suggested interface:
+ISmsTemplateGovernanceService
+
+Suggested methods:
+- EvaluateAsync(SmsTemplateGovernanceRequest request, CancellationToken ct)
+- RenderTemplateAsync(RenderTemplateRequest request, CancellationToken ct)
+- ValidateVariablesAsync(ValidateTemplateVariablesRequest request, CancellationToken ct)
+- ClassifyContentAsync(ClassifyTemplateRequest request, CancellationToken ct)
+
+Suggested request:
+- tenantId
+- templateKey
+- templateVersion nullable
+- inlineBody nullable
+- variables dictionary
+- notificationId nullable
+- attemptId nullable
+
+Suggested result:
+- DecisionType
+- ReasonCode
+- RenderedBody nullable
+- TemplateId nullable
+- TemplateVersionId nullable
+- Classification nullable
+- ValidationErrors list
+- ShouldProceed bool
+
+Requirements:
+- Use local logic only.
+- No external moderation APIs.
+- InlineBody allowed only if AllowInlineUntemplatedMessages=true.
+- Approved templates required when configured.
+- Persist governance decisions where useful.
+- Failures must not crash delivery pipeline.
+- RenderedBody must never expose secrets in logs.
+
+STEP 7 — Implement Content Classification
+Implement deterministic local classification rules.
+
+Suggested classification heuristics:
+transactional:
+- account alerts
+- MFA/OTP
+- delivery notifications
+- status notifications
+
+operational:
+- incident alerts
+- system notifications
+- operational reminders
+
+escalation:
+- paging/escalation content
+- incident escalation payloads
+
+marketing_restricted:
+- promotional language
+- discount/campaign language
+- mass-marketing semantics
+
+prohibited:
+- banned phrases/patterns
+- unsafe spam-like payloads
+- disallowed telecom-risk phrases
+
+Requirements:
+- Use deterministic local rules only.
+- No AI/ML moderation.
+- No external APIs.
+- Classification rules configurable where practical.
+- Unknown content defaults safely.
+- Persist classification metadata when useful.
+
+STEP 8 — Implement Variable Validation
+Add variable validation.
+
+Suggested validations:
+- required variable presence
+- variable count limits
+- variable token format validation
+- unresolved token detection
+- rendered size validation
+
+Suggested token syntax:
+{{variableName}}
+
+Requirements:
+- Invalid templates block/review according to config.
+- Do not render unresolved variables silently.
+- Enforce MaxVariableCount.
+- Enforce MaxTemplateLength after rendering.
+- Prevent malformed rendered payloads.
+
+STEP 9 — Implement Prohibited Content Enforcement
+Implement prohibited-content governance.
+
+Suggested prohibited patterns:
+- spam-like repeated URLs
+- suspicious telecom-fraud phrases
+- unsafe high-risk wording
+- known prohibited marketing semantics
+
+Behavior:
+- prohibited → block
+- marketing_restricted → warn/review depending config
+- classification mismatch → review_required
+
+Requirements:
+- Local rule-based only.
+- No external APIs.
+- Decisions auditable.
+- False-positive handling documented.
+- Evaluation failures degrade according to config.
+
+STEP 10 — Integrate Template Governance Into Send Flow
+Integrate governance safely.
+
+Expected send flow:
+1. Existing preference/compliance enforcement.
+2. Existing recipient intelligence/suppression.
+3. Existing governance policies (LS-017).
+4. Template governance evaluation.
+5. Routing/adaptive routing.
+6. Provider execution.
+
+Requirements:
+- Template governance must not bypass existing governance.
+- Template governance must not bypass retry/dead-letter semantics.
+- Governance failures must not crash delivery.
+- Non-allow decisions must be auditable.
+- Block/review decisions must prevent provider execution.
+
+STEP 11 — Add Template Governance APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/templates
+- GET /v1/admin/sms/templates/{id}
+- POST /v1/admin/sms/templates
+- PUT /v1/admin/sms/templates/{id}
+- POST /v1/admin/sms/templates/{id}/submit-review
+- POST /v1/admin/sms/templates/{id}/approve
+- POST /v1/admin/sms/templates/{id}/reject
+- GET /v1/admin/sms/templates/{id}/versions
+- POST /v1/admin/sms/templates/{id}/versions
+- GET /v1/admin/sms/templates/governance-decisions
+- POST /v1/admin/sms/templates/evaluate-test
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Validate template ownership and tenant scope.
+- Responses must not expose credentials, raw phones, or provider payloads.
+- Validate template size and variable count.
+- Validate approval transitions.
+- Use pagination where appropriate.
+
+STEP 12 — Extend Control Center UI If Feasible
+Add template governance management UI.
+
+Suggested route:
+- /notifications/sms-templates
+
+Suggested sections:
+- Template registry
+- Template version history
+- Approval workflow
+- Governance decision audit table
+- Classification analytics
+- Template test/evaluation tool
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- No governance logic duplicated in UI.
+- No secrets displayed.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 13 — Documentation
+Update documentation/report notes for:
+- template lifecycle
+- approval workflow
+- classification rules
+- prohibited-content rules
+- variable validation behavior
+- fail-open/fail-closed behavior
+- evaluation order
+- governance decision semantics
+- APIs
+- Control Center additions if implemented
+
+Documentation must explain:
+- local deterministic governance only
+- no AI/ML moderation used
+- no external compliance APIs used
+- approved-template enforcement behavior
+- template version immutability
+- governance outcomes are auditable
+
+STEP 14 — Validation
+Perform validation/testing for:
+
+Template lifecycle:
+- create/update/archive template
+- create new version
+- submit review
+- approve/reject transitions
+- immutable approved versions preserved
+
+Classification:
+- transactional classification works
+- operational classification works
+- escalation classification works
+- prohibited classification blocks
+- marketing_restricted warns/reviews
+
+Variable validation:
+- required variables enforced
+- unresolved variables detected
+- invalid token syntax detected
+- MaxVariableCount enforced
+- MaxTemplateLength enforced
+
+Governance:
+- unapproved template blocked/reviewed
+- prohibited content blocked
+- inlineBody behavior respects config
+- governance decisions persisted
+- evaluation errors handled safely
+
+APIs:
+- authorization enforced
+- pagination works
+- approval workflow works
+- no secrets/raw phones exposed
+
+Control Center UI if implemented:
+- template registry renders
+- version history renders
+- approval actions work
+- governance decision audit renders
+- no sensitive data exposed
+
+Regression validation:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-017 behavior preserved
+- routing unchanged
+- recipient intelligence unchanged
+- governance unchanged
+- retry/dead-letter unchanged
+- alerting/escalation unchanged
+- provider orchestration unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsTemplate entity/table
+- SmsTemplateVersion entity/table
+- SmsTemplateGovernanceDecision entity/table
+- Template governance service
+- Content classification engine
+- Variable validation engine
+- Prohibited-content enforcement
+- Template governance APIs
+- Optional Control Center template governance UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external moderation/compliance APIs
+- Implement AI/LLM moderation
+- Rewrite delivery pipeline
+- Bypass governance/suppression/routing
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-017 behavior

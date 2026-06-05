@@ -1,0 +1,365 @@
+# LS-COR-AUT-007 — Enforcement Completion + Hardening
+
+## Objective
+
+Finalize LS-COR-AUT by completing **authorization enforcement across all services** and performing **production hardening** of the access-control system.
+
+This feature ensures:
+
+* all APIs enforce correct product and role-based authorization
+* no endpoints rely on weak or generic authentication (`AuthenticatedUser`)
+* legacy data is fully removed
+* role model boundaries are enforced in code
+* system is ready for production-scale usage
+
+This is the final step before **full production readiness**.
+
+---
+
+## Architectural Constraints
+
+### Identity
+
+* JWT issuance remains unchanged
+* Claims structure must remain:
+
+  * `role` (system roles)
+  * `product_roles` (PRODUCT:Role)
+
+### Synq Audit
+
+* Must remain intact
+* No mutation path should lose audit coverage
+
+### Compatibility
+
+* LS-COR-AUT-005 UI must remain fully functional
+* LS-COR-AUT-001 filters must remain unchanged in behavior
+
+---
+
+## In Scope
+
+---
+
+## 1. Enforcement Completion Across Services
+
+### Problem
+
+Many endpoints still use:
+
+```csharp
+[Authorize(Policy = "AuthenticatedUser")]
+```
+
+This is insufficient.
+
+---
+
+### Required Action
+
+Replace with proper policies:
+
+#### Product-level access
+
+```csharp
+[Authorize(Policy = "RequireProductAccess:SYNQ_FUND")]
+```
+
+#### Role-level access
+
+```csharp
+[Authorize(Policy = "RequireProductRole:SYNQ_FUND:SYNQFUND_REFERRER")]
+```
+
+---
+
+### Target Services
+
+Apply to ALL relevant endpoints in:
+
+* Fund Service
+* CareConnect Service
+* Any other product services
+
+---
+
+### Example
+
+Replace:
+
+```csharp
+[Authorize(Policy = "AuthenticatedUser")]
+```
+
+With:
+
+```csharp
+[Authorize(Policy = "RequireProductRole:SYNQ_FUND:SYNQFUND_REFERRER")]
+```
+
+---
+
+### Validation Rules
+
+* Every endpoint must require:
+
+  * product access OR
+  * specific product role
+
+* No endpoint should rely solely on:
+
+  * authenticated user
+  * system role unless explicitly required
+
+---
+
+## 2. Remove Legacy Database Tables
+
+### Target Tables
+
+* `TenantGroups`
+* `GroupMemberships`
+
+---
+
+### Required Action
+
+* Create EF migration to:
+
+  * drop tables
+  * remove foreign keys
+  * clean up indexes
+
+* Ensure:
+
+  * no runtime code references these tables
+  * migrations run cleanly
+
+---
+
+## 3. Enforce Role Model Boundaries
+
+### Problem
+
+`ScopedRoleAssignment` still supports `PRODUCT` scope.
+
+---
+
+### Required Action
+
+Enforce:
+
+* `ScopedRoleAssignment`:
+
+  * ONLY supports GLOBAL scope
+
+* Block or validate:
+
+```csharp
+ScopeType != GLOBAL → reject
+```
+
+---
+
+### Implementation Options
+
+* validation in service layer
+* DB constraint (preferred if feasible)
+* guard clauses in assignment logic
+
+---
+
+## 4. Effective Access Hardening
+
+### Add Caching (Optional but Recommended)
+
+Implement short-lived caching:
+
+* cache key:
+
+  * `tenantId:userId:accessVersion`
+
+* TTL:
+
+  * 2–5 minutes
+
+---
+
+### Cache Invalidation
+
+* triggered automatically via AccessVersion change
+* no manual eviction required
+
+---
+
+## 5. AccessVersion Optimization (Optional)
+
+### Problem
+
+Bulk updates on group changes can be expensive.
+
+---
+
+### Optional Enhancement
+
+* batch updates
+* async processing (queue-based)
+
+NOT required for correctness.
+
+---
+
+## 6. Effective Access UI Completion
+
+### Problem
+
+Admin UI does not fully expose effective access.
+
+---
+
+### Required Action
+
+Enhance User Detail page:
+
+#### Add Effective Access Section
+
+Display:
+
+### Products
+
+* Product name
+* Source:
+
+  * Direct
+  * Group (Group Name)
+
+### Roles
+
+* Role name
+* Product
+* Source:
+
+  * Direct
+  * Group (Group Name)
+
+---
+
+### Use
+
+```http
+GET /users/{userId}/access-snapshot
+```
+
+---
+
+### Goal
+
+Admin must understand:
+
+* why user has access
+* where access comes from
+
+---
+
+## 7. Validation & Hardening Tests
+
+---
+
+### Unit Tests
+
+* ensure endpoints require product access
+* ensure role policies enforced correctly
+* ensure invalid claims rejected
+
+---
+
+### Integration Tests
+
+* access denied without product access
+* access allowed with correct role
+* access denied with wrong role
+* group inheritance works correctly
+
+---
+
+### Security Tests
+
+* token with wrong product_roles → rejected
+* missing product_roles → rejected
+* invalid format → rejected
+
+---
+
+## 8. Regression Validation
+
+Ensure:
+
+* LS-COR-AUT-005 UI still works
+* login flow unchanged
+* claims still generated correctly
+* no broken routes
+
+---
+
+## Acceptance Criteria
+
+* All endpoints enforce product/role-based authorization
+* No endpoint relies solely on AuthenticatedUser
+* Legacy tables removed via migration
+* ScopedRoleAssignment restricted to GLOBAL scope
+* Effective access visible in UI
+* System builds cleanly
+* All tests pass
+* No runtime dependency on legacy systems
+
+---
+
+## Implementation Notes
+
+* prioritize correctness over optimization
+* enforce consistency across services
+* validate before removing any fallback
+* keep policy naming consistent
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+/analysis/LS-COR-AUT-007-report.md
+
+---
+
+### Report must include:
+
+1. Summary of enforcement changes
+2. List of updated endpoints
+3. Removed database tables and migration details
+4. Role model boundary enforcement details
+5. Effective access UI enhancements
+6. Caching implementation (if added)
+7. Test results:
+
+   * unit
+   * integration
+   * security
+8. Build status
+9. Known gaps
+10. Assumptions made
+
+---
+
+## Final Goal
+
+After this feature:
+
+LS-COR-AUT must be:
+
+* fully enforced
+* fully unified
+* fully hardened
+* production-ready at scale
+
+No weak authorization paths. No legacy artifacts. No ambiguity.

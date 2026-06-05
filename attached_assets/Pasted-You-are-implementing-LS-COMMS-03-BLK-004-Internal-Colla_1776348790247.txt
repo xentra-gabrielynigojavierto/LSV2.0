@@ -1,0 +1,307 @@
+You are implementing LS-COMMS-03-BLK-004 — Internal Collaboration Layer (Mentions, Internal Coordination, and Notification Hooks) for SynqComm.
+
+OBJECTIVE:
+Extend SynqComm to support internal collaboration within conversations by introducing:
+- @mentions in messages
+- mention-aware participant linking
+- internal-only collaboration signals
+- notification hooks for mentions
+
+This completes Phase 3 by enabling **team coordination inside the same conversation context**, without relying on external tools.
+
+CRITICAL ARCHITECTURE RULES:
+- SynqComm remains the system of record for communication and operational state
+- Notifications remains the outbound notification engine
+- Documents remains the owner of binaries
+- SynqComm continues as an independent service under /apps/services/synqcomm with its own physically separate database
+- SynqComm must NOT piggyback on another service database
+- SynqComm must NOT use cross-database joins for core logic
+- Mentions must NOT break existing message, visibility, or participant rules
+- This block must NOT introduce a general chat system or real-time messaging engine
+- This block must NOT introduce UI concerns
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-03-BLK-003 — Timeline (now complete)
+- All prior communication, SLA, escalation, and workflow functionality
+
+CURRENT FOUNDATION:
+- Messages support INTERNAL_ONLY and SHARED_EXTERNAL visibility
+- Participants exist (internal + external)
+- Timeline captures all events
+- Notifications integration is available
+- 146 tests passing
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-03-BLK-004-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-03-BLK-004-report.md
+
+Initialize:
+
+# LS-COMMS-03-BLK-004 — Internal Collaboration Layer Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Enable internal collaboration via mentions, participant linking, and notification hooks.
+
+## Steps Completed
+- [ ] Step 1: Review message and participant model
+- [ ] Step 2: Design mention model
+- [ ] Step 3: Implement mention parsing
+- [ ] Step 4: Persist mentions
+- [ ] Step 5: Integrate with participants
+- [ ] Step 6: Notification integration
+- [ ] Step 7: Timeline integration
+- [ ] Step 8: API updates
+- [ ] Step 9: Tests
+- [ ] Step 10: Final review
+
+--------------------------------------------------
+STEP 2 — DESIGN MENTION MODEL
+--------------------------------------------------
+
+Add a new entity:
+
+### MessageMention
+
+Fields:
+- id
+- tenantId
+- messageId
+- conversationId
+- mentionedUserId
+- mentionedByUserId
+- createdAtUtc
+
+Rules:
+- Only internal users can be mentioned
+- Mentions are always tied to a message
+- Mentions must be tenant-scoped
+
+---
+
+Mention syntax:
+- `@{userId}` (recommended for backend reliability)
+OR
+- `@username` (if user lookup already exists)
+
+👉 Prefer ID-based parsing if possible
+
+---
+
+--------------------------------------------------
+STEP 3 — IMPLEMENT MENTION PARSING
+--------------------------------------------------
+
+In MessageService (or a helper):
+
+- Extract mentions from message body
+- Validate:
+  - user exists
+  - user belongs to tenant
+- Deduplicate mentions
+- Ignore invalid mentions (do not fail message creation)
+
+---
+
+--------------------------------------------------
+STEP 4 — PERSIST MENTIONS
+--------------------------------------------------
+
+On message creation:
+
+- Store MessageMention records
+- Link to:
+  - messageId
+  - conversationId
+
+Ensure:
+- idempotent behavior (no duplicates per message/user)
+- transactional consistency with message creation
+
+---
+
+--------------------------------------------------
+STEP 5 — PARTICIPANT INTEGRATION
+--------------------------------------------------
+
+Rules:
+
+- Mentioning a user does NOT automatically make them a participant (v1)
+- But:
+  - if user is not a participant → allow mention but flag as “non-participant mention”
+
+Optional enhancement:
+- Add flag in metadata or timeline
+
+👉 Do NOT auto-add participants in this block
+
+---
+
+--------------------------------------------------
+STEP 6 — NOTIFICATION INTEGRATION
+--------------------------------------------------
+
+For each mention:
+
+Trigger Notifications:
+
+- Template: `synqcomm_internal_mention`
+- Target: mentionedUserId
+- Payload:
+  - conversationId
+  - messageId
+  - actor (who mentioned)
+  - summary snippet
+
+Requirements:
+- idempotent (no duplicate notifications)
+- non-blocking (failure does not block message creation)
+
+---
+
+--------------------------------------------------
+STEP 7 — TIMELINE INTEGRATION
+--------------------------------------------------
+
+Add timeline event:
+
+EventType:
+- `MENTIONED`
+
+Entry:
+- actorType = USER
+- actorId = mentionedByUserId
+- summary = "John mentioned Mary in a message"
+
+Visibility:
+- INTERNAL_ONLY
+
+---
+
+--------------------------------------------------
+STEP 8 — API UPDATES
+--------------------------------------------------
+
+Extend message response DTO:
+
+Add:
+- mentions: list of mentioned user IDs
+
+Optional:
+- enriched mention objects (id + displayName)
+
+---
+
+Optional endpoint:
+GET /api/synqcomm/messages/{id}/mentions
+
+---
+
+--------------------------------------------------
+STEP 9 — AUTHORIZATION & VISIBILITY
+--------------------------------------------------
+
+Enforce:
+
+- Only internal users can mention
+- External users cannot mention internal users
+- Mentions only visible in INTERNAL_ONLY context
+- Mention notifications must not leak conversation data to unauthorized users
+
+---
+
+--------------------------------------------------
+STEP 10 — PERFORMANCE & SAFETY
+--------------------------------------------------
+
+- Limit max mentions per message (e.g., 10)
+- Avoid regex-heavy parsing in hot path
+- Ensure indexing on:
+  - messageId
+  - conversationId
+  - mentionedUserId
+
+---
+
+--------------------------------------------------
+STEP 11 — AUTOMATED TESTS
+--------------------------------------------------
+
+Minimum tests:
+
+1. Message with mentions creates MessageMention records
+2. Invalid mentions ignored safely
+3. Duplicate mentions deduplicated
+4. Notifications triggered per mention
+5. Timeline entry created for mention
+6. External user cannot mention
+7. Mentions do not auto-add participants
+8. Regression: message creation still works
+9. Tenant isolation enforced
+
+---
+
+--------------------------------------------------
+STEP 12 — FINAL REVIEW
+--------------------------------------------------
+
+Ensure:
+
+- Mentions do not break message flow
+- Notifications are non-blocking
+- Timeline entries are correct
+- No security leaks
+- Performance acceptable
+
+---
+
+## Expected Outcome
+
+You now have:
+
+- internal collaboration inside conversations
+- user-directed communication
+- notification-driven coordination
+
+---
+
+## Phase 3 COMPLETE
+
+After this block:
+
+You will have:
+
+- communication system ✅
+- workflow system ✅
+- SLA + escalation ✅
+- timeline visibility ✅
+- collaboration layer ✅
+
+👉 Full operational system
+
+---
+
+## Next Phase
+
+LS-COMMS-04-BLK-001 — Advanced Filtering & Operational Views
+
+---
+
+## REQUIRED FINAL OUTPUT
+
+Return:
+
+/analysis/LS-COMMS-03-BLK-004-report.md

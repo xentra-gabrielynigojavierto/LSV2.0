@@ -1,0 +1,356 @@
+Project: E10.2
+Title: Workflow Outbox + Async Processing — Durable Side Effects and Reliable Re-drive
+
+You are implementing the next enterprise platform-deepening phase for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E10.2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current workflow mutation points, audit/notification behavior, retry semantics, worker lifecycle, idempotency strategy, and any limitations in safe multi-instance processing.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - outbox model changes
+   - workflow/admin mutation integration changes
+   - worker/processor changes
+   - retry/backoff/dead-letter behavior
+   - audit/notification/re-drive behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for SLA/escalation phase or needs iteration
+
+REPORT FORMAT
+
+# E10.2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Outbox Model Notes
+## Mutation Integration Notes
+## Worker / Processor Notes
+## Retry / Backoff / Dead-Letter Notes
+## Audit / Notification / Re-drive Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Introduce a transactional outbox and asynchronous processing layer for Flow so workflow state changes and downstream side effects are durably recorded in the same transaction, then processed reliably in the background with retry, backoff, and dead-letter handling.
+
+This phase must preserve Flow as the single execution authority while making workflow processing more resilient, scalable, and enterprise-ready.
+
+SCOPE INCLUDES
+
+- transactional outbox entity/table owned by Flow
+- outbox writes in workflow and admin mutation paths
+- background outbox processor/worker
+- retry/backoff/dead-letter behavior
+- idempotent processing strategy
+- async audit/notification/re-drive support
+- admin retry integration with durable re-drive signal
+- observability/logging
+- documentation/reporting
+
+DO NOT BUILD
+
+- full distributed event bus
+- Kafka/RabbitMQ/etc.
+- SLA engine
+- escalation workflows
+- major notification redesign
+- bulk admin actions
+- tenant-portal changes
+- Control Center outbox UI unless trivial
+- direct product-service DB access to outbox tables
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep Flow as the single execution authority
+- write outbox rows in the same transaction as workflow/admin state mutation
+- move side-effect processing to a durable async path
+- ensure admin retry produces a real durable re-drive signal
+- implement safe retry/backoff/dead-letter behavior
+- define and document an idempotency strategy
+- preserve tenant isolation and service boundaries
+- avoid introducing lossy or best-effort-only processing
+
+CURRENT CONTEXT
+
+Already completed:
+- Flow execution engine with WorkflowInstance as execution authority
+- product mappings and hardened ownership enforcement
+- admin actions (retry / force-complete / cancel) from Control Center
+- audit adapter and notification adapter seams already exist
+- workflow validation, Control Center visibility, and tenant/product UI execution are already in place
+
+Current limitation:
+- important follow-on processing is still effectively inline or non-durable
+- admin retry can reset workflow state but does not yet guarantee a durable async re-drive signal
+- there is no outbox-backed retry/dead-letter path for side effects
+
+This E10.2 phase should solve that without redesigning the workflow engine.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. OUTBOX ENTITY / TABLE
+
+Add a transactional outbox model owned by Flow.
+
+Requirements:
+- create an outbox entity/table with fields equivalent to:
+  - Id
+  - TenantId
+  - WorkflowInstanceId (nullable only if there is a justified event type that truly lacks one)
+  - EventType
+  - Payload
+  - Status (Pending / Processing / Succeeded / Failed / DeadLettered)
+  - AttemptCount
+  - NextAttemptAt
+  - LastError
+  - CreatedAt
+  - ProcessedAt
+- include indexes appropriate for polling/claiming pending work
+- ensure the schema is migration-backed and documented
+- payload must include the minimum durable context needed for downstream processing
+- avoid storing unnecessary sensitive content
+
+2. OUTBOX WRITE INTEGRATION
+
+Integrate outbox writes into workflow/admin mutation paths.
+
+At minimum, create outbox rows for:
+- workflow start
+- workflow advance
+- workflow complete
+- workflow cancel
+- admin retry
+- admin force-complete
+- admin cancel
+
+Requirements:
+- outbox writes must happen in the same transaction as the workflow state change
+- if the transaction rolls back, the outbox row must not survive
+- if the workflow state change commits, the outbox row must commit
+- do not rely on best-effort post-commit enqueue logic alone
+- document each event type emitted and from which mutation path
+
+Important:
+- admin retry must create a durable outbox record that gives the system a real re-drive signal
+
+3. BACKGROUND OUTBOX PROCESSOR / WORKER
+
+Add a background worker/service to process pending outbox items.
+
+Requirements:
+- poll for due pending items
+- claim work safely
+- process work
+- mark success/failure
+- reschedule retryable failures
+- mark dead-lettered items after max attempts
+- run independently of request threads
+- log processing lifecycle clearly
+
+Rules:
+- if multiple app instances could run this worker, document the claim strategy clearly
+- avoid duplicate concurrent processing of the same row where feasible
+- if full distributed locking is not implemented, use the safest claim/update pattern practical and document residual limitations honestly
+
+4. PROCESSING TARGETS
+
+In this phase, the outbox processor should support at minimum:
+
+A. Audit
+- emit workflow/admin audit records via the existing audit adapter where appropriate
+
+B. Notifications
+- emit notifications asynchronously via the existing notification adapter where appropriate
+
+C. Re-drive / wake-up
+- admin retry must enqueue an event that causes actual async processing/re-drive rather than only resetting workflow status
+
+Requirements:
+- keep this minimal but real
+- do not redesign the entire platform integration model
+- document exactly which event types map to which processing targets
+
+5. IDEMPOTENCY STRATEGY
+
+This is mandatory.
+
+Requirements:
+- define an idempotency strategy for outbox processing
+- repeated attempts must not corrupt workflow state
+- duplicate processing must be safe or explicitly constrained/documented
+- use a durable identifier or event id for downstream dedupe where needed
+- document which targets are idempotent and how
+
+Examples of acceptable strategies:
+- per outbox message id carried downstream
+- workflow event id in metadata
+- status checks before applying re-drive work
+
+Do not assume at-most-once delivery.
+
+6. RETRY / BACKOFF / DEAD-LETTER POLICY
+
+Requirements:
+- define retry behavior for failed outbox processing
+- increment attempt count on failure
+- schedule `NextAttemptAt` with backoff
+- capture `LastError`
+- after max attempts, mark the row DeadLettered (or equivalent)
+- ensure workflow state remains committed even when outbox processing fails later
+
+Suggested defaults:
+- exponential backoff
+- max attempts in a sane configurable range (for example 5)
+- dead-letter after threshold
+
+Document the exact defaults implemented.
+
+7. ADMIN RETRY INTEGRATION
+
+This is a key validation target.
+
+Requirements:
+- when an admin clicks Retry in E10.1:
+  - the workflow is reactivated according to the existing state rules
+  - a durable outbox event is created
+  - the async processor can pick it up and perform the intended re-drive work
+- the system must no longer rely only on passive future pickup
+- document what the re-drive event does in this phase
+
+Important:
+- do not invent a second execution engine
+- keep Flow as the authority
+- re-drive should use existing engine/governed logic where possible
+
+8. OBSERVABILITY / LOGGING
+
+Requirements:
+- add structured logs for:
+  - outbox item created
+  - item claimed
+  - item succeeded
+  - item failed
+  - item dead-lettered
+- include:
+  - outbox id
+  - workflowInstanceId
+  - tenantId
+  - event type
+  - attempt count
+- make it possible to diagnose processing failures from logs
+- if easy/safe, add a lightweight health/readiness signal for worker enabled/running state
+
+9. CONFIGURATION
+
+Support configuration for:
+- worker enabled/disabled
+- polling interval
+- batch size
+- max attempts
+- backoff behavior
+
+Requirements:
+- use sane defaults
+- document config keys and behavior
+- startup should remain diagnosable if configuration is invalid or incomplete
+
+10. VALIDATION
+
+You MUST validate and record in the report:
+
+Outbox Model
+- migration created and valid
+- outbox rows are written for the intended mutation paths
+
+Transactional Behavior
+- workflow/admin state change and outbox write are atomic
+- rolled-back mutations do not leave orphaned outbox rows
+
+Worker Behavior
+- pending rows are processed
+- success transitions are correct
+- failed rows retry
+- dead-letter behavior works after max attempts
+
+Admin Retry
+- admin retry now creates a durable re-drive signal
+- the signal is actually processed asynchronously
+
+Idempotency
+- repeated processing attempts do not corrupt workflow state
+- duplicate handling strategy is demonstrated or clearly documented with evidence
+
+Audit / Notifications
+- at least one outbox-driven audit path is validated
+- at least one outbox-driven notification path is validated if wired in this phase
+- failures in these targets do not undo the already-committed workflow state
+
+Build / Runtime
+- backend builds
+- worker starts/runs
+- E10.1 admin actions still work
+- existing workflow execution paths are not regressed
+
+11. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- outbox schema/entity
+- event types emitted
+- worker processing model
+- retry/backoff/dead-letter rules
+- idempotency strategy
+- config keys
+- what future phases (SLA/escalation/outbox UI) can build on this
+
+12. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E10.2 unless strictly required:
+- Kafka/RabbitMQ/full event bus
+- SLA engine
+- escalation automation
+- bulk replay tools
+- Control Center outbox UI
+- advanced notification redesign
+- multi-region/eventual consistency guarantees
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current workflow/admin mutation points, especially E10.1 retry/force-complete/cancel.
+2. Create /analysis/E10.2-report.md immediately and begin logging assumptions/actions.
+3. Add the outbox entity/table and migration.
+4. Integrate outbox writes into workflow/admin mutation paths transactionally.
+5. Implement the background outbox processor/worker.
+6. Wire audit/notification/re-drive processing targets.
+7. Implement retry/backoff/dead-letter handling.
+8. Validate that admin retry now creates a durable async signal and that the worker processes it.
+9. Add observability/configuration support.
+10. Validate build/runtime behavior and finalize the report.
+
+SUCCESS CONDITION
+
+E10.2 is successful when:
+- workflow/admin actions write durable outbox records transactionally
+- a background processor handles those records asynchronously and safely
+- retry/backoff/dead-letter behavior exists and is documented
+- admin retry produces a real durable re-drive signal
+- Flow remains the single execution authority
+- the platform is materially more resilient and enterprise-ready
+
+FAILURE CONDITION
+
+E10.2 fails if:
+- side effects remain effectively inline and lossy
+- outbox writes are not transactional with workflow state
+- retry behavior is unsafe or undocumented
+- duplicate processing can corrupt execution
+- admin retry still only resets state without a durable async signal
+- service boundaries are weakened

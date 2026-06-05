@@ -1,0 +1,219 @@
+Continue the LegalSynq platform upgrade from the current partially completed state.
+
+A prior upgrade already added:
+- OrganizationType
+- RelationshipType
+- OrganizationRelationship
+- ProductOrganizationTypeRule
+- ProductRelationshipTypeRule
+- ScopedRoleAssignment
+- nullable CareConnect linkage columns:
+  - Provider.OrganizationId
+  - Facility.OrganizationId
+  - Referral.OrganizationRelationshipId
+  - Appointment.OrganizationRelationshipId
+- admin endpoints for org types, relationship types, org relationships, and product rule inspection
+
+However, the implementation is still transitional. Your job is to complete the integration so the new architecture is actually used by the running platform while preserving backward compatibility.
+
+## Primary goal
+
+Activate the new architecture end-to-end:
+
+1. make OrganizationType the real source of truth for organizations
+2. make AuthService actually use ProductOrganizationTypeRule and scoped assignments
+3. make CareConnect workflows persist and use OrganizationRelationshipId
+4. preserve existing API behavior, provider map, provider search, referral creation, and appointment scheduling
+5. generate a detailed report
+
+## Required report output
+
+Create and save:
+ /analysis/step2_activate-platform-architecture.md
+
+The report must include:
+- summary of previous transitional implementation
+- exact gaps completed now
+- exact files changed
+- behavior changes
+- compatibility notes
+- risks / follow-up work
+
+Use this exact report structure:
+
+# LegalSynq Platform Architecture Activation
+## 1. Starting State
+## 2. Changes Implemented
+## 3. Files Changed
+## 4. Auth and Eligibility Activation
+## 5. CareConnect Relationship Activation
+## 6. Compatibility Notes
+## 7. Remaining Technical Debt
+
+## Work items
+
+### Phase A — make OrganizationType operational
+
+Current problem:
+- Organization has OrganizationTypeId, but Organization.Create() and validation still rely on orgType string.
+
+Tasks:
+- inspect Organization aggregate, commands, handlers, DTOs, validators, admin endpoints, and any org creation/update flows
+- add support for OrganizationTypeId as the canonical field in create/update paths
+- keep OrgType string only as transitional compatibility/read-model support if needed
+- when OrganizationTypeId is provided, resolve/set OrgType string from the catalog for backward compatibility
+- if only OrgType string is provided, resolve OrganizationTypeId from OrganizationTypes
+- centralize this mapping logic so create/update paths do not drift
+
+Important:
+- do not break existing request payloads
+- support both old and new payload styles if practical
+
+### Phase B — fully activate DB-backed product eligibility
+
+Current problem:
+- AuthService has logic to check OrgTypeRules first
+- but repository loading is incomplete, so fallback to ProductRole.EligibleOrgType still dominates
+
+Tasks:
+- inspect UserRepository, AuthService, and all queries used during login/auth context loading
+- eager load:
+  - org memberships
+  - organization
+  - organization.OrganizationTypeRef
+  - organization products
+  - product roles
+  - OrgTypeRules
+  - OrgTypeRules.OrganizationType
+- make sure AuthService truly evaluates ProductOrganizationTypeRule first
+- preserve fallback to EligibleOrgType only for compatibility if OrgTypeRules are absent
+- add tests or at least validation logic to prove the DB-backed rule path is now active
+
+Also:
+- inspect ScopedRoleAssignment usage
+- start resolving roles from ScopedRoleAssignment where appropriate
+- keep UserRoleAssignment fallback if full cutover is too risky
+- document exact resolution order in the report
+
+### Phase C — activate CareConnect relationship persistence
+
+Current problem:
+- Referral and Appointment now have OrganizationRelationshipId
+- but service logic does not yet populate it
+
+Tasks:
+- inspect ReferralService and AppointmentService
+- when creating a referral:
+  - if ReferringOrganizationId and ReceivingOrganizationId are present
+  - attempt to find a matching active OrganizationRelationship in Identity
+  - if found, set Referral.OrganizationRelationshipId
+  - if not found, preserve current behavior and allow null
+- when creating an appointment from a referral:
+  - copy OrganizationRelationshipId from the referral
+- update any repository/configuration/DTO mapping needed
+- preserve current APIs and existing workflows
+
+Important:
+- do not require OrganizationRelationshipId for old data
+- null must remain valid
+
+### Phase D — improve provider/facility identity alignment
+
+Current problem:
+- Provider.OrganizationId and Facility.OrganizationId exist but are not yet consistently used
+
+Tasks:
+- inspect provider create/update/import flows
+- where a provider already corresponds to an Identity organization, populate OrganizationId
+- where a facility belongs to a provider org, populate Facility.OrganizationId
+- do not redesign everything into ProviderProfile yet unless clearly low-risk
+- keep this as a transitional identity alignment step
+
+### Phase E — add minimal control-center/frontend compatibility
+
+Current problem:
+- backend admin endpoints exist
+- frontend types/pages were not updated
+
+Tasks:
+- inspect:
+  - apps/control-center/src/types/index.ts
+  - apps/control-center/src/lib/control-center-api.ts
+  - relevant admin pages/routes/components
+- add API client methods and TS types for:
+  - organization types
+  - relationship types
+  - organization relationships
+  - product org-type rules
+  - product relationship-type rules
+- if practical, add minimal admin listing pages
+- if full UI is too much, at least wire the client/types so future pages can use them cleanly
+- document what was done vs deferred
+
+### Phase F — reduce legacy architecture dependency
+
+Tasks:
+- identify where ProductRole.EligibleOrgType is still read
+- identify where UserRoleAssignment is still the active source of truth
+- reduce direct usage where low-risk
+- keep backward compatibility, but add TODO/deprecation comments where needed
+- do not remove schema yet unless fully safe
+- document what remains to retire later
+
+## Files to inspect first
+
+### Identity
+- apps/services/identity/Identity.Domain/Organization.cs
+- apps/services/identity/Identity.Domain/OrganizationType.cs
+- apps/services/identity/Identity.Domain/ProductRole.cs
+- apps/services/identity/Identity.Domain/ScopedRoleAssignment.cs
+- apps/services/identity/Identity.Domain/UserRoleAssignment.cs
+- apps/services/identity/Identity.Application/Services/AuthService.cs
+- apps/services/identity/Identity.Infrastructure/Repositories/UserRepository.cs
+- apps/services/identity/Identity.Infrastructure/Services/JwtTokenService.cs
+- apps/services/identity/Identity.Infrastructure/Data/IdentityDbContext.cs
+- apps/services/identity/Identity.Infrastructure/Data/Configurations/*
+- apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+
+### CareConnect
+- apps/services/careconnect/CareConnect.Domain/Provider.cs
+- apps/services/careconnect/CareConnect.Domain/Facility.cs
+- apps/services/careconnect/CareConnect.Domain/Referral.cs
+- apps/services/careconnect/CareConnect.Domain/Appointment.cs
+- apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+- apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
+- apps/services/careconnect/CareConnect.Application/DTOs/*
+- apps/services/careconnect/CareConnect.Infrastructure/Repositories/*
+- apps/services/careconnect/CareConnect.Infrastructure/Data/Configurations/*
+
+### Frontend
+- apps/control-center/src/types/index.ts
+- apps/control-center/src/lib/control-center-api.ts
+- apps/control-center/src/pages/* or app routes
+- apps/web/src/types/index.ts
+- apps/web/src/types/careconnect.ts
+
+## Implementation guidance
+
+- Prefer additive, low-risk completion over big rewrites
+- Preserve compile/build stability
+- Preserve all existing external API shapes unless there is a very good reason
+- Keep old fields and fallbacks where needed, but make the new architecture the primary path
+- If cross-service lookup between CareConnect and Identity requires a temporary service abstraction, add one cleanly
+- If a fully automatic relationship lookup is too risky, implement a clearly isolated resolver service
+- Add comments where transition logic is non-obvious
+
+## Build/verification expectations
+
+At the end:
+- run/build the impacted projects
+- fix compile issues
+- verify login/auth code path compiles with new eager-loading changes
+- verify CareConnect compile passes with relationship activation changes
+- include build status in the report
+
+## Final instruction
+
+Do the work now.
+Finish activating the new platform architecture rather than just adding more scaffolding.
+Then generate /analysis/step2_activate-platform-architecture.md.

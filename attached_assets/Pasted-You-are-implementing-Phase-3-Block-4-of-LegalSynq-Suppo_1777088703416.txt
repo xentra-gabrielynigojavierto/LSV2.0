@@ -1,0 +1,254 @@
+You are implementing Phase 3 Block 4 of LegalSynq Support Service.
+
+FEATURE ID:
+SUP-INT-07
+
+FEATURE NAME:
+Customer Support Portal UI
+
+Report file:
+ /analysis/SUP-INT-07-report.md
+
+PRIMARY OBJECTIVE:
+Add a customer-facing Support portal UI that allows external customers to view and comment on their own CustomerVisible tickets using the secured customer endpoints created in SUP-TNT-03.
+
+IMPORTANT CONTEXT:
+Completed:
+- SUP-TNT-01 — ExternalCustomer model
+- SUP-TNT-02 — Ticket ownership + visibility
+- SUP-TNT-02-01 — migration default correction
+- SUP-TNT-03 — Customer RBAC Layer
+
+Existing customer endpoints:
+- GET  /support/api/customer/tickets
+- GET  /support/api/customer/tickets/{id}
+- POST /support/api/customer/tickets/{id}/comments
+
+Customer access rules:
+- Customer must have JWT role: ExternalCustomer
+- JWT must include tenant_id
+- JWT must include external_customer_id
+- Customer can only access tickets where:
+  - TenantId matches JWT tenant_id
+  - ExternalCustomerId matches JWT external_customer_id
+  - VisibilityScope = CustomerVisible
+
+IMPORTANT LIMITATION:
+Customer token issuance/login is NOT implemented yet.
+The UI must be built against the secured endpoints, but real customer login activation may remain deferred until a later block.
+
+CRITICAL RULES:
+1. DO NOT rewrite Support.
+2. DO NOT weaken customer RBAC.
+3. DO NOT bypass the secured customer endpoints.
+4. DO NOT call internal/admin ticket endpoints from the customer portal.
+5. DO NOT use query string/body/header externalCustomerId as an authorization override.
+6. DO NOT inject X-Tenant-Id in production.
+7. DO NOT add customer login/token issuance in this block unless an existing customer session pattern already exists.
+8. DO NOT add email reply/Comms/SLA/Task logic.
+9. DO NOT add queue, assignment, status management, or admin controls to customer UI.
+10. DO NOT expose Internal tickets.
+11. DO NOT store file bytes in Support DB.
+12. Preserve existing tenant/admin/agent Support UI behavior.
+
+MANDATORY STEP 1 — CREATE REPORT FIRST:
+Create:
+ /analysis/SUP-INT-07-report.md
+
+Update it incrementally after every major step.
+
+REPORT MUST INCLUDE:
+1. Codebase analysis
+2. Existing portal/navigation discovery
+3. Customer session/auth discovery
+4. Customer route design
+5. API client/BFF changes
+6. UI screens created
+7. Security/RBAC behavior
+8. Files changed
+9. Validation results
+10. Build/test results
+11. Known gaps/deferred items
+12. Final readiness assessment
+
+STEP 2 — CODEBASE ANALYSIS:
+Before coding, inspect and document:
+- Existing web app route structure
+- Existing tenant/customer-facing portal patterns
+- Existing support web routes from SUP-INT-03/SUP-INT-06
+- Existing session/auth helpers
+- Whether any customer session/JWT pattern exists
+- Existing BFF/proxy route for Support
+- Existing UI component conventions
+- Existing error/access-denied patterns
+
+Do not implement until this analysis is documented.
+
+STEP 3 — ROUTE DESIGN:
+Add customer-facing routes under the platform web app.
+
+Preferred routes:
+- /support/customer
+- /support/customer/tickets
+- /support/customer/tickets/[id]
+
+If the platform already has a better customer portal route pattern, use that pattern and document the decision.
+
+The customer UI must be distinct from:
+- Control Center admin support UI
+- Tenant/admin/agent support UI
+
+STEP 4 — API CLIENT / BFF WIRING:
+Use only the secured customer endpoints:
+
+- GET /support/api/customer/tickets
+- GET /support/api/customer/tickets/{id}
+- POST /support/api/customer/tickets/{id}/comments
+
+Frontend must call through existing platform gateway/BFF pattern.
+
+Allowed:
+- Browser → platform BFF → gateway → Support customer endpoint
+
+Not allowed:
+- Browser → direct Support service
+- Browser → internal/admin Support endpoint
+- Passing externalCustomerId from UI as auth
+- Passing tenantId from UI as auth
+
+If customer session/token support is missing:
+- Implement UI so it fails safely with access denied / sign-in required
+- Do not fake customer identity
+- Document blocker in report
+
+STEP 5 — CUSTOMER TICKET LIST UI:
+Create customer ticket list page.
+
+Required display:
+- Ticket number
+- Title
+- Status
+- Priority
+- Created date
+- Last updated date if available
+
+Rules:
+- No queue info
+- No assignment controls
+- No internal metadata
+- No tenant-wide filters
+- No agent/admin controls
+
+STEP 6 — CUSTOMER TICKET DETAIL UI:
+Create customer ticket detail page.
+
+Required display:
+- Ticket number
+- Title
+- Description
+- Status
+- Priority
+- Created date
+- Customer-visible comments if endpoint supports them
+- Product reference links only if already customer-safe; otherwise omit
+
+Rules:
+- No internal-only timeline
+- No audit metadata
+- No queue/assignment/status controls
+- No internal notes
+
+STEP 7 — CUSTOMER COMMENT UI:
+Add customer comment submission using:
+
+POST /support/api/customer/tickets/{id}/comments
+
+Rules:
+- Comment body required
+- Max length should match backend validation if known
+- Do not allow visibility selection
+- Do not allow author/customer ID override
+- Customer identity comes only from JWT/session
+
+After submit:
+- Refresh ticket detail or show successful submission state
+
+STEP 8 — AUTH / ACCESS BEHAVIOR:
+Enforce access behavior using existing platform/session patterns.
+
+Required:
+- If no session/token → sign-in required or access denied
+- If session exists but lacks ExternalCustomer role → access denied
+- If API returns 401/403 → show safe access denied state
+- If API returns 404 → show not found, not leak reason
+
+Do not leak whether another customer’s ticket exists.
+
+STEP 9 — OPTIONAL COMMENT/TIMELINE READ:
+SUP-TNT-03 exposed POST comment but did not expose customer comment list/timeline.
+
+If no customer-safe comment list endpoint exists:
+- Do not call internal comments/timeline endpoints
+- Show ticket details only
+- After posting comment, show success message and explain that the conversation refresh requires customer timeline endpoint
+- Document this gap
+
+If a safe customer comment list endpoint exists:
+- use only that endpoint
+
+STEP 10 — VALIDATION:
+Validate:
+
+1. Customer UI routes exist.
+2. Customer UI calls only customer endpoints.
+3. No direct support backend URLs.
+4. No internal/admin endpoints used.
+5. No externalCustomerId/tenantId authorization override from UI.
+6. Customer without valid session sees access denied/sign-in state.
+7. Non-customer internal user cannot use customer UI unless platform intentionally allows role overlap.
+8. 401/403/404 handled safely.
+9. Existing admin/agent Support UI still works.
+
+STEP 11 — BUILD / TEST:
+Run applicable checks:
+- frontend build for web app
+- frontend type check/lint if available
+- dotnet build Support.Api only if backend was touched
+- dotnet build Support.Tests only if backend was touched
+
+STEP 12 — FINAL REPORT:
+Complete:
+
+# SUP-INT-07 Report
+
+## 1. Codebase Analysis
+## 2. Existing Portal / Auth Pattern
+## 3. Customer Route Design
+## 4. API Client / BFF Wiring
+## 5. Customer Ticket List UI
+## 6. Customer Ticket Detail UI
+## 7. Customer Comment UI
+## 8. Auth / Access Behavior
+## 9. Security Validation
+## 10. Files Created / Changed
+## 11. Build / Test Results
+## 12. Known Gaps / Deferred Items
+## 13. Final Readiness Assessment
+
+DONE CRITERIA:
+- Customer-facing Support routes are added.
+- Customer UI uses only /support/api/customer/* endpoints.
+- No internal/admin Support endpoints are used.
+- No tenantId or externalCustomerId is accepted from UI for authorization.
+- Customer ticket list displays own tickets only through backend enforcement.
+- Customer ticket detail displays safe ticket information only.
+- Customer can submit a comment using customer endpoint.
+- Missing customer token issuance is handled safely and documented.
+- Existing admin/agent Support UI is not broken.
+- Build passes.
+- /analysis/SUP-INT-07-report.md is complete.
+
+If customer token issuance or comment-list support is missing:
+- do not fake it
+- document it as a deferred dependency
+- keep UI fail-closed and safe.

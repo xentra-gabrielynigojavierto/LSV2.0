@@ -1,0 +1,353 @@
+TASK-FLOW-02 — Read Path Migration (Flow → Task)
+
+OBJECTIVE:
+Move Flow read paths off `flow_workflow_tasks` and onto the Task service so Flow no longer depends on its shadow task table for user task lists, task detail, queue eligibility reads, or SLA-driven status reads. This is Phase 2 of Flow → Task delegation and is the prerequisite to dropping `flow_workflow_tasks`.
+
+CONTEXT:
+Phase 1 already moved Flow task writes to Task service while retaining `flow_workflow_tasks` as a shadow read model. This prompt completes the read-side migration by:
+- extending Task service query/read support where needed
+- moving Flow read services to Task
+- retiring Flow’s task-SLA background ownership
+- preparing the system for final table drop in TASK-FLOW-03
+
+IMPORTANT CONSTRAINTS DISCOVERED:
+- Current Flow reads still depend on `flow_workflow_tasks` through `MyTasksService` and `WorkflowTaskSlaEvaluator`. :contentReference[oaicite:0]{index=0}
+- Task service currently lacks native Flow queue semantics for `RoleQueue` / `OrgQueue`, so Phase 2 must add Task-side read support or a compatible representation before reads can move fully. :contentReference[oaicite:1]{index=1}
+- Flow orchestration tables remain in `flow_db` and MUST NOT be moved in this prompt. 
+
+NON-NEGOTIABLE RULES:
+- DO NOT move Flow orchestration tables
+- DO NOT merge Task and Flow databases
+- DO NOT drop `flow_workflow_tasks` in this prompt
+- DO NOT redesign the workflow engine
+- DO NOT break My Tasks / queue behavior
+- DO NOT remove rollback safety until validation is complete
+- MUST create the report FIRST and update it incrementally
+- MUST validate against the current codebase before implementing
+- MUST preserve tenant isolation and current auth behavior
+- NO placeholders
+
+CRITICAL GOAL:
+After this step:
+- Flow reads task data from Task service, not `flow_workflow_tasks`
+- Task service exposes enough query capability to support Flow read scenarios
+- Flow’s task shadow table is no longer needed for normal runtime reads
+- `flow_workflow_tasks` can be safely deprecated ahead of TASK-FLOW-03
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-FLOW-02-report.md
+
+Initialize with:
+
+# TASK-FLOW-02 Report — Read Path Migration (Flow → Task)
+
+## 1. Codebase Analysis
+## 2. Current Read Dependency Map
+## 3. Task Query Gap Analysis
+## 4. Task Service Read API Changes
+## 5. Flow Read Path Migration
+## 6. SLA Ownership / Background Read Changes
+## 7. Validation Results
+## 8. Rollback Plan
+## 9. Known Gaps / Risks
+
+Update this report AFTER EVERY MAJOR STEP with:
+- what was analyzed
+- what changed
+- files added/updated
+- API changes
+- validation performed
+- issues encountered
+- final outcome of the step
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT FLOW READ DEPENDENCIES
+--------------------------------------------------
+
+Inspect the current Flow codebase and document all read paths still using `flow_workflow_tasks`.
+
+At minimum inspect:
+- `MyTasksService`
+- `WorkflowTaskSlaEvaluator`
+- task detail/read endpoints in controllers
+- any dashboard/summary/count endpoints
+- any role queue / org queue queries
+- any direct repository or `DbContext` queries against `WorkflowTasks`
+- any DTOs/views built from `flow_workflow_tasks`
+
+Document for each path:
+- purpose
+- query shape
+- caller/user scenario
+- filters used
+- whether it is user-specific, role-queue, org-queue, or workflow-instance scoped
+- whether it depends on fields not currently represented in Task service
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Read Dependency Map
+
+--------------------------------------------------
+STEP 2 — ANALYZE TASK QUERY GAPS
+--------------------------------------------------
+
+Inspect the current Task service and determine what query/read support already exists versus what Flow needs.
+
+Review current Task support for:
+- task list by assigned user
+- task detail by id
+- task list by workflow instance
+- task list by product/source entity
+- filtering by status / priority / due date / stage
+- filtering by `WorkflowInstanceId` / `WorkflowStepKey`
+- assignment metadata support
+- queue-style reads for role/org eligibility
+- SLA-related fields / overdue state / due-date based reads
+
+Compare this against the actual needs found in Step 1.
+
+Explicitly identify gaps, especially around:
+- `RoleQueue`
+- `OrgQueue`
+- any fields currently stored only in `flow_workflow_tasks`
+- any query shapes MyTasksService relies on that Task service cannot currently satisfy
+
+Document:
+- which gaps require Task schema changes
+- which gaps require Task API changes only
+- which Flow read paths can already migrate immediately
+
+Update:
+## 3. Task Query Gap Analysis
+
+--------------------------------------------------
+STEP 3 — DESIGN THE MINIMUM TASK READ MODEL NEEDED FOR FLOW
+--------------------------------------------------
+
+Design the minimum Task-side additions needed to replace Flow reads safely.
+
+You MUST preserve the architectural boundary:
+- Flow owns orchestration
+- Task owns execution/read model for tasks
+- Do NOT recreate Flow runtime in Task
+
+Preferred approach:
+- extend Task to support the read/query semantics Flow needs
+- preserve Flow linkage via `WorkflowInstanceId` / `WorkflowStepKey`
+- add support for Flow queue assignment metadata only as much as needed to replace reads
+
+You MUST explicitly decide:
+
+1. How to represent/read queue assignments in Task:
+   - `DirectUser`
+   - `RoleQueue`
+   - `OrgQueue`
+
+2. Whether Task needs new fields for queue metadata such as:
+   - `AssignedRole`
+   - `AssignedOrgId`
+   - `AssignmentMode`
+   - any equivalent generic metadata bag if cleaner
+
+3. Whether SLA read support belongs in Task now:
+   - if Task is already the execution authority, Task should become the read authority for SLA-related task state
+   - keep this minimal and do not redesign broader SLA logic unless needed
+
+4. Which Task read endpoints will replace:
+   - My task list
+   - role queue
+   - org queue
+   - task detail
+   - workflow task lookup
+   - counts / summaries if currently used
+
+Bias toward:
+- generic Task extensions, not Flow-specific hacks
+- minimal additive schema/API changes
+- keeping Flow as a consumer
+
+Update:
+## 3. Task Query Gap Analysis
+## 4. Task Service Read API Changes
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT TASK SERVICE READ/API SUPPORT
+--------------------------------------------------
+
+Implement the minimum Task-side schema/API/query additions required to support Flow reads.
+
+Possible areas, only if needed based on analysis:
+- add queue assignment metadata fields to tasks
+- add DTO fields for queue metadata
+- add filters / query endpoints for:
+  - assigned user tasks
+  - role queue tasks
+  - org queue tasks
+  - workflow instance tasks
+  - task detail
+  - task counts/summaries
+- add indexes to support the new read paths efficiently
+- add internal-service or authenticated-user endpoints as appropriate, following existing auth patterns
+
+Rules:
+- keep Task generic
+- do not introduce Flow orchestration concepts beyond existing linkage fields
+- maintain tenant isolation
+- preserve current Task consumers
+- prefer extending existing Task endpoints where safe over inventing a large new surface
+
+If schema changes are needed:
+- create migrations
+- apply them
+- document them clearly
+
+Update:
+## 4. Task Service Read API Changes
+
+--------------------------------------------------
+STEP 5 — MIGRATE FLOW READ PATHS
+--------------------------------------------------
+
+Update Flow so read paths no longer query `flow_workflow_tasks` for normal runtime behavior.
+
+At minimum migrate:
+- `MyTasksService`
+- task detail read paths
+- any queue summary/list endpoints
+- any workflow-instance task lookup reads used by controllers/services
+
+Requirements:
+- Flow should call Task service via a dedicated client for read operations
+- preserve current auth behavior (forward user bearer token where needed)
+- preserve tenant isolation
+- preserve current endpoint shapes unless absolutely necessary
+- preserve user-facing behavior and result ordering/filtering as closely as possible
+
+If helper/adaptor mapping is needed, implement it cleanly in one place.
+
+Update:
+## 5. Flow Read Path Migration
+
+--------------------------------------------------
+STEP 6 — HANDLE SLA / BACKGROUND READ OWNERSHIP
+--------------------------------------------------
+
+Review `WorkflowTaskSlaEvaluator` and any other background ownership still tied to `flow_workflow_tasks`.
+
+You MUST explicitly decide whether, in this phase:
+- A. retire Flow SLA evaluator completely because Task now owns enough state, OR
+- B. keep it temporarily but make it read from Task service instead of `flow_workflow_tasks`, OR
+- C. document why it must remain deferred and keep the table dependency only if absolutely unavoidable
+
+Bias toward removing Flow ownership of task SLA state if the current Task model already supports due-date/SLA reads sufficiently.
+
+Rules:
+- do not redesign enterprise SLA logic
+- keep changes minimal
+- do not leave `flow_workflow_tasks` as a hidden dependency if it can be removed now
+
+Update:
+## 6. SLA Ownership / Background Read Changes
+
+--------------------------------------------------
+STEP 7 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. My Tasks user list works using Task service reads
+2. task detail works using Task service reads
+3. role queue reads work correctly
+4. org queue reads work correctly
+5. workflow-instance task reads work correctly
+6. task counts/summaries still work if applicable
+7. tenant isolation is preserved
+8. auth forwarding works correctly for user-scoped reads
+9. Task queue metadata works correctly if added
+10. Flow no longer requires `flow_workflow_tasks` for normal runtime reads
+11. SLA/background behavior is correct per the chosen approach
+12. builds succeed for Flow and Task services
+13. no UI/API regressions occur
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 7. Validation Results
+
+--------------------------------------------------
+STEP 8 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting Flow read paths back to `flow_workflow_tasks`
+- keeping Task-side schema/API additions in place if harmless
+- re-enabling prior Flow read implementations if needed
+- preserving data integrity
+- no forced DB rollback unless strictly necessary
+
+If Task schema changes were introduced:
+- explain whether they are safe to leave in place during rollback
+- explain whether rollback is code-only or requires DB migration rollback
+
+Update:
+## 8. Rollback Plan
+
+--------------------------------------------------
+STEP 9 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any remaining reasons `flow_workflow_tasks` still exists after this step
+- any assignment-mode limitations still deferred
+- any remaining SLA gaps
+- any remaining read paths not yet migrated and why
+- exact prerequisites for TASK-FLOW-03 table drop
+- whether `flow_task_items` is also ready for deprecation/drop or still deferred
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-FLOW-02 is successful only if:
+
+1. Flow no longer depends on `flow_workflow_tasks` for normal runtime reads
+2. Task service exposes the read/query support Flow actually needs
+3. My Tasks / queue / detail reads behave correctly
+4. tenant isolation and auth behavior are preserved
+5. `flow_workflow_tasks` is reduced to a deprecation target ahead of TASK-FLOW-03
+6. no orchestration data is moved out of Flow
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT drop `flow_workflow_tasks` in this prompt
+- Do NOT move Flow orchestration tables
+- Do NOT merge Flow and Task databases
+- Do NOT redesign the workflow engine
+- Do NOT overbuild a new query system beyond what Flow actually needs
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Flow MyTasks/read services/controllers
+- Flow task read clients/adapters
+- Task service DTOs/endpoints/repositories if needed
+- auth forwarding for read paths
+- migrations/indexes if needed for Task-side queue/query support
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

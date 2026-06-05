@@ -1,0 +1,359 @@
+You are implementing BLK-SEC-02 — Cross-Tenant Boundary Enforcement for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-SEC-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block enforces strict tenant isolation across:
+   - Tenant service
+   - Identity service
+   - CareConnect
+   - public and tenant-bound flows
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new features
+   - redesign onboarding
+   - change the provider lifecycle model
+   - reintroduce tenant creation into Identity
+   - weaken public-network or portal flows for convenience
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Enforce tenant isolation so that:
+
+- tenant context is never trusted from client input where server resolution is required
+- tenant-bound data cannot be accessed across tenant boundaries
+- host/subdomain-based tenant resolution is consistently applied
+- user membership, tenant claims, and tenant-scoped data queries align end-to-end
+
+At the end of this block:
+
+- tenant boundaries are explicit and enforced
+- cross-tenant leakage paths are closed
+- public routes, common portal, and tenant portal each use the correct tenant context model
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- tenant context resolution audit
+- removal/restriction of client-supplied tenantId where inappropriate
+- enforcement of tenant-scoped queries and guards
+- validation of subdomain / host-based resolution
+- validation of JWT tenant-context use
+- defensive checks around public, common-portal, and tenant-bound routes
+
+This block does NOT include:
+
+- new product features
+- UI redesign
+- onboarding feature expansion
+- per-service secret redesign
+
+--------------------------------------------------
+
+PART A — AUDIT TENANT CONTEXT SOURCES
+
+--------------------------------------------------
+
+Audit all relevant flows and document where tenant context currently comes from.
+
+You MUST inspect and document at least:
+
+1. Public flows
+   - /network
+   - public provider directory
+   - public referral initiation
+
+2. Common Portal flows
+   - provider dashboard
+   - provider onboarding
+   - provider referral detail
+
+3. Tenant Portal flows
+   - CareConnect referrals
+   - network management
+   - provider association
+   - map endpoints
+
+4. Service-to-service flows
+   - CareConnect → Tenant
+   - CareConnect → Identity
+   - any Tenant resolution adapters / middleware / BFF helpers
+
+For each, identify whether tenant context is derived from:
+- host/subdomain
+- authenticated JWT claims
+- server-side lookup
+- client-supplied route/body/query parameters
+
+--------------------------------------------------
+
+PART B — REMOVE TRUST IN CLIENT-SUPPLIED TENANT IDs
+
+--------------------------------------------------
+
+Where tenant context should be server-derived, ensure the application does NOT trust:
+
+- tenantId from request body
+- tenantId from query string
+- tenantId from route parameter
+- tenantCode from client when a server-resolved tenant is already available
+
+Rules:
+
+1. Public routes:
+   - tenant context should come from host/subdomain or server-side resolution
+   - NOT from arbitrary client-supplied tenantId
+
+2. Authenticated tenant routes:
+   - tenant context should come from JWT claims / authenticated membership context
+   - NOT from client-supplied tenantId
+
+3. Internal service flows:
+   - tenantId may be passed between trusted services only when derived server-side
+
+Refactor or guard any endpoint/service that violates this.
+
+--------------------------------------------------
+
+PART C — ENFORCE TENANT-SCOPED DATA ACCESS
+
+--------------------------------------------------
+
+Audit tenant-scoped queries and handlers in CareConnect, Identity, and Tenant-related resolution code.
+
+Ensure:
+
+- tenant portal data queries always filter by authenticated tenant context
+- network management only accesses networks belonging to the current tenant
+- provider associations are constrained correctly
+- referrals shown in tenant portal belong to the authenticated tenant context
+- public network routes only expose data for the resolved public tenant/network
+- common portal flows do not accidentally inherit tenant portal scope
+
+Add explicit guards where needed.
+
+--------------------------------------------------
+
+PART D — SUBDOMAIN / HOST RESOLUTION HARDENING
+
+--------------------------------------------------
+
+Validate and harden host-based tenant resolution.
+
+Requirements:
+
+1. Public routes:
+   - tenant must resolve from host/subdomain or approved dev fallback
+   - no cross-tenant fallback leakage
+
+2. Tenant portal routes:
+   - tenant portal host/subdomain must align with authenticated tenant membership
+   - mismatched tenant claims vs host should be rejected or redirected cleanly
+
+3. Common Portal:
+   - must remain shared / non-tenant-bound where intended
+   - should not accidentally resolve to arbitrary tenant context
+
+If middleware / helper functions exist for tenant resolution, centralize or align them.
+
+--------------------------------------------------
+
+PART E — IDENTITY / MEMBERSHIP CONSISTENCY CHECKS
+
+--------------------------------------------------
+
+Validate that Identity membership and JWT tenant context are used correctly.
+
+Requirements:
+
+- authenticated tenant context must align with User.TenantId / membership state
+- tenant-scoped endpoints must not allow a user to act on behalf of another tenant
+- onboarding and transition flows must not leave ambiguous tenant context
+- provider Common Portal context must remain distinct from tenant-bound context
+
+If a user has a token that does not match the resolved tenant context, fail cleanly.
+
+--------------------------------------------------
+
+PART F — PUBLIC VS TENANT VS COMMON PORTAL BOUNDARIES
+
+--------------------------------------------------
+
+You MUST explicitly preserve boundary rules:
+
+1. Public
+   - no auth required
+   - host/subdomain or approved dev fallback determines tenant/network
+   - no private tenant data leakage
+
+2. Common Portal
+   - authenticated provider context
+   - not tenant portal
+   - not arbitrary tenant-scoped admin context
+
+3. Tenant Portal
+   - authenticated tenant-bound context
+   - must enforce membership and tenant ownership
+
+Document any endpoint currently straddling boundaries and fix it.
+
+--------------------------------------------------
+
+PART G — DEFENSIVE VALIDATION / AUTHORIZATION
+
+--------------------------------------------------
+
+Add or tighten validation where needed:
+
+- reject mismatched tenantId in request vs authenticated tenant
+- reject access to networks/referrals outside the current tenant
+- reject provider management operations outside tenant ownership boundaries
+- ensure admin/system flows are explicit, not accidental
+
+Do NOT rely on frontend assumptions.
+
+--------------------------------------------------
+
+PART H — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Public `/network` only shows data for resolved tenant/network
+2. Public referral flow cannot be forced into another tenant via query/body tampering
+3. Tenant portal user cannot access another tenant’s networks/referrals/providers
+4. Common Portal provider cannot access tenant portal data without tenant membership
+5. Host/subdomain mismatch is detected and handled correctly
+6. JWT tenant claims align with resolved tenant context
+7. Network management remains functional for correct tenant
+8. No regressions in onboarding flow
+9. dotnet build succeeds for:
+   - CareConnect
+   - Tenant
+   - Identity
+10. Frontend / TypeScript build succeeds if touched
+
+If helpful, add or update automated tests for tenant-bound authorization and context resolution.
+
+--------------------------------------------------
+
+PART I — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-SEC-02-report.md
+
+# BLK-SEC-02 Report
+
+## 1. Summary
+
+## 2. Tenant Context Audit
+- where tenant context came from before
+- what was corrected
+
+## 3. Removed Client Trust
+- client-supplied tenant inputs removed or guarded
+
+## 4. Tenant-Scoped Query Enforcement
+- what queries/handlers were tightened
+
+## 5. Subdomain / Host Resolution
+- how boundary enforcement works now
+
+## 6. Public vs Common vs Tenant Portal Boundaries
+- what was clarified or fixed
+
+## 7. Validation Results
+
+## 8. Changed Files
+- full file paths
+
+## 9. Methods / Endpoints Updated
+
+## 10. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 11. Issues / Gaps
+
+--------------------------------------------------
+
+PART J — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-SEC-02-commit.diff.txt
+
+--------------------------------------------------
+
+PART J.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-SEC-02-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- tenant-context validation
+- tenant-scoped query enforcement
+- host/subdomain hardening
+- boundary fixes (public/common/tenant)
+
+--------------------------------------------------
+
+PART J.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 12. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-SEC-02-commit.diff.txt
+- Summary: /analysis/BLK-SEC-02-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- cross-tenant leakage paths are closed
+- tenant context is not trusted from client input where it should be server-derived
+- public/common/tenant boundaries are enforced
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

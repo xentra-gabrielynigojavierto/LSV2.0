@@ -1,0 +1,238 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Create the `LiensDbContext`, wire it into the `liens` service, and generate the initial EF Core migration for the currently approved Liens persistence model.
+
+This feature is about making the approved persistence design executable. It is NOT for repositories, query services, ETL scripts, API endpoints, or frontend work yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION / DATABASE RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Use only Liens-owned tables with the `liens_` prefix
+- Do NOT introduce legacy v1 table names as final runtime targets
+- Do NOT create SQL foreign keys to shared-service-owned tables
+- Keep the schema aligned with LS-LIENS-04-001 exactly
+
+TECH STACK RULES:
+- Use the existing .NET 8 + EF Core 8.x + Pomelo MySQL pattern already present in the codebase
+- Do NOT upgrade packages
+- Do NOT change the established prefix convention
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING DB CONTEXT PATTERNS
+--------------------------------------------------
+
+Inspect how DbContexts are implemented in existing v2 services such as:
+- Fund
+- CareConnect
+- Identity
+- Audit
+
+Understand:
+- DbContext file placement
+- `DbSet<>` naming style
+- `OnModelCreating` pattern
+- `ApplyConfigurationsFromAssembly(...)`
+- `SaveChanges` / `SaveChangesAsync` audit timestamp handling
+- DI registration pattern
+- design-time factory pattern, if used
+- migration project placement
+
+Follow the existing v2 pattern exactly.
+Do NOT invent a new DbContext style for Liens.
+
+--------------------------------------------------
+STEP 2 — CREATE LIENSDBCONTEXT
+--------------------------------------------------
+
+Create `LiensDbContext` in the correct Infrastructure/Persistence location following the v2 conventions.
+
+Include only these approved entities:
+
+- `DbSet<Case>`
+- `DbSet<Contact>`
+- `DbSet<Facility>`
+- `DbSet<LookupValue>`
+- `DbSet<Lien>`
+- `DbSet<LienOffer>`
+- `DbSet<BillOfSale>`
+
+Requirements:
+- `OnModelCreating` must apply all configurations via assembly scanning
+- keep the DbContext limited to the currently approved entities
+- do NOT add `ServicingTask`, `CaseNote`, or any future entities yet
+
+--------------------------------------------------
+STEP 3 — ADD AUDIT TIMESTAMP HANDLING IF CONSISTENT
+--------------------------------------------------
+
+If the current v2 .NET services use a shared pattern for automatically populating:
+- `CreatedAtUtc`
+- `UpdatedAtUtc`
+
+via `SaveChanges` / `SaveChangesAsync`
+
+then apply the same pattern in `LiensDbContext`.
+
+Do NOT invent a brand-new audit pattern.
+Reuse the current service convention.
+
+If the pattern is not already standardized, keep changes minimal and document the choice clearly.
+
+--------------------------------------------------
+STEP 4 — REGISTER DB CONTEXT IN DI
+--------------------------------------------------
+
+Wire `LiensDbContext` into the Liens service DI using the existing v2 service registration pattern.
+
+Requirements:
+- use the current MySQL/Pomelo pattern
+- use the correct connection string/config section
+- do not modify unrelated services
+- keep registration localized and clean
+
+If the Liens service does not yet have a connection string section, add it using the same style as the other services.
+
+--------------------------------------------------
+STEP 5 — ADD DESIGN-TIME FACTORY IF NEEDED
+--------------------------------------------------
+
+If EF Core migration tooling requires a design-time factory in this codebase pattern, add one for Liens.
+
+Use the same style/location as the existing services.
+
+Do NOT add one unless it is actually needed or clearly consistent with the platform pattern.
+
+--------------------------------------------------
+STEP 6 — GENERATE INITIAL MIGRATION
+--------------------------------------------------
+
+Generate the initial EF Core migration for the Liens service.
+
+The migration must create exactly the approved tables:
+
+- `liens_Cases`
+- `liens_Contacts`
+- `liens_Facilities`
+- `liens_LookupValues`
+- `liens_Liens`
+- `liens_LienOffers`
+- `liens_BillsOfSale`
+
+Requirements:
+- migration name should be clean and intentional
+- migration files must be placed in the correct Liens Infrastructure migration location
+- generated schema must match LS-LIENS-04-001 exactly
+
+--------------------------------------------------
+STEP 7 — VALIDATE MIGRATION OUTPUT
+--------------------------------------------------
+
+Inspect the generated migration and validate:
+
+1. Correct `liens_` table names
+2. Correct PKs
+3. Correct unique indexes
+4. Correct query indexes
+5. Correct within-service FK constraints:
+   - `Lien` → `Case`
+   - `Lien` → `Facility`
+   - `LienOffer` → `Lien`
+   - `BillOfSale` → `Lien`
+   - `BillOfSale` → `LienOffer`
+6. Correct delete behavior (`Restrict`)
+7. Correct money precision
+8. Correct date/date-time mapping
+9. No shared-service foreign keys
+10. No extra/unapproved tables
+
+If the migration output differs from LS-LIENS-04-001, fix the underlying configuration rather than hand-editing the migration unless there is a very narrow and justified reason.
+
+--------------------------------------------------
+STEP 8 — VALIDATE BUILD + NON-REGRESSION
+--------------------------------------------------
+
+Validate:
+
+1. Liens service builds successfully
+2. Relevant solution/workspace builds successfully
+3. Identity build is not broken
+4. Gateway build is not broken
+5. Migration command succeeds
+6. No package/version drift introduced
+7. No extra entities/tables slipped in
+
+--------------------------------------------------
+STEP 9 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- add repositories
+- add query services
+- add API endpoints
+- add ETL scripts
+- add new domain entities
+- seed lookup data beyond what is minimally required for migration validity
+- change shared-service schemas
+- add frontend code
+
+This feature is only:
+- DbContext
+- DI wiring
+- initial migration
+
+--------------------------------------------------
+STEP 10 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-04-002-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing v2 DbContext pattern identified and followed
+3. Exact files created/changed
+4. `LiensDbContext` location and `DbSet<>` list
+5. How configurations are applied
+6. Whether audit timestamp handling was added, and how
+7. How the DbContext was registered in DI
+8. Connection string / config changes
+9. Whether a design-time factory was added
+10. Migration name and location
+11. Generated table list
+12. Generated FK summary
+13. Generated index summary
+14. Confirmation:
+    - all tables use `liens_` prefix
+    - no legacy v1 names used
+    - no shared-service foreign keys created
+    - no extra entities/tables introduced
+15. Build results:
+    - Liens
+    - relevant solution/workspace
+16. Any deviations or fixes required after first migration generation
+17. Risks / assumptions
+18. Final readiness statement:
+    - Is the DbContext established?
+    - Is the initial migration valid?
+    - Is the service ready for the next feature?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Make the approved Liens persistence model real by creating the DbContext and initial migration, while preserving the exact schema design already approved in LS-LIENS-04-001.
+
+Proceed.

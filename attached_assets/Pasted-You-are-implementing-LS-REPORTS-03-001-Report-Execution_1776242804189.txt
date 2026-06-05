@@ -1,0 +1,510 @@
+You are implementing **LS-REPORTS-03-001 — Report Execution Engine (Read Model + Query Layer)** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story introduces the first runtime execution layer so the Reports Service can take a resolved template + tenant context and actually execute a report, returning a normalized tabular result.
+
+This is an execution foundation story. Do NOT implement export generation, scheduling, or the full builder UI yet.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-03-001-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not write code before this.
+
+## 2. Update the report continuously
+After each major step, update the report with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- schema notes if any
+- validation results
+- issues encountered
+- decisions made
+- build/run/API status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- PDF/CSV/XLSX export generation
+- scheduling
+- background execution
+- drag-and-drop builder UI
+- advanced analytics
+- Dapper optimization
+- visualization/charting
+- caching optimization
+- advanced formula parsing/execution
+
+## 4. Preserve architecture
+- API layer must use DTOs
+- API layer must call a service layer
+- API layer must NOT call repositories or query adapters directly
+- Repository layer remains persistence-focused
+- Data retrieval must go through an adapter abstraction
+- Domain entities must not be returned directly from endpoints
+
+## 5. Preserve existing functionality
+Do not break:
+- template APIs
+- versioning and publishing
+- template assignment APIs
+- tenant override APIs
+- tenant effective resolution APIs
+- `/api/v1/health`
+- `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-03-001 — Report Execution Engine (Read Model + Query Layer)**
+
+---
+
+# OBJECTIVE
+Introduce the first report execution engine so the Reports Service can take a resolved report definition and actually run it against product data sources, returning a structured result set suitable for:
+- on-screen viewing
+- export generation later
+- scheduled delivery later
+
+This story must establish:
+- execution request model
+- read/query abstraction layer
+- runtime resolution flow
+- tabular result model
+- tenant-safe execution boundaries
+
+This is the first step that makes the Reports Service operational, not just configurable.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Execution Request / Response DTOs
+Create DTOs for synchronous execution.
+
+### 1. ExecuteReportRequest
+Fields:
+- `TenantId`
+- `TemplateId`
+- `ProductCode`
+- `OrganizationType`
+- `ParametersJson` (nullable)
+- `RequestedByUserId`
+- optional:
+  - `UseOverride` (bool, default true)
+
+### 2. ReportExecutionResponse
+Include:
+- `ExecutionId`
+- `TenantId`
+- `TemplateId`
+- `TemplateCode`
+- `TemplateName`
+- `PublishedVersionNumber`
+- `BaseTemplateVersionNumber` (nullable if override exists)
+- `HasOverride`
+- `Columns`
+- `Rows`
+- `RowCount`
+- `ExecutedAtUtc`
+- `ExecutedByUserId`
+- `Status`
+
+### 3. Supporting DTOs
+Create:
+- `ReportColumnResponse`
+  - `Key`
+  - `Label`
+  - `DataType`
+  - `Order`
+- `ReportRowResponse`
+  - normalized row payload structure (dictionary/object map is acceptable)
+- any internal execution-definition DTOs needed to keep service logic clean
+
+Do not return raw DB rows or domain entities directly.
+
+---
+
+## B. Query Adapter Abstraction
+Introduce a read/query abstraction layer that isolates the Reports Service from product-specific data retrieval.
+
+### Recommended contract
+- `IReportDataQueryAdapter`
+
+### Responsibilities
+- accept execution request context
+- validate supported product/report types
+- execute against a product-side read source or a mock/narrow implementation
+- return a normalized tabular result set
+
+### Important
+- Do NOT query product tables directly from API or service layers
+- Keep product data access behind the adapter boundary
+- The first implementation can be mock/narrow, but the contract must be real and reusable
+
+### Suggested method shape
+Accept:
+- `RequestContext`
+- `TenantId`
+- `ProductCode`
+- `TemplateId`
+- effective report definition/config
+- execution parameters
+
+Return:
+- normalized result object with columns + rows
+
+---
+
+## C. Execution Service Layer
+Create:
+- `IReportExecutionService`
+- `ReportExecutionService`
+
+### Responsibilities
+- validate execute request
+- resolve template existence
+- validate template assignment to tenant
+- validate published version exists
+- resolve tenant override when `UseOverride=true`
+- derive effective execution definition
+- create execution record
+- set status transitions (`Pending` → `Running` → `Completed` / `Failed`)
+- call query adapter
+- shape response DTO
+- persist execution status and failure reason if needed
+- optionally call audit adapter
+
+API layer must not call repositories or adapters directly.
+
+---
+
+## D. Runtime Resolution Rules
+Execution must only be allowed when:
+- template exists
+- template is assigned to tenant
+- published version exists
+- tenant/product/org context is valid
+- if override is requested, resolve override safely
+
+### Required runtime flow
+1. validate request
+2. resolve template
+3. resolve assignment
+4. resolve published version
+5. resolve tenant override if requested
+6. derive effective execution definition
+7. create execution record
+8. execute query
+9. update execution status
+10. return normalized result
+
+---
+
+## E. ReportExecution Persistence Alignment
+Use the existing `ReportExecution` entity/table for runtime tracking.
+
+At minimum support:
+- create record before query execution
+- set `Status`
+- set `FailureReason` on failure
+- set `CompletedAtUtc` on completion/failure
+- preserve `TenantId`, `UserId`, `ReportTemplateId`, `TemplateVersionNumber`
+
+### If current schema/model needs small alignment
+You may make minimal changes, but avoid broad redesign.
+If migration is needed, keep it minimal and document clearly.
+
+---
+
+## F. Status Model
+Support at minimum:
+- `Pending`
+- `Running`
+- `Completed`
+- `Failed`
+
+For this synchronous story, it is acceptable that the whole flow happens in one request, but the status transitions should still be persisted correctly.
+
+---
+
+## G. Result Shape / Tabular Model
+Return normalized tabular output.
+
+### Required behavior
+- ordered columns
+- rows shaped consistently
+- row count included
+- no product-specific schema leakage
+- no EF entities returned
+
+### Acceptable first-pass row shape
+- `List<Dictionary<string, object?>>`
+
+That is acceptable for v1 execution.
+
+---
+
+## H. Guardrails / Safety
+At minimum enforce:
+- `TenantId` required
+- `TemplateId` required
+- `ProductCode` required
+- `OrganizationType` required
+- `RequestedByUserId` required
+- assignment required
+- published version required
+- row cap for synchronous execution
+
+### Choose and document a row cap
+Suggested:
+- 500 or 1000 rows
+
+If results exceed the cap:
+- truncate safely and document behavior
+or
+- fail cleanly with a clear message
+
+Choose one approach and document it.
+
+---
+
+## I. Initial Query Implementation
+Because the real cross-product data retrieval layer may not yet be fully available, the initial query adapter implementation may be:
+- a mock adapter
+- or a narrow read model implementation that proves the pipeline end-to-end
+
+### Important constraints
+- keep the adapter contract real
+- keep implementation portable
+- do NOT couple the service to one product’s raw schema in a way that breaks portability
+
+If you use a mock data adapter first, it must still support:
+- realistic column metadata
+- realistic row data
+- tenant/product scoping inputs
+- execution flow validation end-to-end
+
+---
+
+## J. API Surface
+Add endpoint:
+
+- `POST /api/v1/report-executions`
+
+Optional if clean:
+- `GET /api/v1/report-executions/{executionId}`
+
+For this story, `POST` is required.
+Synchronous execution is acceptable.
+
+---
+
+## K. Validation and Error Handling
+At minimum enforce:
+
+### Execute request validation
+- `TenantId` required
+- `TemplateId` required
+- `ProductCode` required
+- `OrganizationType` required
+- `RequestedByUserId` required
+
+### Execution eligibility validation
+- template must exist
+- template must be assigned to tenant
+- published version must exist
+- product code must align with template
+- override usage must not bypass assignment rules
+
+### Failure handling
+If execution fails:
+- update execution record status to `Failed`
+- store failure reason
+- return clear error response
+
+### Status code guidance
+- `400` invalid request
+- `404` template not found / published version not found / assignment not found
+- `409` invalid execution state if needed
+- `500` unexpected execution failure
+
+Use lightweight, consistent responses.
+
+---
+
+## L. Audit Hook Readiness
+If low-risk and clean, add non-blocking `IAuditAdapter` calls on:
+- `report.execution.started`
+- `report.execution.completed`
+- `report.execution.failed`
+
+Use the same warning-only pattern as previous stories.
+
+---
+
+## M. Preserve Existing APIs
+Ensure all prior APIs continue to work unchanged unless minor compatibility-safe adjustments are needed.
+
+---
+
+## N. Health & Readiness Compatibility
+Preserve:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+Build and startup must remain healthy.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. execution request/response DTOs exist
+2. query adapter abstraction exists
+3. execution service layer exists
+4. execution API endpoint exists
+5. execution validates template assignment and published version
+6. tenant override can participate in execution resolution
+7. `ReportExecution` records are created and updated
+8. synchronous execution returns normalized tabular results
+9. row count and column metadata are returned
+10. failure path updates execution status correctly
+11. DTOs isolate API from persistence/domain entities
+12. service builds successfully
+13. service starts successfully
+14. `/api/v1/health` works
+15. `/api/v1/ready` works
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-03-001-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Add execution DTOs
+Create request/response/supporting DTOs for execution.
+Update the report.
+
+## Step 3 — Add query adapter contract and initial implementation
+Create `IReportDataQueryAdapter` and an initial implementation (mock or narrow but real contract).
+Update the report.
+
+## Step 4 — Add execution service layer
+Create `IReportExecutionService` and `ReportExecutionService`.
+Implement validation, runtime resolution flow, persistence status updates, and audit hooks if added.
+Update the report.
+
+## Step 5 — Align ReportExecution persistence if needed
+Make minimal changes only if needed for runtime correctness.
+If migration is required, create/apply it and document clearly.
+Update the report.
+
+## Step 6 — Add execution endpoint
+Implement:
+- `POST /api/v1/report-executions`
+
+Optionally add:
+- `GET /api/v1/report-executions/{executionId}`
+
+Update the report.
+
+## Step 7 — Add validation and guardrails
+Enforce required fields, eligibility, row cap behavior, and failure handling.
+Update the report.
+
+## Step 8 — Validate
+Run build/startup validation and exercise the execution API.
+At minimum validate:
+- successful execution for assigned template with published version
+- execution with override enabled
+- reject execution for unassigned template
+- reject execution when no published version exists
+- failure path updates execution record
+- normalized columns/rows returned
+- health/ready still pass
+
+Update the report.
+
+## Step 9 — Finalize report
+Complete `/analysis/LS-REPORTS-03-001-report.md` with:
+- endpoint summary
+- execution flow summary
+- query adapter summary
+- validation results
+- build/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- execution engine foundation exists
+- report can be executed synchronously from resolved template + tenant context
+- normalized tabular result is returned
+- execution status is persisted
+- architecture remains clean
+- the system is ready for export generation and scheduling in later stories
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-03-001** exactly as described.

@@ -1,0 +1,141 @@
+You are implementing LS-NOTIF-CORE-021 — Service-to-Service Authentication & Submission Security Closure.
+
+================================================================================
+WORKFLOW RULES (MANDATORY)
+================================================================================
+
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-CORE-021-report.md
+
+2. Update the report incrementally after each major step.
+
+3. At completion, the report MUST include:
+   - authentication model implemented
+   - how POST /v1/notifications is secured
+   - how tenant is derived and validated
+   - how backward compatibility is handled
+   - producer migration status
+   - files changed
+   - validation performed
+   - remaining gaps
+   - risks / follow-up recommendations
+
+================================================================================
+OBJECTIVE
+================================================================================
+
+Eliminate anonymous submission to the Notifications service and implement a
+secure service-to-service authentication model.
+
+Replace reliance on:
+   AllowAnonymous + X-Tenant-Id
+
+with:
+   JWT-based authenticated service identity.
+
+================================================================================
+IN SCOPE
+================================================================================
+
+1. Require authentication for POST /v1/notifications
+
+2. Implement service authentication:
+   - validate JWT
+   - extract claims:
+       tenant_id
+       service_name
+       roles
+       sub (identity)
+
+3. Add ServiceOnly authorization policy
+
+4. Enforce tenant from claims (NOT headers)
+
+5. Maintain temporary backward compatibility:
+   - allow header-based fallback
+   - log all legacy usage
+
+6. Update producer integrations:
+   - Liens
+   - Comms
+   - Reports
+   - Flow
+
+================================================================================
+OUT OF SCOPE
+================================================================================
+
+- No changes to sending logic
+- No UI changes
+- No template changes
+- No provider changes
+
+================================================================================
+IMPLEMENTATION REQUIREMENTS
+================================================================================
+
+1. POST endpoint:
+   - Replace AllowAnonymous with RequireAuthorization
+   - Accept:
+       user tokens OR service tokens
+
+2. Claims extraction:
+   - tenant_id
+   - service_name
+   - roles
+
+3. Tenant enforcement:
+   - use claim-based tenant
+   - ignore header if authenticated
+   - validate mismatch
+
+4. Service identity:
+   - require service_name claim
+   - validate role
+
+5. Backward compatibility:
+   - if no JWT:
+       allow request ONLY if header present
+       log warning "LEGACY SUBMISSION"
+   - prepare for removal later
+
+6. Audit:
+   - include service_name
+   - include tenant_id
+   - include correlationId
+
+================================================================================
+VALIDATION
+================================================================================
+
+- Build must succeed
+- POST endpoint must reject:
+   - missing token (post-transition mode)
+   - invalid token
+- Authenticated requests must work
+- Producers must still function
+
+================================================================================
+REPORT FORMAT
+
+# LS-NOTIF-CORE-021 Report
+
+## Summary
+## Authentication Model Implemented
+## Endpoint Security Changes
+## Producer Migration
+## Files Changed
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+- Anonymous submission is no longer required
+- Service identity is enforced
+- Tenant spoofing risk eliminated
+- Audit logs include source identity
+- Backward compatibility maintained during transition
+- Build succeeds with no new errors

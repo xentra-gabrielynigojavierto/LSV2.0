@@ -1,0 +1,463 @@
+```text
+# LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental tenant identity/access-control feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+
+This feature MUST:
+- Be incremental (NO rewrites)
+- Preserve all existing user lifecycle, onboarding, and recovery flows
+- Reuse existing models/endpoints/services where possible
+- Keep backend, API, and UI concerns clearly separated
+- Include explicit fallback/default behavior
+- NOT introduce placeholder logic
+- Validate the actual current codebase before implementing
+- Prefer authoritative backend enforcement over frontend-only checks
+- Preserve tenant isolation in every new relationship and endpoint
+
+---
+
+## FEATURE OBJECTIVE
+
+Extend the current identity/user-management system into a real access-governance layer by enabling:
+- Product assignment
+- Group management and group membership
+- Tenant-scoped role filtering
+
+This feature should make user access manageable across multiple LegalSynq products without breaking the completed lifecycle flows.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- Fine-grained permission engine / policy matrix
+- Product-specific permission editor
+- Role creation UI
+- Cross-tenant user sharing
+- SSO / federation
+- Audit dashboard UI
+- Broad auth architecture rewrite
+- Page redesign
+- Changes to Groups / Access / Simulator tabs unless directly required for this feature
+- Unvalidated product catalog invention
+
+ONLY IMPLEMENT:
+- Product assignment model and UI
+- Backend product access enforcement where the current architecture supports it
+- Group model and CRUD
+- User-group assignment
+- Tenant-scoped role filtering
+- Minimal Users-page and modal extensions needed to support the above
+- Backward-compatible default behavior for existing users
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-008-report.md
+
+Initialize with:
+
+# LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Role / Assignment Contract
+## 4. Existing Product Model Analysis
+## 5. Existing Group Model Analysis
+## 6. Existing Access Enforcement Analysis
+## 7. Access Model Design
+## 8. Default / Migration Strategy
+## 9. Files Changed
+## 10. Backend Implementation
+## 11. Schema / Data Changes
+## 12. API / Error Contract Changes
+## 13. Frontend / UX Implementation
+## 14. Enforcement Behavior
+## 15. Testing Results
+## 16. Known Issues / Gaps
+## 17. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — CODEBASE ANALYSIS
+
+Inspect and document the actual current codebase for:
+
+### Roles
+- existing role retrieval endpoints
+- current assignable-roles / role filtering behavior if any
+- current Add User / Edit User role selection path
+- whether roles are global, tenant-scoped, org-type-scoped, or mixed
+- how backend validates role assignment today
+
+### Products
+- whether a product catalog/model already exists
+- whether products are stored in identity, platform-core, or another service
+- whether user/product relationships already exist partially
+- where product access is currently inferred from (if at all)
+- how product-specific routing/nav currently works in the tenant portal
+
+### Groups
+- whether a group model already exists anywhere
+- whether current “Groups” tab is functional, stubbed, or backed by APIs
+- whether membership relationships already exist
+- any existing DB tables/entities for groups
+
+### Enforcement
+- where product access is currently enforced in backend/API/middleware
+- whether tenant portal nav already filters by product
+- whether a shared access-check helper/service exists
+
+### Data model
+- identity DB schema flexibility
+- existing migration patterns
+- whether current user DTOs can carry product/group/status data safely
+
+DO NOT assume product/group structures until validated from actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Role / Assignment Contract
+## 4. Existing Product Model Analysis
+## 5. Existing Group Model Analysis
+## 6. Existing Access Enforcement Analysis
+
+---
+
+## STEP 2 — DESIGN THE ACCESS MODEL
+
+Based on actual findings, design the smallest coherent access model that fits the current platform.
+
+You must determine and document:
+
+### Products
+- source of truth for product definitions
+- whether products are static, seeded, or data-driven
+- how user-product assignment should be stored
+- what default product-access behavior should be for existing users
+
+### Groups
+- whether groups should be identity-owned tenant constructs
+- required fields (minimum: name, description optional)
+- whether users can belong to multiple groups
+- delete behavior / orphan handling
+
+### Roles
+- how tenant-scoped role filtering should work
+- whether to use assignable-roles endpoint or implement filtered backend list
+- how to prevent platform/global-only roles from appearing in tenant admin UI
+
+Preferred design principles:
+- reuse validated existing concepts
+- preserve backward compatibility
+- make backend the source of truth
+- keep the model simple and extensible
+
+Update report:
+## 7. Access Model Design
+## 8. Default / Migration Strategy
+
+---
+
+## STEP 3 — IMPLEMENT BACKEND DATA MODEL / SCHEMA
+
+Implement the minimum validated schema/model additions required.
+
+Potential additions (ONLY if validated as necessary):
+- product definitions reference or mapping entity
+- user-product mapping table/entity
+- groups table/entity
+- user-group mapping table/entity
+
+Requirements:
+- every new entity must be tenant-safe
+- prevent orphaned references
+- use proper indexes/constraints
+- support backward-compatible reads for existing users
+- create migrations if schema changes are required
+
+Document:
+- exact schema changes
+- constraints
+- seed/default strategy if applicable
+
+Update report:
+## 10. Backend Implementation
+## 11. Schema / Data Changes
+
+---
+
+## STEP 4 — IMPLEMENT PRODUCT ASSIGNMENT BACKEND
+
+Implement product assignment using the validated model.
+
+Requirements:
+- admins can assign one or more products to a user
+- backend validates product identifiers against the allowed catalog/source
+- assignments are tenant-scoped
+- prevent invalid product assignment
+- define and implement default behavior for users with no explicit product assignment
+
+Important:
+- the default behavior decision must be explicit and documented
+- do not silently lock out all existing users unless that is intentionally migrated and documented
+
+Update report:
+## 10. Backend Implementation
+## 12. API / Error Contract Changes
+## 14. Enforcement Behavior
+
+---
+
+## STEP 5 — IMPLEMENT GROUP BACKEND
+
+Implement group CRUD and user-group membership if the model does not already exist.
+
+Minimum group functionality:
+- create group
+- update group
+- delete group
+- list groups for tenant
+- assign users to group
+- remove users from group
+
+Requirements:
+- groups belong to a tenant
+- no cross-tenant membership
+- deleting a group must safely clean up memberships or prevent deletion until resolved, based on the chosen design
+- keep API surface minimal and coherent
+
+Update report:
+## 10. Backend Implementation
+## 12. API / Error Contract Changes
+
+---
+
+## STEP 6 — IMPLEMENT TENANT-SCOPED ROLE FILTERING
+
+Fix role selection so tenant admins only see and assign valid tenant roles.
+
+Requirements:
+- use existing assignable-role capability if it exists and fits
+- otherwise implement the minimum validated backend filtering needed
+- Add User and Edit User must use the filtered role source
+- backend must reject invalid role assignment even if a client bypasses the UI
+
+Do NOT rely on frontend filtering alone.
+
+Update report:
+## 10. Backend Implementation
+## 12. API / Error Contract Changes
+## 14. Enforcement Behavior
+
+---
+
+## STEP 7 — IMPLEMENT PRODUCT ACCESS ENFORCEMENT
+
+Implement backend-authoritative product access enforcement where the current architecture supports it.
+
+Requirements:
+- identify actual product entry points/endpoints that can be enforced now
+- block access where a user is not assigned the product
+- align frontend visibility/nav where appropriate
+- document the exact enforcement boundary achieved in this feature
+
+IMPORTANT:
+- Do not over-claim enforcement if the codebase architecture only allows partial enforcement today
+- Be explicit about what is enforced now vs deferred
+
+Examples:
+- tenant portal product switcher/nav filtering
+- API route guards
+- middleware/service checks
+
+Update report:
+## 14. Enforcement Behavior
+## 15. Testing Results
+
+---
+
+## STEP 8 — IMPLEMENT FRONTEND / UX CHANGES
+
+Extend the existing UI minimally.
+
+### Users page
+- show assigned products
+- show assigned groups
+- preserve existing stable list/search/filter behavior
+- handle null/empty values safely
+
+### Add User modal / Invite flow
+- add product multi-select if backend supports assignment at create time
+- add group multi-select if safe and supported
+- use tenant-scoped role list
+- preserve invite-based onboarding
+
+### Edit User modal
+- allow updating:
+  - products
+  - groups
+  - role (filtered)
+- preserve existing phone editing if already supported
+
+### Groups UI
+Use the existing Groups area/tab only if it already exists and can be safely completed incrementally.
+If not, implement the smallest coherent group management surface within the current admin UX.
+
+Requirements:
+- no major redesign
+- reuse modal/table patterns
+- maintain current UX language and styling
+
+Update report:
+## 13. Frontend / UX Implementation
+
+---
+
+## STEP 9 — HANDLE BACKWARD COMPATIBILITY
+
+Define and implement behavior for existing users and tenants.
+
+You must explicitly handle:
+- existing users with no product assignments
+- existing users with roles assigned under the old unfiltered model
+- tenants with no groups yet
+- invites/add-user/edit-user flows for legacy users
+
+Possible acceptable strategies:
+- default all existing users to all tenant-enabled products
+- default existing users to a primary product set
+- grandfather old assignments until edited
+- migrate based on validated current architecture
+
+Choose one based on real codebase context and document it clearly.
+
+Update report:
+## 8. Default / Migration Strategy
+## 11. Schema / Data Changes
+## 15. Testing Results
+
+---
+
+## STEP 10 — SECURITY, TENANT SAFETY, AND DATA INTEGRITY
+
+Validate and ensure:
+- no cross-tenant group access or membership
+- no cross-tenant product assignment
+- no invalid role assignment bypass
+- product enforcement cannot be bypassed through normal UI/API paths implemented here
+- no orphaned group memberships
+- no unsafe assumptions in list rendering or edit flows
+
+Document any partial limitations honestly.
+
+Update report:
+## 14. Enforcement Behavior
+## 15. Testing Results
+## 16. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING
+
+Test and document each scenario.
+
+### Product assignment
+- assign one product to a user
+- assign multiple products
+- remove product assignment
+- create user with product assignment if supported
+- existing user default-access behavior works as designed
+- unauthorized product access is blocked at the enforced boundary
+
+### Group management
+- create group
+- edit group
+- delete group
+- assign user to group
+- remove user from group
+- verify no cross-tenant group assignment
+- verify no orphan memberships after delete behavior
+
+### Role filtering
+- Add User shows only tenant-valid roles
+- Edit User shows only tenant-valid roles
+- invalid role assignment rejected by backend
+
+### Regression
+- invite flow still works
+- accept-invite still works
+- password reset still works
+- users list still loads
+- search/filter still work
+- edit/status controls still work
+- last-admin protection still works
+- null-safe rendering remains intact
+
+Update report:
+## 15. Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 16. Known Issues / Gaps
+## 17. Final Status = Complete
+
+Your final report must clearly state:
+- What product model was implemented
+- What group model was implemented
+- How tenant-scoped role filtering works
+- What default behavior was chosen for existing users
+- Exactly where product access is enforced now
+- What remains deferred in access governance
+- Whether any current limitations remain around products/groups/roles
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Users can be assigned to one or more products
+✔ Product access is enforced at the validated backend/frontend boundary implemented in this feature
+✔ Groups can be created, updated, and deleted
+✔ Users can be assigned to groups
+✔ Role selection is restricted to tenant-valid roles
+✔ Backend rejects invalid/cross-tenant assignments
+✔ Existing LS-ID-TNT-001 through LS-ID-TNT-007 flows do not regress
+✔ UI reflects product and group assignments safely
+✔ Default behavior for existing users is explicit and implemented
+✔ Tenant safety remains fully enforced
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working product assignment model
+2. Working group management and membership
+3. Working tenant-scoped role filtering
+4. Compatible frontend handling for access governance
+5. Completed report:
+/analysis/LS-ID-TNT-008-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

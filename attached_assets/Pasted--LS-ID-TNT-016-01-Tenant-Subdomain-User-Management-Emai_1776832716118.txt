@@ -1,0 +1,363 @@
+# LS-ID-TNT-016-01 — Tenant-Subdomain User Management Email URL Alignment
+
+## FEATURE OBJECTIVE
+
+Adjust all outgoing **user-management-related emails** so links use the tenant-aware format:
+
+[tenant-subdomain].[baseurl]
+
+This applies especially to:
+- user invitation emails
+- invite resend emails
+- password reset emails
+- any other identity/user-management emails that currently rely on a generic portal base URL
+
+The goal is to ensure that all user-management email links route users into the correct tenant-branded portal context instead of a shared or localhost-style base URL.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state from the verified invite/activation implementation:
+- invitation email flow already exists
+- password reset email flow already exists
+- notifications service integration already exists
+- activation page already exists
+
+The remaining issue is URL correctness and tenancy alignment.
+
+Right now, user-management emails rely on a general portal base URL setting. That is not sufficient if the required routing model is:
+
+[tenant-subdomain].[baseurl]
+
+This feature makes email links tenant-correct and production-usable.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- a redesign of the notification service
+- email template redesign beyond URL substitutions needed for correctness
+- a new tenant domain management platform
+- wildcard DNS infrastructure changes outside app config/code assumptions
+- unrelated portal routing refactors
+- SSO/domain federation logic
+- user-management feature rewrites
+
+ONLY IMPLEMENT:
+- tenant-aware URL generation for user-management emails
+- correct tenant-subdomain resolution from tenant/user context
+- replacement of generic base portal URLs where needed
+- safe fallback behavior if tenant subdomain is missing
+- report-first implementation and honest documentation of which email flows were updated
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental identity/email routing correction on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-016 — Tenant User Invitation Email + Activation Flow
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-002 — User Access Audit
+- LS-ID-TNT-017-002-01 — Selective Successful Access Audit
+- LS-ID-TNT-017-003 — Governance Mutation Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-017-006 — Audit Correlation Engine
+- LS-ID-TNT-017-008 — Audit Analytics
+- LS-ID-TNT-017-008-01 — Audit Anomaly Detection
+- LS-ID-TNT-017-008-02 — Audit Alerting Engine
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing invitation, password reset, and activation behavior
+- validate the actual current email URL generation paths before changing them
+- update all relevant user-management email flows to tenant-subdomain format
+- keep backend authority intact
+- include explicit fallback behavior
+- NOT introduce placeholder logic
+- document exactly which emails now use tenant-aware URLs
+- preserve existing audit and notification behavior
+
+---
+
+## REQUIRED URL FORMAT
+
+Use this exact pattern for user-management links:
+
+https://[tenant-subdomain].[baseurl]/...
+
+Examples:
+- invite acceptance:
+  https://acme.portal.legalsynq.net/accept-invite?token=...
+- password reset:
+  https://acme.portal.legalsynq.net/reset-password?token=...
+- other user-management activation/recovery pages:
+  https://acme.portal.legalsynq.net/<path>
+
+The implementation must derive:
+- tenant-subdomain from tenant data
+- baseurl from configuration
+
+Do NOT hardcode localhost or a shared non-tenant portal URL for production paths.
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-016-01-report.md
+
+Initialize with:
+
+# LS-ID-TNT-016-01 — Tenant-Subdomain User Management Email URL Alignment
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Email URL Generation Analysis
+## 4. Tenant Subdomain Resolution Design
+## 5. URL Construction Rules
+## 6. Files Changed
+## 7. Backend Implementation
+## 8. Verification / Testing Results
+## 9. Known Issues / Gaps
+## 10. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL CURRENT EMAIL URL PATHS
+
+Inspect the codebase and identify every user-management email flow that generates a portal link.
+
+At minimum validate:
+- invitation email
+- resend invite email
+- password reset email
+- any activation or account recovery email paths
+- any email built through NotificationsEmailClient or equivalent identity email wrapper
+
+For each flow, document:
+- where the URL is currently built
+- what config key is used
+- whether the current link is tenant-aware
+- whether the URL is currently generic/shared/localhost-based
+
+Do NOT assume there is only one email path.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Email URL Generation Analysis
+
+---
+
+## STEP 2 — IDENTIFY THE TENANT SUBDOMAIN SOURCE OF TRUTH
+
+Inspect the identity/tenant model and determine the correct field to use for tenant subdomain.
+
+You must validate:
+- whether tenant already has a subdomain field
+- whether tenant code is intended to be used as subdomain
+- whether a normalized slug/subdomain value already exists
+- whether there are constraints/normalization rules already in code
+
+Requirements:
+- use the real tenant source of truth
+- do not invent a new tenant-subdomain model unless absolutely required
+- if tenant subdomain is not explicitly modeled, use the safest current canonical tenant identifier that is already intended for routing and document it
+
+Update report:
+## 4. Tenant Subdomain Resolution Design
+
+---
+
+## STEP 3 — DEFINE URL CONSTRUCTION RULES
+
+Implement a shared URL construction rule for user-management email links.
+
+Requirements:
+- build URLs as:
+  https://{tenantSubdomain}.{baseUrl}/{path}
+- `baseUrl` must come from configuration
+- path/query behavior must remain unchanged
+- token handling must remain unchanged
+- avoid double dots, missing schemes, trailing slash issues
+
+Examples:
+- accept-invite
+- reset-password
+
+You must create or reuse a shared helper/service for this logic if there are multiple email paths.
+
+Do NOT scatter ad hoc string concatenation in multiple places if a shared helper is practical.
+
+Update report:
+## 5. URL Construction Rules
+## 7. Backend Implementation
+
+---
+
+## STEP 4 — IMPLEMENT INVITATION EMAIL URL ALIGNMENT
+
+Update invite-related emails so activation links use the tenant-subdomain URL format.
+
+Requirements:
+- Invite User email uses tenant-specific host
+- Resend Invite email uses tenant-specific host
+- token and path remain correct
+- tenant name/subdomain used must match the invited user’s tenant
+- dev-mode behavior may still expose raw token if email is disabled, but any generated activation link should follow the new tenant-subdomain pattern where applicable
+
+Update report:
+## 7. Backend Implementation
+## 8. Verification / Testing Results
+
+---
+
+## STEP 5 — IMPLEMENT PASSWORD RESET EMAIL URL ALIGNMENT
+
+Update password reset / recovery emails so reset links use the tenant-subdomain URL format.
+
+Requirements:
+- password reset emails must resolve the correct tenant host
+- if password reset is user/tenant aware already, use that tenant context
+- if a cross-tenant ambiguity exists, document how tenant is resolved and implement the safest current supported behavior
+- do not break existing reset token validation flow
+
+Update report:
+## 7. Backend Implementation
+## 8. Verification / Testing Results
+
+---
+
+## STEP 6 — DEFINE FALLBACK BEHAVIOR
+
+Implement safe fallback behavior for missing/invalid tenant-subdomain cases.
+
+Acceptable fallback examples:
+- fail the email generation with a clear backend error if tenant routing is mandatory
+- or use a documented configured fallback host only in explicitly allowed environments
+
+Requirements:
+- no silent bad URLs
+- no malformed links
+- production behavior must be predictable
+- fallback behavior must be documented clearly
+
+Update report:
+## 5. URL Construction Rules
+## 9. Known Issues / Gaps
+
+---
+
+## STEP 7 — PRESERVE NOTIFICATION SERVICE INTEGRATION
+
+Requirements:
+- Notification service contract remains intact
+- only link generation changes
+- template payload shape should remain stable unless a link field needs to be renamed or clarified
+- no direct email sending from Identity service
+
+Document:
+- whether any payload field names changed
+- whether notification templates still work as-is
+
+Update report:
+## 7. Backend Implementation
+## 8. Verification / Testing Results
+
+---
+
+## STEP 8 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Invitation
+- invite user in tenant A → email link points to tenantA.baseurl
+- resend invite in tenant A → email link points to tenantA.baseurl
+- token remains valid and acceptance flow still works
+
+### Password reset
+- reset email for tenant A user → link points to tenantA.baseurl
+- reset flow still succeeds
+- cross-tenant leakage does not occur
+
+### Fallback / config
+- missing baseurl or tenant subdomain behaves according to documented fallback/error rules
+- no malformed URLs are emitted
+
+### Regression
+- notification dispatch still works
+- invite acceptance still works
+- password reset still works
+- no build/runtime regressions
+- no auth/tenant isolation regressions
+
+Update report:
+## 8. Verification / Testing Results
+
+---
+
+## STEP 9 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 9. Known Issues / Gaps
+## 10. Final Status = Complete
+
+Your final report must clearly state:
+- which user-management emails were updated
+- how tenant subdomain is resolved
+- how baseurl is configured
+- what fallback/error behavior exists
+- whether notification payloads changed
+- what remains deferred, if anything
+
+---
+
+## SUCCESS CRITERIA
+
+✔ User-management emails now generate tenant-aware links using [tenant-subdomain].[baseurl]
+✔ Invitation and resend-invite emails use the correct tenant host
+✔ Password reset emails use the correct tenant host
+✔ Existing token validation and activation/reset flows continue to work
+✔ Notification service integration remains intact
+✔ Tenant isolation is preserved
+✔ Coverage and limitations are documented honestly
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working tenant-subdomain email URL generation for user-management emails
+2. Invitation/resend/password-reset flows aligned to tenant host routing
+3. Preserved notification service integration
+4. Completed report:
+/analysis/LS-ID-TNT-016-01-report.md
+
+---
+
+END OF IMPLEMENTATION

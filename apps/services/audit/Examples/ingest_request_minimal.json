@@ -1,0 +1,12 @@
+{
+  "source": "identity-service",
+  "eventType": "user.login",
+  "category": "security",
+  "severity": "INFO",
+  "description": "User successfully authenticated via password.",
+  "outcome": "SUCCESS",
+  "actorId": "user-uuid-001",
+  "actorLabel": "alice@legalsynq.com",
+  "tenantId": "tenant-abc",
+  "ipAddress": "203.0.113.42"
+}

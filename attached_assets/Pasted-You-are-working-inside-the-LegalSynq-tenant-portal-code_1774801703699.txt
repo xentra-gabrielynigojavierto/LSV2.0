@@ -1,0 +1,158 @@
+You are working inside the LegalSynq tenant portal codebase.
+
+Goal:
+Redesign the tenant login page into a modern 2-panel experience that matches the LegalSynq brand.
+
+Brand assets available:
+- `/mnt/data/legalsynq-logo.png`
+- `/mnt/data/legalsynq-logo-white.png`
+- `/mnt/data/e18898a6-fffa-4db3-9d6e-307dd6af6fed.png` (brand reference board)
+
+Brand system:
+Use the approved LegalSynq brand treatments from the reference board.
+
+Preferred styling for login:
+- left panel: deep navy branded panel with white LegalSynq logo
+- right panel: light / white login form panel
+- orange used as a controlled accent only
+- clean, modern, enterprise SaaS feel
+- premium legal-tech tone
+- not flashy, not playful, not generic template styling
+
+Layout requirements:
+Create a modern 2-panel login page.
+
+Panel structure:
+1. Left panel = branded experience panel
+   - deep navy background
+   - use white LegalSynq logo
+   - strong but elegant branded presentation
+   - include a short value proposition / product messaging area
+   - may include subtle product highlights, trust messaging, or workflow bullets
+   - may include a subtle orange accent treatment
+   - should feel premium and intentional, not empty
+
+2. Right panel = login form panel
+   - light background
+   - preserve existing login functionality
+   - keep tenant login fields and behavior working
+   - use a polished card or contained form layout
+   - maintain accessibility and validation behavior
+   - modern spacing, typography, and hierarchy
+
+Design direction:
+- modern split-screen layout
+- desktop: 2 columns
+- tablet/mobile: stack gracefully with responsive behavior
+- the login form should remain the focal point
+- the left panel should support brand trust and product identity
+- use Remix Icon for any icons if icons are added
+- do not mix icon libraries
+
+Visual guidance:
+- navy panel should match the approved dark brand option
+- right panel should use the light brand option
+- orange should appear in:
+  - primary CTA emphasis
+  - subtle dividers or highlights
+  - focus/active states if appropriate
+- do not overuse orange backgrounds
+- avoid gradients unless extremely subtle and brand-consistent
+- no unrelated colors
+
+Content guidance for the left panel:
+Use concise, professional messaging appropriate for LegalSynq.
+You may include content such as:
+- “Manage legal-medical workflows in one place”
+- “Coordinate providers, referrals, liens, and funding”
+- “Built for law firms, providers, and operations teams”
+- “Secure, streamlined, operationally efficient”
+
+If the current codebase already has tenant-specific login copy or environment-driven branding, preserve that logic where possible.
+
+Functional constraints:
+- do not break existing authentication flow
+- do not change login API behavior unless absolutely necessary
+- preserve form submission and validation
+- preserve tenant-specific logic
+- preserve redirects after login
+- do not invent backend APIs
+- do not remove forgot-password or support/help links if they already exist
+
+Implementation tasks:
+
+1. Analyze the current login page
+Inspect:
+- login page route/component
+- any shared auth layout
+- existing form component
+- current validation/submission logic
+- logo/branding usage
+- existing responsive behavior
+
+2. Redesign into a 2-panel layout
+Implement:
+- branded left panel
+- form-focused right panel
+- responsive stacking on smaller screens
+- visually balanced split layout
+
+3. Apply LegalSynq branding
+- use the correct logo asset for dark/light surfaces
+- use navy as the primary shell/background color for the left panel
+- use orange as a disciplined accent
+- align the typography and spacing to the LegalSynq brand feel
+
+4. Preserve and improve UX
+- maintain keyboard accessibility
+- preserve input focus states
+- improve spacing, labels, helper text, and CTA clarity
+- ensure loading/error states still look polished
+
+5. Use Remix Icon consistently
+- if the page uses icons, standardize on Remix Icon only
+- no mixed icon systems
+
+6. Responsive behavior
+- desktop: 2-panel
+- mobile: form-first stacked layout
+- left panel can collapse below or above depending on what fits best, but the form should remain immediately accessible
+
+7. Validation
+Verify:
+- login still works
+- tenant-specific flow still works
+- page looks polished on desktop and mobile
+- branding matches LegalSynq system
+- no broken imports or layout regressions
+
+Quality bar:
+The final login page should feel:
+- branded
+- premium
+- modern
+- enterprise-grade
+- trustworthy
+- clear and efficient
+
+Deliverable:
+Implement the redesign directly and write a report to:
+
+/analysis/step7_tenant_login_redesign.md
+
+Report format:
+1. Executive summary
+2. Current login page findings
+3. Branding/layout decisions applied
+4. Files created
+5. Files modified
+6. Responsive behavior
+7. Functional validation
+8. Remaining limitations
+
+Implementation notes:
+- use actual repo file paths
+- preserve existing auth behavior
+- keep code maintainable
+- prefer reusable styling/components if appropriate
+- this is not a mockup; implement the new login page in code

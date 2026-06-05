@@ -1,0 +1,435 @@
+You are implementing BLOCK 2 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B02-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- Do not perform migration cutover, dual write, or Identity field removal in this block.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B02 — Tenant Profile + Branding Core
+================================================================
+
+OBJECTIVE
+Extend the new standalone Tenant service so it becomes a usable tenant/company master-data service by adding:
+1. expanded tenant profile metadata,
+2. contact metadata,
+3. lifecycle/status handling,
+4. complete CRUD/read support for the richer model,
+5. a canonical tenant branding model,
+6. branding management APIs,
+7. a public branding endpoint for unauthenticated consumers such as login/public web pages.
+
+This block must preserve the standalone/portable design of Tenant service and remain aligned to the existing platform stack:
+- ASP.NET Core
+- C# / .NET
+- EF Core
+- MySQL
+- pnpm monorepo
+- Replit shell orchestration
+- Next.js / TypeScript consumers
+
+================================================================
+CONTEXT FROM BLOCK 1 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 already established:
+- standalone Tenant service projects
+- tenant_db
+- core Tenant entity
+- base API contract
+- service on port 5005
+- gateway route wiring
+- health/info endpoints
+- migration-aware mapping from Identity -> Tenant
+- preservation of TenantId
+- base table for tenants
+
+Build on top of that work.
+Do not recreate the service from scratch.
+Do not replace the current Block 1 foundation.
+
+Block 1 also intentionally deferred:
+- full profile expansion
+- branding full model
+- product entitlements
+- domains full model
+- migration utility
+- dual write
+- read switch
+- cutover
+
+In this block, implement only the Block 2 scope.
+
+================================================================
+BLOCK 2 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- TENANT-E02-S02 — Company Metadata
+- TENANT-E02-S03 — Contact Metadata
+- TENANT-E02-S04 — Tenant Lifecycle Model
+- TENANT-E02-S05 — CRUD + Query APIs completion
+- TENANT-E03-S01 — Branding Entity
+- TENANT-E03-S02 — Asset References
+- TENANT-E03-S03 — Theme Fields
+- TENANT-E03-S04 — Branding API
+- TENANT-E03-S05 — Public Branding Endpoint
+
+================================================================
+SCOPE
+================================================================
+
+A) Expand the canonical Tenant profile model
+
+Extend the Tenant entity and/or related profile structures to support at minimum:
+
+Company / profile fields:
+- LegalName
+- DisplayName (already present; preserve)
+- CompanyDescription or Description
+- WebsiteUrl
+- TimeZone
+- Locale or DefaultLocale
+- SupportEmail
+- SupportPhone
+
+Address fields:
+- AddressLine1
+- AddressLine2
+- City
+- StateOrProvince
+- PostalCode
+- CountryCode
+
+Rules:
+- Keep the model portable and generic
+- Do not use LegalSynq-only terminology
+- Use sensible nullability for migration-safe rollout
+- Preserve existing Id / Code / Status / Subdomain / logo refs
+- Do not introduce user/access concerns into Tenant
+
+B) Tenant lifecycle model
+
+Refine the tenant lifecycle/status model so it is future-safe.
+
+Current Block 1 status model was intentionally simple. In this block:
+- formalize an enum or equivalent lifecycle model suitable for future migration
+- minimum statuses should support at least:
+  - Active
+  - Inactive
+  - Pending
+  - Suspended
+- keep implementation migration-safe
+- if Identity currently only maps boolean active/inactive, keep mapping compatibility documented
+- do NOT implement provisioning workflow orchestration yet
+
+C) Branding canonical model
+
+Create a dedicated branding model owned by Tenant service.
+
+At minimum support:
+- BrandName (optional override if different from display name)
+- LogoDocumentId
+- LogoWhiteDocumentId
+- FaviconDocumentId (nullable, can be scaffolded even if not yet used by frontend)
+- PrimaryColor
+- SecondaryColor
+- AccentColor
+- TextColor
+- BackgroundColor
+- WebsiteUrl override (nullable if same as tenant profile)
+- SupportEmail override (nullable if same as tenant profile)
+- SupportPhone override (nullable if same as tenant profile)
+
+Rules:
+- Tenant service owns branding metadata
+- Do NOT store blobs/files directly
+- Store document/asset references only
+- Keep branding generic and reusable across systems
+- Keep theme values validation-safe (hex, string length, etc.)
+- If you decide some optional fields should be deferred, document them clearly in the report, but implement at least:
+  - LogoDocumentId
+  - LogoWhiteDocumentId
+  - PrimaryColor
+
+D) Persistence / schema
+
+Add the necessary EF Core entities/configurations/migrations in tenant_db for:
+- expanded tenant profile fields
+- branding table or embedded owned model (choose the pattern most consistent with repo/service conventions)
+
+Preferred approach:
+- separate tenant_branding-style table or clean one-to-one branding entity
+because this keeps the domain cleaner for future expansion
+
+Be careful with naming consistency:
+- verify the current service table naming convention established in Block 1
+- keep naming consistent now to avoid painful later migrations
+
+E) API contract
+
+Complete the Tenant profile CRUD/read APIs and add branding APIs.
+
+Profile APIs:
+- GET /api/v1/tenants/{tenantId}
+- GET /api/v1/tenants/by-code/{code}
+- GET /api/v1/tenants
+- POST /api/v1/tenants
+- PUT /api/v1/tenants/{tenantId}
+
+Branding APIs:
+- GET /api/v1/tenants/{tenantId}/branding
+- PUT /api/v1/tenants/{tenantId}/branding
+
+Public branding endpoint:
+- GET /api/v1/public/branding/by-code/{code}
+AND/OR
+- GET /api/v1/public/branding/by-subdomain/{subdomain}
+
+Choose the endpoint shape that best matches the current gateway/web usage patterns, but:
+- it must be unauthenticated/public
+- it must be safe/read-only
+- it must return enough information for login/public branding consumers
+- it must not expose sensitive tenant internals
+
+Branding response should include, at minimum:
+- tenantId
+- code
+- displayName
+- brandName
+- logoDocumentId
+- logoWhiteDocumentId
+- primaryColor
+- faviconDocumentId if available
+
+F) Validation and domain rules
+
+Add validation for:
+- required display/code values
+- code uniqueness
+- optional subdomain uniqueness if applicable
+- email format where used
+- website URL format where used
+- branding color format where used (at minimum accept valid hex values if color is supplied)
+
+G) Consumer readiness
+
+Design the branding/public contract so it is easy for the existing Next.js app to consume later.
+Do not modify the frontend in this block unless absolutely necessary.
+This block is backend-first and consumer-ready.
+
+================================================================
+NON-GOALS / MUST NOT DO
+================================================================
+
+Do NOT implement in this block:
+- migration script from Identity to Tenant
+- dual write from Identity to Tenant
+- read switch from Identity to Tenant
+- removal of tenant fields from Identity
+- domain ownership tables beyond what is already minimally needed
+- product entitlements
+- tenant settings key-value system
+- external references system
+- notification service integration
+- document upload flow
+- custom domain verification workflow
+
+================================================================
+TECH STACK / IMPLEMENTATION RULES
+================================================================
+
+Backend:
+- C# / .NET only
+- ASP.NET Core only
+- Entity Framework Core only
+- MySQL only
+
+Patterns:
+- Reuse existing project structure:
+  - Tenant.Domain
+  - Tenant.Application
+  - Tenant.Infrastructure
+  - Tenant.Api
+- Reuse existing middleware / DI / endpoint conventions from Block 1 and neighboring services
+- Keep service portable and generic
+
+Database:
+- Continue using tenant_db
+- Add EF migration for this block
+- Do not require direct access from other services to tenant_db
+
+Port / runtime:
+- Keep service on 5005
+- Keep current shell script integration working
+
+================================================================
+DATA MODEL GUIDANCE
+================================================================
+
+Recommended entities / structures:
+
+1) Tenant
+Core tenant/company master data:
+- Id
+- Code
+- DisplayName
+- LegalName
+- Description
+- Status
+- Subdomain
+- WebsiteUrl
+- TimeZone
+- Locale
+- SupportEmail
+- SupportPhone
+- AddressLine1
+- AddressLine2
+- City
+- StateOrProvince
+- PostalCode
+- CountryCode
+- CreatedAtUtc
+- UpdatedAtUtc
+
+2) TenantBranding
+One-to-one branding metadata:
+- Id or TenantId PK/FK (choose repo-consistent pattern)
+- TenantId
+- BrandName
+- LogoDocumentId
+- LogoWhiteDocumentId
+- FaviconDocumentId
+- PrimaryColor
+- SecondaryColor
+- AccentColor
+- TextColor
+- BackgroundColor
+- WebsiteUrlOverride
+- SupportEmailOverride
+- SupportPhoneOverride
+- CreatedAtUtc
+- UpdatedAtUtc
+
+If you choose not to implement all fields exactly as above, keep the same design intent and document final structure in the report.
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. Tenant profile model supports richer company/contact metadata.
+2. Tenant lifecycle/status model is expanded beyond simple active/inactive and documented.
+3. A dedicated branding model exists in Tenant service persistence.
+4. tenant_db has an updated migration for the new profile/branding schema.
+5. Profile APIs work with the richer model.
+6. Branding APIs exist and work.
+7. A public branding endpoint exists and works without auth.
+8. Branding responses are safe and suitable for public/login consumer use.
+9. Existing Block 1 functionality still works.
+10. No migration cutover or Identity decoupling is attempted in this block.
+11. The design remains portable and standalone.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- migration creation success
+- Tenant service startup success
+- DB connection success for tenant_db
+- health endpoint response
+- create tenant with expanded fields
+- get tenant by id with expanded fields
+- update tenant with expanded fields
+- get branding by tenant id
+- update branding by tenant id
+- get public branding by code and/or subdomain
+- uniqueness validation behavior for code/subdomain
+- invalid email/url/color validation behavior
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B02-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B02 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what Block 1 established
+- what schema/API/domain gaps Block 2 is filling
+- naming convention decision for new tables/entities
+
+## 3. Data Model Changes
+- Tenant fields added
+- lifecycle/status model chosen
+- branding entity structure
+- why this structure was chosen
+
+## 4. API Contract
+- profile endpoints
+- branding endpoints
+- public branding endpoints
+- final request/response shapes
+
+## 5. Implementation Summary
+- files added
+- files modified
+- migrations added
+- validation rules added
+
+## 6. Database Changes
+- tables added/altered
+- indexes/constraints
+- migration name
+
+## 7. Validation Results
+- build
+- startup
+- CRUD tests
+- branding tests
+- public endpoint tests
+- validation tests
+
+## 8. Known Gaps / Deferred Items
+- product entitlements deferred
+- settings store deferred
+- migration utility deferred
+- dual write deferred
+- read switch deferred
+- Identity decoupling deferred
+
+## 9. Next Recommended Block
+State that the next logical block is:
+BLOCK 3 — Domains & Tenant Resolution
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse current code patterns
+- Prefer minimal, correct, production-oriented code
+- Keep scope tight to Block 2
+- Preserve portability
+- Do not introduce breaking architectural drift
+
+Now execute this block end-to-end and write the report as you go.

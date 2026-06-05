@@ -1,0 +1,374 @@
+LS-LIENS-FLOW-004 — Replit Implementation Prompt
+
+Copy-paste this entire prompt into Replit:
+
+You are implementing LS-LIENS-FLOW-004 — Task Notes & Collaboration + Generated Task Visibility Enhancements for the LegalSynq Synq Liens v2 platform.
+IMPORTANT: Follow these instructions exactly.
+==================================================
+IMPLEMENTATION MODE
+==================================================
+You must:
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+Create this file first before making any code changes:
+/analysis/LS-LIENS-FLOW-004-report.md
+You must update it continuously as you progress.
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Permissions / Security
+- Audit Integration
+- Case Timeline Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+Do not wait until the end to write the report. Create it first and append/update it step by step.
+==================================================
+OBJECTIVE
+==================================================
+Enhance Synq Liens task usability by adding:
+1. Task Notes / Comments (human-readable collaboration layer)
+2. Generated Task Visibility Enhancements (explain automation clearly)
+This builds on:
+- FLOW-001 (Tasks)
+- FLOW-002 (Templates)
+- FLOW-003 (Event-driven task generation)
+This is NOT:
+- a chat system
+- a messaging service
+- a replacement for SynqComms
+- a document storage system
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+Use v2 shared services only:
+- Identity (for user attribution)
+- Audit (for logging note activity)
+- Notifications only if already integrated patterns exist (do NOT introduce new notification logic)
+Do NOT use:
+- Documents service (attachments are out of scope)
+- Any external messaging systems
+Preserve existing Synq Liens behavior.
+Do NOT:
+- merge notes into audit logs
+- store notes inside task description
+- build a real-time chat system
+- introduce complex formatting engines
+==================================================
+HIGH-LEVEL FEATURE SUMMARY
+==================================================
+A. Task Notes
+- Users can add notes/comments to tasks
+- Notes are stored per task
+- Notes are visible in a simple activity thread
+B. Generated Task Visibility
+- Improve UI to explain:
+  - why task was created
+  - which rule triggered it
+  - which template was used
+C. Optional Case Timeline Integration
+- Surface note activity in case timeline (controlled, not noisy)
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE FIRST
+==================================================
+Before implementing anything, inspect and document:
+1. Existing LienTask entity and relationships
+2. FLOW-003 generated task metadata structure
+3. Existing audit integration pattern (IAuditPublisher)
+4. Existing case timeline / audit-to-timeline mapping
+5. Existing task UI (TaskCard, TaskPanel, task detail views)
+6. Existing permission model for tasks
+7. Existing API structure for tasks
+8. Existing frontend patterns for forms, lists, and panels
+9. Existing DTO patterns
+Document findings in the report before implementing.
+Prefer extending existing patterns.
+==================================================
+STEP 2 — IMPLEMENT TASK NOTE DOMAIN
+==================================================
+--------------------------------------------------
+2.1 Task Note Entity / Model
+--------------------------------------------------
+Create a new entity:
+LienTaskNote
+Fields:
+- id
+- taskId
+- tenantId
+- content (string, required)
+- createdByUserId
+- createdByName
+- createdAt
+- updatedAt (nullable)
+- isEdited (bool)
+- isDeleted (bool, optional soft delete)
+Use existing AuditableEntity patterns where applicable.
+--------------------------------------------------
+2.2 Relationships
+--------------------------------------------------
+- Task → many TaskNotes
+- Note → single Task
+Ensure:
+- proper foreign key to LienTask
+- tenant isolation
+--------------------------------------------------
+2.3 Repository Layer
+--------------------------------------------------
+Create:
+- ILienTaskNoteRepository
+- Implementation in Infrastructure
+Support:
+- get notes by taskId
+- add note
+- update note
+- soft delete note
+--------------------------------------------------
+2.4 Service Layer
+--------------------------------------------------
+Create:
+- ILienTaskNoteService
+- LienTaskNoteService
+Responsibilities:
+- validation
+- tenant scoping
+- permission enforcement
+- audit publishing
+==================================================
+STEP 3 — IMPLEMENT API ENDPOINTS
+==================================================
+--------------------------------------------------
+3.1 Task Notes Endpoints
+--------------------------------------------------
+Tenant-scoped endpoints:
+- GET    /api/liens/tasks/{taskId}/notes
+- POST   /api/liens/tasks/{taskId}/notes
+- PUT    /api/liens/tasks/{taskId}/notes/{noteId}   (optional but recommended)
+- DELETE /api/liens/tasks/{taskId}/notes/{noteId}  (soft delete)
+--------------------------------------------------
+3.2 Behavior
+--------------------------------------------------
+- Validate task belongs to tenant
+- Validate user has access to task
+- Ensure note ownership rules for edit/delete
+--------------------------------------------------
+3.3 DTOs
+--------------------------------------------------
+Create:
+- TaskNoteRequest
+- TaskNoteResponse
+Include:
+- id
+- content
+- createdByName
+- createdAt
+- updatedAt
+- isEdited
+==================================================
+STEP 4 — AUDIT INTEGRATION
+==================================================
+Use v2 Audit service.
+Log:
+- liens.task_note.created
+- liens.task_note.updated
+- liens.task_note.deleted
+Include:
+- tenantId
+- taskId
+- noteId
+- actorUserId
+- timestamp
+Do NOT store note content fully in audit if size is large.
+Store summary if needed.
+==================================================
+STEP 5 — CASE TIMELINE INTEGRATION (CONTROLLED)
+==================================================
+If task is linked to a case:
+Optionally publish audit event with:
+- entityType = "Case"
+- description:
+  "Note added to Task [TaskTitle]"
+Only publish:
+- note created
+- note updated (optional)
+Do NOT:
+- publish deletes unless necessary
+- flood timeline
+==================================================
+STEP 6 — GENERATED TASK VISIBILITY ENHANCEMENT
+==================================================
+Enhance UI for system-generated tasks.
+--------------------------------------------------
+6.1 Detect Generated Task
+--------------------------------------------------
+task.sourceType === SYSTEM_GENERATED
+--------------------------------------------------
+6.2 Display Automation Details
+--------------------------------------------------
+Add section:
+"Automation Details"
+Show:
+- Generated by Rule: {ruleName}
+- Template: {templateName}
+- Trigger Event: {eventType}
+- Generated At: {timestamp}
+If available:
+- rule description
+- template description
+--------------------------------------------------
+6.3 Data Requirements
+--------------------------------------------------
+Use:
+- GenerationRuleId
+- GeneratingTemplateId
+- metadata table (LienGeneratedTaskMetadata)
+If names not directly available:
+- fetch via API or include in response DTO
+==================================================
+STEP 7 — FRONTEND IMPLEMENTATION
+==================================================
+--------------------------------------------------
+7.1 Task Notes UI
+--------------------------------------------------
+Add Notes section to Task Detail / Task Panel:
+Components:
+- NoteList
+- NoteItem
+- NoteInputBox
+Behavior:
+- display list of notes
+- input box for new note
+- submit adds note
+- optional edit/delete controls for owner
+--------------------------------------------------
+7.2 Note Display
+--------------------------------------------------
+Each note shows:
+- user name
+- timestamp
+- content
+- edited indicator
+--------------------------------------------------
+7.3 Generated Task UI
+--------------------------------------------------
+Enhance TaskPanel or TaskDetail:
+- show "System Generated" badge (already exists)
+- add Automation Details section
+--------------------------------------------------
+7.4 Minimal UX Principle
+--------------------------------------------------
+- do not redesign task page
+- extend existing layout
+- keep UI clean and readable
+==================================================
+STEP 8 — PERMISSIONS
+==================================================
+Implement or reuse permissions:
+- View Task Notes
+- Add Task Notes
+- Edit Own Notes
+- Delete Own Notes
+If no granular system exists:
+- tie to task access permissions
+==================================================
+STEP 9 — BACKEND DELIVERABLES
+==================================================
+Implement:
+- LienTaskNote entity
+- EF configuration
+- migration
+- repository
+- service
+- DTOs
+- endpoints
+- audit hooks
+- optional case timeline hooks
+==================================================
+STEP 10 — VALIDATION CHECKLIST
+==================================================
+--------------------------------------------------
+10.1 Notes
+--------------------------------------------------
+Validate:
+- add note
+- view notes
+- edit note (if implemented)
+- delete note (soft delete)
+- notes scoped to task
+- tenant isolation works
+--------------------------------------------------
+10.2 Audit
+--------------------------------------------------
+Validate:
+- note created logged
+- note updated logged
+- note deleted logged
+--------------------------------------------------
+10.3 Generated Task Visibility
+--------------------------------------------------
+Validate:
+- system-generated tasks show badge
+- automation details render correctly
+- correct rule/template displayed
+--------------------------------------------------
+10.4 Case Timeline
+--------------------------------------------------
+Validate:
+- note creation appears in case timeline (if enabled)
+- no excessive noise
+--------------------------------------------------
+10.5 Build / Run
+--------------------------------------------------
+Validate:
+- migrations run
+- backend builds
+- frontend builds
+- no regressions
+==================================================
+STEP 11 — REQUIRED REPORT STRUCTURE
+==================================================
+Your final /analysis/LS-LIENS-FLOW-004-report.md must contain:
+1. Executive Summary
+2. Codebase Assessment
+3. Files Changed
+4. Database / Schema Changes
+5. API Changes
+6. UI Changes
+7. Permissions / Security
+8. Audit Integration
+9. Case Timeline Integration
+10. Validation Results
+11. Known Gaps / Risks
+12. Run Instructions
+==================================================
+DEFINITION OF DONE
+==================================================
+This feature is done only if:
+1. Tasks support notes/comments
+2. Notes are stored per task
+3. Notes display correctly in UI
+4. Audit logs capture note activity
+5. Generated tasks show automation details
+6. No regression in task behavior
+7. Case timeline integration works (if enabled)
+8. Implementation is documented in /analysis/LS-LIENS-FLOW-004-report.md
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+- Keep notes simple (text only)
+- Avoid building chat-like UX
+- Avoid attachments
+- Avoid notifications expansion
+- Keep system incremental and clean
+- Preserve all prior FLOW behavior
+Begin by creating /analysis/LS-LIENS-FLOW-004-report.md immediately, then inspect the codebase, document findings, and proceed with implementation.

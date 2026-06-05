@@ -1,0 +1,378 @@
+# LS-TENANT-001 — Tenant Admin Foundation + Navigation
+
+## Objective
+
+Establish the **foundational tenant admin experience layer** in the tenant portal, including:
+
+* tenant admin role enforcement
+* authorization-aware navigation
+* route protection
+* base layout for authorization modules
+* structural groundwork for all LS-TENANT features
+
+This feature creates the **entry point and skeleton** for tenant authorization management.
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-TENANT-001-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The feature is **incomplete without the report**
+* Replit must generate the report automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Tenant Isolation
+
+* all UI and routes must operate strictly within the current tenant context
+* no cross-tenant access paths
+
+### Backend-Driven Authorization
+
+* do not rely on frontend-only role checks
+* backend (Identity / LS-COR-AUT) remains source of truth
+
+### Progressive Enhancement
+
+* this feature creates structure only
+* detailed functionality comes in LS-TENANT-002+
+
+---
+
+## In Scope
+
+---
+
+## 1. Tenant Admin Role Enforcement
+
+### Required Behavior
+
+Only users with **TenantAdmin (or equivalent)** role may access tenant authorization UI.
+
+---
+
+### Implementation
+
+#### Frontend Guard
+
+* implement route-level guard:
+
+  * check user roles from JWT / session
+  * must include:
+
+    ```text
+    TenantAdmin
+    ```
+  * optionally support:
+
+    ```text
+    PlatformAdmin (if allowed in tenant portal)
+    ```
+
+* if unauthorized:
+
+  * redirect to:
+
+    * dashboard OR
+    * access denied page
+
+---
+
+#### Backend Validation
+
+* all protected routes must call backend APIs that:
+
+  * enforce tenant boundary
+  * enforce role/permission
+
+---
+
+### Acceptance
+
+* non-admin users cannot access `/tenant/authorization/*`
+* direct URL access is blocked
+
+---
+
+## 2. Tenant Authorization Navigation
+
+### Add New Navigation Section
+
+Add to tenant portal sidebar:
+
+```text
+Authorization
+├── Users
+├── Groups
+├── Access
+├── Simulator
+```
+
+---
+
+### Requirements
+
+* visible only to tenant admins
+* hidden for non-admin users
+* follows existing design system (icons, spacing, typography)
+
+---
+
+### Suggested Icons (Remix Icons)
+
+* Users → `ri-user-line`
+* Groups → `ri-group-line`
+* Access → `ri-shield-keyhole-line`
+* Simulator → `ri-test-tube-line`
+
+---
+
+## 3. Route Structure
+
+### Create Routes
+
+```text
+/tenant/authorization/users
+/tenant/authorization/groups
+/tenant/authorization/access
+/tenant/authorization/simulator
+```
+
+---
+
+### Behavior
+
+* all routes protected by tenant admin guard
+* routes render placeholder pages (for now)
+
+---
+
+### File Structure (Example)
+
+```text
+app/tenant/authorization/
+  users/page.tsx
+  groups/page.tsx
+  access/page.tsx
+  simulator/page.tsx
+```
+
+---
+
+## 4. Base Authorization Layout
+
+### Create Shared Layout
+
+```text
+app/tenant/authorization/layout.tsx
+```
+
+---
+
+### Responsibilities
+
+* apply route guard
+* provide page container
+* consistent header
+* breadcrumb support
+
+---
+
+### Header Example
+
+```text
+Authorization
+Manage users, groups, and access within your tenant
+```
+
+---
+
+## 5. Access Denied Page
+
+### Create Page
+
+```text
+/tenant/access-denied
+```
+
+---
+
+### Behavior
+
+* shown when user lacks permissions
+* includes:
+
+  * message:
+
+    ```
+    You do not have access to this section
+    ```
+  * navigation back to dashboard
+
+---
+
+## 6. Tenant Context Handling
+
+### Requirement
+
+Ensure all authorization routes:
+
+* derive tenantId from:
+
+  * session OR
+  * auth context
+
+* do NOT allow:
+
+  * tenant switching
+  * manual tenant override
+
+---
+
+## 7. UI Placeholders (for next features)
+
+Each route should render a placeholder with:
+
+### Example
+
+**Users Page**
+
+```text
+Users Management (Coming in LS-TENANT-002)
+```
+
+**Groups Page**
+
+```text
+Group Management (Coming in LS-TENANT-003)
+```
+
+**Access Page**
+
+```text
+Access & Explainability (Coming in LS-TENANT-004)
+```
+
+**Simulator Page**
+
+```text
+Authorization Simulator (Coming in LS-TENANT-005)
+```
+
+---
+
+## 8. Integration with Existing Tenant Portal
+
+### Requirements
+
+* do not break existing navigation
+* integrate with current layout system
+* reuse:
+
+  * sidebar component
+  * auth/session provider
+  * styling framework
+
+---
+
+## 9. Security Rules
+
+### Must Enforce
+
+* no UI exposure without role
+* no route access without role
+* no API call without backend validation
+* tenant isolation preserved
+
+---
+
+## 10. Testing Requirements
+
+---
+
+### Unit / Component Tests
+
+* navigation visibility based on role
+* route guard logic
+* access denied rendering
+
+---
+
+### Integration Tests
+
+* tenant admin can access all routes
+* non-admin cannot access routes
+* redirect behavior works
+
+---
+
+### Security Tests
+
+* direct URL access blocked
+* cross-tenant navigation not possible
+
+---
+
+## Acceptance Criteria
+
+* tenant admin navigation section exists
+* routes created and protected
+* base layout implemented
+* unauthorized users blocked
+* access denied page functional
+* no regression to existing tenant portal
+* system builds cleanly
+* mandatory report generated
+
+---
+
+## Implementation Notes
+
+* keep logic simple and explicit
+* avoid over-engineering guards (use existing auth context)
+* prioritize correctness over UI polish at this stage
+
+---
+
+## Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-TENANT-001-report.md` MUST include:
+
+1. navigation changes made
+2. routes added
+3. guard implementation details
+4. layout structure
+5. access denied handling
+6. tenant context handling
+7. test results
+8. build status
+9. known limitations
+10. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+* tenant authorization area exists
+* access is secured and role-based
+* navigation structure is in place
+* foundation is ready for:
+
+  * LS-TENANT-002 (Users)
+  * LS-TENANT-003 (Groups)
+  * LS-TENANT-004 (Access)
+  * LS-TENANT-005 (Simulator)

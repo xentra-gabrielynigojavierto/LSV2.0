@@ -1,0 +1,443 @@
+Feature ID: LS-NOTIF-SMS-012
+
+Title:
+Control Center SMS Operational Alert and Escalation Management UI
+
+Objective:
+Add a full operational incident-management UI inside Control Center for SMS operational alerts, escalation history, escalation policy management, retry handling, and incident lifecycle visibility using the Notification Service APIs from LS-NOTIF-SMS-010 and LS-NOTIF-SMS-011.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- SMS operational alerts
+- escalation policies
+- escalation execution
+- escalation persistence
+- escalation retry handling
+- incident operational metadata
+
+Control Center must only consume Notification Service APIs and render/administer the operational incident-management UI.
+
+Requirements:
+- Build UI only inside the existing Control Center/admin portal application.
+- Do not add alert generation or escalation logic to Control Center.
+- Do not duplicate escalation evaluation logic in Control Center.
+- Do not modify Notification Service except where strictly necessary for API client compatibility.
+- Control Center must consume Notification Service APIs from LS-NOTIF-SMS-010 and LS-NOTIF-SMS-011.
+- UI must remain operationally safe and primarily read-only except explicit management actions:
+  - resolve alert
+  - retry escalation
+  - create/update/disable policy
+- Do not expose:
+  - provider credentials
+  - webhook URLs
+  - CredentialsJson
+  - SettingsJson
+  - auth tokens
+  - raw provider payloads
+  - raw phone numbers
+- Preserve existing Control Center dashboard functionality from LS-NOTIF-SMS-009.
+
+Implementation Requirements:
+1. Add PlatformAdmin-only SMS Incident Management navigation and routes.
+2. Add alert management UI.
+3. Add escalation history UI.
+4. Add escalation policy management UI.
+5. Add alert detail views.
+6. Add escalation detail views.
+7. Add alert resolve actions.
+8. Add escalation retry actions.
+9. Add policy create/update/disable flows.
+10. Add filtering for alerts/escalations/policies.
+11. Add loading/error/empty states.
+12. Preserve existing Control Center functionality and security behavior.
+
+Critical Constraints:
+- Reuse existing Control Center architecture, routing, API client, auth, role guards, modal, form, table, card, drawer/panel, and notification/toast patterns where available.
+- Do NOT introduce large UI rewrites.
+- Keep implementation incremental and production-oriented.
+- Use Notification Service APIs directly.
+- Do NOT hardcode operational configuration.
+- Do NOT expose sensitive target values such as webhook URLs in full.
+- If Notification Service masks target values, preserve masking.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-012-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing Control Center routing/layout findings
+3. Existing admin authorization findings
+4. Existing API client/service pattern findings
+5. Existing modal/form/table component findings
+6. Existing dashboard/navigation findings
+7. Files added
+8. Files modified
+9. API/client changes
+10. UI/route changes
+11. Validation/testing performed
+12. Known gaps/issues
+13. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Control Center Operational UI Architecture
+- Identify:
+  - Existing Control Center/admin portal app location
+  - Existing routing/navigation/sidebar structure
+  - Existing PlatformAdmin role guard pattern
+  - Existing API client/service abstraction
+  - Existing authenticated request handling
+  - Existing modal/dialog pattern
+  - Existing form validation pattern
+  - Existing table/grid pattern
+  - Existing drawer/detail panel pattern
+  - Existing loading/error/toast patterns
+  - Existing dashboard page structure from LS-NOTIF-SMS-009
+- Document findings in the report before implementation.
+
+STEP 2 — Add Notification Service Incident Management API Client
+Add or extend Control Center API client/service layer for:
+
+Alert APIs:
+- GET /v1/admin/sms/alerts
+- GET /v1/admin/sms/alerts/summary
+- POST /v1/admin/sms/alerts/{id}/resolve
+
+Escalation APIs:
+- GET /v1/admin/sms/alerts/escalations
+- GET /v1/admin/sms/alerts/escalations/summary
+- GET /v1/admin/sms/alerts/escalations/{id}
+- POST /v1/admin/sms/alerts/escalations/{id}/retry
+
+Policy APIs:
+- GET /v1/admin/sms/alerts/policies
+- GET /v1/admin/sms/alerts/policies/{id}
+- POST /v1/admin/sms/alerts/policies
+- PUT /v1/admin/sms/alerts/policies/{id}
+- DELETE or DISABLE policy endpoint from LS-NOTIF-SMS-011
+
+Requirements:
+- Reuse existing authenticated API client pattern.
+- Add TypeScript DTOs/interfaces matching Notification Service contracts.
+- Preserve masked target values returned by API.
+- Never log secrets or raw payloads.
+- Handle API failures using existing error handling conventions.
+
+STEP 3 — Add SMS Incident Management Navigation and Routes
+Add new PlatformAdmin-only routes.
+
+Suggested routes:
+- /admin/sms-incidents
+- /admin/sms-incidents/alerts
+- /admin/sms-incidents/escalations
+- /admin/sms-incidents/policies
+
+Suggested navigation label:
+- SMS Incidents
+or:
+- SMS Operations
+
+Requirements:
+- Routes visible only to PlatformAdmin/admin users.
+- Direct access by unauthorized users rejected or redirected.
+- Preserve existing Control Center navigation structure.
+
+STEP 4 — Build Alert Management Page
+Build SMS operational alerts management page.
+
+Required sections:
+1. Alert summary cards
+2. Alert filters
+3. Alerts table
+4. Alert detail drawer/modal
+5. Resolve alert action
+
+Suggested summary metrics:
+- active alerts
+- critical alerts
+- warning alerts
+- resolved alerts
+- suppressed alerts
+
+Suggested filters:
+- severity
+- status
+- alertType
+- tenantId
+- provider
+- providerConfigId
+- from
+- to
+
+Suggested table columns:
+- Alert Type
+- Severity
+- Status
+- Tenant
+- Provider
+- Provider Config
+- Metric Value
+- Threshold
+- Occurrence Count
+- Created At
+- Last Observed
+- Actions
+
+Alert detail view should include:
+- safe metadata
+- evaluation window
+- metric/threshold details
+- occurrence count
+- resolution info
+- linked escalation count if available
+
+Requirements:
+- No secrets displayed.
+- No raw payloads displayed.
+- No phone numbers displayed.
+- Use existing table/card/drawer patterns.
+- Resolve action must require confirmation.
+- Resolve action must show success/failure feedback.
+
+STEP 5 — Build Escalation History Page
+Build escalation history management page.
+
+Required sections:
+1. Escalation summary cards
+2. Escalation filters
+3. Escalation table
+4. Escalation detail drawer/modal
+5. Retry escalation action
+
+Suggested summary metrics:
+- sent
+- failed
+- pending
+- suppressed
+- retry scheduled
+
+Suggested filters:
+- status
+- channelType
+- severity
+- alertType
+- from
+- to
+
+Suggested table columns:
+- Alert Type
+- Channel
+- Severity
+- Status
+- Target (masked)
+- Attempt Count
+- Last Attempt
+- Sent At
+- Failure Reason
+- Actions
+
+Escalation detail should include:
+- linked alert id
+- channel type
+- masked target
+- retry state
+- failure classification
+- timestamps
+- safe metadata
+
+Requirements:
+- Preserve masked targets.
+- Do not reveal webhook URLs.
+- Retry action only enabled for eligible failed/pending escalation.
+- Retry action requires confirmation.
+- Retry action must show success/failure feedback.
+
+STEP 6 — Build Escalation Policy Management Page
+Build escalation policy management UI.
+
+Required sections:
+1. Policy filters
+2. Policy table
+3. Create policy modal/form
+4. Edit policy modal/form
+5. Disable policy action
+
+Suggested filters:
+- enabled
+- channelType
+- severity
+- alertType
+- provider
+- tenantId
+
+Suggested table columns:
+- Name
+- Enabled
+- Alert Type
+- Severity
+- Tenant
+- Provider
+- Channel
+- Target (masked)
+- Cooldown Minutes
+- Retry Enabled
+- Max Retry Count
+- Updated At
+- Actions
+
+Create/edit form fields:
+- name
+- enabled
+- alertType
+- severity
+- tenantId
+- provider
+- providerConfigId
+- channelType
+- target
+- cooldownMinutes
+- retryEnabled
+- maxRetryCount
+
+Requirements:
+- Validate required fields.
+- Validate numeric bounds.
+- Preserve target masking after save.
+- Do not display full webhook URLs after persistence unless existing admin secret-management patterns explicitly allow it.
+- Use existing modal/form validation patterns.
+- Disable action requires confirmation.
+
+STEP 7 — Add Shared Filters and Query State Handling
+Add consistent query/filter handling across pages.
+
+Requirements:
+- Preserve filters in URL/query state if existing app pattern supports it.
+- Support pagination where API supports pagination.
+- Reset filters cleanly.
+- Use bounded default date ranges.
+- Avoid unbounded operational queries.
+
+STEP 8 — Add Loading, Error, Empty, and Confirmation States
+Implement robust operational UI states.
+
+Requirements:
+- Page-level loading states
+- Section-level loading states where appropriate
+- Empty-state messaging
+- Error-state messaging
+- Retry buttons if existing UI pattern supports them
+- Confirmation modals for:
+  - resolve alert
+  - retry escalation
+  - disable policy
+- Success/error toast or notification feedback
+
+STEP 9 — Security and Privacy Review
+Verify:
+- PlatformAdmin-only access enforced
+- Non-admin users cannot access routes
+- No provider credentials displayed
+- No webhook URLs displayed in full
+- No raw payloads displayed
+- No phone numbers displayed
+- No unsafe logs emitted
+- UI actions do not trigger SMS sends or provider calls directly
+
+STEP 10 — Documentation
+Update documentation/report notes for:
+- incident-management routes
+- APIs consumed
+- policy management behavior
+- alert resolution behavior
+- escalation retry behavior
+- masking/security constraints
+- relationship to Notification Service ownership
+
+Documentation must explain:
+- Notification Service owns alert generation/escalation logic
+- Control Center only manages and visualizes operational incidents
+- policy targets are masked intentionally
+- retries operate through Notification Service APIs
+
+STEP 11 — Validation
+Perform validation/testing for:
+
+Routing/security:
+- PlatformAdmin can access pages
+- non-admin access blocked
+- navigation visibility restricted correctly
+
+Alerts page:
+- summary cards render
+- filters work
+- alert table renders
+- detail view renders safe metadata
+- resolve action works
+- resolve confirmation works
+- resolve feedback works
+
+Escalations page:
+- summary cards render
+- filters work
+- escalation table renders
+- masked targets preserved
+- detail view renders safely
+- retry action works
+- retry confirmation works
+- retry feedback works
+
+Policies page:
+- policy table renders
+- create policy works
+- update policy works
+- disable policy works
+- validation works
+- target masking preserved
+- invalid inputs rejected
+
+Security:
+- credentials never displayed
+- webhook URLs never displayed in full
+- phone numbers never displayed
+- raw payloads never displayed
+- no unsafe logs
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-009 dashboard unchanged
+- LS-NOTIF-SMS-010 alert APIs unchanged
+- LS-NOTIF-SMS-011 escalation APIs unchanged
+- existing Control Center routes unchanged
+- existing admin pages unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SMS Incident Management navigation/routes
+- Alert management page
+- Escalation history page
+- Escalation policy management page
+- Notification Service incident-management API client methods
+- TypeScript DTOs/interfaces
+- Alert detail UI
+- Escalation detail UI
+- Policy create/edit forms
+- Resolve/retry/disable flows
+- Loading/error/empty states
+- PlatformAdmin route guards
+- Updated documentation/report
+- Completed analysis report
+
+Do NOT:
+- Add backend alert generation logic to Control Center
+- Add escalation execution logic to Control Center
+- Trigger SMS sends directly
+- Expose provider credentials or webhook URLs
+- Expose raw payloads or phone numbers
+- Add conversational inbound SMS
+- Add new escalation adapters
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-011 behavior

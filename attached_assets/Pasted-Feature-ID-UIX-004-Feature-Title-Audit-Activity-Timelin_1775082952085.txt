@@ -1,0 +1,312 @@
+Feature ID: UIX-004
+Feature Title: Audit & Activity Timeline
+
+Implement UIX-004 for the LegalSynq Control Center and Identity service.
+
+Context:
+- UIX-001, UIX-002, UIX-003, UIX-003-01, UIX-003-02, and UIX-003-03 are already implemented
+- The platform already emits multiple auth, security, invitation, and access-control events
+- Current gap:
+  - admins cannot view a coherent audit/activity timeline in the Control Center
+  - user detail lacks a proper recent activity history
+  - audit visibility is not yet exposed as a usable admin feature
+- This feature must expose existing and/or minimally persisted audit data in a tenant-safe way
+- This is an audit visibility feature, not a SIEM or analytics redesign
+
+Objective:
+Create the first real audit and activity feature for the Control Center so admins can review:
+- security events
+- account lifecycle events
+- access control changes
+- invitation events
+- organization/group membership events
+
+The feature must support:
+- a global audit page
+- a user-specific activity panel
+- tenant-safe scoping
+- readable labels
+- useful filtering and pagination
+
+========================================
+CORE RULES
+========================================
+
+1. Reuse existing audit/security events if they already exist
+2. If a read/query model is missing, add the smallest safe one needed
+3. TenantAdmin must only see events in their own tenant
+4. PlatformAdmin may see broader scope where existing architecture allows
+5. Non-admin users must be blocked
+6. Keep the feature read-only
+7. Do NOT redesign the write/event-emission architecture unless absolutely required
+
+========================================
+MVP SCOPE FOR UIX-004
+========================================
+
+Implement:
+
+1. Global Audit Page
+- Control Center page for recent audit/activity events
+- basic filters
+- pagination
+- readable event labels
+- tenant-safe scoping
+
+2. User Activity Panel
+- on `/tenant-users/[id]`
+- show recent activity specific to that user
+- include security + access changes + invite/account lifecycle where available
+
+3. Backend Audit Query Support
+- global audit query endpoint
+- user-specific activity endpoint
+- enough data shape to support UI
+
+========================================
+DO NOT IMPLEMENT IN UIX-004
+========================================
+
+Do NOT implement unless trivially required:
+- full analytics pipeline
+- export to CSV/PDF
+- saved filters
+- anomaly detection
+- external SIEM integration
+- heavy full-text search engine
+- audit write-side redesign
+- advanced event correlation engine
+- notification workflows
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+Implement or verify the read/query layer for audit visibility.
+
+1. Audit Read Model / Query Surface
+If an audit event table/read model already exists, use it.
+If not, create the smallest safe queryable model needed.
+
+Minimum event fields needed for UI:
+- Id
+- TenantId
+- Category
+- EventType
+- ActionLabel or enough data to map one
+- ActorUserId nullable
+- ActorDisplay nullable if available
+- TargetUserId nullable
+- TargetType nullable
+- TargetId nullable
+- OccurredAtUtc
+- IpAddress nullable
+- UserAgent nullable
+- Metadata/Details nullable
+
+2. Required Endpoints
+Implement and verify:
+- GET /identity/api/admin/audit
+- GET /identity/api/admin/users/{id}/activity
+
+Optional only if useful:
+- GET /identity/api/admin/audit/{id}
+
+3. Filtering Support
+Global audit query should support at minimum:
+- page
+- pageSize
+- category
+- actorUserId
+- targetUserId
+- eventType
+- dateFrom
+- dateTo
+- search (optional only if cheap enough)
+
+User activity endpoint may be simpler:
+- page
+- pageSize
+- category optional
+
+4. Scope Enforcement
+Enforce in backend:
+- TenantAdmin → only events for caller’s tenant
+- PlatformAdmin → broader scope where intended
+- direct API calls must still be safe even if BFF is bypassed
+
+5. Event Coverage
+Ensure the query surface includes as many of these existing event types as already available:
+- login success
+- login blocked
+- logout
+- password reset triggered
+- password reset completed
+- invite created
+- invite resent
+- invite accepted
+- user activated
+- user deactivated
+- user locked
+- user unlocked
+- force logout
+- role assigned
+- role revoked
+- membership added
+- membership removed
+- primary membership changed
+- group membership added
+- group membership removed
+
+Do not fake missing historic events. If some event types are not yet captured consistently, document them in the report.
+
+========================================
+CONTROL CENTER — FRONTEND / BFF
+========================================
+
+Implement the admin UI for audit visibility.
+
+1. Global Audit Page
+Create/update a page such as:
+- /audit
+
+Requirements:
+- fetch from real backend audit endpoint
+- render readable audit rows
+- support pagination
+- support filters for at least:
+  - category
+  - actor
+  - target user
+  - date range if available
+  - event type if available
+- show empty state when no events match
+
+2. User Activity Panel
+Extend:
+- /tenant-users/[id]
+
+Add a recent activity panel or section:
+- recent security/admin/access events for that user
+- readable labels
+- timestamp
+- actor if available
+- category/severity badge
+
+3. Components
+Build or extend as needed:
+- AuditFilters
+- AuditTable or AuditTimeline
+- AuditEventRow
+- ActivityBadge
+- UserActivityPanel
+- EmptyAuditState
+
+4. Label Mapping
+Map raw backend event codes to readable labels for UI.
+Examples:
+- `identity.user.role_assigned` → `Role assigned`
+- `identity.user.membership_removed` → `Membership removed`
+- `identity.user.login.blocked` → `Login blocked`
+
+You may still show raw event code as secondary text if useful.
+
+5. UX Rules
+- keep audit UI read-only
+- prioritize readability over density
+- show category/status badges clearly
+- show empty states explicitly
+- show correlationId / error messaging on failures where applicable
+
+========================================
+BFF REQUIREMENTS
+========================================
+
+Add/update BFF handlers as needed for:
+- GET /api/identity/admin/audit
+- GET /api/identity/admin/users/[id]/activity
+
+Use `requireAdmin()` and preserve current TenantAdmin / PlatformAdmin access rules.
+
+Do not trust frontend filters for scoping; backend must still enforce tenant boundaries.
+
+========================================
+TENANTADMIN / PLATFORMADMIN BEHAVIOR
+========================================
+
+TenantAdmin:
+- may view audit/activity only for their own tenant
+- may view activity for users in their own tenant
+
+PlatformAdmin:
+- may view broader scope where current architecture supports it
+
+If PlatformAdmin global audit behavior is still tenant-context-limited in practice, document that clearly rather than faking broad visibility.
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation, an admin should be able to:
+
+1. open a global audit page
+2. see recent audit/activity events
+3. filter events meaningfully
+4. open a user detail page and see recent activity for that user
+5. understand event labels without needing raw event codes
+6. remain scoped correctly by tenant/admin role
+
+And the platform should enforce:
+1. TenantAdmin cannot see cross-tenant events
+2. non-admin users cannot access audit pages
+3. raw event data is not exposed in a confusing way without readable labels
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-004-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Backend Audit Query Implementation
+6. Endpoints Implemented / Verified
+7. BFF Routes Implemented / Updated
+8. Global Audit Page Implementation
+9. User Activity Panel Implementation
+10. Event Label / Category Mapping
+11. TenantAdmin / PlatformAdmin Scope Handling
+12. Known Issues / Missing Event Coverage
+13. Manual Test Results
+14. What remains for Phase 2
+15. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- global audit page implemented
+- user activity panel implemented
+- audit query endpoint works
+- user activity endpoint works
+- audit labels are readable
+- filtering works
+- pagination works
+- tenant admin scope enforced
+- platform admin behavior documented
+- non-admin blocked
+- no fake event data introduced
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend the current platform; do not redesign it
+- prefer read/query additions over write-side changes
+- if some event coverage is incomplete, document it honestly
+- keep this feature operational and scoped
+- save the report to /analysis/UIX-004-report.md

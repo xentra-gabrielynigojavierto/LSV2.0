@@ -1,0 +1,21 @@
+# Next.js build output
+.next/
+out/
+
+# Local environment variables
+.env.local
+.env.*.local
+
+# Dependency directories
+node_modules/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# System Health admin store (runtime-managed)
+data/
+

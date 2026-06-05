@@ -1,0 +1,582 @@
+You are building the next UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase continues the Tenant Portal track.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-009 — Tenant Notification Activity + Delivery Visibility
+==================================================
+
+GOAL:
+Give tenant users operational visibility into notification activity and delivery outcomes so they can understand what notifications are being sent, what happened to them, and how template usage and delivery status are trending for their tenant.
+
+This phase adds:
+- tenant notification activity list
+- tenant notification detail view
+- delivery status visibility
+- failure / blocked / suppression visibility
+- basic template usage linkage
+- product-scoped and tenant-safe activity views
+
+This phase is read-heavy.
+
+Do NOT overbuild.
+Do NOT expose Control Center admin capabilities.
+Do NOT build campaign/orchestration flows.
+Do NOT redesign the tenant portal shell.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Completed:
+- NOTIF-008 — backend global templates + branding foundation
+- NOTIF-UI-006 — Tenant Branding Self-Service
+- NOTIF-UI-007 — Tenant Template Visibility (Read-Only)
+- NOTIF-UI-008 — Tenant Template Override
+
+This task adds tenant-facing operational visibility into actual notification activity.
+
+==================================================
+CRITICAL DOMAIN RULES (MANDATORY)
+==================================================
+
+1. All activity must be tenant-scoped
+2. Product context must remain visible and respected wherever applicable
+3. Tenant users must NEVER see another tenant’s notifications
+4. Delivery visibility must reflect backend truth, not guessed UI state
+5. Global vs tenant override template usage should be visible when possible
+6. Read-only in this phase — no resend/retry actions
+
+==================================================
+TENANT PORTAL SCOPE
+==================================================
+
+Audience:
+- tenant admins
+- tenant operations/configuration users
+
+Allowed capabilities:
+- view notification activity
+- inspect delivery outcomes
+- inspect template used
+- inspect blocked / failed reasons
+- inspect whether a template override or global template was used when data allows
+- understand recent activity by product/template/channel
+
+Not allowed:
+- retry sends
+- manual send
+- cross-tenant visibility
+- provider admin/editing
+- billing mutation
+- suppression mutation
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. TENANT NOTIFICATION ACTIVITY ENTRY
+--------------------------------------
+
+Suggested route:
+- /tenant/notifications/activity
+or equivalent tenant portal route pattern already in use
+
+Requirements:
+- route accessible from tenant portal notifications area
+- product filter or product-first segmentation if backend data supports product linkage
+- default to recent activity for the authenticated tenant only
+
+Display at minimum:
+- recent notifications table
+- basic summary cards
+- filters for status/channel/product where practical
+
+Do NOT require tenant users to enter tenantId manually.
+
+==================================================
+2. ACTIVITY LIST VIEW
+==================================================
+
+Build a list/table of notification activity.
+
+Expected backend source:
+- tenant-scoped notifications endpoint(s), for example:
+  - GET /notifications/v1/notifications
+  filtered by tenant context through x-tenant-id
+- adapt to actual available backend routes
+
+Required columns at minimum:
+- created timestamp
+- product type if available
+- channel
+- status
+- recipient
+- template key / template name if available
+- source indicator if available:
+  - global template
+  - tenant override
+- provider used if appropriate
+- failure/block indicator
+
+Required filters where practical:
+- status
+- channel
+- productType
+- template key
+- date range
+- blocked only / failed only
+
+Requirements:
+- read-only
+- server-driven where practical
+- clear empty state
+- clear no-results-for-filter state
+
+==================================================
+3. ACTIVITY DETAIL VIEW
+==================================================
+
+Suggested route:
+- /tenant/notifications/activity/[notificationId]
+
+Display a clear detail view for a single notification.
+
+Required sections at minimum:
+- notification metadata
+- delivery status
+- template used
+- product type if available
+- branding context if available
+- content preview:
+  - subject
+  - rendered html or body
+  - text version
+- timeline/events if backend supports it
+- blocked / failed / suppression details if applicable
+- usage info if easy and appropriate
+
+If backend supports notification events:
+- show chronological timeline
+
+If backend supports issues for a notification:
+- show related issue details
+
+This page should help a tenant answer:
+- what was sent
+- to whom
+- using which template
+- what happened
+- why it failed or was blocked
+
+==================================================
+4. STATUS / DELIVERY VISIBILITY
+==================================================
+
+Display delivery state clearly.
+
+Support statuses as available from backend, such as:
+- accepted
+- processing
+- sent
+- failed
+- blocked
+- delivered if present
+- queued if present
+
+Requirements:
+- clear status badges
+- clear explanation text for failed/blocked states where backend provides reason
+- if suppression caused a block, show that explicitly if data exists
+- do not invent delivery semantics not present in backend
+
+==================================================
+5. TEMPLATE USAGE VISIBILITY
+==================================================
+
+Tenants should be able to see which template drove the notification.
+
+Display where possible:
+- template key
+- template name
+- product type
+- source:
+  - global template
+  - tenant override
+- version identifier if available
+
+If backend does not directly expose source/global-vs-override resolution:
+- display the best available template linkage
+- document limitation clearly in report
+
+This is important because tenants now have template overrides and need to understand what is actually in use.
+
+==================================================
+6. SUMMARY / OVERVIEW WIDGETS
+==================================================
+
+At the top of the activity page, add lightweight summary widgets such as:
+- total recent notifications
+- failed notifications
+- blocked notifications
+- sent notifications
+- channel split if easy
+- recent template usage count if easy
+
+These may be derived from existing list data if no dedicated summary endpoint exists.
+
+Do NOT build heavy analytics dashboards.
+Keep summaries lightweight and tenant-readable.
+
+==================================================
+7. PRODUCT-SCOPED VIEW / FILTERING
+==================================================
+
+Because templates and branding are product-scoped, activity should respect product where data allows.
+
+Requirements:
+- if notification records expose productType, support product filtering directly
+- if productType is not directly available but can be inferred safely from template linkage, you may surface it
+- if neither is reliably available, document the limitation clearly and avoid pretending certainty
+
+Do NOT mislabel activity with guessed product attribution.
+
+==================================================
+8. TIMELINE / EVENT VIEW
+==================================================
+
+If backend supports notification events:
+- show event timeline per notification
+
+Examples:
+- accepted
+- provider dispatched
+- delivered
+- failed
+- blocked
+- suppression applied
+- webhook event received
+
+Requirements:
+- chronological display
+- timestamps
+- readable labels
+- no raw internal jargon unless it helps tenant users understand delivery outcome
+
+If backend route is unavailable:
+- omit gracefully and document limitation
+
+==================================================
+9. FAILURE / BLOCK DETAIL
+==================================================
+
+If a notification failed or was blocked, the detail view must show as much tenant-safe reason data as backend provides, such as:
+- failure category
+- last error
+- blocked reason code
+- suppression reason
+- provider rejection note if present
+
+Requirements:
+- surface clearly
+- do not expose irrelevant internal-only stack traces
+- make the distinction between:
+  - failed delivery
+  - blocked by policy/suppression
+  - pending/in-progress
+
+==================================================
+10. TENANT CONTEXT / AUTH (MANDATORY)
+==================================================
+
+Tenant users must never enter tenantId manually.
+
+Requirements:
+- derive tenant from session (requireOrg or equivalent)
+- inject x-tenant-id automatically
+- all activity views are tenant-scoped
+- if tenant context missing:
+  - safe failure state
+  - no unsafe backend calls
+
+Do NOT reuse Control Center assumptions.
+
+==================================================
+11. TENANT-SAFE API CLIENT / ACTIONS
+==================================================
+
+Reuse or extend the tenant-side notifications API wrapper.
+
+Requirements:
+- Authorization/session preserved
+- x-tenant-id injected from tenant context
+- read-only endpoints for:
+  - notification list
+  - notification detail
+  - notification events
+  - notification issues if available
+
+If server actions are needed for filterable forms or special preview/read actions, keep them tenant-safe and read-only.
+
+==================================================
+12. UI COMPONENTS
+==================================================
+
+Create reusable components where useful, such as:
+- NotificationStatusBadge
+- ActivitySummaryCard
+- ActivityFilterBar
+- NotificationTimeline
+- FailureReasonPanel
+- TemplateUsageIndicator
+- ProductTypeBadge
+- EmptyState
+- NoResultsState
+
+Requirements:
+- loading state
+- error state
+- empty state
+- clear read-only presentation
+
+==================================================
+13. ERROR / EMPTY / UNSUPPORTED STATES
+==================================================
+
+Handle clearly:
+- no activity yet
+- no results for selected filters
+- missing product attribution
+- events route unavailable
+- issue detail unavailable
+- backend errors
+- missing tenant context
+
+Do NOT let unsupported backend capabilities masquerade as empty activity if it would confuse users.
+
+==================================================
+14. WHAT NOT TO BUILD IN NOTIF-UI-009
+==================================================
+
+Do NOT build:
+- resend/retry actions
+- manual send UI
+- provider management
+- billing mutation
+- suppression mutation
+- campaign dashboards
+- advanced charting
+- cross-tenant views
+- Control Center admin features
+
+This phase is strictly tenant notification activity and delivery visibility.
+
+==================================================
+15. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. tenant activity page exists
+2. tenant activity list works
+3. tenant activity detail view works
+4. delivery status is clearly visible
+5. failed/blocked reason visibility is implemented where backend supports it
+6. template usage is visible to tenant users
+7. tenant context is enforced correctly
+8. tenantId is never manually entered
+9. no cross-tenant data is exposed
+10. no edit/retry/send actions are exposed
+11. loading / success / error / empty states are handled
+12. UI compiles/runs cleanly
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-009-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+- What was built
+- Scope completed vs requested scope
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+List all files:
+- New files with purpose
+- Modified files with description of changes
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+Break down all implemented features:
+- activity list
+- activity detail
+- delivery visibility
+- template usage visibility
+- summary widgets
+- filters
+- any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+List all endpoints used, grouped by:
+- activity list
+- detail
+- events
+- issues
+- any summary derivation
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed / unavailable)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+Explain:
+- request flow
+- tenant context flow
+- server/client component split
+- filter flow
+- detail/timeline flow
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+Describe:
+- list fetch failures
+- detail fetch failures
+- missing event/issue support
+- missing product attribution
+- empty states
+- filter no-results states
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT
+--------------------------------------
+- how tenant context is derived
+- how auth is enforced
+- how x-tenant-id is injected
+- behavior when tenant context is missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE
+--------------------------------------
+- cache/revalidation approach
+- performance considerations
+- known inefficiencies
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+List all gaps:
+- backend limitations
+- missing features
+- assumptions made
+- technical debt if any
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+List problems during implementation:
+- route/contract mismatches
+- product attribution constraints
+- timeline/issues availability
+- tenant-context issues
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+Provide exact steps:
+- how to start the system
+- how to access/test the feature
+- any tenant requirements
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+Answer clearly:
+- Is NOTIF-UI-009 complete? (Yes / Mostly / Partial)
+- Do tenants now have delivery visibility? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+List:
+- next tenant portal features to build
+- remaining backend dependencies
+- whether provider visibility or usage/billing visibility should come next
+
+==================================================
+CRITICAL: REPORT GENERATION IS REQUIRED
+==================================================
+
+You MUST generate the report file after completing the implementation.
+
+This is NOT optional.
+
+If the report is not generated, the task is considered incomplete.
+
+File path must be:
+
+/analysis/NOTIF-UI-009-report.md
+
+Do NOT skip sections.
+Do NOT claim features that are not implemented.
+Do NOT hide limitations.
+
+==================================================
+EXECUTION
+==================================================
+
+Build NOTIF-UI-009 now.
+
+STRICTLY preserve:
+- tenant safety
+- read-only delivery visibility
+- backend truth for status/failure/block states
+- no admin/campaign features
+
+Use real backend APIs where available.
+If a backend capability is missing, represent that honestly and implement the cleanest partial flow possible.
+
+Generate the required report at the end.

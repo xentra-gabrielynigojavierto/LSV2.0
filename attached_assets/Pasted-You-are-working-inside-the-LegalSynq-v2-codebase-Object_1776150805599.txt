@@ -1,0 +1,273 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Integrate the Liens service with the v2 Documents service so that a finalized sale generates and attaches a BillOfSale PDF, storing the returned DocumentId on the BillOfSale record.
+
+This feature introduces the first real Liens → Documents integration and must preserve clean service boundaries.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All document storage MUST be handled by the v2 Documents service.
+- Liens must NOT store files
+- Liens must NOT create document tables
+- Liens must ONLY store DocumentId references
+
+CRITICAL IMPLEMENTATION RULES:
+- Do NOT break the existing sale finalization workflow
+- Do NOT duplicate business logic from `LienSaleService`
+- Keep PDF generation isolated and replaceable
+- Keep Documents integration behind an abstraction
+- Do NOT introduce cross-service DB joins
+- Do NOT expose Documents internals to API layer
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING DOCUMENTS INTEGRATION PATTERNS
+--------------------------------------------------
+
+Inspect how other v2 services integrate with Documents.
+
+Look for:
+- document service client interface
+- request/response models
+- authentication/service-to-service pattern
+- how document ownership is defined
+- how document metadata is stored
+- how DocumentId is returned and persisted
+
+Follow the same integration pattern exactly.
+Do NOT invent a new Documents integration approach.
+
+--------------------------------------------------
+STEP 2 — CREATE DOCUMENT INTEGRATION ABSTRACTION
+--------------------------------------------------
+
+Create a Liens-side abstraction for Documents interaction.
+
+Example:
+- `IBillOfSaleDocumentService`
+- `BillOfSaleDocumentService`
+
+Responsibilities:
+- generate PDF content
+- call Documents service
+- return DocumentId
+
+Do NOT:
+- call Documents directly from controllers
+- embed HTTP calls in application services
+- expose Documents DTOs outside infrastructure layer
+
+--------------------------------------------------
+STEP 3 — IMPLEMENT BILL OF SALE PDF GENERATION
+--------------------------------------------------
+
+Create a PDF generation component.
+
+Example:
+- `IBillOfSalePdfGenerator`
+- `BillOfSalePdfGenerator`
+
+Input:
+- BillOfSale entity
+
+Output:
+- PDF byte stream
+
+Include at minimum:
+- BillOfSale number
+- lien reference
+- seller org id
+- buyer org id
+- purchase amount
+- original lien amount
+- discount percent
+- seller contact
+- buyer contact
+- terms
+- notes
+- issued/executed/effective timestamps
+- status
+
+Requirements:
+- keep formatting simple
+- no branding required yet
+- must be deterministic and reproducible
+- must be isolated so it can be swapped later
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT DOCUMENT CREATION VIA DOCUMENTS SERVICE
+--------------------------------------------------
+
+Inside `BillOfSaleDocumentService`:
+
+1. call PDF generator
+2. create document request for Documents service:
+   - file name (e.g., BOS-{number}.pdf)
+   - content type (application/pdf)
+   - file bytes
+   - metadata:
+     - tenantId
+     - entityType = BillOfSale
+     - entityId = BillOfSale.Id
+3. send request using existing Documents client pattern
+4. receive response
+5. extract `DocumentId`
+
+Do NOT:
+- store file locally
+- store file in Liens DB
+- bypass Documents service
+
+--------------------------------------------------
+STEP 5 — INTEGRATE INTO SALE FINALIZATION FLOW
+--------------------------------------------------
+
+Extend the sale finalization workflow carefully.
+
+After:
+- BillOfSale is created
+
+Add:
+- generate PDF
+- store document via Documents service
+- update `BillOfSale.DocumentId`
+
+IMPORTANT:
+Do NOT rewrite `LienSaleService`.
+
+Instead:
+- extend it minimally
+OR
+- introduce a clean post-processing step within the same transaction boundary (if appropriate)
+OR
+- introduce a follow-up step after commit (preferred safer pattern)
+
+--------------------------------------------------
+STEP 6 — DEFINE FAILURE HANDLING STRATEGY
+--------------------------------------------------
+
+You MUST implement and document one of the following:
+
+### Preferred: Post-commit recoverable model
+- sale finalization succeeds
+- BOS is created
+- if document fails:
+  - DocumentId remains null
+  - system logs failure
+  - document can be regenerated later
+
+### Alternative: Hard dependency
+- if document creation fails → entire sale fails
+
+Choose ONE and implement it clearly.
+
+Default recommendation:
+→ use **post-commit recoverable model**
+
+--------------------------------------------------
+STEP 7 — UPDATE BILLOFSALE ENTITY HANDLING
+--------------------------------------------------
+
+Ensure:
+- `DocumentId` is nullable
+- update is persisted correctly after document creation
+- no invalid state corruption occurs
+
+Do NOT:
+- overload BillOfSale with document logic
+- introduce document-specific business rules into domain
+
+--------------------------------------------------
+STEP 8 — DO NOT MODIFY APIs (YET)
+--------------------------------------------------
+
+Do NOT:
+- add document download endpoints
+- modify BillOfSale API responses beyond existing `DocumentId`
+- expose Documents service directly via Liens APIs
+
+This feature is backend integration only.
+
+--------------------------------------------------
+STEP 9 — VALIDATE END-TO-END FLOW
+--------------------------------------------------
+
+Validate:
+
+1. Liens builds successfully
+2. Documents integration compiles
+3. sale finalization still works
+4. BillOfSale is created
+5. PDF is generated
+6. Documents service is called successfully
+7. DocumentId is returned
+8. DocumentId is saved on BillOfSale
+9. no regression to:
+   - Case APIs
+   - Lien APIs
+   - LienOffer APIs
+   - BillOfSale APIs
+   - Sale Finalization API
+
+Test failure scenario:
+- simulate Documents failure
+- confirm BOS still exists (if using recoverable model)
+
+--------------------------------------------------
+STEP 10 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- implement document download endpoints
+- implement document viewer UI
+- implement e-signature workflows
+- integrate notifications
+- integrate audit events
+- generalize document system for all entities
+
+This feature is ONLY:
+- BOS PDF generation
+- Documents integration
+- DocumentId attachment
+
+--------------------------------------------------
+STEP 11 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-07-001-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Documents integration pattern identified and followed
+3. PDF generation approach
+4. Files created/modified
+5. Document service abstraction
+6. How Documents service is called
+7. Where DocumentId is attached
+8. Failure handling strategy chosen
+9. Impact on sale workflow
+10. Validation performed
+11. Confirmation:
+    - no document storage in Liens
+    - no cross-service DB joins
+    - no API exposure added
+12. Build results:
+    - Liens
+    - relevant solution/workspace
+13. Risks / assumptions
+14. Final readiness statement:
+    - Are BOS documents now generated and stored?
+    - Is the system ready for document retrieval APIs next?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Enable the system to generate a BillOfSale PDF and store it via the v2 Documents service, linking it to the BillOfSale via DocumentId, while maintaining strict service boundaries and workflow integrity.
+
+Proceed.

@@ -1,0 +1,253 @@
+TASK-MIG-01 — Governance Settings Migration (Liens → Task)
+
+OBJECTIVE:
+Migrate Liens task governance configuration from `liens_TaskGovernanceSettings` into the Task service (`tasks_GovernanceSettings`) so that Task becomes the single source of truth for governance rules.
+
+This is the FIRST safe migration step in the DB convergence plan.
+
+NON-NEGOTIABLE RULES:
+- ZERO impact to UI behavior
+- ZERO breaking changes to Liens runtime
+- MUST be backward compatible during transition
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- DO NOT delete Liens table in this step
+- DO NOT assume Task schema fully matches — reconcile safely
+- NO placeholders
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-01-report.md
+
+Initialize:
+
+# TASK-MIG-01 Report — Governance Migration
+
+## 1. Codebase Analysis
+## 2. Schema Comparison
+## 3. Migration Mapping Design
+## 4. Task Schema Adjustments
+## 5. Data Migration Execution
+## 6. Dual-Read / Fallback Logic
+## 7. Validation Results
+## 8. Rollback Plan
+## 9. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT IMPLEMENTATION
+--------------------------------------------------
+
+Inspect:
+
+Liens:
+- liens_TaskGovernanceSettings table
+- entity + config
+- where it is read in application code
+
+Task:
+- tasks_GovernanceSettings table
+- entity + config
+- where it is used
+
+Document:
+- fields in both schemas
+- where governance is enforced in code paths
+- any mismatch in semantics
+
+Update:
+## 1. Codebase Analysis
+## 2. Schema Comparison
+
+--------------------------------------------------
+STEP 2 — DESIGN FIELD MAPPING
+--------------------------------------------------
+
+Map Liens → Task fields.
+
+Expected mappings:
+
+Liens → Task:
+- RequireAssigneeOnCreate → RequireAssignee
+- RequireWorkflowStageOnCreate → RequireStage
+- DefaultPriority → DefaultPriority
+
+Identify missing fields:
+- RequireCaseLinkOnCreate
+- AllowMultipleAssignees
+- DefaultStartStageMode
+
+Decision:
+- DO NOT drop them
+- Store as:
+  EITHER new nullable columns
+  OR JSON metadata field (preferred if pattern exists)
+
+Define final mapping clearly.
+
+Update:
+## 3. Migration Mapping Design
+
+--------------------------------------------------
+STEP 3 — ADJUST TASK SCHEMA (IF REQUIRED)
+--------------------------------------------------
+
+If Task schema cannot hold all needed fields:
+
+Add minimal safe extension:
+
+Option A (preferred if flexibility needed):
+- Add `ProductSettingsJson` (TEXT/JSON)
+
+Option B:
+- Add nullable columns for missing fields
+
+Rules:
+- MUST be backward compatible
+- MUST NOT break existing queries
+- MUST follow existing migration patterns
+
+Create migration:
+- name: `AddGovernanceExtensionsForLiens`
+
+Apply migration.
+
+Update:
+## 4. Task Schema Adjustments
+
+--------------------------------------------------
+STEP 4 — DATA MIGRATION
+--------------------------------------------------
+
+Implement migration script or service:
+
+For each row in:
+- liens_TaskGovernanceSettings
+
+Create/update row in:
+- tasks_GovernanceSettings
+
+Mapping:
+- TenantId preserved
+- SourceProductCode = "SYNQ_LIENS"
+
+Ensure:
+- idempotent (safe to run multiple times)
+- upsert logic (no duplicates)
+- logs:
+  - created
+  - updated
+  - skipped
+
+DO NOT delete Liens data.
+
+Update:
+## 5. Data Migration Execution
+
+--------------------------------------------------
+STEP 5 — DUAL-READ IMPLEMENTATION
+--------------------------------------------------
+
+Modify Liens runtime:
+
+When reading governance:
+
+1. Try Task service:
+   GET /api/tasks/governance?product=SYNQ_LIENS
+
+2. If NOT FOUND:
+   fallback to Liens DB
+
+Rules:
+- Task = primary
+- Liens = fallback
+
+Add logging:
+- whether read came from Task or Liens
+
+DO NOT remove Liens read yet.
+
+Update:
+## 6. Dual-Read / Fallback Logic
+
+--------------------------------------------------
+STEP 6 — VALIDATION
+--------------------------------------------------
+
+Test:
+
+1. Existing behavior unchanged in UI
+2. Task service returns governance correctly
+3. Liens fallback works when Task data missing
+4. Migration is idempotent (run twice → no duplicates)
+5. Mixed state works (some tenants migrated, some not)
+6. No runtime errors in governance enforcement
+
+Verify:
+- sample tenants
+- edge cases (missing config)
+
+Update:
+## 7. Validation Results
+
+--------------------------------------------------
+STEP 7 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback:
+
+If issues:
+- switch reads back to Liens only
+- keep Task data untouched
+- disable migration job
+
+Ensure:
+- no data loss
+- no schema rollback required
+
+Update:
+## 8. Rollback Plan
+
+--------------------------------------------------
+STEP 8 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+
+- fields not perfectly mapped
+- any temporary duplication
+- performance considerations
+- future cleanup required (TASK-MIG-02+)
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-01 is complete only if:
+
+1. Governance exists in Task service
+2. Liens can read from Task successfully
+3. Fallback to Liens still works
+4. No UI or behavior regression
+5. Migration is idempotent
+6. Safe to proceed to next migration (Templates)
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT delete liens_TaskGovernanceSettings
+- Do NOT remove fallback logic
+- Do NOT migrate other tables
+- Do NOT change UI behavior
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

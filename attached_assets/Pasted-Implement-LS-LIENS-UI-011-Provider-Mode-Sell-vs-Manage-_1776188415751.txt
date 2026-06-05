@@ -1,0 +1,101 @@
+Implement LS-LIENS-UI-011 — Provider Mode (Sell vs Manage Internally).
+
+Goal:
+Enable dynamic product behavior based on provider mode (Sell vs Manage Internally).
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. FIRST:
+Create:
+/analysis/LS-LIENS-UI-011-report.md
+
+2. Initialize with:
+- Feature ID
+- Objective
+- Mode assumptions
+- Expected API/config source
+
+3. DURING work:
+Update report AFTER EACH STEP:
+- step id
+- changes
+- files modified
+- issues + fixes
+
+4. FINAL:
+Convert report into structured summary
+
+--------------------------------------------------
+ARCHITECTURE RULES
+--------------------------------------------------
+
+- Follow same pattern:
+  API → Service → Mapper → UI
+
+- No hardcoded mode flags
+- No mock logic
+- Preserve UI structure
+- Centralize mode logic
+
+--------------------------------------------------
+TASKS
+--------------------------------------------------
+
+T001 — Mode Source Analysis
+- Identify where provider mode comes from
+- Log in report
+
+T002 — Create Mode Types
+Create:
+- provider-mode.types.ts
+
+T003 — Create Mode Service
+Create:
+- provider-mode.service.ts
+
+Expose:
+- getMode()
+- isSellMode()
+- isManageMode()
+
+T004 — Integrate Mode Context
+- Make mode globally accessible
+
+T005 — Navigation Updates
+- Hide marketplace features in Manage Mode
+
+T006 — Lien Detail Updates
+- Remove offers/BOS in Manage Mode
+
+T007 — Lien Creation Flow
+- Adjust behavior per mode
+
+T008 — Disable BOS & Settlement in Manage Mode
+
+T009 — Activity Feed Adaptation
+- Filter irrelevant events
+
+T010 — Notification Adaptation
+- Filter irrelevant categories
+
+T011 — UI Indicators
+- Show current mode
+
+T012 — Remove Unsupported Actions
+- Disable sell-related actions in Manage Mode
+
+T013 — Final Validation
+- Verify both modes
+- finalize report
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Mode determines UI behavior
+- Sell Mode unchanged
+- Manage Mode correctly restricted
+- No broken navigation
+- Report complete

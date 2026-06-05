@@ -1,0 +1,522 @@
+TASK-B02 — Task Execution Engine
+(Contains TASK-004, TASK-005, TASK-006)
+
+OBJECTIVE:
+Expand the standalone Task service into a reusable work-management execution engine by adding assignment behavior, lifecycle/stage governance, templates, reminders, and Notification integration. This must remain platform-grade, product-agnostic, and reusable across LegalSynq products.
+
+NON-NEGOTIABLE RULES:
+- Service name: task
+- Database: tasks_db
+- MUST remain standalone and reusable
+- MUST NOT introduce Liens-specific assumptions
+- MUST preserve all existing TASK-B01 behavior
+- MUST support both:
+  - product-scoped tasks
+  - general cross-product task list
+- MUST create report FIRST and update incrementally
+- MUST validate against current codebase before implementing
+- MUST use existing v2 shared patterns/services where applicable
+- NO placeholders or fake implementations
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-B02-report.md
+
+Initialize with:
+
+# TASK-B02 Report — Task Execution Engine
+
+## 1. Codebase Analysis
+## 2. Existing Task Service Baseline Review
+## 3. Assignment Engine
+## 4. Stage / Status / Governance Engine
+## 5. Templates
+## 6. Reminders
+## 7. Notification Integration
+## 8. API Changes
+## 9. Database / Migration Changes
+## 10. Validation Results
+## 11. Known Gaps / Risks
+
+Update this report AFTER EVERY MAJOR STEP with:
+- what was analyzed
+- what changed
+- files added/updated
+- validation results
+- issues encountered
+- final outcome of the step
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT CODEBASE AND TASK BASELINE
+--------------------------------------------------
+
+Before changing anything:
+
+1. Analyze the current Task service built in TASK-B01.
+2. Identify:
+   - current entities and DTOs
+   - current APIs and routes
+   - current DB schema
+   - current auth/request-context pattern
+   - current logging / exception handling pattern
+3. Analyze other platform services for reusable patterns relevant to:
+   - assignment / ownership tracking
+   - settings / governance storage
+   - templates
+   - Notification client/service integration
+4. Confirm how Notification service is currently consumed elsewhere in the codebase.
+5. Confirm whether there is an existing enum / pattern for due dates, reminders, scheduling, or template activation.
+
+Document findings under:
+## 1. Codebase Analysis
+## 2. Existing Task Service Baseline Review
+
+IMPORTANT:
+Do not assume any prior implementation detail without checking the codebase first.
+
+--------------------------------------------------
+STEP 2 — ASSIGNMENT ENGINE (TASK-004)
+--------------------------------------------------
+
+Enhance Task so assignment becomes a first-class reusable capability.
+
+Required behavior:
+- assign task to a user
+- reassign task to another user
+- unassign task when allowed
+- capture actor performing the assignment change
+- write task history entries for assignment changes
+- preserve tenant isolation
+- do not hard-code any product-specific permission assumptions
+
+Add / refine domain behavior:
+- assignment should be explicit, not incidental during generic update
+- support assigned_user_id as nullable unless governance rules require assignment
+- track updated_by_user_id and updated_at on assignment changes
+- history actions should clearly distinguish:
+  - ASSIGNED
+  - REASSIGNED
+  - UNASSIGNED
+
+API requirements:
+- keep existing assignment endpoint if already present, but improve it to support explicit assignment workflow
+- if needed, add or refine request/response DTOs for assignment operations
+
+Validation rules:
+- assigned user id must be a valid user identifier format
+- assignment must stay within tenant context
+- no-op assignment updates should not create duplicate history if nothing changed
+
+Update report:
+## 3. Assignment Engine
+## 8. API Changes
+
+--------------------------------------------------
+STEP 3 — TASK STAGE / STATUS / GOVERNANCE ENGINE (TASK-005)
+--------------------------------------------------
+
+Add reusable execution-stage support and governance rules.
+
+IMPORTANT DOMAIN RULE:
+- Task stages are execution stages owned by Task
+- They are NOT Flow workflow steps
+- Do NOT merge or redesign Flow concepts here
+
+A. Status model
+Retain and harden lifecycle behavior:
+- OPEN
+- IN_PROGRESS
+- COMPLETED
+- CANCELLED
+
+Validate allowed transitions.
+Preserve terminal-state protections.
+
+B. Task stage model
+Introduce a generic stage concept for task execution.
+
+Create a new entity/table for task stages configuration, using platform-safe naming.
+Recommended shape:
+- id
+- tenant_id
+- source_product_code (nullable for global/default stages)
+- code
+- name
+- display_order
+- is_active
+- created_at
+- updated_at
+
+Stage behavior:
+- support generic/default stages for all products
+- optionally support product-specific stage configuration
+- a task may reference a current stage
+- current stage must be valid for the tenant and, when relevant, the product context
+- product tasks can use product-specific or default stages
+- general tasks can use only general/default stage sets unless your codebase supports a better generic model
+
+Add a stage reference to tasks if needed:
+- current_stage_id (nullable initially if existing tasks do not yet use stages)
+
+C. Governance settings
+Introduce generic governance settings that control task behavior per tenant and optionally per product.
+
+Create a reusable settings entity/table for rules such as:
+- require_assignee
+- require_due_date
+- require_stage
+- allow_unassign
+- allow_cancel
+- allow_complete_without_stage
+- allow_notes_on_closed_tasks
+- default_priority
+- default_task_scope
+
+Rules:
+- support tenant-wide defaults
+- support optional product-level overrides
+- product overrides should not require Liens assumptions
+- do not implement a massive rules engine; keep it simple, explicit, and code-driven
+
+Enforcement:
+- enforce governance during create/update/assign/status-change operations
+- use a deterministic resolution order:
+  1. product-level settings if matching source_product_code exists
+  2. tenant-level default settings
+  3. hard-coded fallback defaults only if nothing configured
+
+APIs:
+Add CRUD or at minimum admin-manageable endpoints for:
+- stage config
+- governance settings
+
+You may use minimal APIs consistent with current platform patterns.
+
+Update report:
+## 4. Stage / Status / Governance Engine
+## 8. API Changes
+## 9. Database / Migration Changes
+
+--------------------------------------------------
+STEP 4 — TEMPLATE ENGINE (TASK-006 PART 1)
+--------------------------------------------------
+
+Add reusable task templates.
+
+Templates must be generic and platform-agnostic.
+
+Create a task template entity/table with fields similar to:
+- id
+- tenant_id
+- source_product_code (nullable for global template)
+- code
+- name
+- description
+- default_title
+- default_description
+- default_priority
+- default_scope
+- default_due_in_days (nullable)
+- default_stage_id (nullable)
+- is_active
+- created_at
+- updated_at
+
+Behavior:
+- support tenant-wide reusable templates
+- support product-specific templates
+- allow creating tasks from templates
+- task creation from template should still enforce governance rules
+- template use should write history on the created task
+- template defaults must not override explicitly passed create values unless intended by design and documented in code
+
+APIs:
+- create template
+- list templates
+- get template
+- update template
+- activate/deactivate template
+- create task from template
+
+Ensure template APIs follow the existing auth and tenant context patterns.
+
+Update report:
+## 5. Templates
+## 8. API Changes
+## 9. Database / Migration Changes
+
+--------------------------------------------------
+STEP 5 — REMINDER ENGINE (TASK-006 PART 2)
+--------------------------------------------------
+
+Add reminder support to Task without introducing a full scheduling platform rewrite.
+
+Scope for this block:
+- store reminder configuration
+- support reminder eligibility evaluation
+- support reminder dispatch trigger through application logic
+- no need to build a heavyweight distributed scheduler if the platform does not already have one
+
+Create a reminder entity/table, for example:
+- id
+- task_id
+- tenant_id
+- reminder_type
+- remind_at
+- status
+- last_attempt_at
+- sent_at
+- failure_reason
+- created_at
+- updated_at
+
+Recommended enums:
+ReminderType:
+- DUE_SOON
+- OVERDUE
+- CUSTOM
+
+ReminderStatus:
+- PENDING
+- SENT
+- FAILED
+- CANCELLED
+
+Behavior:
+- reminders should be created/updated when due dates are added or changed
+- closed/cancelled/completed tasks should not continue generating active reminders
+- if due date removed, pending reminders should be cancelled or invalidated
+- reminders must remain tenant-safe
+- support at least one concrete system behavior:
+  - create due-soon reminder before due date
+  - create overdue reminder at/after due date
+
+Implementation guidance:
+- if a background worker pattern already exists in codebase, follow it
+- if not, implement the minimum safe reminder processing pathway and document the operational trigger clearly
+- do not invent a complex scheduler if the platform does not have one yet
+
+APIs:
+- optional admin/debug endpoint to evaluate or trigger pending reminders for validation
+- do not expose unsafe public endpoints
+
+Update report:
+## 6. Reminders
+## 8. API Changes
+## 9. Database / Migration Changes
+
+--------------------------------------------------
+STEP 6 — NOTIFICATION INTEGRATION (TASK-006 PART 3)
+--------------------------------------------------
+
+Integrate Task reminder / assignment events with the Notification service using existing platform conventions.
+
+Requirements:
+- do not hard-code email-only logic
+- use Notification service as the integration boundary
+- emit/trigger notifications for at minimum:
+  1. task assigned
+  2. task reassigned
+  3. task due soon reminder
+  4. task overdue reminder
+
+Analyze current Notification service integration patterns first, then implement accordingly.
+
+If a synchronous service client pattern is already used:
+- reuse it
+
+If an event/outbox pattern exists and is the correct pattern:
+- reuse it
+
+Do not create a one-off integration style unless absolutely necessary.
+
+Payload should contain enough context for Notification to template later, such as:
+- tenantId
+- userId / recipient context
+- taskId
+- task title
+- sourceProductCode
+- dueAt
+- action type
+
+Add resilience:
+- notification failures should not corrupt task state
+- failures should be logged
+- reminder records should reflect send outcome where applicable
+
+Update report:
+## 7. Notification Integration
+## 10. Validation Results
+## 11. Known Gaps / Risks
+
+--------------------------------------------------
+STEP 7 — API AND DTO HARDENING
+--------------------------------------------------
+
+Review and finalize the Task API surface after the new capabilities are added.
+
+Ensure the API set now covers, as appropriate:
+
+Task runtime:
+- create task
+- get task
+- list/search tasks
+- update task
+- assign / reassign / unassign
+- transition status
+- list task history
+- add/list notes
+
+Task configuration:
+- create/list/update stages
+- create/list/update governance settings
+- create/list/update templates
+- create task from template
+
+Reminder/ops support:
+- internal or admin-safe trigger / evaluation endpoint if needed
+
+Requirements:
+- maintain route consistency
+- maintain JWT authorization pattern
+- maintain tenant isolation
+- update OpenAPI/endpoint organization if your service pattern supports it
+- do not break existing TASK-B01 behavior
+
+Update report:
+## 8. API Changes
+
+--------------------------------------------------
+STEP 8 — DATABASE MIGRATIONS
+--------------------------------------------------
+
+Create and apply all required migrations for:
+- task stage configuration
+- governance settings
+- template storage
+- reminder storage
+- any task table changes such as current_stage_id
+
+Follow the same migration pattern already used in the platform.
+
+Document:
+- migration names
+- tables created/updated
+- indexes added
+- any backfill/defaulting logic for existing tasks
+
+Update report:
+## 9. Database / Migration Changes
+
+--------------------------------------------------
+STEP 9 — VALIDATION
+--------------------------------------------------
+
+Execute validation against the implemented Task service.
+
+At minimum validate:
+
+Assignment / ownership
+1. assign unassigned task
+2. reassign assigned task
+3. unassign task when governance allows it
+4. confirm history entries are written correctly
+
+Governance / stage
+5. create tenant-level governance settings
+6. create product-level governance override
+7. enforce require_assignee on create/update
+8. enforce require_stage when configured
+9. validate stage selection rules for GENERAL vs PRODUCT tasks
+
+Templates
+10. create template
+11. create task from template
+12. confirm template-derived defaults are applied correctly
+
+Reminders / notifications
+13. create task with due date and confirm reminder record creation
+14. trigger reminder evaluation/dispatch path
+15. confirm Notification integration invoked
+16. confirm notification failure does not break task update flow
+
+Compatibility / regression
+17. existing TASK-B01 endpoints still function
+18. GET /api/tasks/my still returns cross-product tasks correctly
+19. product filtering still works
+20. tenant isolation still holds
+
+Document exact results with evidence under:
+## 10. Validation Results
+
+IMPORTANT:
+Do not mark validation complete unless you actually run the checks you reasonably can in the current codebase/environment.
+
+--------------------------------------------------
+STEP 10 — DOCUMENT KNOWN GAPS / RISKS
+--------------------------------------------------
+
+Document what remains intentionally deferred, such as:
+- Flow linkage / WorkflowInstanceId / WorkflowStepKey
+- cross-product permissions model
+- bulk operations
+- SLA engine / timer escalation sophistication
+- broader monitoring integration
+- Liens cutover
+
+Also document any implementation constraints encountered.
+
+Update report:
+## 11. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-B02 is successful only if:
+
+1. Task remains a standalone platform service
+2. Assignment is a first-class supported capability
+3. Generic task stages exist and are configurable
+4. Governance settings exist and are enforced
+5. Templates exist and can create tasks
+6. Reminder support exists with usable processing behavior
+7. Notification integration is connected using current platform conventions
+8. Existing TASK-B01 behavior still works
+9. Product-scoped and cross-product task views both remain supported
+10. No Liens-specific runtime assumptions are introduced
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- apps/services/task/Task.Domain
+- apps/services/task/Task.Application
+- apps/services/task/Task.Infrastructure
+- apps/services/task/Task.Api
+- solution/project wiring if needed
+- gateway/config only if required for new safe routes
+- tests if current codebase has an established test pattern
+
+--------------------------------------------------
+DO NOT DO IN THIS BLOCK
+--------------------------------------------------
+
+Do NOT implement:
+- Flow event consumption
+- WorkflowInstanceId / WorkflowStepKey integration
+- external consumer-specific adapters for Liens
+- data migration from Liens
+- Liens runtime removal
+- broad UI redesign
+- large permission-system redesign
+
+Those belong to later Task blocks.
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

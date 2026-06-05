@@ -1,0 +1,599 @@
+You are implementing LS-COMMS-01-BLK-001 — Core Domain Foundation for SynqComm as an INDEPENDENT SERVICE with its OWN PHYSICALLY SEPARATE DATABASE.
+
+OBJECTIVE:
+Build SynqComm as a standalone shared platform service under /apps/services, implementing the core domain foundation for conversations, messages, participants, statuses, and context linking. This block must establish a clean service boundary, independent persistence, minimal working APIs, and tests.
+
+ARCHITECTURE REQUIREMENTS:
+- SynqComm MUST be implemented as a separate service under /apps/services
+- SynqComm MUST have its own physically separate database
+- SynqComm MUST have its own DB connection configuration and migrations
+- SynqComm MUST NOT piggyback on another service database
+- SynqComm MUST NOT rely on cross-database joins for core logic
+- SynqComm MUST reference external records by ID only (tenantId, organizationId, userId, contextId, documentId, etc.)
+- SynqComm MUST follow the existing monorepo and service conventions already used in the codebase
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-01-BLK-001-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-01-BLK-001-report.md
+
+Initialize it with:
+
+# LS-COMMS-01-BLK-001 — Core Domain Foundation Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Implement SynqComm as an independent shared service with its own physically separate database and core domain foundation including conversations, messages, participants, statuses, and context linking.
+
+## Architecture Requirements
+- Independent service under /apps/services
+- Separate physical database owned by SynqComm
+- Separate DB connection/configuration
+- Separate migrations
+- No piggybacking on another service database
+- No cross-database joins for core logic
+
+## Steps Completed
+- [ ] Step 1: Codebase scan and architecture alignment
+- [ ] Step 2: Service scaffolding under /apps/services
+- [ ] Step 3: Separate database configuration and migration setup
+- [ ] Step 4: Domain model and entity creation
+- [ ] Step 5: Persistence/repository integration
+- [ ] Step 6: Service layer implementation
+- [ ] Step 7: API/controller implementation
+- [ ] Step 8: Auth and tenant alignment
+- [ ] Step 9: Testing
+- [ ] Step 10: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — SCAN THE CODEBASE AND ALIGN TO EXISTING ARCHITECTURE
+--------------------------------------------------
+
+Inspect the repository and identify:
+
+- monorepo structure
+- how existing services under /apps/services are structured
+- application bootstrap pattern
+- framework used (likely NestJS or similar)
+- ORM/data access approach
+- environment/config pattern
+- migration pattern
+- auth/tenant pattern
+- controller/service/module conventions
+- shared libraries under /libs or equivalent
+- API route naming conventions
+- audit integration patterns if visible
+
+Follow the SAME conventions as the existing services wherever possible.
+
+Update the report with:
+- architecture findings
+- which existing service patterns are being followed
+- what assumptions were required
+- exact SynqComm service path selected
+- exact separate database/config strategy selected
+
+--------------------------------------------------
+STEP 3 — CREATE SYNQCOMM AS A NEW INDEPENDENT SERVICE
+--------------------------------------------------
+
+Create a new standalone service under:
+
+/apps/services/synqcomm-service/
+
+Use the same service structure style as the other services in the monorepo.
+
+Expected structure should be similar to:
+
+/apps/services/synqcomm-service/
+  src/
+    main.ts
+    app.module.ts
+    modules/
+      synqcomm/
+        controllers/
+        services/
+        dto/
+        entities/
+        enums/
+        repositories/   (if the codebase uses repositories)
+  test/                (if consistent with existing services)
+  migrations/          (or the project-standard location)
+  package.json         (if service-local package file pattern exists)
+  tsconfig files       (if required by repo convention)
+  env/config files     (following repo pattern)
+
+Service must boot independently.
+
+--------------------------------------------------
+STEP 4 — CONFIGURE A PHYSICALLY SEPARATE DATABASE FOR SYNQCOMM
+--------------------------------------------------
+
+SynqComm must use its own physically separate database.
+
+Implement:
+- separate DB connection name/config for SynqComm
+- separate environment variables for SynqComm DB
+- separate migration configuration
+- separate migration history tracking
+- separate entity registration for SynqComm only
+
+Requirements:
+- do not reuse another service’s database as SynqComm storage
+- do not add SynqComm tables into another service database
+- do not depend on cross-database joins
+- use foreign reference IDs only for external domain linkage
+
+Expected environment/config pattern should include dedicated variables similar to:
+- SYNQCOMM_DB_HOST
+- SYNQCOMM_DB_PORT
+- SYNQCOMM_DB_NAME
+- SYNQCOMM_DB_USER
+- SYNQCOMM_DB_PASSWORD
+
+Only use the naming style that fits the existing repo conventions.
+
+Update the report with:
+- how the separate DB was configured
+- which files were added or changed
+- how migrations are scoped to SynqComm only
+
+--------------------------------------------------
+STEP 5 — IMPLEMENT CORE DOMAIN MODELS
+--------------------------------------------------
+
+Create persistent SynqComm entities/models.
+
+A. Conversation entity
+
+Minimum fields:
+- id
+- tenantId
+- organizationId (if architecture supports it)
+- productKey
+- contextType
+- contextId
+- subject
+- status
+- visibilityType
+- lastActivityAt
+- createdAt
+- updatedAt
+- createdBy
+- updatedBy
+
+Status enum:
+- NEW
+- OPEN
+- PENDING_INTERNAL
+- PENDING_EXTERNAL
+- RESOLVED
+- CLOSED
+- ARCHIVED
+
+Visibility enum:
+- INTERNAL_ONLY
+- SHARED_EXTERNAL
+
+B. Message entity
+
+Minimum fields:
+- id
+- conversationId
+- tenantId
+- organizationId (if supported)
+- channel
+- direction
+- body
+- bodyPlainText (if consistent with current architecture)
+- visibilityType
+- sentAt
+- createdAt
+- createdBy
+- senderUserId (nullable)
+- senderParticipantType
+- externalSenderName (nullable)
+- externalSenderEmail (nullable)
+- status
+
+Channel enum for this block:
+- IN_APP
+- SYSTEM_NOTE
+
+Direction enum:
+- INBOUND
+- OUTBOUND
+- INTERNAL
+
+Message status enum:
+- CREATED
+- POSTED
+
+C. Conversation Participant entity
+
+Minimum fields:
+- id
+- conversationId
+- tenantId
+- organizationId (if supported)
+- participantType
+- userId (nullable)
+- externalName (nullable)
+- externalEmail (nullable)
+- role
+- canReply
+- isActive
+- joinedAt
+- createdAt
+- createdBy
+
+Participant types:
+- INTERNAL_USER
+- EXTERNAL_CONTACT
+- SYSTEM
+
+Roles:
+- OWNER
+- PARTICIPANT
+- OBSERVER
+
+D. Context linking
+
+Conversation must support record linkage using:
+- productKey
+- contextType
+- contextId
+
+Supported context types should at least allow:
+- CASE
+- LIEN
+- REFERRAL
+- FUNDING_REQUEST
+- BILL
+- PAYOUT
+- GENERAL
+
+If the existing architecture strongly prefers a separate context-link table, use that pattern. Otherwise keep context linkage directly on the conversation for this block.
+
+--------------------------------------------------
+STEP 6 — IMPLEMENT DTOs AND VALIDATION
+--------------------------------------------------
+
+Create DTOs aligned to the project conventions.
+
+1. CreateConversationDto
+Fields:
+- productKey
+- contextType
+- contextId
+- subject
+- visibilityType
+- optional initial participants if cleanly supported
+
+2. AddMessageDto
+Fields:
+- body
+- channel
+- direction
+- visibilityType
+
+For this block:
+- only allow IN_APP and SYSTEM_NOTE channels
+
+3. AddParticipantDto
+Fields:
+- participantType
+- userId or external contact fields
+- role
+- canReply
+
+4. UpdateConversationStatusDto
+Fields:
+- status
+
+Validation requirements:
+- required fields enforced
+- invalid enum values rejected
+- internal user vs external contact requirements validated
+- invalid visibility/channel combinations rejected
+- SYSTEM_NOTE should not be exposed as SHARED_EXTERNAL
+- document clearly in report if any validation is deferred
+
+--------------------------------------------------
+STEP 7 — IMPLEMENT REAL SERVICE LAYER LOGIC
+--------------------------------------------------
+
+Implement actual service logic, not placeholders.
+
+ConversationsService:
+- createConversation(...)
+- getConversationById(...)
+- listConversationsByContext(...)
+- updateConversationStatus(...)
+
+Required behavior:
+- persist context fields
+- set initial status
+- set lastActivityAt on create
+- enforce tenant-aware retrieval if the architecture supports it
+
+MessagesService:
+- addMessage(...)
+- listMessagesByConversation(...)
+
+Required behavior:
+- ensure conversation exists
+- validate visibility/channel compatibility
+- update conversation.lastActivityAt when a message is added
+- persist sender metadata based on authenticated user/context if available
+
+ParticipantsService:
+- addParticipant(...)
+- listParticipants(...)
+- optional deactivateParticipant(...) only if it is simple and consistent
+
+Required behavior:
+- prevent duplicate active participant entries when reasonable
+- validate internal vs external participant payload rules
+- align tenant/org scoping to current platform pattern
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT MINIMAL WORKING APIs
+--------------------------------------------------
+
+Create minimal REST APIs using the existing service conventions.
+
+Recommended endpoints:
+
+Conversations:
+- POST /api/comms/conversations
+- GET /api/comms/conversations/:id
+- GET /api/comms/conversations/context/:contextType/:contextId
+- PATCH /api/comms/conversations/:id/status
+
+Messages:
+- POST /api/comms/conversations/:id/messages
+- GET /api/comms/conversations/:id/messages
+
+Participants:
+- POST /api/comms/conversations/:id/participants
+- GET /api/comms/conversations/:id/participants
+
+If the repo uses a different route prefix pattern, align to that pattern.
+
+No UI is required in this block.
+
+--------------------------------------------------
+STEP 9 — AUTH, TENANT, AND SERVICE-BOUNDARY ALIGNMENT
+--------------------------------------------------
+
+Align the service with the current auth and multi-tenant model.
+
+Requirements:
+- derive tenant/user context from existing auth guards/middleware when available
+- do NOT trust client-supplied tenantId if the platform normally derives it from auth context
+- apply organization scoping if that exists in the current platform
+- prevent cross-tenant access
+- store only external reference IDs for outside domains
+- do not perform cross-database joins to resolve user/case/lien/referral details
+- if external validation is required, use existing service/client patterns or document the gap
+
+If auth cannot be fully wired cleanly in this block, implement the integration seam and document exactly what remains.
+
+--------------------------------------------------
+STEP 10 — AUDIT ALIGNMENT
+--------------------------------------------------
+
+If there is an existing reusable audit pattern, hook into it for:
+- conversation created
+- participant added
+- message added
+- conversation status changed
+
+Do not create a fake standalone audit framework.
+If full audit integration is not feasible in this block, add a clean integration point and document the remaining work honestly.
+
+--------------------------------------------------
+STEP 11 — CREATE SYNQCOMM-OWNED MIGRATIONS
+--------------------------------------------------
+
+Create migrations for the SynqComm database only.
+
+Requirements:
+- create SynqComm-owned tables only
+- do not modify another service database schema
+- add indexes for likely access paths, especially:
+  - tenantId
+  - conversationId
+  - contextType + contextId
+  - lastActivityAt
+  - createdAt
+- add appropriate foreign keys within SynqComm-owned tables only
+
+Expected tables at minimum:
+- conversations
+- messages
+- conversation_participants
+
+Document the exact migration files created and what they do.
+
+--------------------------------------------------
+STEP 12 — TESTING
+--------------------------------------------------
+
+Add tests using the project’s existing test style.
+
+Minimum required coverage:
+
+Test 1 — Create Conversation
+Verify:
+- conversation persists
+- context fields are stored
+- initial status is correct
+
+Test 2 — Add Participant
+Verify:
+- participant is added
+- invalid participant payloads are rejected
+
+Test 3 — Add Message
+Verify:
+- message persists
+- conversation lastActivityAt updates
+
+Test 4 — List by Context
+Verify:
+- conversations can be retrieved by contextType/contextId
+
+Test 5 — Update Status
+Verify:
+- status changes persist
+- invalid status values are rejected
+
+Test 6 — Separate DB Configuration
+Verify:
+- SynqComm uses its own DB configuration/migration setup
+- no dependency on another service DB schema was introduced
+
+If full integration testing is impractical, add service-level tests and document why.
+
+Record:
+- exact commands run
+- exact results
+- honest failures or gaps
+
+--------------------------------------------------
+STEP 13 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, review and confirm:
+
+- SynqComm is implemented under /apps/services as an independent service
+- SynqComm uses its own physically separate database configuration
+- SynqComm has its own migrations
+- no piggybacking on another service DB exists
+- no cross-database joins are used for core logic
+- no email functionality was added yet
+- no notifications functionality was added yet
+- no documents integration was added yet
+- no UI was added
+- code compiles
+- service boots
+- routes compile
+- tests run
+- report is complete and honest
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how the implementation follows the existing monorepo/service conventions.
+
+## Database Architecture
+Explain exactly how SynqComm was given its own physically separate database boundary.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## Database Changes
+List migrations, entities, config, and connection changes.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-01-BLK-002 — In-App Conversation Operations
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+
+- MUST be an independent service under /apps/services
+- MUST have its own physically separate database
+- MUST have separate migrations and config
+- MUST follow existing monorepo/service conventions
+- MUST use real persistence
+- MUST be modular and extensible
+- NO email functionality yet
+- NO outbound email yet
+- NO notifications yet
+- NO documents integration yet
+- NO UI
+- NO fake persistence
+- NO cross-service direct table writes
+- NO cross-database joins for core logic
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, the codebase should support:
+
+- independently running synqcomm-service
+- SynqComm-owned database connection and migrations
+- creating a conversation
+- linking it to product/business context
+- adding participants
+- adding messages
+- listing messages
+- listing conversations by context
+- updating conversation status
+- tenant-aware enforcement where architecture supports it
+- tests proving the core foundation works
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-01-BLK-001-report.md

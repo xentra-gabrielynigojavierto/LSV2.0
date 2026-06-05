@@ -1,0 +1,217 @@
+You are implementing BLK-ID-02 — Identity Membership API (Formalization) for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-ID-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block REFACTORS Identity into a clean membership service.
+
+5. You MUST include:
+   - GitHub commit IDs
+   - changed file list
+   - methods/endpoints implemented
+
+6. DO NOT:
+   - reintroduce tenant creation
+   - modify authentication logic
+   - modify JWT issuance
+   - modify login endpoints
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Formalize Identity as a membership + access control service.
+
+After this block:
+
+- Identity exposes explicit APIs for:
+  - assigning user to tenant
+  - assigning roles
+- tenant-provisioning endpoint becomes a thin orchestrator
+
+--------------------------------------------------
+
+PART A — ASSIGN TENANT API
+
+--------------------------------------------------
+
+Implement:
+
+POST /api/internal/users/assign-tenant
+
+Request:
+{
+  "userId": "guid",
+  "tenantId": "guid",
+  "roles": ["TenantAdmin"]
+}
+
+Behavior:
+- validate user exists
+- validate tenantId not empty
+- update User.TenantId
+- assign roles
+- ensure idempotency
+
+--------------------------------------------------
+
+PART B — ROLE ASSIGNMENT API
+
+--------------------------------------------------
+
+Implement or formalize:
+
+POST /api/internal/users/assign-roles
+
+Request:
+{
+  "userId": "guid",
+  "roles": ["TenantAdmin"]
+}
+
+Behavior:
+- assign roles
+- prevent duplicates
+- idempotent
+
+--------------------------------------------------
+
+PART C — REFACTOR PROVISIONING FLOW
+
+--------------------------------------------------
+
+Refactor:
+
+POST /api/internal/tenant-provisioning/provision
+
+New behavior:
+
+- create user (if needed)
+- call AssignTenant API
+- call AssignRoles API
+
+Rules:
+- no direct DB writes for tenant assignment
+- no direct role assignment logic
+- use APIs internally
+
+--------------------------------------------------
+
+PART D — SINGLE RESPONSIBILITY ENFORCEMENT
+
+--------------------------------------------------
+
+Ensure:
+
+- tenant assignment ONLY via AssignTenant API
+- role assignment ONLY via AssignRoles API
+- provisioning endpoint is orchestrator only
+
+--------------------------------------------------
+
+PART E — SAFEGUARDS
+
+--------------------------------------------------
+
+Add validation:
+
+- user must exist
+- tenantId required
+- roles must be valid
+
+Add logging:
+
+- duplicate assignments
+- re-assignment attempts
+
+--------------------------------------------------
+
+PART F — VALIDATION
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. AssignTenant API works
+2. AssignRoles API works
+3. Provision endpoint still works
+4. No duplicate roles created
+5. User.TenantId updates correctly
+6. JWT reflects updates
+7. dotnet build succeeds
+
+--------------------------------------------------
+
+PART G — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-ID-02-report.md
+
+# BLK-ID-02 Report
+
+## 1. Summary
+
+## 2. New APIs
+- List endpoints created
+- Include route + method
+
+## 3. Refactored Provisioning Flow
+- Explain before vs after
+
+## 4. Membership Logic
+- How assignment is handled now
+
+## 5. Changed Files
+- Full file paths
+- Example:
+  - Identity.Api/Endpoints/UserMembershipEndpoints.cs
+  - Identity.Application/Services/UserMembershipService.cs
+
+## 6. Methods / Endpoints Implemented
+- Method names
+- Service methods
+- Endpoint handlers
+
+## 7. GitHub Commits (MANDATORY)
+- Include ALL commit IDs for this block
+
+Example:
+- abc1234 — Add AssignTenant API
+- def5678 — Refactor provisioning flow
+
+## 8. Validation Results
+- Test results
+- API verification
+- build result
+
+## 9. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- remove provisioning endpoint yet
+- modify CareConnect
+- modify Tenant service
+- introduce tenant creation logic
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- Identity exposes clean membership APIs
+- provisioning endpoint uses those APIs
+- no direct tenant assignment logic scattered in code
+- report saved at:
+  /analysis/BLK-ID-02-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

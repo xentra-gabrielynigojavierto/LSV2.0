@@ -1,0 +1,244 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Add a lightweight capability abstraction layer on top of the existing Liens permission model so future Liens workflows can reason in terms of business capabilities instead of raw permission strings.
+
+This is a refinement of LS-LIENS-02-002. It does NOT replace the existing permission model. It layers on top of it.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+For this feature specifically:
+- Reuse the existing Identity + permission model already implemented
+- Do NOT introduce v1 roles, permissions, or session logic
+- Do NOT replace permission-based enforcement
+- Do NOT hardcode provider behavior inside Liens domain entities
+
+DATABASE / OWNERSHIP RULE:
+- Do not introduce any new Liens-owned persistence tables for this feature
+- Avoid Identity schema changes unless absolutely necessary
+- If any persistence change is required, it must follow the owning service’s existing prefix convention
+
+--------------------------------------------------
+STEP 1 — INSPECT THE CURRENT LIENS AUTH MODEL
+--------------------------------------------------
+
+Inspect the current implementation from LS-LIENS-02-002, including:
+
+- `LiensPermissions`
+- `ICurrentRequestContext.Permissions`
+- JWT permissions claim flow
+- `RequirePermissionFilter`
+- `RequireProductAccess`
+- any helper methods already present for permission checks
+
+Understand exactly how permissions are currently defined and consumed.
+
+DO NOT re-architect this.
+Build a thin capability abstraction on top of it.
+
+--------------------------------------------------
+STEP 2 — DEFINE LIENS BUSINESS CAPABILITIES
+--------------------------------------------------
+
+Define stable, business-facing capability identifiers for Liens.
+
+At minimum:
+
+- `LIENS_SELL`
+- `LIENS_MANAGE_INTERNAL`
+
+These are NOT replacements for permission codes.
+They are higher-level capability names derived from the permission model.
+
+Add a clear constants class or equivalent, for example:
+- `LiensCapabilities.Sell`
+- `LiensCapabilities.ManageInternal`
+
+Follow existing codebase style.
+
+--------------------------------------------------
+STEP 3 — CENTRALIZE CAPABILITY DERIVATION
+--------------------------------------------------
+
+Implement a single, centralized mapping from permissions → capabilities.
+
+At minimum, determine capability membership using the existing Liens permission codes.
+
+Example intent:
+
+### Capability: LIENS_SELL
+Should evaluate true when the current context has the permission pattern required for seller-side marketplace behavior, such as:
+- create lien
+- offer/list lien
+- read own liens
+
+### Capability: LIENS_MANAGE_INTERNAL
+Should evaluate true when the current context has the permission pattern required for internal lien management behavior, such as:
+- read held liens
+- service liens
+- settle liens
+
+Use the current permission set as the source of truth.
+Do NOT invent a new security model.
+
+IMPORTANT:
+- keep this logic centralized
+- do not scatter permission combinations across endpoints
+- document the exact mapping clearly
+
+--------------------------------------------------
+STEP 4 — EXPOSE A CLEAN CONSUMPTION API
+--------------------------------------------------
+
+Add a clean way for future Liens features to check capabilities.
+
+Examples:
+- `context.HasCapability(LiensCapabilities.Sell)`
+- `context.HasCapability(LiensCapabilities.ManageInternal)`
+
+Implement this using the lightest approach consistent with current platform patterns:
+- extension methods
+- helper class
+- adapter around `ICurrentRequestContext`
+
+Requirements:
+- future code should not need to inspect raw permission strings
+- the abstraction should be easy to read and hard to misuse
+
+Do NOT overbuild a generic policy engine unless the current codebase already has that pattern.
+
+--------------------------------------------------
+STEP 5 — KEEP PERMISSIONS AS THE ENFORCEMENT LAYER
+--------------------------------------------------
+
+The existing permission-based authorization must remain intact.
+
+Do NOT:
+- remove `RequirePermission`
+- replace endpoint guards with capability checks
+- weaken the current auth design
+
+Capabilities are for:
+- business logic readability
+- workflow branching
+- future UI/navigation gating
+- provider operating mode interpretation
+
+Permissions remain the enforcement mechanism.
+
+--------------------------------------------------
+STEP 6 — DOCUMENT PROVIDER MODE INTERPRETATION
+--------------------------------------------------
+
+Make the capability model explicitly support these provider scenarios:
+
+### Default Provider mode
+- `LIENS_SELL = true`
+- `LIENS_MANAGE_INTERNAL = false`
+
+### Provider with internal management enabled
+- `LIENS_SELL = true`
+- `LIENS_MANAGE_INTERNAL = true`
+
+### Future-compatible mode
+Document whether the abstraction can also support:
+- `LIENS_SELL = false`
+- `LIENS_MANAGE_INTERNAL = true`
+
+even if the current provisioning flow does not yet use that assignment.
+
+This can be documentation + tests/example usage.
+Do NOT implement new provisioning UI in this feature.
+
+--------------------------------------------------
+STEP 7 — DO NOT MODIFY DOMAIN ENTITIES
+--------------------------------------------------
+
+Do NOT change:
+- Lien
+- LienOffer
+- Case
+- Facility
+- Contact
+- LookupValue
+
+Do NOT add capability flags into the domain entities.
+
+Capabilities must remain:
+- identity-derived
+- external to the domain model
+- consumed through context/helpers
+
+--------------------------------------------------
+STEP 8 — VALIDATE NON-REGRESSION
+--------------------------------------------------
+
+Confirm:
+
+1. Identity builds successfully
+2. Liens builds successfully
+3. Gateway builds successfully
+4. Existing permission-based endpoint protection still works
+5. Capability abstraction returns expected results for representative permission sets
+6. No existing auth/claims flow is broken
+
+If you add tests or demonstration code, keep them tight and relevant.
+
+--------------------------------------------------
+STEP 9 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-02-002-01-report.md
+
+The report MUST include:
+
+1. Summary of what was implemented
+2. Existing permission model reused
+3. Capability definitions:
+   - LIENS_SELL
+   - LIENS_MANAGE_INTERNAL
+4. Exact permission-to-capability mapping
+5. Where the capability abstraction is implemented
+6. How future Liens features should consume it
+7. Provider-mode interpretation:
+   - sell only
+   - sell + manage internal
+   - future manage-internal-only support
+8. Files changed
+9. Build results:
+   - Identity
+   - Liens
+   - Gateway
+10. Confirmation:
+   - no v1 logic introduced
+   - no domain contamination
+   - no replacement of permission-based enforcement
+11. Database / Ownership Alignment:
+   - whether any schema changes were required
+   - confirmation that no Liens-owned tables were created
+12. Risks / assumptions
+13. Final readiness statement:
+   - Is the capability abstraction layer established?
+   - Is the system ready for capability-based workflow branching?
+
+Be explicit and architecture-focused.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Add a clean business capability abstraction for SynqLiens that allows future code to reason in terms of:
+- Sell Liens
+- Manage Own Liens
+
+while keeping the existing v2 Identity permission model fully intact.
+
+Proceed.

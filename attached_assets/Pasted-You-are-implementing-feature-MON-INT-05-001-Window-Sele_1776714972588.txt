@@ -1,0 +1,350 @@
+You are implementing feature MON-INT-05-001 — Window Selector (7d / 30d View).
+
+OBJECTIVE
+Extend the monitoring UI to support selectable time windows so operators can switch the availability bars and latency trend views from the current fixed 24h window to additional historical windows, starting with 7d and 30d.
+
+This is a visualization and UX enhancement built on top of the existing uptime aggregation engine, availability bars, and response time charts.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Windowed views must be driven by real Monitoring uptime/history data
+- Do NOT fabricate longer-history metrics
+- Do NOT change uptime aggregation formulas unless an actual blocker is proven
+- Do NOT expose internal-only metrics on the public page beyond what is already intentionally public
+- Prefer using existing BFF patterns and extend them minimally
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-05-001-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Prefer minimal, reversible changes
+- Do NOT redesign the monitoring UI or public status page
+- Keep internal and public concerns clearly separated
+- Maintain existing 24h behavior as the default/fallback when no window is selected
+
+CURRENT CONTEXT
+- Public `/status` page exists
+- Internal `/monitoring` page exists
+- Uptime aggregation engine supports 24h / 7d / 30d / 90d windows
+- Availability timeline bars exist on the public status page for 24h
+- Response time charts exist on the internal monitoring page for 24h
+- The next requirement is selectable windowing for historical views
+
+GOAL OF THIS FEATURE
+By the end of this feature:
+- users can select a larger historical window where appropriate
+- availability bars and/or latency views react to the selected window using real data
+- the UI remains stable and understandable
+- no fake interpolation or placeholder history is introduced
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-05-001-report.md
+
+Initialize with:
+
+# MON-INT-05-001 — Window Selector (7d / 30d View)
+
+## 1. Task Summary
+## 2. Existing Window-Capable API Analysis
+## 3. Window Selector UX Decision
+## 4. Data Fetching / BFF Changes
+## 5. Public Page Implementation
+## 6. Internal Monitoring Impact
+## 7. Validation
+## 8. Files Changed
+## 9. Known Gaps / Risks
+## 10. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE EXISTING WINDOW-CAPABLE APIS
+
+Inspect the current Monitoring Service endpoints and Control Center BFF routes that already support or can support variable windows.
+
+At minimum inspect:
+- Monitoring uptime rollups endpoint
+- Monitoring uptime history endpoint
+- Control Center BFF routes for uptime / latency
+- `/status` page data flow
+- `/monitoring` page latency data flow if relevant
+
+Document:
+- which endpoints already accept `window=24h|7d|30d|90d`
+- which current Control Center BFF routes are hard-coded to `24h`
+- whether the public status page and internal monitoring page can share the same window vocabulary
+- whether longer windows are already backed by real data in the current environment
+- what sparse-history behavior currently looks like for 7d / 30d
+
+Important:
+- prefer reusing existing Monitoring Service support
+- do NOT add new Monitoring Service endpoints unless an actual blocker is found
+- only extend Control Center BFF routes and pages as needed
+
+---
+
+STEP 3 — CHOOSE THE WINDOW SELECTOR UX
+
+Make an explicit UX decision about where window selection should appear.
+
+Preferred scope:
+1. Public `/status` page — for availability bars first
+2. Internal `/monitoring` page — only if it can be done cleanly in this same feature without unnecessary coupling
+3. If needed, keep the internal page on 24h for now and document that choice
+
+Recommended public selector options:
+- 24h
+- 7d
+- 30d
+
+Do NOT expose 90d unless the UI remains readable and the historical data is credible in this environment.
+
+Requirements:
+- the selector must be simple, readable, and stable
+- it must preserve the page’s public-safe design
+- active window must be visually obvious
+- switching windows must never imply fabricated history
+
+Document:
+- chosen surfaces (public, internal, or both)
+- exact selector options
+- default value
+- why this design is appropriate
+
+---
+
+STEP 4 — DEFINE WINDOW VISUALIZATION RULES
+
+You must explicitly define how the selected window maps to the visuals.
+
+At minimum decide:
+- 24h → 24 hourly bars
+- 7d → appropriate bucket representation
+- 30d → appropriate bucket representation
+
+Preferred approach:
+- use a bar count that remains readable and derived from real buckets
+- if the backend currently returns hourly buckets only, decide whether to:
+  - aggregate client/BFF-side into coarser daily buckets for 7d/30d, or
+  - keep the window support limited to whichever representations are credible
+
+Do NOT fake daily bars by stretching hourly data incorrectly.
+Do NOT produce unreadable 168-bar or 720-bar strips unless you intentionally choose that and can justify it.
+
+Recommended direction:
+- 24h = hourly bars
+- 7d / 30d = daily buckets derived from hourly history if feasible and correctly documented
+
+For each window, define:
+- bar count
+- bucket size
+- status color mapping
+- how uptime % label is computed/displayed
+- how unknown / insufficient data is shown
+
+Document these rules clearly before implementation.
+
+---
+
+STEP 5 — EXTEND BFF ROUTES / DATA FETCHING
+
+Update the Control Center BFF routes as needed to accept a window parameter.
+
+Likely targets:
+- `/api/monitoring/uptime`
+- `/api/monitoring/latency` if internal charts are included in scope
+
+Requirements:
+- validate and sanitize incoming `window` values
+- default to `24h`
+- only permit supported values (`24h`, `7d`, `30d`, and `90d` only if intentionally supported)
+- keep public-safe routes public-safe
+- keep internal routes authenticated if they expose internal metrics
+- continue stripping internal identifiers from browser-facing payloads where appropriate
+
+If adding or changing route parameters, document:
+- exact supported query shape
+- default behavior
+- invalid-window fallback behavior
+
+Do NOT expose raw internal identifiers unnecessarily.
+
+---
+
+STEP 6 — IMPLEMENT THE PUBLIC STATUS PAGE WINDOW SELECTOR
+
+Update the public `/status` page to support window selection for the availability bars.
+
+Requirements:
+- users can switch between selected windows
+- the page reloads or re-renders safely using the selected window
+- existing status summary and active incidents remain unchanged
+- only the historical availability visualization and related uptime labels should change with the selected window
+
+Preferred implementation:
+- use URL query param, such as `?window=24h|7d|30d`
+- server-side page reads search params
+- fetches corresponding BFF data server-side
+- keeps the page shareable/bookmarkable
+
+Do NOT require client-only state if a clean server-side query-param model works.
+
+Add a lightweight selector UI, such as:
+- segmented control
+- tab-like buttons
+- pill buttons
+
+Keep it external-friendly and minimal.
+
+---
+
+STEP 7 — OPTIONAL INTERNAL MONITORING IMPACT
+
+If it can be done cleanly in the same feature, extend the internal monitoring latency chart path to accept a selected window too.
+
+Only do this if:
+- the implementation remains tight and low-risk
+- the same window selector model applies cleanly
+- it does not create unnecessary coupling between public and internal pages
+
+If you do NOT include internal window selection in this feature:
+- explicitly state that the feature scope is public page only
+- document that internal chart windowing is deferred
+
+Avoid over-expanding scope.
+
+---
+
+STEP 8 — HANDLE STATES CLEANLY
+
+Explicitly handle:
+
+A. Sparse history
+- if 7d / 30d has limited data, show the data that exists
+- optionally show a calm “Limited history available” note if appropriate
+
+B. No history for selected window
+- show a safe fallback such as “History unavailable for this window”
+- do not fabricate bars
+
+C. Invalid window query
+- fall back safely to `24h`
+
+D. Local mode limitations
+- if local mode cannot provide meaningful history, degrade gracefully and document it
+
+E. BFF failure
+- keep page usable
+- status summary still visible even if historical section fails
+
+---
+
+STEP 9 — PUBLIC / INTERNAL EXPOSURE REVIEW
+
+Before finalizing, verify that the new implementation does NOT expose more than intended.
+
+If on public `/status`:
+- no admin controls
+- no entity IDs
+- no latency metrics unless intentionally kept internal-only
+- no debug info
+- no stack traces
+
+If any internal-only route was extended:
+- ensure it remains authenticated
+- ensure the browser only sees the fields intended for that surface
+
+Document:
+- exactly what new fields, if any, are exposed
+- why that exposure is acceptable
+
+---
+
+STEP 10 — VALIDATION
+
+Validate as far as environment permits.
+
+At minimum validate:
+A. `/status` still loads without authentication
+B. selector displays and highlights the chosen window
+C. query-param-driven window selection works
+D. availability bars change based on selected window
+E. sparse-history behavior is safe and understandable
+F. invalid window falls back correctly
+G. no admin controls or internal IDs are exposed
+H. existing status page functionality is not broken
+I. internal monitoring page is not broken
+J. TypeScript/build remains clean
+
+Capture:
+- exact routes tested
+- example query params used
+- sample response shapes
+- sample rendered behavior
+- what was runtime-tested vs code-verified only
+
+If real 7d / 30d history is limited in the current environment, document that honestly and validate with the data available.
+
+---
+
+STEP 11 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- removed (if any)
+- purpose
+
+Be explicit.
+
+---
+
+STEP 12 — KNOWN GAPS / RISKS
+
+Document clearly:
+- whether window support is public-only or also internal
+- whether 90d is deferred
+- whether 7d / 30d bars are hourly or daily/coarsened
+- any sparse-history limitations
+- whether local mode is limited
+- any performance implications of larger windows
+- any future need for server-side batch aggregation optimization
+
+---
+
+STEP 13 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+
+Option A:
+- Stabilization / production validation
+Use this if the public and internal monitoring/status experience is now feature-complete and the best next step is confidence-building.
+
+Option B:
+- MON-INT-05-002 — Public Incident Drill-Down
+Use this only if the status UX is stable and the next value is deeper public incident transparency.
+
+Option C:
+- MON-INT-05-001-01 — Window Selector Hardening
+Use this only if the feature works but needs a tightly scoped follow-up for sparse-history handling, batching, or UX cleanup.
+
+Choose based on actual implementation outcome.
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+- /analysis/MON-INT-05-001-report.md exists and was created FIRST
+- the selected page supports real historical window switching
+- the selected window is driven by real Monitoring history data
+- no fake history was introduced
+- no inappropriate data exposure occurred
+- the existing monitoring/status experience remains stable
+- validation has been performed and documented

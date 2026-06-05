@@ -1,0 +1,442 @@
+Feature ID: LS-NOTIF-SMS-004
+
+Title:
+Outbound SMS Vendor Log Reconciliation
+
+Objective:
+Add outbound SMS vendor-log reconciliation to Notification Service so the service can query Twilio, and later other SMS providers, for outbound message delivery status/logs and reconcile local notification attempts when webhooks are delayed, missed, incomplete, or unavailable.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all outbound SMS vendor-log reconciliation work must remain isolated within the Notification Service boundary.
+
+Requirements:
+- Do not add SMS reconciliation logic to unrelated services.
+- Do not create shared cross-service SMS abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - SMS vendor status lookup abstraction
+  - Twilio outbound message status lookup
+  - SMS reconciliation orchestration
+  - SMS reconciliation audit records
+  - SMS stale/pending attempt discovery
+  - SMS reconciliation API/job if implemented
+- Other services should continue interacting with Notification Service through existing notification APIs/events/contracts where possible.
+- Preserve Notification Service as the only SMS delivery, tracking, and reconciliation boundary.
+
+Implementation Requirements:
+1. Extend the SMS provider abstraction to support outbound vendor message status lookup by provider message ID.
+2. Implement Twilio outbound message status retrieval using Twilio Message SID lookup.
+3. Normalize vendor status/log data into internal SMS delivery states.
+4. Reconcile local NotificationAttempt / notification delivery state when vendor status differs from local state.
+5. Add manual reconciliation for a specific outbound SMS attempt or provider message ID if consistent with existing API patterns.
+6. Add batch reconciliation for stale/pending outbound SMS attempts if existing worker/job patterns support it.
+7. Audit reconciliation attempts, updates, no-op outcomes, and failures.
+8. Preserve existing outbound SMS send behavior from LS-NOTIF-SMS-001.
+9. Preserve SMS preference/compliance enforcement from LS-NOTIF-SMS-002 and LS-NOTIF-SMS-003.
+10. Do not add or expand conversational inbound SMS behavior.
+
+Critical Constraints:
+- Reuse existing Notification Service architecture patterns.
+- Reuse existing provider adapter, provider routing, NotificationAttempt, webhook normalization, audit, worker, and repository patterns where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Do NOT hardcode Twilio-specific logic into provider-agnostic reconciliation orchestration.
+- Provider-specific vendor lookup may remain in TwilioAdapter only.
+- Do NOT expose Twilio credentials or tenant provider secrets.
+- Vendor lookup failures must not crash Notification Service.
+- Reconciliation must not duplicate sends.
+- Reconciliation must not retry or resend messages unless an existing explicit retry workflow already does so.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-004-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS provider adapter findings
+3. Existing Twilio adapter findings
+4. Existing NotificationAttempt / delivery-status model findings
+5. Existing webhook reconciliation findings
+6. Existing worker/job pattern findings
+7. Existing audit and masking findings
+8. Files added
+9. Files modified
+10. Database/schema/config changes
+11. API/interface changes
+12. Validation/testing performed
+13. Known gaps/issues
+14. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Service Architecture
+- Identify:
+  - Existing ISmsProviderAdapter or equivalent SMS provider abstraction
+  - Existing TwilioAdapter send implementation
+  - Existing outbound provider message ID storage
+  - Existing NotificationAttempt repository/model
+  - Existing notification status model
+  - Existing delivery status webhook reconciliation behavior
+  - Existing retry/dead-letter behavior
+  - Existing background worker/job patterns
+  - Existing API endpoint conventions
+  - Existing audit event conventions
+  - Existing phone masking/PII handling
+- Document findings in the report before implementation.
+
+STEP 2 — Extend SMS Provider Status Lookup Abstraction
+Extend the SMS provider abstraction with a provider-agnostic outbound message status lookup method.
+
+Suggested C# shape:
+
+public interface ISmsProviderAdapter
+{
+    Task<SmsSendResult> SendAsync(
+        SmsSendPayload payload,
+        CancellationToken cancellationToken = default);
+
+    Task<SmsMessageStatusResult> GetMessageStatusAsync(
+        string providerMessageId,
+        CancellationToken cancellationToken = default);
+}
+
+If changing the existing interface would affect non-SMS code or cause excessive disruption, create a small internal capability interface such as:
+
+public interface ISmsProviderStatusLookup
+{
+    Task<SmsMessageStatusResult> GetMessageStatusAsync(
+        string providerMessageId,
+        CancellationToken cancellationToken = default);
+}
+
+Requirements:
+- Keep abstraction local to Notification Service.
+- Do not require unrelated providers/channels to implement SMS lookup.
+- Result must normalize vendor response shape.
+- Result must safely represent lookup failures.
+- Missing/blank providerMessageId must return a structured failure or be skipped by caller.
+- Do not expose credentials or raw sensitive provider payloads.
+
+Suggested result model:
+
+public sealed class SmsMessageStatusResult
+{
+    public bool Success { get; init; }
+    public string Provider { get; init; } = "twilio";
+    public string ProviderMessageId { get; init; } = "";
+    public string? ProviderStatus { get; init; }
+    public string? NormalizedStatus { get; init; }
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public DateTimeOffset? SentAt { get; init; }
+    public DateTimeOffset? UpdatedAt { get; init; }
+    public bool Retryable { get; init; }
+    public IReadOnlyDictionary<string, string>? Metadata { get; init; }
+}
+
+STEP 3 — Implement Twilio Message Status Lookup
+Implement outbound status lookup inside TwilioAdapter.
+
+Expected behavior:
+- Use the stored/configured Twilio Account SID and Auth Token.
+- Query Twilio Message resource by Message SID / providerMessageId.
+- Capture Twilio fields where available:
+  - sid
+  - status
+  - error_code
+  - error_message
+  - date_created
+  - date_sent
+  - date_updated
+  - to/from if safe and already handled by masking conventions
+- Normalize Twilio status into internal status.
+- Use existing HTTP/client timeout and error classification patterns where possible.
+- Do not log credentials.
+- Do not log full phone numbers unless existing service conventions explicitly allow it.
+
+Recommended status mapping:
+
+Twilio queued      -> queued
+Twilio accepted    -> queued
+Twilio scheduled   -> queued
+Twilio sending     -> processing
+Twilio sent        -> sent
+Twilio delivered   -> delivered
+Twilio undelivered -> failed
+Twilio failed      -> failed
+Twilio canceled    -> failed
+
+Failure handling:
+- 401/403 -> non-retryable auth/config failure
+- 404 -> non-retryable message_not_found
+- 429 -> retryable provider_rate_limited
+- 5xx/network/timeout -> retryable provider_unavailable
+- Unknown errors -> retryable unexpected_provider_error unless clearly invalid input
+
+STEP 4 — Add Reconciliation Service
+Create or extend a Notification Service-local service to reconcile outbound SMS attempts.
+
+Suggested service:
+ISmsReconciliationService
+
+Suggested methods:
+- ReconcileByAttemptIdAsync(Guid attemptId, CancellationToken ct)
+- ReconcileByProviderMessageIdAsync(string providerMessageId, CancellationToken ct)
+- ReconcileStalePendingAsync(int limit, TimeSpan olderThan, CancellationToken ct)
+
+Responsibilities:
+- Load matching NotificationAttempt by attempt ID or provider message ID.
+- Confirm attempt/channel/provider is SMS/Twilio or supported SMS provider.
+- Skip attempts without provider message ID.
+- Call provider status lookup.
+- Compare vendor normalized status with local attempt/notification status.
+- Update local attempt and notification state only when appropriate.
+- Never send or resend SMS as part of reconciliation.
+- Return a structured reconciliation result.
+
+Suggested result model:
+
+public sealed class SmsReconciliationResult
+{
+    public bool Success { get; init; }
+    public bool Updated { get; init; }
+    public string Outcome { get; init; } = "";
+    public Guid? NotificationId { get; init; }
+    public Guid? AttemptId { get; init; }
+    public string? Provider { get; init; }
+    public string? ProviderMessageId { get; init; }
+    public string? PreviousStatus { get; init; }
+    public string? VendorStatus { get; init; }
+    public string? NewStatus { get; init; }
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public bool Retryable { get; init; }
+}
+
+Expected outcomes:
+- updated
+- no_change
+- skipped_missing_provider_message_id
+- skipped_not_sms
+- skipped_unsupported_provider
+- vendor_lookup_failed
+- attempt_not_found
+- provider_message_not_found
+
+STEP 5 — Add Attempt Lookup / Stale Pending Discovery
+Extend repository/data access only as needed.
+
+Required lookup capabilities:
+- Find NotificationAttempt by ID.
+- Find NotificationAttempt by provider message ID.
+- Find stale/pending SMS attempts older than a configurable age.
+
+Stale/pending candidates should generally include statuses such as:
+- queued
+- processing
+- sent
+- unknown
+- retrying
+
+Avoid reconciling terminal states unless explicitly requested:
+- delivered
+- failed
+- dead-letter
+- blocked
+- canceled
+
+Requirements:
+- Keep queries bounded with a limit.
+- Avoid full-table scans where practical.
+- Add indexes only if necessary and consistent with migration patterns.
+- Preserve existing retry/dead-letter semantics.
+
+STEP 6 — Update Local Attempt / Notification Status Safely
+When vendor status differs from local status:
+
+Requirements:
+- Update NotificationAttempt delivery/status fields using existing conventions.
+- Update parent Notification status only where existing webhook reconciliation logic already does this or equivalent rules are clear.
+- Do not regress a terminal local state to a non-terminal vendor state unless existing status precedence rules allow it.
+- Do not mark delivered notifications as failed based on stale/ambiguous vendor states without clear provider evidence.
+- Preserve webhook reconciliation behavior.
+- Add timestamp/metadata fields where existing models support them.
+- If a `DeliveryIssue` record should be created for vendor-confirmed failure, reuse existing patterns.
+- If status precedence rules are unclear, implement conservative updates and document limitations.
+
+Recommended status precedence:
+- delivered is terminal success
+- failed/undelivered/canceled is terminal failure when vendor confirms it
+- sent can move to delivered or failed
+- queued/processing can move forward to sent/delivered/failed
+- blocked/dead-letter should not be changed by reconciliation unless existing patterns explicitly allow it
+
+STEP 7 — Add Manual Reconciliation API If Consistent With Existing Patterns
+Add endpoints only if consistent with existing Notification Service API conventions.
+
+Suggested endpoints:
+- POST /v1/sms/reconciliation/attempts/{attemptId}
+- POST /v1/sms/reconciliation/provider-messages/{providerMessageId}
+- POST /v1/sms/reconciliation/stale?limit={n}&olderThanMinutes={n}
+
+Requirements:
+- Require existing authentication/authorization patterns.
+- Do not expose provider credentials.
+- Return structured reconciliation result.
+- Validate providerMessageId input.
+- Bound batch requests with safe default and max limits.
+- Do not expose full phone numbers unless existing API conventions allow it.
+
+If adding public endpoints would require excessive framework work, implement internal service + worker only and document the API as a known gap.
+
+STEP 8 — Add Batch Reconciliation Worker/Job If Supported
+If existing worker/job patterns are available, add a safe batch reconciliation path.
+
+Expected behavior:
+- Periodically find stale/pending outbound SMS attempts.
+- Reconcile bounded batch size.
+- Respect cancellation tokens.
+- Log/audit aggregate results.
+- Do not interfere with active retry/dead-letter processing.
+- Avoid duplicate concurrent reconciliation if existing locking patterns exist; otherwise keep batch small and idempotent.
+
+Configuration suggestions:
+- SMS_RECONCILIATION_ENABLED=false by default unless existing patterns prefer enabled
+- SMS_RECONCILIATION_INTERVAL_MINUTES=15
+- SMS_RECONCILIATION_STALE_AFTER_MINUTES=30
+- SMS_RECONCILIATION_BATCH_SIZE=100
+
+If no worker pattern exists, document this as a known gap and implement only manual reconciliation service/API.
+
+STEP 9 — Audit Reconciliation Events
+Add audit records for reconciliation events.
+
+Suggested audit events:
+- sms.reconciliation.updated
+- sms.reconciliation.no_change
+- sms.reconciliation.lookup_failed
+- sms.reconciliation.skipped
+- sms.reconciliation.batch_completed
+
+Audit metadata should include:
+- provider
+- providerMessageId
+- notificationId
+- attemptId
+- previousStatus
+- vendorStatus
+- newStatus
+- outcome
+- errorCode
+- retryable
+- source = manual | batch | worker
+- correlationId where available
+
+Requirements:
+- Preserve existing audit conventions.
+- Preserve phone masking conventions if phone data is included.
+- Do not log Twilio credentials.
+- Audit failures must not crash reconciliation.
+
+STEP 10 — Documentation and Configuration
+Add/update documentation for:
+- outbound vendor-log reconciliation purpose
+- manual reconciliation API/service usage
+- batch reconciliation behavior
+- Twilio message status mapping
+- failure handling
+- configuration values
+- limitations
+- interaction with webhooks
+- statement that this does not implement conversational inbound SMS
+
+Documentation must explain:
+- webhooks remain the primary real-time status source
+- vendor pull reconciliation is a fallback/backstop for missed or delayed webhook updates
+- reconciliation never sends or resends SMS
+- reconciliation only updates local delivery tracking state
+
+STEP 11 — Validation
+Perform validation/testing for:
+
+Provider status lookup:
+- Twilio lookup succeeds for valid provider message ID
+- Twilio queued/accepted/scheduled maps to queued
+- Twilio sending maps to processing
+- Twilio sent maps to sent
+- Twilio delivered maps to delivered
+- Twilio undelivered/failed/canceled maps to failed
+- 404 maps to provider_message_not_found/message_not_found
+- 401/403 maps to non-retryable auth/config failure
+- 429 maps to retryable provider_rate_limited
+- timeout/5xx maps to retryable provider_unavailable
+
+Reconciliation behavior:
+- attempt with missing providerMessageId is skipped safely
+- non-SMS attempt is skipped safely
+- unsupported SMS provider is skipped safely
+- provider lookup failure returns structured failure
+- vendor delivered updates local status to delivered
+- vendor failed updates local status to failed when safe
+- same vendor/local status returns no_change
+- terminal delivered local status is not regressed to queued/processing
+- reconciliation does not resend SMS
+- webhook status handling remains unchanged
+
+Batch behavior if implemented:
+- stale pending attempts are discovered
+- batch respects configured limit
+- batch handles individual failures without stopping entire batch
+- batch audit summary is created
+
+API behavior if implemented:
+- manual attempt reconciliation endpoint works
+- provider message reconciliation endpoint works
+- stale batch reconciliation endpoint enforces safe limit
+- unauthorized access is rejected according to existing patterns
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS send unchanged
+- LS-NOTIF-SMS-002 preference enforcement unchanged
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- email/in-app notification behavior unchanged
+
+Security and boundary:
+- full phone numbers are not logged where masking convention requires masking
+- provider credentials are never logged
+- all implementation remains inside Notification Service
+- no unrelated services are modified except build/config compatibility if absolutely required
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SMS provider status lookup abstraction
+- Twilio outbound message status lookup implementation
+- Normalized SMS vendor status result model
+- SMS reconciliation service
+- Attempt lookup / stale pending discovery support
+- Safe local status update logic
+- Reconciliation audit events
+- Optional manual reconciliation API
+- Optional batch reconciliation worker/job
+- Updated documentation/config notes
+- Completed analysis report
+
+Do NOT:
+- Introduce placeholder implementations
+- Break existing notification flows
+- Break LS-NOTIF-SMS-001 Twilio provider integration
+- Break LS-NOTIF-SMS-002 preference enforcement
+- Expand inbound conversational SMS behavior
+- Add new inbound keyword/compliance features beyond preserving existing behavior
+- Move SMS reconciliation logic outside Notification Service
+- Add SMS reconciliation logic to unrelated services
+- Hardcode Twilio-specific logic into provider-agnostic reconciliation service
+- Expose phone numbers unnecessarily in logs
+- Expose provider credentials or secrets
+- Resend SMS during reconciliation
+- Treat vendor reconciliation failures as outbound delivery failures unless provider evidence clearly supports that state

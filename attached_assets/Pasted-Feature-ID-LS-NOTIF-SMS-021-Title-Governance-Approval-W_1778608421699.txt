@@ -1,0 +1,597 @@
+Feature ID: LS-NOTIF-SMS-021
+
+Title:
+Governance Approval Workflow, Multi-Stage Change Control, and Governance Release Management
+
+Objective:
+Extend the SMS governance lifecycle platform with enterprise-grade approval workflows, staged governance promotion, governance release packages, scheduled rollout activation, approval chains, release auditability, and controlled governance deployment management.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- governance approval workflows
+- governance release packages
+- approval request persistence
+- approval decision persistence
+- release promotion state
+- scheduled release activation
+- release auditability
+- release activation/rollback orchestration
+- governance release APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance release UX. Do not duplicate approval, release-state transition, scheduling, or activation logic in Control Center.
+
+Requirements:
+- Implement governance approval and release management inside Notification Service.
+- Preserve LS-NOTIF-SMS-017 governance policies.
+- Preserve LS-NOTIF-SMS-018 template governance.
+- Preserve LS-NOTIF-SMS-019 dynamic rules.
+- Preserve LS-NOTIF-SMS-020 versioning, import/export, rollback, and analytics.
+- Release management must extend, not replace, existing governance lifecycle behavior.
+- Governance changes should support approval before activation when configured.
+- Release activation must be explicit, auditable, and safe.
+- Scheduled activation must not block the delivery pipeline.
+- Failed release activation must degrade safely.
+- Do not store raw phone numbers in release/approval/audit tables.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-020 behavior.
+
+Implementation Requirements:
+1. Add governance release package persistence.
+2. Add release item persistence for grouped governance changes.
+3. Add approval request persistence.
+4. Add approval decision persistence.
+5. Add release audit event persistence.
+6. Add release state machine.
+7. Add multi-stage approval workflow support.
+8. Add release submit-review, approve, reject, schedule, activate, and archive flows.
+9. Add scheduled activation worker if safe.
+10. Add integration with LS-NOTIF-SMS-020 versioning/rollback where appropriate.
+11. Add admin APIs for release packages, approvals, scheduling, activation, and audit trail.
+12. Add Control Center governance release management UI if feasible.
+13. Ensure all failures degrade safely.
+14. Ensure delivery-time governance evaluation remains fast and stable.
+
+Critical Constraints:
+- Reuse existing SmsGovernanceRulePack, SmsGovernanceRule, SmsComplianceProfile, SmsGovernanceRuleVersion, SmsGovernanceRulePackVersion, SmsGovernanceVersioningService, SmsGovernanceImportService, SmsGovernanceAnalyticsService, SmsGovernanceRuleEngine, SmsGovernanceRuleResolver, SmsGovernancePolicy, SmsTemplateGovernanceService, admin endpoint, EF/migration, audit/logging, worker, and Control Center governance UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite the dynamic rule engine.
+- Do NOT replace LS-017, LS-018, LS-019, or LS-020 behavior.
+- Do NOT implement AI/ML approval recommendations.
+- Do NOT call external ticketing, workflow, approval, analytics, compliance, moderation, telecom, or fraud APIs.
+- Do NOT persist raw phone numbers in release/approval/audit tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-021-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-017 governance policy findings
+3. Existing LS-018 template governance findings
+4. Existing LS-019 dynamic rule findings
+5. Existing LS-020 versioning/rollback/import analytics findings
+6. Existing Control Center dynamic governance UI findings
+7. Existing worker/scheduler findings
+8. Files added
+9. Files modified
+10. Database/schema/config changes
+11. API/interface changes
+12. UI/route changes, if implemented
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Governance Lifecycle Architecture
+- Identify:
+  - SmsGovernanceRulePack entity/table
+  - SmsGovernanceRule entity/table
+  - SmsComplianceProfile entity/table
+  - SmsComplianceProfileAssignment entity/table
+  - SmsGovernanceRuleVersion and SmsGovernanceRulePackVersion entities
+  - SmsGovernanceVersioningService behavior
+  - rollback semantics from LS-NOTIF-SMS-020
+  - import/export transaction patterns
+  - dynamic governance APIs
+  - Control Center sms-dynamic-rules lifecycle UI
+  - existing worker/BackgroundService patterns
+  - existing admin authorization conventions
+  - existing audit/logging conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Governance Release Package Entity
+Add a Notification Service-local release package entity.
+
+Suggested entity:
+SmsGovernanceReleasePackage
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- Name string
+- Description string? nullable
+- ReleaseState string
+- ReleaseType string
+- ScheduledActivationAt DateTime? nullable
+- ActivatedAt DateTime? nullable
+- SupersededAt DateTime? nullable
+- SupersededByReleaseId Guid? nullable
+- RejectedAt DateTime? nullable
+- ArchivedAt DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested ReleaseState values:
+- draft
+- pending_review
+- approved
+- scheduled
+- active
+- superseded
+- rejected
+- archived
+- activation_failed
+
+Suggested ReleaseType values:
+- rule_pack
+- rule_set
+- compliance_profile
+- mixed_governance
+
+Requirements:
+- TenantId nullable means platform/global release package.
+- Release state transitions must be explicit and validated.
+- Release package should not store secrets or raw message content.
+- Use EF/migration conventions.
+- Add indexes:
+  - TenantId, ReleaseState, CreatedAt
+  - ReleaseState, ScheduledActivationAt
+  - ReleaseType, CreatedAt
+  - CreatedAt
+
+STEP 3 — Define Governance Release Item Entity
+Add release item persistence for grouped governance changes.
+
+Suggested entity:
+SmsGovernanceReleaseItem
+
+Suggested fields:
+- Id Guid
+- ReleasePackageId Guid
+- EntityType string
+- EntityId Guid
+- EntityVersionNumber int? nullable
+- ActionType string
+- EntitySnapshotJson string? nullable
+- CreatedAt DateTime
+- CreatedBy string? nullable
+
+Suggested EntityType values:
+- rule_pack
+- rule
+- compliance_profile
+- policy
+- template
+
+Suggested ActionType values:
+- create
+- update
+- disable
+- rollback
+- import
+- activate
+
+Requirements:
+- EntitySnapshotJson must be safe.
+- Release items must refer to existing governance entities or snapshots.
+- Release items must support grouped promotion.
+- Add indexes:
+  - ReleasePackageId
+  - EntityType, EntityId
+
+STEP 4 — Define Approval Request Entity
+Add approval request persistence.
+
+Suggested entity:
+SmsGovernanceApprovalRequest
+
+Suggested fields:
+- Id Guid
+- ReleasePackageId Guid
+- ApprovalStage int
+- ApproverRole string
+- RequiredApprovals int
+- Status string
+- RequestedAt DateTime
+- ResolvedAt DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+
+Suggested Status values:
+- pending
+- approved
+- rejected
+- cancelled
+
+Requirements:
+- Multi-stage approval must support ordered stages.
+- Stage 1 must complete before Stage 2 where configured.
+- RequiredApprovals supports at least 1 approver initially.
+- Add indexes:
+  - ReleasePackageId, ApprovalStage
+  - Status, RequestedAt
+
+STEP 5 — Define Approval Decision Entity
+Add approval decision persistence.
+
+Suggested entity:
+SmsGovernanceApprovalDecision
+
+Suggested fields:
+- Id Guid
+- ApprovalRequestId Guid
+- ReleasePackageId Guid
+- Decision string
+- DecisionReason string? nullable
+- DecidedBy string? nullable
+- DecidedByRole string? nullable
+- CreatedAt DateTime
+
+Suggested Decision values:
+- approve
+- reject
+
+Requirements:
+- Decisions are append-only.
+- Rejecting a stage should reject the release unless configuration allows resubmission.
+- Approval decision must not contain secrets.
+- Add indexes:
+  - ApprovalRequestId, CreatedAt
+  - ReleasePackageId, CreatedAt
+
+STEP 6 — Define Release Audit Event Entity
+Add release audit event persistence.
+
+Suggested entity:
+SmsGovernanceReleaseAuditEvent
+
+Suggested fields:
+- Id Guid
+- ReleasePackageId Guid
+- EventType string
+- PreviousState string? nullable
+- NewState string? nullable
+- Actor string? nullable
+- Reason string? nullable
+- MetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested EventType values:
+- created
+- item_added
+- item_removed
+- submitted_for_review
+- approval_requested
+- approved
+- rejected
+- scheduled
+- activated
+- activation_failed
+- superseded
+- archived
+- rollback_linked
+
+Requirements:
+- Audit events are append-only.
+- Metadata must be safe.
+- No raw phones, credentials, message bodies, or provider payloads.
+- Add indexes:
+  - ReleasePackageId, CreatedAt
+  - EventType, CreatedAt
+
+STEP 7 — Define Release Management Configuration
+Add safe configuration defaults.
+
+Suggested config:
+SmsGovernanceReleaseManagement:
+- Enabled bool default true
+- RequireApprovalForActivation bool default true
+- DefaultApprovalStagesJson string? nullable
+- AllowImmediateActivation bool default true
+- AllowScheduledActivation bool default true
+- ScheduledActivationWorkerEnabled bool default false
+- ScheduledActivationPollMinutes int default 5
+- FailOpenOnReleaseEvaluationError bool default true
+- MaxReleaseItems int default 500
+
+Suggested default approval stage JSON:
+[
+  {
+    "stage": 1,
+    "approverRole": "PlatformAdmin",
+    "requiredApprovals": 1
+  }
+]
+
+Requirements:
+- Safe defaults.
+- Worker disabled by default unless existing convention prefers enabled.
+- No secrets in config.
+- Document approval behavior.
+
+STEP 8 — Add Release Service
+Add central release orchestration service.
+
+Suggested interface:
+ISmsGovernanceReleaseService
+
+Suggested methods:
+- CreateReleaseAsync(CreateReleaseRequest request, CancellationToken ct)
+- AddReleaseItemAsync(Guid releaseId, AddReleaseItemRequest request, CancellationToken ct)
+- RemoveReleaseItemAsync(Guid releaseId, Guid itemId, CancellationToken ct)
+- SubmitForReviewAsync(Guid releaseId, string requestedBy, CancellationToken ct)
+- ScheduleActivationAsync(Guid releaseId, DateTime activateAtUtc, string requestedBy, CancellationToken ct)
+- ActivateAsync(Guid releaseId, string requestedBy, CancellationToken ct)
+- ArchiveAsync(Guid releaseId, string requestedBy, string? reason, CancellationToken ct)
+- GetReleaseAsync(Guid releaseId, CancellationToken ct)
+- ListReleasesAsync(ReleaseQuery query, CancellationToken ct)
+- GetAuditTrailAsync(Guid releaseId, CancellationToken ct)
+
+Requirements:
+- Validate state transitions.
+- Draft can be edited.
+- Pending review cannot be edited except cancel/reject if supported.
+- Approved can be scheduled or activated.
+- Scheduled can activate when due.
+- Active can be superseded or archived.
+- Rejected can be archived or returned to draft if supported.
+- Activation must be auditable.
+- Activation failure must not corrupt existing active governance.
+- Use transactions where appropriate.
+
+STEP 9 — Add Approval Workflow Service
+Add approval orchestration.
+
+Suggested interface:
+ISmsGovernanceApprovalWorkflowService
+
+Suggested methods:
+- CreateApprovalRequestsAsync(Guid releaseId, CancellationToken ct)
+- ApproveAsync(Guid releaseId, ApproveReleaseRequest request, CancellationToken ct)
+- RejectAsync(Guid releaseId, RejectReleaseRequest request, CancellationToken ct)
+- GetPendingApprovalsAsync(ApprovalQuery query, CancellationToken ct)
+
+Requirements:
+- Support ordered approval stages.
+- Support required approvals per stage.
+- Enforce approver role if user/role context exists.
+- If role context is not easily available, store requested role and rely on PlatformAdmin authorization initially, documenting limitation.
+- Approval decisions are append-only.
+- Reject moves release to rejected.
+- Final approval moves release to approved.
+- Create audit events for all transitions.
+
+STEP 10 — Implement Release Activation
+Implement activation behavior.
+
+Initial activation semantics:
+- Mark release package as active.
+- For release items referencing rule packs/rules/profiles:
+  - ensure referenced entities are enabled/active if actionType = activate.
+  - optionally disable/supersede prior active release packages in the same tenant/scope.
+- Do not mutate unrelated governance entities unless explicitly in release items.
+- Create audit events.
+- Create snapshots via LS-NOTIF-SMS-020 versioning where activation changes rule/rule-pack state.
+
+Requirements:
+- Activation must be transactional where practical.
+- Failed activation should mark release activation_failed and leave existing active governance intact.
+- Activation must not impact delivery pipeline if failure occurs.
+- Activation must not send SMS.
+- Activation must not call external APIs.
+
+STEP 11 — Add Scheduled Activation Worker
+Add optional worker for scheduled releases.
+
+Suggested worker:
+SmsGovernanceReleaseActivationWorker
+
+Behavior:
+- Reads scheduled releases where ReleaseState = scheduled and ScheduledActivationAt <= now.
+- Calls release service ActivateAsync.
+- Uses existing BackgroundService pattern.
+- Uses IServiceScopeFactory.
+- Bounded batch size.
+- Logs safely.
+- Respects cancellation.
+- Disabled by default.
+
+Requirements:
+- No delivery pipeline blocking.
+- Failure marks release activation_failed or logs according to service behavior.
+- No external API calls.
+- No secrets in logs.
+
+STEP 12 — Add Release Management APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/releases
+- GET /v1/admin/sms/governance/releases/{id}
+- POST /v1/admin/sms/governance/releases
+- POST /v1/admin/sms/governance/releases/{id}/items
+- DELETE /v1/admin/sms/governance/releases/{id}/items/{itemId}
+- POST /v1/admin/sms/governance/releases/{id}/submit-review
+- POST /v1/admin/sms/governance/releases/{id}/approve
+- POST /v1/admin/sms/governance/releases/{id}/reject
+- POST /v1/admin/sms/governance/releases/{id}/schedule
+- POST /v1/admin/sms/governance/releases/{id}/activate
+- POST /v1/admin/sms/governance/releases/{id}/archive
+- GET /v1/admin/sms/governance/releases/{id}/audit
+- GET /v1/admin/sms/governance/approvals/pending
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Use pagination for release lists.
+- Validate state transitions.
+- Validate scheduled date is future.
+- Validate release item count against MaxReleaseItems.
+- Return safe DTOs only.
+- Do not expose secrets, raw phones, message bodies, or provider payloads.
+
+STEP 13 — Extend Control Center UI If Feasible
+Extend existing dynamic governance lifecycle UI or add a dedicated page.
+
+Suggested route:
+- /notifications/sms-governance/releases
+or add tab to /notifications/sms-dynamic-rules
+
+Suggested UI sections:
+- Release dashboard
+- Release package list
+- Release detail drawer
+- Release item builder
+- Approval workflow panel
+- Pending approvals queue
+- Schedule activation modal
+- Immediate activation confirmation
+- Release audit timeline
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate release state logic.
+- Do not duplicate approval logic.
+- No raw phones, message bodies, credentials, webhook URLs, or provider payloads.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 14 — Documentation
+Update documentation/report notes for:
+- release states
+- valid state transitions
+- approval workflow behavior
+- stage handling
+- scheduled activation behavior
+- activation semantics
+- rollback/versioning relationship
+- audit trail behavior
+- worker behavior
+- Control Center UI if implemented
+
+Documentation must explain:
+- approval workflows govern activation, not delivery execution.
+- scheduled release activation is asynchronous and safe.
+- rollback history from LS-NOTIF-SMS-020 remains immutable.
+- activation failures do not corrupt existing active governance.
+- release management does not call external services.
+
+STEP 15 — Validation
+Perform validation/testing for:
+
+Release packages:
+- create release.
+- add/remove release items.
+- draft release editable.
+- pending review release not editable.
+- archived release not editable.
+- release list filters work.
+
+Approval workflow:
+- submit review creates approval request.
+- approval decision persists.
+- rejection moves release to rejected.
+- final approval moves release to approved.
+- multi-stage approval proceeds in order.
+- invalid approval transition rejected.
+
+Scheduling:
+- approved release can be scheduled.
+- non-approved release cannot be scheduled.
+- past scheduled date rejected.
+- scheduled release activates when worker runs if implemented.
+- activation failure marks release activation_failed safely.
+
+Activation:
+- approved release activates immediately.
+- activation creates audit events.
+- activation changes referenced governance entities only when intended.
+- activation snapshots mutated entities where applicable.
+- failed activation leaves current active governance intact.
+
+Audit:
+- release created event persisted.
+- item added/removed events persisted.
+- submit/approval/rejection/schedule/activation/archive events persisted.
+- audit endpoint returns timeline.
+
+APIs:
+- PlatformAdmin authorization enforced.
+- pagination works.
+- validation errors returned safely.
+- no raw phones/message bodies/credentials exposed.
+
+Control Center UI if implemented:
+- release dashboard renders.
+- release detail renders.
+- approval panel works.
+- schedule modal works.
+- audit timeline renders.
+- no sensitive data displayed.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-020 behavior preserved.
+- dynamic rule evaluation unchanged.
+- versioning/rollback unchanged.
+- import/export unchanged.
+- template governance unchanged.
+- operational governance unchanged.
+- delivery pipeline unchanged.
+
+Security:
+- no raw phones stored.
+- no raw message bodies stored.
+- no credentials exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsGovernanceReleasePackage entity/table
+- SmsGovernanceReleaseItem entity/table
+- SmsGovernanceApprovalRequest entity/table
+- SmsGovernanceApprovalDecision entity/table
+- SmsGovernanceReleaseAuditEvent entity/table
+- Release management options
+- Release orchestration service
+- Approval workflow service
+- Optional scheduled activation worker
+- Release management APIs
+- Optional Control Center release management UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist raw message content
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external ticketing/workflow systems
+- Call external compliance/moderation APIs
+- Implement AI/ML approval recommendations
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Replace LS-019 dynamic rule engine
+- Replace LS-020 versioning/rollback behavior
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-020 behavior

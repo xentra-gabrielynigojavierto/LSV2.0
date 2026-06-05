@@ -1,0 +1,390 @@
+You are implementing **LS-REPORTS-01-003 — Persistence Finalization & Integration Readiness** for the LegalSynq Reports Service.
+
+## Platform Stack
+- .NET 8 (ASP.NET Core)
+- MySQL
+- EF Core (Pomelo MySQL provider)
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story finalizes the persistence layer for real database usage and validates that the Template Management API works end-to-end against MySQL while preserving mock fallback behavior.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file:
+
+- `/analysis/LS-REPORTS-01-003-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This must be the **first action**. Do not make code or migration changes before this.
+
+## 2. Update the report continuously
+After each major step, update the report with:
+- step completed
+- files created
+- files modified
+- migration notes
+- schema notes
+- validation results
+- issues encountered
+- decisions made
+- build/run/test status
+
+## 3. Keep scope controlled
+Do NOT implement:
+- new business features
+- report execution
+- scheduling
+- tenant customization
+- UI
+- Dapper
+- advanced performance work
+
+## 4. Preserve architecture and fallback behavior
+- keep clean architecture intact
+- do not bypass repositories/service layer
+- preserve mock fallback when the DB connection string is empty
+- do not break `/api/v1/health` and `/api/v1/ready`
+
+---
+
+# STORY ID
+**LS-REPORTS-01-003 — Persistence Finalization & Integration Readiness**
+
+---
+
+# OBJECTIVE
+Finalize the persistence layer by:
+- generating and applying EF Core migrations
+- aligning the database schema with the current EF model
+- validating end-to-end Template Management API + database integration
+- confirming mock fallback still works when DB is not configured
+
+This is the story that makes the Reports Service database-backed and deployment-ready.
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Verify EF Model Consistency
+Before generating migrations, verify that the current EF model reflects the intended schema for:
+
+### `ReportTemplate`
+Includes at minimum:
+- `OrganizationType`
+
+### `ReportTemplateVersion`
+Includes at minimum:
+- `IsPublished`
+- `PublishedAtUtc`
+- `PublishedByUserId`
+
+### `ReportExecution`
+Ensure existing mappings still compile correctly after prior alignment work.
+
+If any EF model inconsistency is discovered, fix it before generating the migration and document it in the report.
+
+---
+
+## B. Generate Migration
+Generate a migration for the schema changes required by the current model.
+
+### Migration name
+- `AddTemplateAndVersionEnhancements`
+
+Run the appropriate EF migration command from the correct startup/project context.
+
+Document:
+- exact command used
+- migration files created
+- any issues encountered
+
+---
+
+## C. Apply Migration
+Apply the migration to a MySQL database.
+
+Run:
+- migration update
+- schema creation/update
+
+Document:
+- whether DB creation succeeded
+- whether update succeeded
+- any connection or migration errors
+
+If local DB credentials/config must be adjusted for Replit, document exactly what was changed.
+
+---
+
+## D. Validate Schema
+Validate that the resulting database schema aligns with the EF model.
+
+### Required validation targets
+Tables:
+- `rpt_ReportDefinitions` (mapped from `ReportTemplate`)
+- `rpt_ReportTemplateVersions`
+- `rpt_ReportExecutions`
+
+Columns must include, where applicable:
+- `OrganizationType`
+- `IsPublished`
+- `PublishedAtUtc`
+- `PublishedByUserId`
+
+Also validate:
+- key relationships
+- version-related indexes
+- template/version FK references
+- existing stable mappings (`rpt_ReportDefinitions`, `ReportDefinitionId` physical column if still intentionally mapped)
+
+Do not rename tables/columns in this story unless absolutely necessary.
+
+---
+
+## E. Validate Connection Configuration
+Confirm both service modes work:
+
+### 1. DB-enabled mode
+- valid `ConnectionStrings:ReportsDb`
+- service starts
+- DbContext registered
+- readiness reports DB as `ok`
+
+### 2. Mock fallback mode
+- empty/missing `ConnectionStrings:ReportsDb`
+- service starts
+- mock repositories registered
+- readiness reports DB as `mock`
+
+Document both scenarios clearly.
+
+---
+
+## F. End-to-End API Validation Against Real DB
+Using a real MySQL-backed run of the service, validate the full Template Management API flow.
+
+### Required API validations
+
+#### Template
+- create template
+- update template
+- get template by id
+- list templates by product and organization type
+
+#### Version
+- create template version
+- get latest version
+- get published version (before and after publish as applicable)
+
+#### Publish
+- publish a version
+- confirm only one version remains published for the template
+- publish again (idempotent behavior or clearly documented result)
+
+Capture:
+- request payloads
+- response status codes
+- meaningful sample responses
+
+Do not rely only on compile-time validation — prove the endpoints work end-to-end with the database.
+
+---
+
+## G. Data Integrity Validation
+Validate the following using DB-backed execution:
+
+- version numbers increment sequentially
+- no duplicate version numbers for the same template
+- published version uniqueness holds
+- FK relationships behave correctly
+- template retrieval returns the correct current/latest version state
+
+Document actual validation evidence.
+
+---
+
+## H. Concurrency Safety Validation
+Do a lightweight but meaningful validation of concurrency-sensitive flows.
+
+At minimum validate one or both of:
+- two quick version-creation attempts on the same template do not create duplicate version numbers
+- two quick publish attempts do not leave multiple versions published
+
+This does not need full load testing, but it must provide confidence that the transactional protections are functioning.
+
+Document:
+- what was attempted
+- what happened
+- why the result is acceptable
+
+---
+
+## I. Health & Readiness Validation
+Verify:
+
+### `GET /api/v1/health`
+- still works
+
+### `GET /api/v1/ready`
+- returns DB status correctly:
+  - `ok` when DB is connected
+  - `mock` when fallback mode is active
+  - `fail` only when DB mode is expected but unavailable
+
+Document example responses.
+
+---
+
+## J. Build / Run Validation
+Run and document:
+- `dotnet build`
+- `dotnet test`
+- service startup with DB enabled
+- service startup with mock fallback
+
+Aim to keep build status at:
+- 0 errors
+- 0 warnings if possible
+
+If warnings remain, document them explicitly.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. EF migration is created successfully
+2. migration can be applied successfully
+3. database schema is aligned with the current EF model
+4. service can start with MySQL enabled
+5. service can still start in mock fallback mode
+6. template APIs work end-to-end against a real DB
+7. version creation works against DB
+8. publish logic works against DB
+9. only one published version exists per template after publish operations
+10. version numbering remains sequential without duplicates in tested scenarios
+11. `/api/v1/health` works
+12. `/api/v1/ready` correctly reflects DB state
+13. build succeeds
+14. no out-of-scope features are added
+
+---
+
+# IMPLEMENTATION STEPS
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-01-003-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Record explicitly that the report was created first.
+
+## Step 2 — Verify EF model
+Inspect current entities/configurations and confirm the model is migration-ready.
+Fix only what is necessary.
+Update the report.
+
+## Step 3 — Generate migration
+Create:
+- migration `AddTemplateAndVersionEnhancements`
+
+Update the report with command output and files created.
+
+## Step 4 — Apply migration
+Run the DB update against MySQL.
+Update the report with results.
+
+## Step 5 — Validate schema
+Inspect resulting schema/tables/columns and document alignment.
+Update the report.
+
+## Step 6 — Validate DB-enabled startup
+Run the service with a real DB connection.
+Confirm startup and readiness.
+Update the report.
+
+## Step 7 — Validate Template Management API against DB
+Exercise all required endpoints against the real DB and capture evidence.
+Update the report.
+
+## Step 8 — Validate concurrency/data integrity
+Run lightweight concurrency/data-integrity checks and document outcomes.
+Update the report.
+
+## Step 9 — Validate mock fallback mode
+Run the service without the connection string and confirm mock mode still works.
+Update the report.
+
+## Step 10 — Finalize report
+Complete `/analysis/LS-REPORTS-01-003-report.md` with:
+- migration summary
+- schema summary
+- API validation results
+- DB vs mock behavior summary
+- build/test/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Migration Output
+- Database Schema Summary
+- API Validation Results
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+
+Done means:
+- migration exists
+- database schema aligns with the current model
+- service works with real MySQL
+- template APIs work end-to-end against DB
+- mock fallback still works
+- health/readiness reflect DB state correctly
+- the report was created first and updated throughout
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-01-003** exactly as described.

@@ -1,0 +1,60 @@
+BLK-COMP-02 — Data Governance, Retention & PII Control
+Commit: 817f83fc41006cd71eeb421a07b341a2179d0579
+
+To regenerate the full diff:
+    git show 817f83fc41006cd71eeb421a07b341a2179d0579 > analysis/BLK-COMP-02-commit.diff.txt
+
+Preceded by BLK-COMP-01 commit: 73645694c6a3acb39f31426e337b6ec190ec1a04
+
+FILES CHANGED IN THIS COMMIT:
+  - shared/building-blocks/BuildingBlocks/DataGovernance/PiiGuard.cs  [NEW]
+  - apps/services/identity/Identity.Application/Services/AuthService.cs  [MODIFIED]
+  - apps/services/careconnect/CareConnect.Application/Services/ReferralEmailService.cs  [MODIFIED]
+  - analysis/BLK-COMP-02-report.md  [NEW]
+  - analysis/BLK-COMP-02-commit-summary.md  [NEW]
+  - analysis/BLK-COMP-02-commit.diff.txt  [NEW]
+
+KEY DIFF FRAGMENTS:
+
+--- a/shared/building-blocks/BuildingBlocks/DataGovernance/PiiGuard.cs
++++ b/shared/building-blocks/BuildingBlocks/DataGovernance/PiiGuard.cs
+@@ -0,0 +1,65 @@
++namespace BuildingBlocks.DataGovernance;
++
++public static class PiiGuard
++{
++    public static string MaskEmail(string? email) { ... }
++    public static string MaskPhone(string? phone) { ... }
++}
+
+--- a/apps/services/identity/Identity.Application/Services/AuthService.cs
++++ b/apps/services/identity/Identity.Application/Services/AuthService.cs
+@@  LoginAsync — 5 LogWarning call sites:
+-   "LoginAsync failed: ... email={Email} ip={Ip}", ..., emailNorm, ...
++   "LoginAsync failed: ... emailMasked={EmailMasked} ip={Ip}", ..., PiiGuard.MaskEmail(emailNorm), ...
+
+@@  LoginAsync — login success audit event:
+-   Description = $"User {userWithRoles.Email} authenticated successfully ..."
+-   Metadata    = JsonSerializer.Serialize(new { tenantCode, email = userWithRoles.Email })
++   Description = $"User (id={userWithRoles.Id}) authenticated successfully ..."
++   Metadata    = JsonSerializer.Serialize(new { tenantCode })
+
+@@  EmitLoginFailed:
+-   Actor.Name  = email,
+-   Description = $"Failed login attempt for '{email}' in tenant '{tenantCode}'."
++   Actor.Name  = PiiGuard.MaskEmail(email),
++   Description = $"Failed login attempt for '{PiiGuard.MaskEmail(email)}' in tenant '{tenantCode}'."
+
+@@  EmitLockedLoginBlocked:
+-   Actor.Name  = user.Email,
+-   Description = $"Login attempt blocked for locked account '{user.Email}' ..."
+-   Metadata    = { tenantCode, email = user.Email, reason = "AccountLocked" }
++   Actor.Name  = PiiGuard.MaskEmail(user.Email),
++   Description = $"Login attempt blocked for locked account (userId={user.Id}) ..."
++   Metadata    = { tenantCode, userId = user.Id.ToString(), reason = "AccountLocked" }
+
+--- a/apps/services/careconnect/CareConnect.Application/Services/ReferralEmailService.cs
++++ b/apps/services/careconnect/CareConnect.Application/Services/ReferralEmailService.cs
+@@  ResendEmailAsync:
+-   "Resending referral notification for referral {ReferralId} ... to {Email}.", ..., provider.Email
++   "Resending referral notification for referral {ReferralId} ... to {EmailMasked}.", ..., PiiGuard.MaskEmail(provider.Email)

@@ -1,0 +1,104 @@
+BLK-COMP-03 — Advanced Audit Integrity & Tamper Resistance
+Commit: 42a78225acf8d7ccb7b41dd0fec1ffa08785aab2
+
+To regenerate the full diff:
+    git show 42a78225acf8d7ccb7b41dd0fec1ffa08785aab2 > analysis/BLK-COMP-03-commit.diff.txt
+
+Preceded by BLK-COMP-02 commit: 325f580d719bdfe2a4151456dd5e478fb842eeae
+
+FILES CHANGED IN THIS COMMIT:
+  - shared/audit-client/LegalSynq.AuditClient/HttpAuditEventClient.cs               [MODIFIED]
+  - apps/services/identity/Identity.Application/Interfaces/IAuditPublisher.cs        [MODIFIED]
+  - apps/services/identity/Identity.Infrastructure/Services/AuditPublisher.cs        [MODIFIED]
+  - apps/services/identity/Identity.Application/Services/AuthService.cs              [MODIFIED]
+  - apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs    [MODIFIED]
+  - apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs [MODIFIED]
+  - apps/services/audit/Services/AuditEventIngestionService.cs                       [MODIFIED]
+  - analysis/BLK-COMP-03-report.md                                                   [NEW]
+  - analysis/BLK-COMP-03-commit-summary.md                                           [NEW]
+  - analysis/BLK-COMP-03-commit.diff.txt                                             [NEW]
+
+KEY DIFF FRAGMENTS:
+
+--- a/shared/audit-client/LegalSynq.AuditClient/HttpAuditEventClient.cs
++++ b/shared/audit-client/LegalSynq.AuditClient/HttpAuditEventClient.cs
+@@  IngestAsync catch block:
+-   catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+-   {
+-       _logger.LogWarning(ex, "AuditEvent ingest transport error: EventType={EventType}", request.EventType);
+-       return new IngestResult(false, null, "TransportError", 0);
+-   }
++   catch (Exception ex)
++   {
++       _logger.LogWarning(ex, "AuditEvent ingest error: EventType={EventType} ExceptionType={ExType}",
++           request.EventType, ex.GetType().Name);
++       return new IngestResult(false, null, "ClientError", 0);
++   }
+
+@@  IngestBatchAsync catch block: same change as above
+
+--- a/apps/services/identity/Identity.Application/Interfaces/IAuditPublisher.cs
++++ b/apps/services/identity/Identity.Application/Interfaces/IAuditPublisher.cs
+@@
+-   string? metadata = null);
++   string? metadata = null,
++   string? correlationId = null);
+
+--- a/apps/services/identity/Identity.Infrastructure/Services/AuditPublisher.cs
++++ b/apps/services/identity/Identity.Infrastructure/Services/AuditPublisher.cs
+@@  Publish() signature:
+-   string? metadata = null)
++   string? metadata = null,
++   string? correlationId = null)
+
+@@  IngestAuditEventRequest initializer:
++   CorrelationId = correlationId,
+
+--- a/apps/services/identity/Identity.Application/Services/AuthService.cs
++++ b/apps/services/identity/Identity.Application/Services/AuthService.cs
+@@  usings:
++   using Microsoft.AspNetCore.Http;
+
+@@  fields:
++   private readonly IHttpContextAccessor _httpContextAccessor;
+
+@@  constructor:
++   IHttpContextAccessor httpContextAccessor,
++   _httpContextAccessor = httpContextAccessor;
+
+@@  new convenience property:
++   private string? CurrentCorrelationId =>
++       _httpContextAccessor.HttpContext?.Items["CorrelationId"]?.ToString();
+
+@@  All 5 IngestAsync call sites:
++   CorrelationId  = CurrentCorrelationId,
+
+--- a/apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
++++ b/apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+@@  All 10 IngestAsync call sites (replace_all on RequestId pattern):
++   CorrelationId  = _httpContextAccessor.HttpContext?.Items["CorrelationId"]?.ToString(),
+    RequestId      = _httpContextAccessor.HttpContext?.TraceIdentifier,
+
+--- a/apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
++++ b/apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
+@@  Both IngestAsync call sites:
++   CorrelationId  = _httpContextAccessor.HttpContext?.Items["CorrelationId"]?.ToString(),
+    RequestId      = _httpContextAccessor.HttpContext?.TraceIdentifier,
+
+--- a/apps/services/audit/Services/AuditEventIngestionService.cs
++++ b/apps/services/audit/Services/AuditEventIngestionService.cs
+@@  usings:
++   using PlatformAuditEventService.Enums;
+
+@@  IngestOneAsync — Step 0.5 gap detection (before idempotency check):
++   var effectiveCorrelationId = string.IsNullOrWhiteSpace(req.CorrelationId)
++       ? batchCorrelationFallback : req.CorrelationId;
++
++   if (string.IsNullOrWhiteSpace(effectiveCorrelationId))
++       _logger.LogWarning("AuditGap: CorrelationId is absent on EventType={EventType} ...");
++
++   if (req.Scope.ScopeType == ScopeType.Tenant && string.IsNullOrWhiteSpace(req.Scope.TenantId))
++       _logger.LogWarning("AuditGap: Tenant-scoped event missing TenantId ...");
++
++   if (req.OccurredAtUtc.HasValue && (deltaMinutes > 60 || deltaMinutes < -2880))
++       _logger.LogWarning("AuditGap: OccurredAtUtc drift detected ...");

@@ -1,0 +1,742 @@
+You are implementing LS-LIENS-FLOW-002 — Contextual Task Intelligence for the LegalSynq Synq Liens v2 platform.
+
+IMPORTANT: Follow these instructions exactly.
+
+==================================================
+IMPLEMENTATION MODE
+==================================================
+
+You must:
+
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+
+Create this file first before making any code changes:
+
+/analysis/LS-LIENS-FLOW-002-report.md
+
+You must update it continuously as you progress.
+
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Permissions / Security
+- Audit Integration
+- Identity / Role Mapping Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+
+Do not wait until the end to write the report. Create it first and append/update it step by step.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Enhance the existing LS-LIENS-FLOW-001 My Tasks capability by introducing Contextual Task Intelligence.
+
+This feature must make task creation faster, more structured, and more workflow-aware without introducing full workflow automation.
+
+Build:
+
+1. Contextual Task Templates
+2. Workflow-stage-aware task creation
+3. Default assignment suggestions based on role
+4. Pre-filled due date intelligence
+5. Admin-managed task templates
+6. Shared governance for templates across:
+   - Tenant-side Synq Liens Product Settings
+   - Control Center admin side
+
+This is NOT a workflow engine.
+This is NOT event-driven automation yet.
+This is NOT SLA enforcement.
+
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+
+Use v2 shared services only. Do not use v1 equivalents.
+
+Mandatory shared services:
+- Identity
+- Audit
+- Notifications only if existing task flows need it
+- Documents are not needed here unless already reused by an existing pattern
+
+Preserve Synq Liens donor behavior and API style where practical while implementing on v2 architecture.
+
+Do not over-engineer this feature.
+
+This is still a progressive maturity phase:
+- no auto-generated tasks
+- no dependency engine
+- no SLA logic
+- no workflow stage gating
+- no automatic stage progression
+- no heavy rules engine
+
+==================================================
+HIGH-LEVEL FEATURE SUMMARY
+==================================================
+
+Build a guided task creation layer on top of FLOW-001.
+
+A. Task Templates
+- reusable tenant-defined templates for common work
+- can apply by case context, lien context, and optionally workflow stage context
+
+B. Contextual Task Creation
+- users can create tasks from template or from scratch
+- when using a template, fields are pre-filled
+- task still remains editable before save
+
+C. Workflow Awareness
+- current workflow stage should be visible where relevant
+- task creation can optionally pre-fill workflowStageId
+- workflow should inform task creation but not enforce behavior
+
+D. Shared Governance
+- task templates editable from:
+  - Synq Liens → Product Settings → Task Templates
+  - Control Center → Tenant → Synq Liens → Task Templates
+- both surfaces manage the same underlying template set
+
+==================================================
+PHASE 2 PRODUCT PRINCIPLES
+==================================================
+
+1. Assist, do not enforce
+2. Context should reduce user effort
+3. Templates improve consistency but remain optional
+4. Workflow informs task creation, but does not control it
+5. Keep domain separation clean
+6. Build toward future Flow automation without hard-wiring it now
+
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE FIRST
+==================================================
+
+Before implementing anything, inspect and document:
+
+1. Existing LS-LIENS-FLOW-001 task entities, services, APIs, and UI
+2. Existing workflow config entities and stage structures from FLOW-001
+3. Existing Product Settings structure for Synq Liens
+4. Existing Control Center settings structure for Synq Liens
+5. Existing task create/edit UI
+6. Existing case detail and lien detail task entry points
+7. Existing identity / tenant user / role lookup patterns
+8. Existing audit integration patterns
+9. Existing form component conventions
+10. Existing modal/drawer/dialog conventions
+11. Existing validation / DTO / repository / endpoint patterns
+12. Existing permission patterns
+13. Existing frontend service/api/type file patterns
+
+Document findings in the report before making major code changes.
+
+Prefer extension of FLOW-001 patterns over inventing parallel structures.
+
+==================================================
+STEP 2 — IMPLEMENT TASK TEMPLATE DOMAIN
+==================================================
+
+Create a new task template capability for Synq Liens.
+
+--------------------------------------------------
+2.1 Task Template Entity / Model
+--------------------------------------------------
+
+Implement a task template model with at minimum:
+
+- id
+- tenantId
+- name
+- description
+- defaultTitle
+- defaultDescription
+- defaultPriority
+- defaultDueOffsetDays
+- optionalDefaultRoleId or role reference
+- applicableContextType
+- optionalApplicableWorkflowStageId
+- isActive
+- createdBy
+- createdAt
+- updatedAt
+
+Use existing naming conventions where necessary.
+
+--------------------------------------------------
+2.2 Applicable Context Type
+--------------------------------------------------
+
+Support at minimum:
+
+- CASE
+- LIEN
+- STAGE
+- GENERAL
+
+If codebase enum conventions require different naming, keep behavior equivalent.
+
+--------------------------------------------------
+2.3 Template Rules
+--------------------------------------------------
+
+Templates must support:
+- general templates usable anywhere
+- case-context templates
+- lien-context templates
+- stage-context templates
+
+A stage-context template may also be used from case or lien pages when the current workflow stage matches.
+
+Do not require stage linkage for every template.
+
+--------------------------------------------------
+2.4 Template Lifecycle Actions
+--------------------------------------------------
+
+Support:
+- create template
+- edit template
+- activate template
+- deactivate template
+- list templates
+- view template detail if needed by existing patterns
+
+Hard delete is not required unless already standard.
+Soft-active/inactive control is preferred.
+
+==================================================
+STEP 3 — IMPLEMENT TEMPLATE GOVERNANCE
+==================================================
+
+Templates must be tenant-scoped and product-scoped.
+
+They must be editable from both:
+
+1. Tenant side:
+   Synq Liens → Product Settings → Task Templates
+
+2. Admin side:
+   Control Center → Tenant → Synq Liens → Task Templates
+
+These two surfaces must manage the same underlying template records.
+
+Use the same governance pattern established in FLOW-001 for shared workflow configuration.
+
+--------------------------------------------------
+3.1 Template Metadata
+--------------------------------------------------
+
+Track at minimum:
+- version if needed by existing governance pattern
+- lastUpdatedAt
+- lastUpdatedByUserId
+- lastUpdatedByName or resolvable display identity
+- lastUpdatedSource
+
+Use values similar to:
+- TENANT_PRODUCT_SETTINGS
+- CONTROL_CENTER
+
+Reuse FLOW-001 conventions where possible.
+
+--------------------------------------------------
+3.2 Concurrency
+--------------------------------------------------
+
+If FLOW-001 already introduced optimistic concurrency/version checks, extend the same pattern here where practical.
+
+Prevent silent overwrite of stale edits.
+
+==================================================
+STEP 4 — IMPLEMENT CONTEXTUAL TASK CREATION
+==================================================
+
+Enhance task creation UX so users can create from:
+- template
+- scratch
+
+--------------------------------------------------
+4.1 Entry Points
+--------------------------------------------------
+
+Update task creation from:
+- My Tasks page
+- Case page
+- Lien page
+
+When user clicks Create Task:
+- show template-aware creation flow
+- allow Create from Scratch
+
+--------------------------------------------------
+4.2 Required UX Behavior
+--------------------------------------------------
+
+Support this flow:
+
+1. User clicks Create Task
+2. User can:
+   - choose a template
+   - or choose Start from Scratch
+3. If a template is selected:
+   - pre-fill title
+   - pre-fill description
+   - pre-fill priority
+   - pre-fill due date based on offset
+   - pre-fill workflow stage where applicable
+   - suggest assignee based on role mapping if possible
+4. User can modify fields before saving
+5. Save creates a normal task using existing FLOW-001 task APIs/services, extended as needed
+
+--------------------------------------------------
+4.3 Context Filtering for Templates
+--------------------------------------------------
+
+Template picker should filter/sort templates based on context.
+
+Examples:
+- on Case page: prefer CASE + GENERAL + matching STAGE templates
+- on Lien page: prefer LIEN + GENERAL + matching STAGE templates
+- on My Tasks page: show GENERAL and optionally all allowed templates, with context selection if needed
+
+Do not hide templates so aggressively that users lose flexibility.
+Prefer relevance-first ordering/filtering.
+
+==================================================
+STEP 5 — WORKFLOW STAGE AWARENESS
+==================================================
+
+Introduce lightweight workflow stage awareness.
+
+--------------------------------------------------
+5.1 Display Stage Context
+--------------------------------------------------
+
+Where workflow stage already exists for the current case/lien context, surface it in the UI where practical:
+- case task entry
+- lien task entry
+- task form
+
+--------------------------------------------------
+5.2 Template to Stage Relationship
+--------------------------------------------------
+
+Templates may optionally target a workflow stage.
+
+If user is in a context that has a current workflow stage:
+- matching stage templates should be surfaced first
+- task form should pre-fill workflowStageId when appropriate
+
+--------------------------------------------------
+5.3 No Enforcement
+--------------------------------------------------
+
+Do NOT implement:
+- stage transition gating
+- mandatory templates per stage
+- task completion changing stage
+- stage changing task automatically
+
+Workflow awareness is assistive only.
+
+==================================================
+STEP 6 — DEFAULT ASSIGNMENT INTELLIGENCE
+==================================================
+
+Implement lightweight default assignment suggestion behavior.
+
+--------------------------------------------------
+6.1 Template Role Mapping
+--------------------------------------------------
+
+A template may optionally define a default role reference.
+
+When a template with a role is selected:
+- use the Identity service / existing user-role lookup pattern
+- attempt to identify eligible users for that role in the tenant context
+
+--------------------------------------------------
+6.2 Assignment Behavior
+--------------------------------------------------
+
+Preferred behavior:
+- suggest a user if one clear candidate exists
+- if multiple candidates exist, show reasonable selection options if existing UI supports it
+- if no candidate exists, leave unassigned and allow manual user selection
+
+Fallback behavior must be safe and explicit.
+
+Do NOT hardcode role names in application logic.
+
+--------------------------------------------------
+6.3 Scope
+--------------------------------------------------
+
+This is suggestion / prefill behavior, not auto-routing logic.
+Do not introduce workload balancing or queue routing yet.
+
+==================================================
+STEP 7 — DUE DATE INTELLIGENCE
+==================================================
+
+Implement due date prefill using template offsets.
+
+--------------------------------------------------
+7.1 Offset Rule
+--------------------------------------------------
+
+If template has defaultDueOffsetDays:
+- calculate due date from current date/time in the app's existing time handling pattern
+- pre-fill due date in task form
+- allow user override before save
+
+--------------------------------------------------
+7.2 Constraints
+--------------------------------------------------
+
+Do not implement SLA timers.
+Do not implement overdue automation.
+This is just a prefill convenience.
+
+==================================================
+STEP 8 — ADMIN UI FOR TASK TEMPLATES
+==================================================
+
+Implement template management UI.
+
+--------------------------------------------------
+8.1 Tenant-Side Page
+--------------------------------------------------
+
+Add:
+Synq Liens → Product Settings → Task Templates
+
+This page must support:
+- template list
+- create template
+- edit template
+- activate/deactivate
+- context tagging
+- optional stage association
+- default priority
+- default due offset
+- optional default role
+
+--------------------------------------------------
+8.2 Control Center Page
+--------------------------------------------------
+
+Add:
+Control Center → Tenant → Synq Liens → Task Templates
+
+This page must manage the same underlying tenant template set.
+
+--------------------------------------------------
+8.3 UI Metadata
+--------------------------------------------------
+
+Display:
+- Last Updated
+- Updated By
+- Update Source
+- Version if versioning is implemented
+
+==================================================
+STEP 9 — API / BACKEND REQUIREMENTS
+==================================================
+
+Implement backend deliverables as applicable:
+
+- task template entities/models
+- repository/data access
+- DTOs/validators
+- services
+- endpoints/routes
+- permission guards
+- audit hooks
+- identity role lookup integration
+- template-aware task creation support if task create DTO/service needs extension
+
+Keep APIs neutral and reusable by both tenant UI and admin UI.
+
+Do not duplicate core business logic across tenant/admin surfaces.
+
+--------------------------------------------------
+9.1 Suggested Endpoint Coverage
+--------------------------------------------------
+
+At minimum support endpoints for:
+- list templates
+- get template
+- create template
+- update template
+- activate/deactivate template
+
+Also add any helper endpoint needed for:
+- filtered template lookup by context
+- role-based assignee suggestion if that is cleaner than overloading existing APIs
+
+Match existing endpoint conventions.
+
+==================================================
+STEP 10 — FRONTEND REQUIREMENTS
+==================================================
+
+Implement frontend deliverables as applicable:
+
+- task template types/api/service files
+- template picker component
+- updated create/edit task form
+- tenant-side Task Templates settings page
+- control center Task Templates page
+- stage/context-aware task creation flow
+- role suggestion display/select behavior if needed
+- due date prefill logic
+- My Tasks creation flow enhancements
+- Case page creation flow enhancements
+- Lien page creation flow enhancements
+
+Use existing frontend patterns, components, layouts, and state libraries already in the codebase.
+
+==================================================
+STEP 11 — PERMISSIONS
+==================================================
+
+Implement or wire permissions for:
+
+--------------------------------------------------
+11.1 Task Template Permissions
+--------------------------------------------------
+
+At minimum:
+- View Task Templates
+- Manage Task Templates
+
+Or equivalent if current permission model uses a single manage permission.
+
+--------------------------------------------------
+11.2 Access Contexts
+--------------------------------------------------
+
+Tenant side:
+- tenant admin / authorized product settings user
+
+Admin side:
+- platform admin / control center admin
+
+Reuse FLOW-001 permission and governance patterns where possible.
+
+Document any permission seeding or migration needed.
+
+==================================================
+STEP 12 — AUDIT INTEGRATION
+==================================================
+
+Use the v2 Audit service.
+
+Log at minimum:
+- template created
+- template updated
+- template activated
+- template deactivated
+
+Optional:
+- template used during task creation
+Only implement if cleanly supported without bloating the audit stream.
+
+Audit payload should include where practical:
+- tenantId
+- product context
+- template id
+- actor user id
+- actor name
+- actor type/context
+- timestamp
+- update source
+- change summary/delta if existing patterns support it
+
+==================================================
+STEP 13 — INTEGRATION WITH EXISTING FLOW-001 TASKS
+==================================================
+
+This feature must extend FLOW-001 cleanly.
+
+Requirements:
+- existing manual task creation must continue to work
+- Start from Scratch path must remain available
+- template-based task creation must result in normal tasks compatible with all existing task views
+- case timeline integration from FLOW-001 must continue working
+- workflow config from FLOW-001 remains separate from template config, though templates may reference workflow stages
+
+Do not merge template storage into workflow config storage unless existing architecture clearly supports that and you document the rationale.
+
+==================================================
+STEP 14 — VALIDATION CHECKLIST
+==================================================
+
+You must validate and document the following.
+
+--------------------------------------------------
+14.1 Template Management
+--------------------------------------------------
+
+Validate:
+- create template
+- edit template
+- activate template
+- deactivate template
+- list templates on tenant side
+- list templates on admin side
+- tenant/admin changes reflect across both surfaces
+- metadata updates correctly
+
+--------------------------------------------------
+14.2 Contextual Creation
+--------------------------------------------------
+
+Validate:
+- create task from scratch still works
+- create task from case-context template
+- create task from lien-context template
+- create task from general template
+- stage-matching templates surface appropriately
+- template pre-fills title, description, priority, due date
+- user can override pre-filled values before save
+
+--------------------------------------------------
+14.3 Assignment Suggestion
+--------------------------------------------------
+
+Validate:
+- template with default role suggests assignee when eligible user exists
+- safe fallback when no eligible user exists
+- no hard failure if role mapping is incomplete
+
+--------------------------------------------------
+14.4 Workflow Awareness
+--------------------------------------------------
+
+Validate:
+- workflow stage is visible where applicable
+- template can reference workflow stage
+- workflowStageId pre-fills when appropriate
+- no workflow enforcement behavior is introduced
+
+--------------------------------------------------
+14.5 Build / Run
+--------------------------------------------------
+
+Validate:
+- migrations run
+- backend builds
+- frontend builds
+- tests/lint run if present in project
+
+If something cannot be run, explain exactly why in the report.
+
+==================================================
+STEP 15 — REQUIRED REPORT STRUCTURE
+==================================================
+
+Your final /analysis/LS-LIENS-FLOW-002-report.md must contain these sections:
+
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+
+2. Codebase Assessment
+   - relevant existing modules discovered
+   - architectural fit notes
+
+3. Files Changed
+   - grouped by backend/frontend/database/config
+
+4. Database / Schema Changes
+   - entities/tables added or modified
+   - migrations
+
+5. API Changes
+   - endpoints added/updated
+   - request/response summary
+
+6. UI Changes
+   - pages/components added/updated
+   - navigation changes
+
+7. Permissions / Security
+   - roles/permissions added or reused
+
+8. Audit Integration
+   - events logged
+   - payload approach
+
+9. Identity / Role Mapping Integration
+   - how role-based suggestion works
+   - fallback behavior
+   - unresolved gaps if any
+
+10. Validation Results
+   - build/test/lint/manual verification
+   - failures if any
+
+11. Known Gaps / Risks
+   - incomplete items
+   - technical debt introduced
+   - recommended next iteration
+
+12. Run Instructions
+   - migration steps
+   - startup steps
+   - seed/config notes
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This feature is done only if:
+
+1. Task Templates exist and are manageable
+2. templates are editable from both tenant and control center surfaces
+3. task creation supports template-based and scratch-based flows
+4. templates pre-fill title, description, priority, due date, and stage where applicable
+5. role-based assignment suggestion works safely
+6. workflow awareness is introduced without enforcement
+7. audit logging is wired
+8. implementation is documented in /analysis/LS-LIENS-FLOW-002-report.md
+
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+
+- Make reasonable implementation choices if the codebase has constraints
+- Prefer reuse over rewriting
+- Keep the solution incremental and shippable
+- Do not introduce a full rules engine
+- Do not introduce automation orchestration
+- Preserve tenant isolation
+- Preserve existing FLOW-001 behavior
+- Keep domain boundaries clear:
+  1. Task domain
+  2. Task template domain
+  3. Workflow definition domain
+  4. Workflow runtime state domain (future only; do not overbuild)
+
+Begin by creating /analysis/LS-LIENS-FLOW-002-report.md immediately, then inspect the codebase, document findings, and proceed with implementation.

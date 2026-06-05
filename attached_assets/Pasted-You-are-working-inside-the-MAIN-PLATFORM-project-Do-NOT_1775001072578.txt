@@ -1,0 +1,145 @@
+You are working inside the MAIN PLATFORM project.
+
+Do NOT build features.
+Do NOT refactor broadly.
+Do NOT change business logic unless required for the specific fixes below.
+
+Your job is to make a few targeted integration fixes to the merged `notifications` service so UI work can proceed safely.
+
+==================================================
+GOAL
+==================================================
+
+Apply only the following fixes to the merged notifications backend:
+
+1. Remove the unsafe tenant fallback behavior
+2. Ensure the notification worker does not restart-loop in development
+3. Verify the TypeScript config fix is present and correct
+4. Generate a short fix report
+
+Target service path:
+- /apps/services/notifications
+
+Keep all existing notifications features intact.
+
+==================================================
+FIX 1 — REMOVE UNSAFE TENANT FALLBACK
+==================================================
+
+Inspect:
+- apps/services/notifications/src/middlewares/tenant.middleware.ts
+
+Current problem:
+- requests missing `x-tenant-id` silently fall back to `"default"`
+
+Required fix:
+- remove the `"default"` tenant fallback for non-health application requests
+- if tenant context is missing, fail cleanly instead of writing/reading under a fake default tenant
+
+Required behavior:
+- for normal notifications service routes, missing tenant must return a clean error response
+- use the existing error response style if one exists
+- do not break health endpoint behavior unnecessarily
+- do not invent new auth architecture in this task
+
+Preferred result:
+- missing tenant header/context returns 400 with a clear error code/message
+- req.tenantId is only set when an actual tenant value is present
+
+Do NOT leave any silent `"default"` fallback in place.
+
+==================================================
+FIX 2 — STOP NOTIFICATION WORKER RESTART LOOP
+==================================================
+
+Inspect:
+- scripts/run-dev.sh
+- apps/services/notifications/src/workers/notification.worker.ts
+- any related startup scripts if needed
+
+Current problem:
+- the notification worker is a stub and exits immediately
+- it may be launched with a respawn/dev watcher mode that causes noisy restart loops
+
+Required fix:
+- make local development startup clean
+- if the worker is still a stub, do NOT run it in a mode that endlessly respawns
+- preserve provider-health worker behavior if that worker is long-running and valid
+
+Acceptable solutions:
+- switch the notification worker launch to a one-shot invocation
+- or remove notification worker startup from dev script temporarily if clearly documented
+- or gate its startup behind a condition if that is cleaner
+
+Do NOT implement a queue in this task.
+Do NOT build new worker logic.
+Only stop the restart loop.
+
+==================================================
+FIX 3 — VERIFY TYPESCRIPT CONFIG SAFETY
+==================================================
+
+Inspect:
+- apps/services/notifications/tsconfig.json
+
+Required:
+- verify the TypeScript config does not produce the known moduleResolution/deprecation startup issue in normal use
+- if needed, add the minimal safe config so notifications typecheck and run cleanly from the merged location
+
+Do NOT broadly rewrite tsconfig.
+Keep the fix minimal.
+
+==================================================
+VALIDATION
+==================================================
+
+After the fixes:
+
+1. Run targeted notifications typecheck/build validation
+2. Run the notifications service startup path if feasible
+3. Confirm:
+   - missing tenant no longer falls back to "default"
+   - notification worker no longer restart-loops
+   - TypeScript config is clean enough for normal dev startup
+
+If some validation cannot be fully executed, state exactly why.
+
+==================================================
+CONSTRAINTS
+==================================================
+
+- Do NOT change notifications APIs beyond the tenant fallback fix
+- Do NOT add migrations
+- Do NOT add audit transport integration
+- Do NOT add UI
+- Do NOT add tests unless required for a tiny validation helper
+- Keep changes minimal and surgical
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+Create this report:
+
+/analysis/notifications-merge-fix-report.md
+
+The report must include:
+1. files changed
+2. exact fixes applied
+3. validation performed
+4. whether the tenant fallback issue is fully resolved
+5. whether the worker restart-loop issue is fully resolved
+6. whether tsconfig needed changes
+7. any remaining risks that still do NOT block UI work
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+This task is successful only if:
+- no silent "default" tenant fallback remains
+- notification worker does not restart-loop in dev
+- notifications still compiles/runs cleanly
+- a fix report is generated
+
+Begin now.

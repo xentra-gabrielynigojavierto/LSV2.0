@@ -1,0 +1,329 @@
+LS-LIENS-CASE-005 — Replit Implementation Prompt
+
+Copy-paste this entire prompt into Replit:
+
+You are implementing LS-LIENS-CASE-005 — Case Notes Backend & Persistence for the LegalSynq Synq Liens v2 platform.
+IMPORTANT: Follow these instructions exactly.
+==================================================
+IMPLEMENTATION MODE
+==================================================
+You must:
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+Create this file first before making any code changes:
+/analysis/LS-LIENS-CASE-005-report.md
+You must update it continuously as you progress.
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Permissions / Security
+- Audit Integration
+- Case Timeline Integration
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+Do not leave placeholder sections. Populate with actual implementation details.
+==================================================
+OBJECTIVE
+==================================================
+Convert the existing Case Notes UI (LS-LIENS-CASE-004) into a fully persistent, backend-driven feature.
+Implement:
+1. Case Notes entity and storage
+2. CRUD APIs
+3. Replace TEMP/Zustand-only notes with real data
+4. Audit logging for note actions
+5. Optional pin/unpin persistence
+6. Case timeline integration
+This must align with:
+- FLOW-001 task patterns
+- FLOW-004 task notes architecture
+- v2 shared services (Identity, Audit)
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+Use v2 shared services only:
+- Identity (user attribution)
+- Audit (logging)
+- Notifications NOT required
+Do NOT:
+- store notes in task or case description
+- use Documents service
+- build messaging/chat features
+- introduce real-time systems
+Use:
+- existing repository pattern
+- DTO conventions
+- endpoint structure
+- permission guards
+==================================================
+STEP 1 — ANALYZE EXISTING CODEBASE
+==================================================
+Before implementing:
+Inspect and document:
+- Case entity structure
+- Existing CaseService / endpoints
+- CASE-004 Notes UI (case-detail-client.tsx)
+- Zustand store usage for notes
+- Audit publishing pattern
+- Case timeline integration mechanism
+- Permission model
+Document findings in report before coding.
+==================================================
+STEP 2 — IMPLEMENT CASE NOTE DOMAIN
+==================================================
+--------------------------------------------------
+2.1 Entity
+--------------------------------------------------
+Create: LienCaseNote
+Fields:
+- id
+- caseId
+- tenantId
+- content (string, required)
+- category (GENERAL / INTERNAL / FOLLOW_UP)
+- isPinned (bool)
+- createdByUserId
+- createdByName
+- createdAt
+- updatedAt (nullable)
+- isEdited (bool)
+- isDeleted (bool, soft delete)
+Use existing AuditableEntity conventions if applicable.
+--------------------------------------------------
+2.2 EF Configuration
+--------------------------------------------------
+Create:
+- LienCaseNoteConfiguration
+Add indexes:
+- (tenantId, caseId)
+- (caseId, isDeleted)
+--------------------------------------------------
+2.3 DbContext
+--------------------------------------------------
+Add:
+- DbSet<LienCaseNote> CaseNotes
+--------------------------------------------------
+2.4 Migration
+--------------------------------------------------
+Create migration:
+- AddCaseNotes
+==================================================
+STEP 3 — REPOSITORY & SERVICE
+==================================================
+--------------------------------------------------
+3.1 Repository
+--------------------------------------------------
+Create:
+- ILienCaseNoteRepository
+- LienCaseNoteRepository
+Methods:
+- GetByCaseId(caseId)
+- Add(note)
+- Update(note)
+- SoftDelete(note)
+- TogglePin(note)
+--------------------------------------------------
+3.2 Service
+--------------------------------------------------
+Create:
+- ILienCaseNoteService
+- LienCaseNoteService
+Responsibilities:
+- tenant scoping
+- validation
+- permission checks
+- audit publishing
+- mapping to DTO
+==================================================
+STEP 4 — API ENDPOINTS
+==================================================
+--------------------------------------------------
+4.1 Routes
+--------------------------------------------------
+Implement:
+GET    /api/liens/cases/{caseId}/notes
+POST   /api/liens/cases/{caseId}/notes
+PUT    /api/liens/cases/{caseId}/notes/{noteId}
+DELETE /api/liens/cases/{caseId}/notes/{noteId}
+POST   /api/liens/cases/{caseId}/notes/{noteId}/pin
+POST   /api/liens/cases/{caseId}/notes/{noteId}/unpin
+--------------------------------------------------
+4.2 DTOs
+--------------------------------------------------
+Create:
+- CaseNoteRequest
+- CaseNoteResponse
+Response includes:
+- id
+- content
+- category
+- isPinned
+- createdByName
+- createdAt
+- updatedAt
+- isEdited
+--------------------------------------------------
+4.3 Validation
+--------------------------------------------------
+- ensure case belongs to tenant
+- ensure user has access to case
+- enforce ownership for edit/delete unless admin
+==================================================
+STEP 5 — AUDIT INTEGRATION
+==================================================
+Log:
+- liens.case_note.created
+- liens.case_note.updated
+- liens.case_note.deleted
+- liens.case_note.pinned
+- liens.case_note.unpinned
+Include:
+- tenantId
+- caseId
+- noteId
+- actorUserId
+- timestamp
+Do NOT store full content in audit if large.
+==================================================
+STEP 6 — CASE TIMELINE INTEGRATION
+==================================================
+When note created:
+Publish audit event with:
+- entityType = "Case"
+Example:
+"Note added to Case"
+Optional:
+- include author name
+DO NOT:
+- flood timeline
+- include full note text
+==================================================
+STEP 7 — FRONTEND INTEGRATION
+==================================================
+--------------------------------------------------
+7.1 Replace TEMP Data
+--------------------------------------------------
+Update:
+- case-detail-client.tsx
+Replace:
+- TEMP notes
+- Zustand-only storage
+With:
+- API calls
+--------------------------------------------------
+7.2 API Integration
+--------------------------------------------------
+Create:
+- lien-case-notes.types.ts
+- lien-case-notes.api.ts
+- lien-case-notes.service.ts
+--------------------------------------------------
+7.3 UI Behavior
+--------------------------------------------------
+Keep existing:
+- timeline layout
+- composer
+- filters
+- sorting
+- pinned logic
+Add:
+- loading state
+- error handling
+--------------------------------------------------
+7.4 Composer
+--------------------------------------------------
+On submit:
+- call POST API
+- update UI (optimistic or reload)
+--------------------------------------------------
+7.5 Edit/Delete (if implemented)
+--------------------------------------------------
+Add UI controls:
+- edit own note
+- delete own note
+==================================================
+STEP 8 — PERMISSIONS
+==================================================
+Implement or reuse:
+- View Case Notes
+- Create Case Notes
+- Edit Own Notes
+- Delete Own Notes
+- Pin Notes
+If no granular system:
+- tie to case access
+==================================================
+STEP 9 — VALIDATION CHECKLIST
+==================================================
+Validate:
+### CRUD
+- create note persists
+- reload → note remains
+- edit works
+- delete hides note
+- pin/unpin persists
+### UI
+- timeline renders correctly
+- filters work
+- sorting works
+### Permissions
+- unauthorized blocked
+- ownership enforced
+### Audit
+- all events logged
+### Timeline
+- note events visible
+### Build
+- backend builds
+- frontend builds
+- migration runs
+==================================================
+STEP 10 — REPORT STRUCTURE
+==================================================
+Populate:
+1. Executive Summary
+2. Codebase Assessment
+3. Files Changed
+4. Database / Schema Changes
+5. API Changes
+6. UI Changes
+7. Permissions / Security
+8. Audit Integration
+9. Case Timeline Integration
+10. Validation Results
+11. Known Gaps / Risks
+12. Run Instructions
+==================================================
+DEFINITION OF DONE
+==================================================
+Feature is complete only if:
+1. Case notes persist in DB
+2. UI uses real API data
+3. CRUD operations work
+4. Audit logs exist
+5. Timeline integration works
+6. No regression to CASE-004 UI
+7. Multi-tenant safety enforced
+8. Report completed in /analysis/LS-LIENS-CASE-005-report.md
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+- Keep it simple
+- No attachments
+- No chat features
+- No real-time updates
+- Follow FLOW patterns
+- Preserve tenant isolation
+- Align naming with existing Liens domain
+Begin by creating /analysis/LS-LIENS-CASE-005-report.md immediately, then inspect the codebase, document findings, and proceed with implementation.

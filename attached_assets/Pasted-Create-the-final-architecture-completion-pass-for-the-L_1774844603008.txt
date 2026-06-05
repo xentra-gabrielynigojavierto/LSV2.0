@@ -1,0 +1,243 @@
+Create the final architecture completion pass for the LegalSynq multi-tenant, multi-product platform.
+
+Context:
+The platform is now functionally complete and hardened:
+- OrganizationType is active and authoritative with controlled fallback
+- OrganizationRelationship is active in CareConnect workflows
+- ProductOrganizationTypeRule is active
+- ScopedRoleAssignment is the sole role store
+- UserRoles, UserRoleAssignments, and EligibleOrgType are retired
+- platform-readiness endpoint exists
+- startup diagnostics now validate OrgType consistency and CareConnect linkage health
+
+The latest hardening pass added:
+- auto-resolution of OrganizationTypeId from OrgType string in Organization.Create()
+- JWT org_type derived ID-first through OrgTypeMapper
+- UserResponse org type derived ID-first through OrgTypeMapper
+- platform-readiness endpoint
+- CareConnect linkage diagnostics and relationship-resolution warning logs
+- control-center alignment to the new coverage/readiness shape. :contentReference[oaicite:0]{index=0}
+
+## Objective
+
+Finish the architecture completely by closing the final identity dual-path and strengthening relationship integrity just enough for reliable scale.
+
+Do NOT add subdomain tenancy yet.
+Do NOT add new products yet.
+Do NOT redesign the platform.
+
+Focus on:
+
+1. safely retiring the OrgType string as an authoritative field
+2. making OrganizationTypeId the only true identity source
+3. tightening relationship integrity for CareConnect flows
+4. proving non-global scoped authorization in at least one or two real flows
+5. generating a final completion report
+
+---
+
+## Deliverable
+
+Generate and save:
+
+/analysis/step9_phase-i_identity-finalization-and-relationship-enforcement.md
+
+Use this exact report structure:
+
+# LegalSynq Phase I — Identity Finalization and Relationship Enforcement
+## 1. Current State
+## 2. Final Risks Being Addressed
+## 3. Identity Finalization Changes
+## 4. Relationship Integrity Changes
+## 5. Scoped Authorization Activation
+## 6. Files Changed
+## 7. Schema / Migration Notes
+## 8. Build and Verification Status
+## 9. Remaining Optional Future Enhancements
+
+---
+
+## Phase 1 — finalize OrganizationType as the only true source of truth
+
+Current state:
+- OrganizationTypeId is primary in practice
+- OrgType string still exists for compatibility and fallback
+- TODO markers indicate OrgType string removal is the next phase
+
+Tasks:
+- inspect all remaining OrgType reads/writes across:
+  - Identity.Domain
+  - AuthService
+  - UserService
+  - JwtTokenService
+  - DTOs
+  - CurrentRequestContext
+  - Admin endpoints
+  - response mappers
+- make OrganizationTypeId the only authoritative source for business logic
+- where org_type string is still needed for compatibility, derive it from OrgTypeMapper using OrganizationTypeId
+- remove all places where OrgType string is treated as the write authority
+- add a backfill migration if needed to ensure all existing Organizations have OrganizationTypeId populated from OrgType
+- add defensive validation so new/updated Organizations cannot drift into mismatched OrgType / OrganizationTypeId state
+
+Important:
+- do NOT break existing API contracts
+- do NOT break JWT consumers
+- you may keep the OrgType column temporarily if needed for compatibility, but it must no longer be authoritative
+- if safe and practical, prepare the codebase so dropping OrgType later becomes a trivial migration
+
+Optional if safe:
+- add `org_type_id` claim while keeping `org_type`
+- keep `org_type` derived, not sourced from the column
+
+---
+
+## Phase 2 — relationship integrity enforcement for CareConnect
+
+Current state:
+- referrals and appointments already carry OrganizationRelationshipId
+- relationship resolution is active but best-effort and nullable
+
+Tasks:
+- inspect:
+  - ReferralService
+  - AppointmentService
+  - ProviderService
+  - FacilityService
+  - relationship resolver/service client
+  - relevant DTOs and repository methods
+- strengthen behavior when both ReferringOrganizationId and ReceivingOrganizationId are provided:
+  - resolve active relationship
+  - if none found, do NOT break current workflows by default
+  - but add a configurable enforcement mode or validation hook if practical
+- add stronger consistency handling for:
+  - appointment relationship copied from referral
+  - mismatch detection between appointment and referral relationship context
+  - provider/facility org linkage validation when OrganizationId is supplied
+- add practical integrity reporting if useful:
+  - referrals with both org IDs but null relationship
+  - appointments missing relationship where referral has one
+  - providers/facilities lacking OrganizationId
+
+Prefer lightweight operational enforcement, not over-engineering.
+
+---
+
+## Phase 3 — activate non-global scope in real authorization flows
+
+Current state:
+- schema and model support:
+  - GLOBAL
+  - TENANT
+  - ORGANIZATION
+  - PRODUCT
+  - RELATIONSHIP
+- most proven runtime behavior is still global-role oriented
+
+Tasks:
+- inspect AuthService, request context, policy helpers, API endpoints, and current authorization patterns
+- choose at least one or two practical flows to activate real scoped authorization, such as:
+  - organization-scoped role access
+  - product-scoped access
+  - relationship-scoped access for CareConnect
+- implement real scope-aware checks where low-risk and meaningful
+- if full enforcement everywhere is too risky, add:
+  - reusable authorization helper(s)
+  - clear diagnostics
+  - explicit comments showing how downstream services should enforce scope
+- document exactly what scope-aware behavior is truly active after this step
+
+Goal:
+- move scoped authorization from “platform capability” to “real exercised runtime pattern”
+
+---
+
+## Phase 4 — expand platform readiness into final architecture-readiness checks
+
+Current state:
+- platform-readiness endpoint exists
+- startup diagnostics exist
+
+Tasks:
+- extend readiness checks where useful to include:
+  - organizations missing OrganizationTypeId
+  - OrganizationTypeId / OrgType mismatch
+  - referrals with org pair but no relationship
+  - appointments missing relationship where referral has one
+  - providers/facilities missing OrganizationId
+  - active scoped assignments by scope type
+- if practical, expose a slightly richer readiness summary in:
+  - backend endpoint
+  - control-center types/mappers/client
+
+Do not build a big dashboard unless it is quick and low-risk.
+Priority is correctness and visibility.
+
+---
+
+## Phase 5 — build and verification
+
+At the end:
+- build all impacted backend services
+- build impacted TypeScript projects
+- ensure no compile errors
+- verify:
+  - login still works
+  - JWT generation still works
+  - org type claim still works
+  - user responses still work
+  - referral creation still works
+  - appointment creation still works
+  - provider creation/update still works
+  - readiness endpoint still works
+- include explicit build results in the report
+
+---
+
+## Files to inspect first
+
+### Identity
+- apps/services/identity/Identity.Domain/Organization.cs
+- apps/services/identity/Identity.Domain/OrganizationType.cs
+- apps/services/identity/Identity.Domain/OrgTypeMapper.cs
+- apps/services/identity/Identity.Domain/ScopedRoleAssignment.cs
+- apps/services/identity/Identity.Application/Services/AuthService.cs
+- apps/services/identity/Identity.Application/Services/UserService.cs
+- apps/services/identity/Identity.Infrastructure/Repositories/UserRepository.cs
+- apps/services/identity/Identity.Infrastructure/Services/JwtTokenService.cs
+- apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+- apps/services/identity/Identity.Api/Program.cs
+- shared/building-blocks/BuildingBlocks/Context/CurrentRequestContext.cs
+
+### CareConnect
+- apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+- apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
+- apps/services/careconnect/CareConnect.Application/Services/ProviderService.cs
+- apps/services/careconnect/CareConnect.Application/Services/FacilityService.cs
+- apps/services/careconnect/CareConnect.Infrastructure/*
+- relationship resolver/service client classes
+
+### Frontend / Control Center
+- apps/control-center/src/*
+- relevant types, mappers, api client, and readiness display files
+
+---
+
+## Constraints
+
+- do NOT add subdomain tenancy yet
+- do NOT add major new modules
+- do NOT redesign current API contracts
+- do NOT destabilize CareConnect
+- do NOT remove compatibility lightly
+- prioritize final identity correctness and practical scope enforcement
+
+---
+
+## Final instruction
+
+Do the work now.
+Finish the architecture by making identity fully authoritative, strengthening relationship integrity, and activating real scoped authorization patterns.
+Then generate the report at:
+
+/analysis/step9_phase-i_identity-finalization-and-relationship-enforcement.md

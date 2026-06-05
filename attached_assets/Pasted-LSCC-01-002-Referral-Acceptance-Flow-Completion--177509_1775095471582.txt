@@ -1,0 +1,485 @@
+LSCC-01-002 — Referral Acceptance Flow Completion
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-002
+
+Initial implementation report:
+- /analysis/LSCC-01-002-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-01-002-YY-report.md
+
+Examples:
+- /analysis/LSCC-01-002-report.md
+- /analysis/LSCC-01-002-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Complete the core CareConnect referral acceptance flow so a law firm can send a referral to a provider, the provider can securely receive and review it through authenticated access, accept it, and trigger the correct confirmation notifications.
+
+This feature must provide:
+
+1. law firm provider search and provider selection for referral creation
+2. referral submission with canonical initial state
+3. provider notification email with secure referral link
+4. login-required referral access from email
+5. post-login redirect to the correct referral
+6. provider acceptance action
+7. acceptance confirmation emails to:
+   - law firm
+   - client
+8. law firm UI reflecting accepted state
+
+Do NOT expand into booking or appointments.
+Do NOT expand into scheduling or availability management.
+Do NOT redesign unrelated CareConnect features.
+
+This feature finishes the provider intake handshake end to end.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Law firm search/select provider → referral submission flow completion
+B. Provider referral notification email
+C. Secure email-link → login → returnTo → referral flow
+D. Provider authenticated referral acceptance
+E. Acceptance confirmation emails to law firm and client
+F. Law firm accepted-status visibility
+G. Tests
+H. Report
+
+Do NOT implement:
+- booking
+- appointments
+- scheduling
+- provider availability write-side
+- referral completion/in-progress workflow expansion
+- admin activation queue redesign
+- broad provider onboarding redesign
+- new analytics work
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing provider search, referral creation, auth, token, and referral detail flows where possible
+2. Preserve the corrected referral state machine from LSCC-01-001-01
+3. Require authentication before provider can view referral details from email flow
+4. Do NOT expose referral detail publicly without authentication
+5. Preserve secure token and returnTo handling
+6. Centralize acceptance enforcement in backend
+7. Do NOT duplicate business logic in frontend
+8. Keep changes minimal, focused, and testable
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+- only minimal auth / identity integration already used by login and referral routing
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/...
+- apps/web/src/app/referrals/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/components/auth/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT use this feature to refactor unrelated infrastructure or product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Already implemented:
+- provider search
+- referral creation
+- referral detail pages
+- secure token and referral-link handling
+- provider activation/login routing
+- referral state machine correction
+- retry/resend email infrastructure
+- law firm and provider role/capability model
+
+Current gap:
+- this exact handshake is not yet finalized as one clean, secure, deterministic flow
+
+LSCC-01-002 must complete:
+law firm referral creation → provider email → provider login → provider accept → confirmation emails → law firm sees accepted state
+
+==================================================
+CORE TARGET FLOW
+==================================================
+
+1. Law firm searches and selects provider
+2. Law firm submits referral for client
+3. Provider receives referral email
+4. Provider clicks email link
+5. System requires login if provider is not authenticated
+6. After login, provider is redirected to referral detail
+7. Provider accepts referral
+8. System sends emails to:
+   - law firm
+   - client
+9. Law firm sees referral tagged as Accepted
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. LAW FIRM SEARCH / SELECT PROVIDER
+--------------------------------------------------
+
+Use the current CareConnect provider search experience.
+
+Requirements:
+- law firm can search providers using the existing provider search flow
+- law firm can select exactly one provider for a referral
+- selected provider context carries into referral submission flow
+- do not redesign provider search unless needed to complete this feature safely
+
+Outcome:
+- referral submission uses the selected provider deterministically
+
+--------------------------------------------------
+B. REFERRAL SUBMISSION
+--------------------------------------------------
+
+Law firm submits a referral for a client.
+
+Requirements:
+- referral record is created successfully
+- selected provider is assigned correctly
+- client/referral information is persisted
+- initial referral state is canonical:
+  - New
+
+Rules:
+- preserve existing referral creation security and validation
+- do not introduce appointment coupling
+- no regression to existing referral creation behavior
+
+On successful creation:
+- trigger provider referral email
+- return a meaningful success state to law firm
+
+--------------------------------------------------
+C. PROVIDER REFERRAL EMAIL
+--------------------------------------------------
+
+When referral is created successfully, send a provider-facing referral email.
+
+Email must include:
+- provider-facing referral notice
+- concise referral summary
+- sufficient context to know what the referral is about
+- CTA link/button:
+  - View Referral
+
+Security rule:
+- the email link must NOT directly reveal referral details without authentication
+- it must support secure token/context validation plus login-required routing
+
+Use existing email infrastructure where possible.
+
+--------------------------------------------------
+D. SECURE EMAIL LINK → LOGIN → RETURN FLOW
+--------------------------------------------------
+
+When provider clicks the referral email link:
+
+1. validate token / referral context safely
+2. if not authenticated:
+   - redirect to login
+   - preserve safe returnTo
+3. after successful login:
+   - redirect provider to the correct referral detail page
+
+Requirements:
+- no open redirect vulnerability
+- invalid, expired, or revoked token fails safely
+- wrong authenticated account must not gain access
+- authenticated access must still enforce provider participation/authorization
+
+Do NOT rely on public unauthenticated referral detail access for this feature.
+If a public flow still exists for backward compatibility, it must not be the primary intended path here.
+
+--------------------------------------------------
+E. AUTHENTICATED PROVIDER REFERRAL VIEW
+--------------------------------------------------
+
+After login, provider lands on the referral detail page.
+
+Requirements:
+- provider must be authorized to view the referral
+- provider must be on the receiving side / valid participant
+- invalid provider access must fail safely
+- referral detail page must expose Accept action only when valid
+
+If referral is already accepted:
+- show accepted state
+- do not show duplicate accept action
+
+--------------------------------------------------
+F. PROVIDER ACCEPTANCE
+--------------------------------------------------
+
+Provider must be able to accept the referral from the authenticated referral detail page.
+
+Required transition:
+- New → Accepted
+
+Preconditions:
+- provider is authenticated
+- provider is authorized
+- referral is currently New
+- correct receiving provider/participant context is present
+
+Requirements:
+- backend-enforced transition only
+- duplicate acceptance blocked safely
+- transition history recorded
+- no duplicate side effects on repeated click/retry
+- use existing corrected referral state machine rules from LSCC-01-001-01
+
+This feature does NOT need to expand rejection UX.
+If reject already exists in backend, do not broaden or redesign it here.
+
+--------------------------------------------------
+G. ACCEPTANCE CONFIRMATION EMAILS
+--------------------------------------------------
+
+On successful provider acceptance, send:
+
+1. Law firm acceptance email
+2. Client acceptance email
+
+Law firm email should include:
+- provider accepted referral
+- client/referral summary
+- provider identity
+- any concise next-step language if appropriate
+
+Client email should include:
+- provider accepted referral
+- provider name
+- simple acknowledgement / next-step message
+
+Rules:
+- send only on first successful acceptance
+- repeated accept attempts must not duplicate sends
+- use existing notification/email infrastructure where possible
+
+If client email is missing:
+- do NOT block acceptance
+- send what is possible
+- log/document the missing client email behavior clearly
+
+--------------------------------------------------
+H. LAW FIRM ACCEPTED-STATE VISIBILITY
+--------------------------------------------------
+
+After provider accepts:
+
+- law firm referral list must show Accepted
+- law firm referral detail page must show Accepted
+- refresh/reload must show persisted accepted state
+- no stale New state after backend success
+
+Use canonical status display consistent with LSCC-01-001-01.
+
+--------------------------------------------------
+I. BACKEND ENFORCEMENT
+--------------------------------------------------
+
+Backend must remain the final authority for:
+
+- token validation
+- authenticated referral access
+- provider participation checks
+- acceptance transition validity
+- duplicate acceptance prevention
+
+No client should be able to:
+- set Accepted arbitrarily
+- bypass login
+- bypass provider authorization
+- bypass state machine rules
+
+--------------------------------------------------
+J. DATA INTEGRITY / SECURITY RULES
+--------------------------------------------------
+
+Must enforce:
+
+1. no public unauthenticated referral detail exposure
+2. no invalid provider access to referral
+3. no duplicate acceptance side effects
+4. no stale/revoked token bypass
+5. no cross-tenant / cross-org leakage
+6. no open redirect behavior
+
+If the wrong provider account logs in:
+- deny access safely
+- do not leak additional information
+
+--------------------------------------------------
+K. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. invalid email link
+- safe invalid page/message
+
+2. expired or revoked link
+- safe invalid page/message
+
+3. provider clicks link after referral already accepted
+- show accepted state
+- no duplicate accept
+
+4. provider logs in with wrong account
+- block access safely
+
+5. client email missing
+- acceptance still succeeds
+- client email skipped/logged
+- law firm email still sent if possible
+
+6. stale UI/retry/double click
+- no duplicate transition/history/email side effects
+
+--------------------------------------------------
+L. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+Backend:
+1. referral created in New
+2. provider email link resolves into authenticated flow correctly
+3. invalid/expired/revoked token blocked safely
+4. wrong provider access blocked safely
+5. provider acceptance allowed only for correct actor/state
+6. duplicate acceptance blocked
+7. law firm acceptance email triggered on first successful acceptance
+8. client acceptance email triggered on first successful acceptance when email exists
+9. missing client email does not block acceptance
+
+Frontend:
+1. provider redirected to login with preserved returnTo
+2. authenticated provider lands on correct referral
+3. accept action visible only in valid provider/state combinations
+4. law firm sees accepted status after acceptance
+
+If full frontend auth-flow tests are difficult:
+- test URL builder / redirect logic
+- test backend acceptance logic thoroughly
+- test component action visibility separately
+- document any UI testing limitation in the report
+
+--------------------------------------------------
+M. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-002-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Referral submission flow
+- how provider selection/referral creation works
+- initial state handling
+
+3. Provider email flow
+- email content/CTA behavior
+- secure link handling approach
+
+4. Login/redirect flow
+- how token validation works
+- how returnTo is preserved safely
+- wrong-account behavior
+
+5. Provider acceptance
+- backend enforcement
+- state transition
+- duplicate prevention
+
+6. Acceptance notifications
+- law firm email behavior
+- client email behavior
+- missing client email fallback behavior
+
+7. Law firm UI visibility
+- where accepted state is shown
+
+8. Tests
+- what scenarios are covered
+- what gaps remain
+
+9. Known limitations / deferred items
+- e.g. reject UX deferred, booking deferred, etc.
+
+10. Recommended next step
+- smallest logical follow-up after referral acceptance flow completion
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. verify/refine provider search → referral creation path
+2. implement or tighten secure email link → login → returnTo flow
+3. ensure authenticated provider referral access is correct
+4. wire provider acceptance action and backend enforcement
+5. send acceptance emails to law firm and client
+6. align law firm accepted-state visibility
+7. add tests
+8. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-002 is complete ONLY if:
+
+1. law firm can search/select provider and submit referral
+2. provider receives referral email
+3. provider must log in before viewing referral
+4. provider is redirected to the referral after login
+5. provider can accept referral
+6. acceptance sends emails to law firm and client
+7. law firm sees referral as Accepted
+8. no regressions to referral creation, state machine, or security behavior
+9. report exists at:
+   /analysis/LSCC-01-002-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this focused on the provider referral intake handshake.
+Do not drift into booking, appointments, or broader workflow expansion.
+This feature should make the referral handoff between law firm and provider complete, secure, and operationally reliable.

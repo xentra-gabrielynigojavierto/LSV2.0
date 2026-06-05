@@ -1,0 +1,257 @@
+You are a senior .NET platform engineer and resilience architect.
+
+Your task is to implement a **circuit breaker around the ClamAV scanning integration** in the Documents Service to prevent retry storms and improve system resilience under scanner outages.
+
+---
+
+# 🎯 Objective
+
+Add a **production-grade circuit breaker** around `ClamAvFileScannerProvider` so that:
+
+* repeated failures open the circuit
+* scanning is temporarily short-circuited
+* system avoids overwhelming ClamAV and the queue
+* behavior remains **fail-closed** (never mark files as clean without scanning)
+
+---
+
+# ⚠️ Constraints
+
+* Do NOT break existing APIs
+* Do NOT change scan status semantics
+* Do NOT allow unsafe access to documents
+* Preserve retry logic already implemented
+* Preserve clean architecture (no leakage into controllers)
+* Keep Node.js service untouched
+* Make minimal, focused changes
+
+---
+
+# 🧱 Target Design
+
+## Circuit Breaker Location
+
+Wrap ClamAV calls at the **infrastructure layer**:
+
+```id="cb1"
+ClamAvFileScannerProvider → CircuitBreakerScannerProvider → IFileScannerProvider
+```
+
+Do NOT embed circuit breaker logic inside:
+
+* controllers
+* application services
+
+---
+
+# 🔧 Implementation Requirements
+
+## 1. Use Polly Circuit Breaker
+
+Use Polly (or equivalent) to implement:
+
+* failure threshold
+* break duration
+* half-open probing
+
+### Behavior
+
+| State     | Behavior                          |
+| --------- | --------------------------------- |
+| Closed    | normal scanning                   |
+| Open      | immediately fail (no ClamAV call) |
+| Half-open | allow limited test requests       |
+
+---
+
+## 2. Failure Conditions
+
+Count as failures:
+
+* TCP connection failure
+* timeout
+* ClamAV error response
+* circuit short-circuit
+
+Do NOT count as failure:
+
+* `INFECTED` result (this is expected)
+
+---
+
+## 3. Circuit Behavior Rules
+
+When circuit is OPEN:
+
+* do NOT call ClamAV
+* return a failure result to worker
+* worker continues retry logic
+* document remains `PENDING` or becomes `FAILED`
+
+### Important:
+
+* NEVER mark document as CLEAN when circuit is open
+* preserve fail-closed behavior
+
+---
+
+## 4. Configuration
+
+Add config:
+
+```json id="cb2"
+{
+  "Scanner": {
+    "ClamAv": {
+      "CircuitBreaker": {
+        "FailureThreshold": 5,
+        "BreakDurationSeconds": 30,
+        "SamplingDurationSeconds": 60,
+        "MinimumThroughput": 5
+      }
+    }
+  }
+}
+```
+
+---
+
+## 5. Metrics
+
+Expose:
+
+| Metric                                                      | Type    |
+| ----------------------------------------------------------- | ------- |
+| `docs_clamav_circuit_state` (0=closed, 1=open, 2=half-open) | Gauge   |
+| `docs_clamav_circuit_open_total`                            | Counter |
+| `docs_clamav_circuit_short_circuit_total`                   | Counter |
+
+Update metrics on:
+
+* state transitions
+* short-circuit events
+
+---
+
+## 6. Logging
+
+Log:
+
+### When circuit opens
+
+```id="cb3"
+WARNING: ClamAV circuit opened after repeated failures
+```
+
+### When circuit closes
+
+```id="cb4"
+INFO: ClamAV circuit closed — normal operation resumed
+```
+
+### When request is short-circuited
+
+```id="cb5"
+WARNING: ClamAV scan skipped due to open circuit
+```
+
+---
+
+## 7. Integration
+
+Wrap existing provider via DI:
+
+Example:
+
+```id="cb6"
+services.AddSingleton<IFileScannerProvider>(sp =>
+{
+    var inner = new ClamAvFileScannerProvider(...);
+    return new CircuitBreakerScannerProvider(inner, options, metrics, logger);
+});
+```
+
+Do NOT modify existing provider behavior unnecessarily.
+
+---
+
+## 8. Health Check Integration
+
+Enhance existing ClamAV health:
+
+* include circuit state in health output
+* if circuit is OPEN → health = degraded
+
+---
+
+## 9. Worker Behavior
+
+Ensure:
+
+* worker treats circuit failures as transient
+* retry logic continues to apply
+* no change to existing retry/backoff logic
+
+---
+
+# 📁 Files to Create / Modify
+
+Suggested:
+
+* `Documents.Infrastructure/Scanner/CircuitBreakerScannerProvider.cs`
+* update `DependencyInjection.cs`
+* update `ScanMetrics.cs`
+* update `ClamAvHealthCheck.cs`
+* update config models
+
+---
+
+# 🧪 Verification Steps
+
+1. Start service with ClamAV running → circuit stays CLOSED
+2. Stop ClamAV → trigger repeated failures → circuit opens
+3. Observe:
+
+   * no further ClamAV calls
+   * short-circuit logs
+   * metrics reflect OPEN state
+4. Wait break duration → half-open → successful probe → circuit closes
+5. Upload document → scan resumes normally
+
+---
+
+# 📄 Deliverable
+
+Create:
+
+`/analysis/dotnet_circuit_breaker.md`
+
+Include:
+
+* design decisions
+* config used
+* files changed
+* metrics added
+* logs added
+* behavior validation
+* risks / limitations
+
+---
+
+# 🏁 Success Criteria
+
+* circuit opens under repeated failures
+* scanning stops calling ClamAV when open
+* system avoids retry storms
+* documents are never incorrectly marked clean
+* metrics and logs reflect circuit behavior
+* retry logic continues working
+
+---
+
+# Start
+
+1. inspect current ClamAV provider implementation
+2. implement CircuitBreakerScannerProvider
+3. wire it via DI
+4. generate `/analysis/dotnet_circuit_breaker.md`

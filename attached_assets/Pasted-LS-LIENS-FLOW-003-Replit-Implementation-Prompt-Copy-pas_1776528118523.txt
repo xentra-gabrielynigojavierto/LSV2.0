@@ -1,0 +1,674 @@
+LS-LIENS-FLOW-003 — Replit Implementation Prompt
+
+Copy-paste this entire prompt into Replit:
+
+You are implementing LS-LIENS-FLOW-003 — Event-Driven Task Generation for the LegalSynq Synq Liens v2 platform.
+IMPORTANT: Follow these instructions exactly.
+==================================================
+IMPLEMENTATION MODE
+==================================================
+You must:
+1. Create the report file FIRST
+2. Update the report incrementally as each step is completed
+3. Analyze the existing codebase before making changes
+4. Implement the feature fully
+5. Validate the implementation
+6. Save the final report in the root /analysis folder
+==================================================
+REPORT FILE REQUIREMENT
+==================================================
+Create this file first before making any code changes:
+/analysis/LS-LIENS-FLOW-003-report.md
+You must update it continuously as you progress.
+The report must include:
+- Executive Summary
+- Codebase Assessment
+- Files Changed
+- Database / Schema Changes
+- API Changes
+- UI Changes
+- Permissions / Security
+- Audit Integration
+- Event Consumption / Triggering Model
+- Duplicate Prevention / Idempotency
+- Validation Results
+- Known Gaps / Risks
+- Run Instructions
+Do not wait until the end to write the report. Create it first and append/update it step by step.
+==================================================
+OBJECTIVE
+==================================================
+Enhance the existing LS-LIENS-FLOW-001 and LS-LIENS-FLOW-002 capabilities by introducing Event-Driven Task Generation for Synq Liens.
+This feature must allow the system to automatically create tasks from selected business events using admin-managed task templates and tenant-configured automation rules.
+Build:
+1. Task Generation Rules
+2. Template-based event-driven task creation
+3. Duplicate prevention / idempotent generation behavior
+4. Shared governance for automation rules across:
+   - Tenant-side Synq Liens Product Settings
+   - Control Center admin side
+5. Generated task traceability
+6. Case timeline visibility for generated tasks
+This is NOT a full automation engine.
+This is NOT dependency orchestration.
+This is NOT SLA enforcement.
+This is NOT workflow gating.
+==================================================
+MANDATORY ARCHITECTURE RULES
+==================================================
+Use v2 shared services only. Do not use v1 equivalents.
+Mandatory shared services:
+- Identity
+- Audit
+- Notifications only if existing task flows need it
+- Documents are not needed here unless already reused by an existing pattern
+Preserve Synq Liens donor behavior and API style where practical while implementing on v2 architecture.
+Do not over-engineer this feature.
+This is still a progressive maturity phase:
+- no dependency engine
+- no multi-step automation chains
+- no SLA timers/escalations
+- no automatic workflow stage progression
+- no heavy rules engine
+- no cross-product orchestration
+==================================================
+HIGH-LEVEL FEATURE SUMMARY
+==================================================
+Build a controlled event-to-task automation layer on top of FLOW-001 and FLOW-002.
+A. Task Generation Rules
+- tenant-defined rules that map a business event to a task template
+- can be activated/deactivated
+- can optionally override assignment behavior and due date behavior
+B. Event-Driven Generation
+- when supported Synq Liens events occur, the system evaluates active rules
+- if a rule matches, a task is generated from the selected template
+- generated task behaves like a normal task
+C. Traceability
+- generated tasks must store their automation source metadata
+- users must be able to distinguish system-generated tasks from manual tasks
+D. Shared Governance
+- rules editable from:
+  - Synq Liens → Product Settings → Task Automation
+  - Control Center → Tenant → Synq Liens → Task Automation
+- both surfaces manage the same underlying tenant rule set
+==================================================
+PHASE 3 PRODUCT PRINCIPLES
+==================================================
+1. Automate selectively, not broadly
+2. Templates remain the standard for generated tasks
+3. Admins must be able to understand and manage rules easily
+4. Generated tasks must remain human-manageable
+5. Duplicate prevention is mandatory
+6. Event-driven behavior must remain auditable and traceable
+7. Build toward future Flow automation without introducing a full rules engine now
+==================================================
+STEP 1 — ANALYZE THE EXISTING CODEBASE FIRST
+==================================================
+Before implementing anything, inspect and document:
+1. Existing FLOW-001 task entities, services, APIs, and task creation pipeline
+2. Existing FLOW-002 task template entities, services, APIs, and UI
+3. Existing workflow config and stage entities from FLOW-001
+4. Existing audit integration pattern
+5. Existing case timeline / case events integration
+6. Existing case creation/update workflows
+7. Existing lien creation/update workflows
+8. Existing workflow stage change flows for case/lien, if present
+9. Existing domain event / application event / service hook patterns
+10. Existing permissions and control-center governance patterns
+11. Existing Product Settings structure for Synq Liens
+12. Existing control center settings structure for Synq Liens
+13. Existing DTO / repository / service / endpoint conventions
+14. Existing task duplicate-checking or idempotency patterns, if any
+Document findings in the report before making major code changes.
+Prefer extension of FLOW-001/FLOW-002 patterns over inventing a parallel automation architecture.
+==================================================
+STEP 2 — IMPLEMENT TASK GENERATION RULE DOMAIN
+==================================================
+Create a new task generation rule capability for Synq Liens.
+--------------------------------------------------
+2.1 Task Generation Rule Entity / Model
+--------------------------------------------------
+Implement a task generation rule model with at minimum:
+- id
+- tenantId
+- name
+- description
+- eventType
+- taskTemplateId
+- applicableContextType
+- optionalApplicableWorkflowStageId
+- duplicatePreventionMode
+- assignmentMode
+- dueDateMode
+- optionalDueDateOffsetDays
+- isActive
+- version
+- lastUpdatedAt
+- lastUpdatedByUserId
+- lastUpdatedByName
+- lastUpdatedSource
+- createdBy
+- createdAt
+- updatedAt
+Use existing naming conventions where necessary.
+--------------------------------------------------
+2.2 Supported Initial Event Types
+--------------------------------------------------
+Implement a focused initial event set only.
+Recommended required support:
+- CASE_CREATED
+- LIEN_CREATED
+- CASE_WORKFLOW_STAGE_CHANGED
+- LIEN_WORKFLOW_STAGE_CHANGED
+Optional only if already cleanly supported by existing infrastructure:
+- DOCUMENT_MISSING
+- DOCUMENT_REQUESTED
+- SETTLEMENT_PREP_READY
+Do NOT invent broad new event infrastructure just to support many triggers.
+--------------------------------------------------
+2.3 Applicable Context Type
+--------------------------------------------------
+Support at minimum:
+- CASE
+- LIEN
+- STAGE
+- GENERAL
+If enum conventions require different naming, keep behavior equivalent.
+--------------------------------------------------
+2.4 Duplicate Prevention Mode
+--------------------------------------------------
+Support at minimum:
+- NONE
+- SAME_RULE_SAME_ENTITY_OPEN_TASK
+- SAME_TEMPLATE_SAME_ENTITY_OPEN_TASK
+Recommended default:
+- SAME_RULE_SAME_ENTITY_OPEN_TASK
+--------------------------------------------------
+2.5 Assignment Mode
+--------------------------------------------------
+Support at minimum:
+- USE_TEMPLATE_DEFAULT
+- LEAVE_UNASSIGNED
+- ASSIGN_EVENT_ACTOR
+- ASSIGN_BY_ROLE
+Only implement ASSIGN_BY_ROLE if existing role mapping from FLOW-002 supports it safely.
+If not fully possible, implement the enum and safe fallback behavior, and document limits.
+--------------------------------------------------
+2.6 Due Date Mode
+--------------------------------------------------
+Support at minimum:
+- USE_TEMPLATE_DEFAULT
+- OVERRIDE_OFFSET_DAYS
+- NO_DUE_DATE
+Keep this simple.
+--------------------------------------------------
+2.7 Rule Lifecycle Actions
+--------------------------------------------------
+Support:
+- create rule
+- edit rule
+- activate rule
+- deactivate rule
+- list rules
+- view rule detail if needed by existing patterns
+Hard delete is not required unless already standard.
+Soft-active/inactive control is preferred.
+==================================================
+STEP 3 — IMPLEMENT GENERATED TASK TRACEABILITY
+==================================================
+Generated tasks must be traceable as system-generated tasks.
+--------------------------------------------------
+3.1 Generated Task Metadata
+--------------------------------------------------
+Add metadata to generated tasks, either embedded in the task entity or via a related table, depending on codebase fit.
+At minimum capture:
+- taskId
+- generationRuleId
+- triggerEventType
+- triggerEntityType
+- triggerEntityId
+- generatedAt
+- sourceType = SYSTEM_GENERATED
+If cleaner, also capture:
+- taskTemplateId used
+- generationAttemptId or correlation id if such pattern already exists
+--------------------------------------------------
+3.2 Generated Task Behavior
+--------------------------------------------------
+Generated tasks must behave like normal tasks after creation.
+Users must still be able to:
+- edit
+- assign/reassign
+- change status
+- complete
+- cancel
+Generated tasks must appear in:
+- My Tasks
+- Team Tasks
+- All Tasks
+- case task panels
+- lien task panels
+- case timeline if case-linked
+--------------------------------------------------
+3.3 UI Visibility
+--------------------------------------------------
+Generated tasks should visibly indicate they are system-generated.
+Implement a clean, non-noisy badge/label in the UI if practical, such as:
+- System Generated
+- Auto Generated
+Do not clutter the task UI.
+==================================================
+STEP 4 — IMPLEMENT EVENT CONSUMPTION / TRIGGERING
+==================================================
+Use the existing application/domain event or service hook patterns already present in the codebase.
+Do not introduce a heavy event bus redesign unless one already exists.
+--------------------------------------------------
+4.1 Event Consumption Strategy
+--------------------------------------------------
+Hook into existing flows where the supported events occur, such as:
+- case create service/application flow
+- lien create service/application flow
+- case workflow stage change flow
+- lien workflow stage change flow
+When one of the supported events occurs:
+1. identify tenant context
+2. identify event type
+3. identify relevant entity type + entity id
+4. identify workflow stage if relevant
+5. evaluate active generation rules
+6. generate task(s) if rule matches and duplicate prevention allows
+--------------------------------------------------
+4.2 Preferred Implementation Approach
+--------------------------------------------------
+Preferred approach:
+- create a dedicated application service such as TaskGenerationEngine / LienTaskGenerationService
+- supported domain/application flows call this service explicitly
+- service evaluates rules and creates tasks through the existing task creation pipeline
+Do not duplicate task creation logic separately for automation.
+Generated tasks should go through the same core task creation service as much as practical.
+--------------------------------------------------
+4.3 Initial Event Linkage Rules
+--------------------------------------------------
+When generated from CASE_CREATED:
+- link task to case
+- populate workflowStageId if current stage exists and relevant
+When generated from LIEN_CREATED:
+- link task to lien
+- link parent case if known
+- populate workflowStageId if current stage exists and relevant
+When generated from CASE_WORKFLOW_STAGE_CHANGED:
+- link task to case
+- populate workflowStageId
+When generated from LIEN_WORKFLOW_STAGE_CHANGED:
+- link task to lien
+- link parent case if known
+- populate workflowStageId
+==================================================
+STEP 5 — IMPLEMENT RULE EVALUATION
+==================================================
+Create rule evaluation logic that is clear and deterministic.
+--------------------------------------------------
+5.1 Matching Logic
+--------------------------------------------------
+For a rule to match:
+- rule is active
+- eventType matches
+- applicableContextType matches event/entity context where relevant
+- applicableWorkflowStageId matches when the rule is stage-specific
+Templates referenced by a rule must also be active and tenant-scoped.
+--------------------------------------------------
+5.2 Template-First Generation
+--------------------------------------------------
+When a rule matches:
+- use the selected task template as the base
+- derive title, description, priority, stage, due date, and role defaults from template
+- apply allowed rule-level overrides afterward
+--------------------------------------------------
+5.3 Rule Overrides
+--------------------------------------------------
+Rule may override:
+- assignment mode
+- due date mode
+- due date offset days
+- workflow stage if codebase fit allows and it is clearly needed
+Keep override logic minimal and explicit.
+==================================================
+STEP 6 — IMPLEMENT DUPLICATE PREVENTION / IDEMPOTENCY
+==================================================
+This is mandatory.
+--------------------------------------------------
+6.1 Duplicate Prevention Behavior
+--------------------------------------------------
+Support deterministic duplicate prevention before generating a task.
+At minimum:
+- SAME_RULE_SAME_ENTITY_OPEN_TASK
+  - if an open task already exists for the same rule + same triggering entity, skip creation
+- SAME_TEMPLATE_SAME_ENTITY_OPEN_TASK
+  - if an open task already exists for the same template + same triggering entity, skip creation
+- NONE
+  - always allow generation
+Use open-task definition consistent with FLOW-001 statuses (exclude COMPLETED and CANCELLED).
+--------------------------------------------------
+6.2 Idempotency Safety
+--------------------------------------------------
+Generation logic must be safe against:
+- repeated event handling
+- repeated saves
+- duplicate service invocations
+You may implement this via:
+- duplicate checks against task metadata
+- deterministic queries before create
+- optional generation history if truly needed
+Do not build a heavy event ledger unless necessary.
+--------------------------------------------------
+6.3 Generation Outcome Logging
+--------------------------------------------------
+Track outcomes such as:
+- generated
+- skipped_due_to_duplicate
+- skipped_due_to_inactive_rule
+- skipped_due_to_missing_template
+- failed
+Implement in the cleanest way supported by the codebase.
+At minimum, audit/log enough for traceability.
+==================================================
+STEP 7 — IMPLEMENT ASSIGNMENT AND DUE DATE BEHAVIOR
+==================================================
+--------------------------------------------------
+7.1 Assignment Behavior
+--------------------------------------------------
+By default, use FLOW-002 template assignment behavior.
+Rule-level overrides may support:
+- USE_TEMPLATE_DEFAULT
+- LEAVE_UNASSIGNED
+- ASSIGN_EVENT_ACTOR
+- ASSIGN_BY_ROLE
+If event actor is not known or not eligible:
+- fall back safely
+- do not fail task creation
+If ASSIGN_BY_ROLE is not fully supported server-side:
+- use the safest available backend behavior
+- document the limitation clearly
+Do not implement workload balancing or queue routing.
+--------------------------------------------------
+7.2 Due Date Behavior
+--------------------------------------------------
+By default, use template due offset logic.
+Rule-level override may support:
+- USE_TEMPLATE_DEFAULT
+- OVERRIDE_OFFSET_DAYS
+- NO_DUE_DATE
+Calculate due date using existing app time/date handling patterns.
+Do not implement SLA timers or escalations.
+==================================================
+STEP 8 — IMPLEMENT SHARED GOVERNANCE FOR AUTOMATION RULES
+==================================================
+Rules must be tenant-scoped and product-scoped.
+They must be editable from both:
+1. Tenant side:
+   Synq Liens → Product Settings → Task Automation
+2. Admin side:
+   Control Center → Tenant → Synq Liens → Task Automation
+These two surfaces must manage the same underlying rule set.
+Use the same governance pattern established in FLOW-001 and FLOW-002.
+--------------------------------------------------
+8.1 Rule Metadata
+--------------------------------------------------
+Track and display:
+- Last Updated
+- Updated By
+- Update Source
+- Version
+Use update source values similar to:
+- TENANT_PRODUCT_SETTINGS
+- CONTROL_CENTER
+Reuse prior conventions where possible.
+--------------------------------------------------
+8.2 Concurrency
+--------------------------------------------------
+If FLOW-001 / FLOW-002 already introduced optimistic concurrency/version checks, extend the same pattern here where practical.
+Prevent silent overwrite of stale edits.
+==================================================
+STEP 9 — API / BACKEND REQUIREMENTS
+==================================================
+Implement backend deliverables as applicable:
+- task generation rule entities/models
+- duplicate prevention enums/constants
+- assignment/due date mode enums/constants
+- repository/data access
+- DTOs/validators
+- services
+- endpoints/routes
+- permission guards
+- audit hooks
+- event-trigger integration
+- generated-task traceability support
+Keep APIs neutral and reusable by both tenant UI and admin UI.
+Do not duplicate core business logic across tenant/admin surfaces.
+--------------------------------------------------
+9.1 Suggested Endpoint Coverage
+--------------------------------------------------
+At minimum support endpoints for:
+- list rules
+- get rule
+- create rule
+- update rule
+- activate/deactivate rule
+Also add any helper endpoint needed for:
+- retrieving available event types
+- retrieving rule enums/options if that fits your pattern better
+Match existing endpoint conventions.
+==================================================
+STEP 10 — FRONTEND REQUIREMENTS
+==================================================
+Implement frontend deliverables as applicable:
+- task automation rule types/api/service files
+- tenant-side Task Automation settings page
+- control center Task Automation page
+- rule list UI
+- create/edit rule form
+- badge/indicator for generated tasks if practical
+- rule metadata display
+- event type / template / duplicate-prevention selection UI
+- assignment mode / due date mode selection UI
+Use existing frontend patterns, components, layouts, and state libraries already in the codebase.
+==================================================
+STEP 11 — PERMISSIONS
+==================================================
+Implement or wire permissions for:
+--------------------------------------------------
+11.1 Task Automation Rule Permissions
+--------------------------------------------------
+At minimum:
+- View Task Automation Rules
+- Manage Task Automation Rules
+Or equivalent if current permission model uses a single manage permission.
+--------------------------------------------------
+11.2 Access Contexts
+--------------------------------------------------
+Tenant side:
+- tenant admin / authorized product settings user
+Admin side:
+- platform admin / control center admin
+Reuse FLOW-001 and FLOW-002 permission and governance patterns where possible.
+Document any permission seeding or migration needed.
+==================================================
+STEP 12 — AUDIT INTEGRATION
+==================================================
+Use the v2 Audit service.
+Log at minimum:
+- rule created
+- rule updated
+- rule activated
+- rule deactivated
+- task auto-generated
+- generation skipped due to duplicate prevention when useful
+- generation failure if failure logging pattern already exists
+Audit payload should include where practical:
+- tenantId
+- product context
+- rule id
+- template id
+- actor user id if user-initiated
+- actor name
+- actor type/context
+- triggering event type
+- triggering entity type/id
+- timestamp
+- update source
+- change summary/delta if existing patterns support it
+Do not flood the audit stream with low-value internals.
+==================================================
+STEP 13 — CASE TIMELINE / EVENT VISIBILITY
+==================================================
+This feature must preserve FLOW-001 case timeline behavior.
+Requirements:
+- if a generated task is linked to a case directly or via lien, it must appear in case timeline
+- use the existing dual-publish or case-event integration pattern already established in FLOW-001
+- if practical, indicate in event description that the task was system-generated
+Do not break existing manual task timeline behavior.
+==================================================
+STEP 14 — INTEGRATION WITH EXISTING FLOW-001 AND FLOW-002
+==================================================
+This feature must extend prior flows cleanly.
+Requirements:
+- existing manual task creation must continue to work
+- existing template-based manual creation must continue to work
+- generated tasks must be normal tasks compatible with all current views
+- workflow config remains separate from automation rules
+- task templates remain separate from automation rules
+- automation uses templates; it does not replace them
+Do not merge storage of templates/rules/workflow into one generic config blob unless the architecture clearly already supports that and you document the rationale.
+==================================================
+STEP 15 — VALIDATION CHECKLIST
+==================================================
+You must validate and document the following.
+--------------------------------------------------
+15.1 Rule Management
+--------------------------------------------------
+Validate:
+- create rule
+- edit rule
+- activate rule
+- deactivate rule
+- list rules on tenant side
+- list rules on admin side
+- tenant/admin changes reflect across both surfaces
+- metadata updates correctly
+--------------------------------------------------
+15.2 Event-Driven Generation
+--------------------------------------------------
+Validate:
+- CASE_CREATED triggers task generation for active matching rule
+- LIEN_CREATED triggers task generation for active matching rule
+- CASE_WORKFLOW_STAGE_CHANGED triggers task generation when stage rule matches
+- LIEN_WORKFLOW_STAGE_CHANGED triggers task generation when stage rule matches
+If any supported event cannot be cleanly wired because the event does not currently exist, document exactly where and why.
+--------------------------------------------------
+15.3 Duplicate Prevention
+--------------------------------------------------
+Validate:
+- SAME_RULE_SAME_ENTITY_OPEN_TASK prevents duplicates
+- SAME_TEMPLATE_SAME_ENTITY_OPEN_TASK prevents duplicates
+- NONE allows duplicates
+- completed/cancelled tasks do not block new generation
+--------------------------------------------------
+15.4 Generated Task Behavior
+--------------------------------------------------
+Validate:
+- generated task appears in normal task views
+- generated task links to case correctly
+- generated task links to lien correctly
+- generated task stores traceability metadata
+- generated task can still be edited/completed/cancelled like normal
+--------------------------------------------------
+15.5 Case Timeline
+--------------------------------------------------
+Validate:
+- generated case-linked task appears in case timeline
+- lien-linked generated task appears in parent case timeline when applicable
+--------------------------------------------------
+15.6 Build / Run
+--------------------------------------------------
+Validate:
+- migrations run
+- backend builds
+- frontend builds
+- tests/lint run if present in project
+If something cannot be run, explain exactly why in the report.
+==================================================
+STEP 16 — REQUIRED REPORT STRUCTURE
+==================================================
+Your final /analysis/LS-LIENS-FLOW-003-report.md must contain these sections:
+1. Executive Summary
+   - what was implemented
+   - what was partially implemented
+   - what was deferred
+2. Codebase Assessment
+   - relevant existing modules discovered
+   - architectural fit notes
+3. Files Changed
+   - grouped by backend/frontend/database/config
+4. Database / Schema Changes
+   - entities/tables added or modified
+   - migrations
+5. API Changes
+   - endpoints added/updated
+   - request/response summary
+6. UI Changes
+   - pages/components added/updated
+   - navigation changes
+7. Permissions / Security
+   - roles/permissions added or reused
+8. Audit Integration
+   - events logged
+   - payload approach
+9. Event Consumption / Triggering Model
+   - where events are hooked
+   - how rules are evaluated
+   - how tasks are created
+10. Duplicate Prevention / Idempotency
+   - how duplicates are detected
+   - what safeguards were added
+   - unresolved gaps if any
+11. Validation Results
+   - build/test/lint/manual verification
+   - failures if any
+12. Known Gaps / Risks
+   - incomplete items
+   - technical debt introduced
+   - recommended next iteration
+13. Run Instructions
+   - migration steps
+   - startup steps
+   - seed/config notes
+==================================================
+DEFINITION OF DONE
+==================================================
+This feature is done only if:
+1. Task Generation Rules exist and are manageable
+2. rules are editable from both tenant and control center surfaces
+3. supported business events can generate tasks from templates
+4. duplicate prevention works reliably
+5. generated tasks store source traceability metadata
+6. generated tasks remain normal editable tasks
+7. case timeline visibility is preserved
+8. audit logging is wired
+9. implementation is documented in /analysis/LS-LIENS-FLOW-003-report.md
+==================================================
+IMPLEMENTATION NOTES
+==================================================
+- Make reasonable implementation choices if the codebase has constraints
+- Prefer reuse over rewriting
+- Keep the solution incremental and shippable
+- Do not introduce a heavy event bus unless already present
+- Do not introduce a full rules engine
+- Preserve tenant isolation
+- Preserve existing FLOW-001 and FLOW-002 behavior
+- Keep domain boundaries clear:
+  1. Task domain
+  2. Task template domain
+  3. Task generation rule domain
+  4. Workflow definition domain
+  5. Workflow runtime state domain (future only; do not overbuild)
+Begin by creating /analysis/LS-LIENS-FLOW-003-report.md immediately, then inspect the codebase, document findings, and proceed with implementation.

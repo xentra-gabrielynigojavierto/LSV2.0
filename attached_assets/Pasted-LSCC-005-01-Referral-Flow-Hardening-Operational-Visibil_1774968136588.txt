@@ -1,0 +1,422 @@
+LSCC-005-01 — Referral Flow Hardening & Operational Visibility
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-005-01
+
+Report path:
+- /analysis/LSCC-005-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Harden the LSCC-005 minimal referral flow so it is safer, more observable, and more operable in production.
+
+This iteration must improve:
+
+1. email delivery visibility
+2. email resend capability
+3. referral link/token revocation
+4. repeated token/acceptance handling
+5. referral audit visibility
+6. invalid token UX
+
+Do NOT expand the product scope.
+Do NOT add a full notification center.
+Do NOT introduce a background job system unless absolutely required.
+Do NOT redesign the broader UI.
+
+This is a controlled hardening pass on top of LSCC-005.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Email delivery tracking
+B. Resend email capability
+C. Token revocation / invalidation
+D. Duplicate/replay hardening
+E. Referral audit event visibility
+F. Minimal UI status indicators + actions
+G. Improved invalid token page
+H. Report
+
+Do NOT implement:
+- onboarding
+- broader notifications system
+- analytics expansion
+- bulk admin tooling
+- new workflow branches
+- chat/messaging
+- queue/job infrastructure unless truly necessary for the existing architecture
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse existing Notification / referral-related data structures if practical
+2. Prefer the narrowest schema/API changes needed
+3. Keep logic separated:
+   - email dispatch / tracking
+   - token validation / revocation
+   - audit event writing
+   - UI display/actions
+4. Do NOT silently fail email operations
+5. Do NOT expose token internals or leak referral existence
+6. Keep all changes idempotent and safe to rerun where possible
+7. Preserve LSCC-005 behavior unless explicitly hardening it
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+LSCC-005 already implemented:
+
+- referral creation via provider card / search flow
+- referral save in Pending-equivalent state (`New` canonical)
+- provider notification email with secure HMAC token link
+- pending-provider public accept page
+- active-tenant provider deep link through login + returnTo
+- acceptance confirmation emails
+- 30-day referral activity dashboard cards
+- notification records already being created for email events
+- token validation already exists
+- duplicate acceptance is functionally prevented by status checks
+
+Current gaps:
+- email failures are logged but not visible/actionable in product UI
+- no resend capability
+- tokens cannot be revoked once sent
+- repeated/invalid token use is not surfaced as an audit signal
+- invalid-token UX is basic
+
+Treat LSCC-005 as the baseline and build on it.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. EMAIL DELIVERY TRACKING
+--------------------------------------------------
+
+Track email delivery state for referral-related emails.
+
+Use existing Notification-related structures if they already support this well enough.
+If not, extend them minimally.
+
+Minimum per-email tracking fields/behavior needed:
+- notification type
+- delivery status
+- attempt count
+- last attempt timestamp
+- error message or failure summary when applicable
+
+Delivery status values should support:
+- Pending
+- Sent
+- Failed
+
+Behavior:
+1. when an email-triggering action occurs, create/update the notification record in Pending
+2. attempt the send
+3. on success, mark Sent
+4. on failure, mark Failed and store useful failure context
+
+Email-triggering actions covered in this feature:
+- new referral notification to provider
+- referral accepted confirmation to provider
+- referral accepted confirmation to referrer
+
+Rules:
+- referral creation or acceptance must still succeed even if email fails
+- email failure must never be silent
+- avoid broad notification-system redesign
+
+--------------------------------------------------
+B. RESEND EMAIL CAPABILITY
+--------------------------------------------------
+
+Add a minimal resend flow for referral-related emails.
+
+Preferred scope:
+- resend the provider notification email for a referral from the authenticated referral-detail experience
+- optionally expose for admin if easy within current architecture
+
+Minimum endpoint shape (adapt to repo conventions if needed):
+- POST /api/referrals/{id}/resend-email
+
+Rules:
+- authenticated and role-restricted (referrer/admin by existing conventions)
+- resend must use the correct current template + secure token strategy
+- resend attempts must update delivery tracking
+- repeated rapid clicks should not create unsafe spam behavior
+  - simple in-flight button disable or basic debounce is sufficient
+- if the referral is already accepted, either:
+  1. block resend of the original provider notification and explain why, OR
+  2. clearly label and send the appropriate acceptance-related email
+Choose the minimal consistent behavior and document it.
+
+Fallback behavior:
+- failed resend must surface visible error to the user
+- successful resend must surface visible success
+
+--------------------------------------------------
+C. TOKEN REVOCATION / INVALIDATION
+--------------------------------------------------
+
+Implement a deterministic way to invalidate previously sent referral view tokens.
+
+Preferred approach:
+- token versioning on the referral (or equivalent minimal per-referral invalidation mechanism)
+
+Example intent only:
+- Referral.TokenVersion
+- token format includes version
+- validation rejects mismatched version
+
+Rules:
+- revoking tokens must invalidate all previously issued view tokens for that referral
+- newly generated links after revocation must work
+- do NOT rely solely on expiry for hardening
+- do NOT expose raw token version semantics in user-facing UI
+
+Minimum endpoint shape (adapt if needed):
+- POST /api/referrals/{id}/revoke-token
+
+Access:
+- authenticated and role-restricted (referrer/admin by current conventions)
+
+Fallback behavior:
+- revoked/expired/invalid token routes to the invalid-token page without leaking existence
+
+--------------------------------------------------
+D. DUPLICATE / REPLAY HARDENING
+--------------------------------------------------
+
+Existing LSCC-005 behavior already prevents a second acceptance if status is no longer Pending/New.
+Strengthen this behavior operationally.
+
+Requirements:
+1. repeated accept attempts using the same valid token after acceptance must fail safely
+2. repeated invalid token access attempts should be recorded as audit events if feasible
+3. repeated valid token view attempts before acceptance are acceptable, but must remain read-only until the accept action is invoked
+4. do not double-send acceptance confirmation emails
+
+Use the minimal approach that works with the current design.
+
+--------------------------------------------------
+E. REFERRAL AUDIT EVENT VISIBILITY
+--------------------------------------------------
+
+Create a lightweight audit trail for key referral flow events.
+
+Prefer reusing existing event/notification/history structures if appropriate.
+If a new lightweight audit record is necessary, keep it minimal.
+
+Minimum events to capture if feasible:
+- ReferralCreated
+- ProviderNotificationEmailSent
+- ProviderNotificationEmailFailed
+- ReferralViewedViaToken (optional but desirable)
+- ReferralAccepted
+- TokenInvalid
+- TokenRevoked
+- ReferralEmailResent
+
+Rules:
+- do not overbuild a general audit platform
+- if some events are easier to record via the existing notification model + referral history, use that and document the mapping
+
+UI requirement:
+- show enough audit visibility on referral detail to make email state and hardening actions understandable
+- this does NOT need to become a full timeline redesign
+
+--------------------------------------------------
+F. MINIMAL UI STATUS INDICATORS + ACTIONS
+--------------------------------------------------
+
+Add minimal UI to the existing referral detail experience for authenticated users.
+
+At minimum include:
+1. email delivery status indicator
+   Examples:
+   - Email: Sent
+   - Email: Failed
+   - Email: Pending
+
+2. resend email action when appropriate
+
+3. revoke referral link action when appropriate
+
+4. clear success/error feedback via existing toast patterns if available
+
+Rules:
+- keep UI minimal and operational
+- do not clutter the page
+- do not redesign the referral detail screen
+
+Recommended placement:
+- near existing referral actions or in a compact "Referral Delivery" / "Referral Access" card
+
+--------------------------------------------------
+G. INVALID TOKEN PAGE IMPROVEMENT
+--------------------------------------------------
+
+Improve the invalid token experience at the public accept flow.
+
+Current behavior is basic.
+It should clearly communicate:
+- the referral link is invalid, expired, or no longer active
+- the user may need a new link from the referring law firm or provider contact path
+
+Requirements:
+- safe wording
+- no confirmation that a specific referral exists
+- usable UI state, not a raw dead end
+
+Optional:
+- include a short generic support/contact instruction if the current app has an appropriate contact pattern
+
+--------------------------------------------------
+H. DASHBOARD / ANALYTICS IMPACT
+--------------------------------------------------
+
+No analytics expansion is required in this feature.
+
+However:
+- do not break LSCC-005 basic referral activity cards
+- if email status affects dashboard queries or data shape, maintain backward compatibility
+
+--------------------------------------------------
+I. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+1. email notification status transitions
+   - Pending → Sent
+   - Pending → Failed
+
+2. resend flow
+   - resend triggers a new attempt
+   - tracking updates correctly
+   - duplicate click handling is safe enough for the chosen implementation
+
+3. token revocation
+   - old token invalid after revoke
+   - newly issued token valid
+
+4. duplicate/replay hardening
+   - second acceptance does not change state again
+   - acceptance emails are not re-sent on replay
+
+5. invalid token handling
+   - malformed/expired/revoked token rejected safely
+
+6. audit/event recording
+   - key events are written or mapped correctly
+
+7. UI/API integration for status display and resend/revoke actions
+   - if full UI tests are impractical, test service/API integration layers and document the limitation
+
+Pre-existing unrelated test failures should not be counted as regressions, but document them if still present.
+
+--------------------------------------------------
+J. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-005-01.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Email delivery tracking
+- data model used
+- statuses supported
+- how failures are surfaced
+
+3. Resend flow
+- endpoint(s)
+- access rules
+- duplicate/spam protection behavior
+
+4. Token revocation
+- strategy used
+- validation behavior after revoke
+
+5. Duplicate/replay hardening
+- what is prevented
+- how duplicate confirmation sends are avoided
+
+6. Audit visibility
+- what events are captured
+- where they are stored/shown
+
+7. UI changes
+- where status indicators/actions appear
+- invalid token page changes
+
+8. Tests
+- what scenarios are covered
+- any remaining gaps
+
+9. Known limitations / follow-ups
+- anything intentionally deferred
+
+10. Recommended next step
+- smallest logical follow-up after hardening
+
+==================================================
+IMPLEMENTATION STRATEGY
+==================================================
+
+Follow this order:
+
+1. Inspect LSCC-005 email, token, notification, and referral detail implementations
+2. Extend delivery tracking minimally
+3. Implement resend endpoint/service behavior
+4. Implement token versioning or equivalent revocation mechanism
+5. Harden duplicate/replay paths
+6. Add lightweight audit event capture/mapping
+7. Add referral detail status indicators + resend/revoke actions
+8. Improve invalid token page
+9. Add tests
+10. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-005-01 is complete ONLY if:
+
+1. referral-related email delivery status is tracked and visible
+2. resend email capability exists and is safely limited
+3. referral links can be revoked/invalidate prior tokens
+4. duplicate/replay acceptance is safely handled without duplicate confirmations
+5. audit/event visibility exists for the hardening-critical events
+6. invalid token UX is improved
+7. LSCC-005 referral flow still works end-to-end
+8. report exists at:
+   /analysis/LSCC-005-01.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this tight and operational.
+Do not drift into a full notifications platform.
+Favor explicit visibility and control over complexity.
+Build the smallest hardening layer that makes LSCC-005 reliable and manageable in production.

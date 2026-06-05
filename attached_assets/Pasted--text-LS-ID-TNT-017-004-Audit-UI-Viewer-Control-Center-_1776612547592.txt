@@ -1,0 +1,474 @@
+```text
+# LS-ID-TNT-017-004 — Audit UI Viewer (Control Center)
+
+## FEATURE OBJECTIVE
+
+Implement a Control Center audit viewer so platform administrators can search, filter, inspect, and review the permission-change audit events already being emitted by the Identity service audit pipeline.
+
+This feature turns the existing backend audit foundation into an operational governance tool by exposing:
+- audit event list/search
+- tenant-scoped filtering
+- actor / target / event-type filtering
+- timestamp-based review
+- before/after diff inspection
+- clear event detail drill-down
+
+This is a **UI + query integration feature**. It does NOT redesign the audit ingestion pipeline.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- LS-ID-TNT-017-001 confirmed that permission-change audit capture is already in place and now complete
+- all permission mutations emit structured events
+- before/after payloads exist
+- tenant isolation exists
+- fail-safe centralized audit publishing exists
+
+What is missing:
+- no operational UI to inspect those events
+- no easy way for admins/support/compliance to answer:
+  - who changed access?
+  - when did it change?
+  - what exactly changed?
+  - which tenant/user/group was affected?
+
+This feature makes the audit system usable by humans.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- redesign of the audit ingestion pipeline
+- external SIEM integration
+- analytics dashboards
+- non-permission-domain audit exploration unless already naturally included in the same event stream
+- retention policy engine
+- export-to-third-party systems
+- speculative backend changes without validating current audit query capabilities
+- tenant portal audit UI (this belongs in Control Center)
+
+ONLY IMPLEMENT:
+- audit viewer UI in Control Center
+- backend query integration for existing audit events
+- list/detail UX for permission-change audit events
+- filters, sorting, pagination, and drill-down
+- before/after payload rendering with readable diffs
+- report-first implementation and honest documentation of coverage
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental governance/observability feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, authorization, governance, and audit capture behavior
+- validate the actual audit query surfaces before adding UI assumptions
+- keep tenant isolation intact
+- keep backend authority and audit-source truth intact
+- include explicit empty/loading/error behavior
+- NOT introduce placeholder logic
+- document exact supported filters and data fields honestly
+- prefer the smallest coherent audit-review UX that fits the current Control Center architecture
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-004-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-004 — Audit UI Viewer (Control Center)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Audit Query / API Analysis
+## 4. Existing Control Center UI Analysis
+## 5. Audit Viewer UX Design
+## 6. Query / Filter Model
+## 7. Files Changed
+## 8. Backend / API Implementation
+## 9. Frontend / UI Implementation
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL AUDIT QUERY SURFACE
+
+Inspect the actual codebase and determine how audit data can currently be queried.
+
+You must identify and document:
+- whether a centralized audit API already exists
+- whether the identity service exposes any audit query endpoints today
+- whether Control Center already has any audit-related pages/components
+- whether the `LegalSynq.AuditClient` has query/read capabilities or only ingest capabilities
+- whether there is a service or endpoint that can be reused directly
+- if no query API exists, what minimal backend addition is required
+
+Validate:
+- event fields actually available to the UI
+- before/after payload shape
+- actor/entity/scope fields
+- timestamp fields
+- filtering capabilities already supported, if any
+
+Do NOT assume an audit query API exists until you inspect it.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Audit Query / API Analysis
+## 4. Existing Control Center UI Analysis
+
+---
+
+## STEP 2 — CHOOSE THE UI PLACEMENT IN CONTROL CENTER
+
+Based on actual Control Center structure, choose the smallest coherent place for the audit viewer.
+
+Preferred possibilities:
+- `Control Center > Governance > Audit`
+- `Control Center > Identity > Audit`
+- `Control Center > Security / Compliance > Audit`
+
+Requirements:
+- must be platform-admin-only
+- must be clearly separated from tenant portal
+- must fit existing admin navigation patterns
+- must not require a broad shell redesign
+
+Document:
+- chosen location
+- why it fits
+- what alternatives were rejected and why
+
+Update report:
+## 5. Audit Viewer UX Design
+
+---
+
+## STEP 3 — DEFINE THE MINIMUM USEFUL AUDIT VIEWER EXPERIENCE
+
+The UI must support at minimum:
+
+### A. Audit event list
+Each row/card should show:
+- timestamp
+- tenant
+- actor
+- event type
+- target/entity
+- concise description
+
+### B. Filters
+At minimum, support the real filters that the backend/query layer can support, ideally:
+- tenant
+- event type
+- actor user
+- target user / entity
+- date range
+- text search (if feasible)
+
+### C. Detail view
+Selecting an event should show:
+- full description
+- scope / tenant
+- actor
+- target entity
+- before payload
+- after payload
+- metadata
+- correlation/idempotency fields if available
+
+### D. Diff-friendly rendering
+Before/after payloads should not just be dumped as unreadable JSON if avoidable.
+Prefer:
+- key/value sections
+- side-by-side comparison
+- changed-field emphasis
+- fallback pretty-printed JSON if a structured diff is not feasible
+
+Do not build a large compliance analytics suite. Build a practical review tool.
+
+Update report:
+## 5. Audit Viewer UX Design
+## 6. Query / Filter Model
+
+---
+
+## STEP 4 — IMPLEMENT OR EXTEND BACKEND QUERY SUPPORT ONLY IF NEEDED
+
+If a suitable audit query API already exists:
+- reuse it
+
+If it does NOT exist:
+- add the smallest coherent backend query surface needed for Control Center
+
+Possible requirements:
+- list audit events with pagination
+- get audit event detail by id
+- filter by tenant / event type / actor / date range
+- enforce platform-admin access
+
+Requirements:
+- keep tenant isolation semantics intact
+- do not expose unrestricted raw audit access to non-platform users
+- preserve the centralized audit model
+- avoid duplicating the ingestion pipeline
+
+If a backend query addition is required, document whether it is added in:
+- identity service
+- audit service
+- control-center BFF
+- another existing service
+
+Update report:
+## 6. Query / Filter Model
+## 8. Backend / API Implementation
+
+---
+
+## STEP 5 — BUILD THE AUDIT LIST VIEW
+
+Implement the main audit list page.
+
+Requirements:
+- support loading / empty / error states
+- support pagination or infinite list depending on existing patterns
+- show readable event rows
+- sort newest-first by default
+- allow selection into event detail
+- preserve stable UI performance with realistic event volume
+
+Suggested row fields:
+- timestamp
+- tenant name/code
+- actor display
+- event type
+- entity/target summary
+- short description
+
+Use the current design system and admin UI patterns already in Control Center.
+
+Update report:
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 6 — BUILD FILTERS AND SEARCH
+
+Implement the supported query/filter controls.
+
+Requirements:
+- only expose filters that truly work against the backend/query layer
+- avoid fake inputs that do nothing
+- debounce or apply explicitly depending on current UX conventions
+- persist filter state in component/page state, and in URL params if that fits the current admin architecture
+
+If the backend only supports a subset initially, be honest and implement only that subset.
+
+Update report:
+## 6. Query / Filter Model
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 7 — BUILD THE EVENT DETAIL VIEW
+
+Implement event drill-down.
+
+Requirements:
+- support row click / drawer / side panel / detail page based on existing UI patterns
+- clearly show:
+  - timestamp
+  - event type
+  - actor
+  - tenant scope
+  - entity type/id
+  - action
+  - description
+  - before
+  - after
+  - metadata
+- before/after should be readable and diff-friendly
+- use graceful fallback for null/empty payloads
+- do not expose raw internal noise unless it is actually useful
+
+Preferred patterns:
+- right-side drawer
+- split list/detail
+- dedicated detail page if existing admin pattern favors it
+
+Update report:
+## 9. Frontend / UI Implementation
+
+---
+
+## STEP 8 — PRESERVE SECURITY AND TENANT ISOLATION
+
+Requirements:
+- only platform admins (or validated audit-governance role, if one exists) may access this UI
+- backend query path must enforce authorization
+- tenant scope must remain attached to every event
+- tenant admins must not gain unrestricted cross-tenant visibility through this feature
+
+If any tenant-scoped audit viewer is desired later, that is a separate feature.
+
+Update report:
+## 8. Backend / API Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 9 — HANDLE LARGE / MESSY PAYLOADS SAFELY
+
+Some audit payloads may contain nested JSON or many fields.
+
+Requirements:
+- render before/after safely
+- truncate or collapse very large blocks if needed
+- preserve readability
+- avoid browser performance issues for huge payloads
+- maintain copyability for audit/debug review
+
+If a pretty JSON viewer already exists in the codebase, reuse it.
+
+Update report:
+## 9. Frontend / UI Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 10 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- audit ingestion pipeline
+- identity service mutation flows
+- tenant permission UI
+- control center governance UI
+- permission-aware UI
+- session/auth flows
+- TypeScript/build/runtime stability
+- platform-admin authorization behavior
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 11 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Audit list
+- platform admin can load audit events
+- newest-first sorting works
+- pagination/filtering works for supported fields
+- empty state behaves correctly
+
+### Filters
+- tenant filter works
+- event type filter works
+- date range works if implemented
+- actor/entity filter works if implemented
+- unsupported filters are not exposed
+
+### Detail view
+- before/after payload renders correctly
+- null before/after handled gracefully
+- large payloads do not break the UI
+
+### Security
+- unauthorized user cannot access audit viewer
+- no cross-tenant leakage in event rendering
+- backend query access is protected
+
+### Regression
+- control center existing pages still work
+- tenant portal unaffected
+- audit capture still works
+- no new TypeScript/build/runtime regressions
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 12 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what audit query source was used
+- what backend/API additions were required, if any
+- what filters are supported
+- how before/after payloads are rendered
+- what authorization model protects the viewer
+- what remains deferred
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Platform admins can view permission-change audit events in Control Center
+✔ Audit events can be filtered using the supported query model
+✔ Event detail drill-down shows actor, tenant, entity, before, and after state
+✔ Before/after payloads are readable and useful
+✔ Backend query access is properly protected
+✔ Tenant isolation remains intact
+✔ Existing audit capture and platform behavior do not regress
+✔ Coverage and limitations are documented honestly
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working audit viewer UI in Control Center
+2. Working backend/query integration for audit events
+3. Readable before/after event detail experience
+4. Completed report:
+/analysis/LS-ID-TNT-017-004-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

@@ -1,0 +1,321 @@
+Implement a focused UI enhancement for:
+
+Tenant Portal → Synq Liens → Case → Case Detail → Details tab
+
+Goal:
+Expand the Details tab so it includes the additional sections shown in the reference, while preserving the current Case Detail layout direction, current data/behavior, and the split layout with the right-side communications panel.
+
+--------------------------------------------------
+CRITICAL CONTEXT
+--------------------------------------------------
+
+This is for:
+- Tenant Portal
+- Product: Synq Liens
+- Section: Cases
+- Page: Case Detail
+- Tab: Details
+
+The Details tab must retain the same fields and functions as the original system, while also including the additional sections shown in the latest reference.
+
+--------------------------------------------------
+STRICT SCOPE
+--------------------------------------------------
+
+Only modify the BODY content of:
+- Case Detail
+- Details tab content
+
+Do NOT modify:
+- top navigation
+- side navigation
+- fonts
+- colors
+- routing
+- services/APIs
+- role-access
+- provider-mode
+- tab routing/logic
+- data contracts
+- business workflows
+
+Do NOT remove any existing valid fields or actions already present in the original Details tab.
+
+--------------------------------------------------
+CORE REQUIREMENT
+--------------------------------------------------
+
+Update the Details tab so it includes ALL major parts shown in the original/reference Details experience, including:
+
+1. Plaintiff section
+2. Case Tracking section
+3. Updates section
+4. Right-side Email / Communications panel
+
+The final Details tab should feel complete and operational, not partial.
+
+--------------------------------------------------
+RETAIN ORIGINAL FIELDS AND FUNCTIONS
+--------------------------------------------------
+
+Under Details tab, retain the same fields and functions as the original system.
+
+This means:
+- keep the current original data fields already shown in the source/original Details tab
+- keep original edit affordances where they exist
+- keep original text area / notes / checkbox / updates table behaviors where present
+- do not simplify the Details tab into only a subset of fields
+
+If a field exists in the original Case Details screen, it should remain represented in the updated UI.
+
+--------------------------------------------------
+SECTION REQUIREMENTS
+--------------------------------------------------
+
+LEFT COLUMN should contain, in order:
+
+1. Plaintiff
+- keep existing Plaintiff Info structure
+- retain current fields:
+  - Full Name
+  - Phone Number
+  - Email
+  - Birthdate
+  - Sex
+  - Address
+- retain edit action if supported
+- keep collapsible behavior if already present
+
+2. Case Tracking
+- retain current fields/functions shown in the original:
+  - Tracking Follow Up
+  - Current Status
+  - Current Medical Status
+  - Case Type
+  - State of Incident
+  - Lead
+  - Case Tracking Note
+  - checkbox/toggle items such as:
+    - Share this case with Associated Law Firm
+    - UCC Filed
+    - Case Dropped
+    - Child Support
+    - Minor Comp
+- retain edit action if supported
+- preserve note textarea behavior
+- keep collapsible behavior if already present
+
+3. Updates
+- add/include the Updates section shown in the original screenshot
+- include the updates/activity table with columns like:
+  - Timestamp
+  - Actions
+  - Description
+  - Updated By
+- preserve current data behavior if a real source exists
+- if real data is not yet wired for all rows, use temporary visual fallback rows ONLY for display review
+- include pagination/footer controls only if already supported or if needed as visual placeholder
+- keep styling consistent with the rest of the page
+
+RIGHT COLUMN should contain COMMUNICATIONS ONLY:
+1. Email card
+- Compose New Email button
+2. SMS card
+- Send SMS button
+3. Communication contacts / communication shortcuts if supported
+
+IMPORTANT:
+- Do NOT place financial summary, important dates, or status summary in the right panel for Case Detail
+- Right panel is communications-focused only
+
+--------------------------------------------------
+LAYOUT REQUIREMENTS
+--------------------------------------------------
+
+Keep the current refined page direction:
+- rounded top header card
+- tabs row
+- two-column body
+- reusable LayoutSplit behavior
+- expand/collapse control between middle panels
+
+But update the Details content so it includes the missing sections under the left column.
+
+Requirements:
+- left and right columns remain aligned
+- expand/collapse still works
+- the additional Details sections flow naturally beneath the existing sections
+- vertical rhythm stays consistent
+
+--------------------------------------------------
+LAYOUTSPLIT REQUIREMENT
+--------------------------------------------------
+
+Keep using the reusable LayoutSplit component.
+
+Use it to wrap:
+- left main Details content
+- right communications panel
+
+Do NOT duplicate split logic in the page.
+
+Ensure:
+- split
+- left-expanded
+- right-expanded
+
+still work correctly after adding the new sections.
+
+--------------------------------------------------
+ICON SYSTEM REQUIREMENT
+--------------------------------------------------
+
+Use icons from:
+- Remix Icon
+- Tabler Icons
+- Solar Icons
+
+Apply them consistently in the Case Details page UI.
+
+Suggested usage:
+- section headers
+- edit actions
+- email / SMS actions
+- updates section
+- plaintiff / case tracking headers
+- communications card actions
+
+Rules:
+- do not mix icon styles randomly within the same section
+- keep icon sizing consistent
+- prefer clean enterprise-style outlined icons
+- do not over-decorate the interface
+- keep icons subtle and functional
+
+If the app already supports these icon libraries, use them directly.
+If more than one library is used, apply them intentionally and consistently.
+
+--------------------------------------------------
+TEMPORARY VISUAL FALLBACK DATA
+--------------------------------------------------
+
+If some Details sub-sections are not fully populated by live data yet, you may add temporary visual fallback data ONLY for display completeness.
+
+Allowed only for:
+- Updates rows
+- communications contact placeholders
+- non-critical empty labels
+
+Rules:
+- real data always takes priority
+- do NOT replace real logic
+- do NOT fabricate workflow outcomes
+- add clear code comments:
+  "TEMP: visual fallback data for UI review only"
+
+--------------------------------------------------
+DESIGN / VISUAL RULES
+--------------------------------------------------
+
+- keep current font family unchanged
+- keep current color scheme unchanged
+- preserve current header alignment improvements
+- preserve current panel spacing improvements
+- preserve current divider positioning improvement
+- use the same rounded card treatment across sections
+- keep labels/value hierarchy consistent
+- keep section spacing consistent
+- align tables with the same horizontal padding rhythm as other cards
+
+--------------------------------------------------
+IMPLEMENTATION TASKS
+--------------------------------------------------
+
+T001 — Analyze Current Case Detail Details Tab
+- inspect current Details tab content
+- identify which original sections/fields are missing
+- document current reusable patterns
+
+T002 — Add Missing Details Sections
+- restore/include all missing Details tab sections from the original reference
+- especially Updates and full Case Tracking fields/functions
+
+T003 — Normalize Section Structure
+- ensure Plaintiff, Case Tracking, Updates all use consistent card styling
+- preserve edit actions and collapsible behavior where applicable
+
+T004 — Keep Communications Panel Focused
+- retain right panel as communications-only
+- add Email and SMS actions
+- include contact/communication support if appropriate
+
+T005 — Apply Remix / Tabler / Solar Icons
+- replace or refine section/action icons using the requested icon sets
+- keep usage consistent
+
+T006 — Validate LayoutSplit
+- ensure left/right split behavior still works after adding missing sections
+- verify divider placement remains correct
+
+T007 — Add Temporary Visual Fallbacks If Needed
+- only where required for UI completeness
+- document clearly
+
+T008 — Final Validation
+- verify all original Details fields/functions remain represented
+- verify missing sections are now included
+- verify communications panel remains focused
+- verify icons are updated
+- verify no logic regressions
+
+--------------------------------------------------
+CRITICAL REPORTING REQUIREMENT
+--------------------------------------------------
+
+1. BEFORE making any code changes:
+   - Create:
+     /analysis/LS-LIENS-CASE-DETAILS-001-report.md
+
+2. Initialize with:
+   - Objective
+   - Scope
+   - Missing Details sections identified
+   - Planned icon migration/use
+   - Planned communication-panel scope
+
+3. DURING implementation:
+   - Update after each major step
+   - Include:
+     - step id
+     - files modified
+     - what section was added/refined
+     - any fallback data used
+     - any compromises due to current data availability
+
+4. FINAL:
+   - final summary
+   - files changed
+   - sections restored
+   - icon changes made
+   - validation results
+   - remaining gaps if any
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Details tab includes the other missing parts from the original screen
+- Original Details fields and functions are retained
+- Plaintiff, Case Tracking, and Updates are present and complete
+- Right panel remains communications-only
+- LayoutSplit still works
+- Remix / Tabler / Solar icons are used consistently
+- Fonts/colors/nav remain unchanged
+- No logic or workflow regressions
+- Report is complete and traceable
+
+Execute FULL implementation.
+Do NOT redesign the shell.
+Do NOT change top nav or side nav.
+Do NOT change fonts or colors.
+Do NOT remove original Details fields/functions.

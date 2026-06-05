@@ -1,0 +1,638 @@
+Feature ID: LS-NOTIF-SMS-024
+
+Title:
+Cross-Channel Governance Federation and Unified Communications Governance Topology
+
+Objective:
+Federate governance enforcement, rollout orchestration, tenant governance resolution, lifecycle/versioning, overlays, analytics, and deployment topology across SMS, Email, Push, Webhook, and future notification channels into a unified communications governance platform.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- cross-channel governance federation
+- unified governance topology resolution
+- channel-aware governance inheritance
+- federated rule-pack assignment
+- channel/tenant overlays
+- cross-channel rollout orchestration
+- federated governance analytics
+- unified governance APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance federation visibility. Do not duplicate topology resolution, federation evaluation, rollout orchestration, inheritance, or analytics logic in Control Center.
+
+Requirements:
+- Implement cross-channel governance federation inside Notification Service.
+- Preserve existing SMS governance behavior from LS-NOTIF-SMS-017 through LS-NOTIF-SMS-023.
+- Preserve SMS-only behavior for all existing tenants.
+- Federation must extend existing governance, not replace SMS governance.
+- Governance federation must support at minimum SMS, Email, Push, and Webhook channel scopes.
+- Federation resolution must be channel-aware and tenant-aware.
+- Existing SMS tenant-scoped rule-pack resolution must remain backward compatible.
+- Cross-channel overlays must never mutate base governance rules.
+- Federated rollout orchestration must not bypass LS-NOTIF-SMS-021 release approval or LS-NOTIF-SMS-021-HARDENING activation locking.
+- Federation failures must degrade safely.
+- Federation resolution must not block delivery execution.
+- Do not store raw phone numbers, message bodies, credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, or provider payloads in federation tables.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-023 behavior.
+
+Implementation Requirements:
+1. Add governance channel-scope persistence.
+2. Add federated rule-pack mapping persistence.
+3. Add cross-channel federation overlay persistence.
+4. Add governance federation audit persistence if existing audit tables are insufficient.
+5. Add unified governance topology resolver.
+6. Add governance federation service.
+7. Add channel-aware governance resolution.
+8. Extend existing tenant resolution to account for channel scope.
+9. Extend rollout orchestration to support cross-channel rollout metadata where feasible.
+10. Add federated governance analytics.
+11. Add unified governance topology APIs.
+12. Add federation management APIs.
+13. Add Control Center federation/topology UI if feasible.
+14. Ensure all SMS-only behavior remains unchanged.
+
+Critical Constraints:
+- Reuse existing SmsGovernanceRulePack, SmsGovernanceRule, SmsGovernanceTenantRulePackAssignment, SmsGovernanceTenantOverlay, SmsGovernanceTenantResolutionService, SmsGovernanceRuleResolver, SmsGovernanceRuleEngine, SmsGovernanceRolloutPlan, SmsGovernanceRolloutService, SmsGovernanceReleasePackage, SmsGovernanceVersioningService, SmsGovernanceRuleMatchMetric, admin endpoint, EF/migration, audit/logging, worker, and Control Center governance UI patterns where appropriate.
+- Do NOT rewrite the delivery pipeline.
+- Do NOT rewrite the SMS dynamic rule engine unless required to introduce channel-aware resolution.
+- Do NOT replace LS-017 governance.
+- Do NOT replace LS-018 template governance.
+- Do NOT replace LS-019 dynamic rules.
+- Do NOT replace LS-020 versioning/rollback behavior.
+- Do NOT replace LS-021 release-management behavior.
+- Do NOT bypass LS-021-HARDENING activation locking.
+- Do NOT replace LS-022 rollout orchestration.
+- Do NOT replace LS-023 tenant isolation.
+- Do NOT implement AI/ML governance recommendation.
+- Do NOT call external policy engines, deployment systems, workflow systems, compliance APIs, moderation APIs, telecom APIs, or fraud APIs.
+- Do NOT persist raw phones, raw message bodies, provider payloads, credentials, secrets, or webhook URLs.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-024-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-019 dynamic rule resolver findings
+3. Existing LS-023 tenant governance resolution findings
+4. Existing LS-022 rollout findings
+5. Existing LS-021 release-management findings
+6. Existing channel support findings for SMS, Email, Push, and Webhook
+7. Existing Control Center governance UI findings
+8. Files added
+9. Files modified
+10. Database/schema/config changes
+11. API/interface changes
+12. UI/route changes, if implemented
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Channel and Governance Architecture
+- Identify:
+  - current Notification channel model
+  - SMS governance-specific entity usage
+  - dynamic rule resolver behavior
+  - tenant rule-pack assignment behavior
+  - tenant overlay behavior
+  - rollout plan/stage/cohort behavior
+  - release package behavior
+  - existing Email, Push, Webhook delivery paths
+  - existing template governance channel assumptions
+  - existing governance API route conventions
+  - existing Control Center governance pages
+  - existing channel enum/string conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Governance Channel Scope Entity
+Add channel-scope persistence.
+
+Suggested entity:
+GovernanceChannelScope
+
+Suggested fields:
+- Id Guid
+- ChannelType string
+- ScopeMode string
+- Enabled bool
+- Priority int
+- Description string? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested ChannelType values:
+- sms
+- email
+- push
+- webhook
+- in_app
+- voice
+
+Suggested ScopeMode values:
+- isolated_channel
+- inherited_channel
+- federated_shared
+- tenant_federated
+- rollout_federated
+
+Requirements:
+- SMS default must preserve existing behavior.
+- Disabled channel scopes must not participate in federation.
+- Unknown channels should fail open to existing behavior.
+- Use EF/migration conventions.
+- Add indexes:
+  - ChannelType, Enabled
+  - ScopeMode, Enabled
+  - Priority
+
+STEP 3 — Define Federated Rule-Pack Mapping Entity
+Add mapping between existing governance packs and channel/federation scopes.
+
+Suggested entity:
+GovernanceFederatedRulePack
+
+Suggested fields:
+- Id Guid
+- RulePackId Guid
+- ChannelType string
+- FederationGroup string? nullable
+- TenantId Guid? nullable
+- Enabled bool
+- Priority int
+- EffectiveFrom DateTime? nullable
+- EffectiveTo DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Requirements:
+- RulePackId references existing SmsGovernanceRulePack.
+- TenantId nullable means global/channel-level mapping.
+- ChannelType scopes the rule pack to a channel.
+- EffectiveFrom/EffectiveTo support future federation activation.
+- Use safe metadata only.
+- Add indexes:
+  - ChannelType, Enabled, Priority
+  - RulePackId, ChannelType
+  - TenantId, ChannelType, Enabled
+  - FederationGroup, Enabled
+  - EffectiveFrom, EffectiveTo
+
+STEP 4 — Define Governance Federation Overlay Entity
+Add channel-aware overlay support.
+
+Suggested entity:
+GovernanceFederationOverlay
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- ChannelType string
+- RulePackId Guid? nullable
+- RuleId Guid? nullable
+- OverlayType string
+- OverlayState string
+- OverlayJson string? nullable
+- Priority int
+- Enabled bool
+- EffectiveFrom DateTime? nullable
+- EffectiveTo DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested OverlayType values:
+- add_rule
+- disable_rule
+- suppress_rule
+- override_severity
+- override_pattern
+- override_metadata
+- override_classification
+- channel_override
+- tenant_channel_override
+
+Suggested OverlayState values:
+- draft
+- active
+- inactive
+- expired
+- superseded
+
+Requirements:
+- Overlay applies only to specified channel and optional tenant.
+- Overlay never mutates base rules.
+- OverlayJson must be safe JSON.
+- OverlayJson must reject sensitive keywords.
+- Use EF/migration conventions.
+- Add indexes:
+  - ChannelType, Enabled, Priority
+  - TenantId, ChannelType, Enabled
+  - RulePackId, ChannelType
+  - RuleId, ChannelType
+  - OverlayType, Enabled
+
+STEP 5 — Define Governance Federation Audit Event Entity
+Add federation audit events if existing audit tables are insufficient.
+
+Suggested entity:
+GovernanceFederationAuditEvent
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- ChannelType string? nullable
+- FederationGroup string? nullable
+- EntityType string
+- EntityId Guid? nullable
+- EventType string
+- PreviousState string? nullable
+- NewState string? nullable
+- Actor string? nullable
+- Reason string? nullable
+- MetadataJson string? nullable
+- CreatedAt DateTime
+
+Suggested EventType values:
+- channel_scope_created
+- channel_scope_updated
+- rule_pack_federated
+- rule_pack_unfederated
+- overlay_created
+- overlay_activated
+- overlay_disabled
+- topology_resolved
+- federation_validation_failed
+- rollout_federation_started
+- rollout_federation_completed
+- rollout_federation_failed
+
+Requirements:
+- Audit events append-only.
+- Metadata must be safe.
+- No raw phones, credentials, message bodies, provider payloads, or webhook URLs.
+- Add indexes:
+  - TenantId, CreatedAt
+  - ChannelType, CreatedAt
+  - EventType, CreatedAt
+  - EntityType, EntityId
+
+STEP 6 — Define Federation Configuration
+Add safe configuration.
+
+Suggested config:
+GovernanceFederation:
+- Enabled bool default true
+- DefaultScopeMode string default isolated_channel
+- FailOpenOnFederationError bool default true
+- EnableCrossChannelOverlays bool default true
+- EnableFederatedRollouts bool default true
+- MaxFederatedPacksPerChannel int default 100
+- MaxFederationOverlaysPerChannel int default 100
+- CacheTopology bool default false
+- TopologyCacheSeconds int default 60
+
+Requirements:
+- Safe defaults.
+- SMS existing behavior must be preserved.
+- Federation can be disabled globally.
+- No secrets in config.
+
+STEP 7 — Add Governance Federation Service
+Add federation orchestration service.
+
+Suggested interface:
+IGovernanceFederationService
+
+Suggested methods:
+- CreateChannelScopeAsync(CreateChannelScopeRequest request, CancellationToken ct)
+- UpdateChannelScopeAsync(Guid scopeId, UpdateChannelScopeRequest request, CancellationToken ct)
+- FederateRulePackAsync(FederateRulePackRequest request, CancellationToken ct)
+- DisableFederatedRulePackAsync(Guid mappingId, string requestedBy, string? reason, CancellationToken ct)
+- CreateFederationOverlayAsync(CreateFederationOverlayRequest request, CancellationToken ct)
+- ActivateFederationOverlayAsync(Guid overlayId, string requestedBy, CancellationToken ct)
+- DisableFederationOverlayAsync(Guid overlayId, string requestedBy, string? reason, CancellationToken ct)
+- ListChannelScopesAsync(ChannelScopeQuery query, CancellationToken ct)
+- ListFederatedRulePacksAsync(FederatedRulePackQuery query, CancellationToken ct)
+- ListFederationOverlaysAsync(FederationOverlayQuery query, CancellationToken ct)
+
+Requirements:
+- Validate channel types.
+- Validate rule-pack references.
+- Validate overlay JSON safety.
+- Audit all mutations.
+- Respect max configured limits.
+- Do not mutate base governance rules.
+- Do not call external services.
+
+STEP 8 — Add Governance Topology Resolver
+Add unified topology graph resolution.
+
+Suggested interface:
+IGovernanceTopologyResolver
+
+Suggested methods:
+- ResolveTopologyAsync(GovernanceTopologyRequest request, CancellationToken ct)
+- ResolveEffectiveRulesAsync(GovernanceTopologyRequest request, CancellationToken ct)
+- ExplainTopologyAsync(GovernanceTopologyRequest request, CancellationToken ct)
+
+Suggested request:
+- tenantId nullable
+- channelType
+- rolloutPlanId nullable
+- releasePackageId nullable
+- evaluationContext nullable
+- nowUtc
+
+Suggested topology graph:
+- channelType
+- tenantId nullable
+- scopeMode
+- globalPacks
+- channelPacks
+- tenantPacks
+- federatedPacks
+- tenantOverlays
+- federationOverlays
+- rolloutOverrides
+- finalRuleCount
+- warnings
+
+Resolution order:
+1. Global governance packs
+2. Channel-scoped federated packs
+3. Tenant-scoped assignments from LS-023
+4. Channel/tenant federation overlays
+5. Rollout-specific overrides
+6. Effective channel enforcement graph
+
+Requirements:
+- If federation disabled, preserve existing SMS/global behavior.
+- If channel is sms, preserve LS-023 tenant resolution unless federation mapping exists.
+- Unknown channels fail open to channel-local behavior.
+- Resolution failures fail open according to config.
+- Use bounded queries.
+- Do not call external APIs.
+- Do not block delivery pipeline.
+
+STEP 9 — Extend SMS Tenant Resolution With Channel Awareness
+Modify tenant resolution so it can accept channel context.
+
+Requirements:
+- Existing SMS callers should continue working.
+- New topology resolver may call tenant resolution with channelType = sms.
+- Tenant assignments remain SMS-compatible.
+- Federation overlays must apply only after tenant assignments where appropriate.
+- Existing LS-023 tenant graph APIs remain backward compatible.
+
+STEP 10 — Extend Rule Resolver With Topology Resolver Where Safe
+Extend dynamic rule resolution to support channel-aware topology.
+
+Behavior:
+- For SMS path:
+  - existing LS-023 tenant-aware resolution remains default.
+  - if GovernanceFederation.Enabled and channel scope exists, topology resolver can enrich effective rules.
+- For Email/Push/Webhook:
+  - resolve channel-scoped/federated rules.
+  - do not force SMS-specific governance side effects.
+- Global fallback preserved.
+
+Requirements:
+- Dynamic rule engine receives final effective rules.
+- Evaluation should remain fast and fail-open.
+- No provider/delivery pipeline rewrites.
+- No external calls.
+- SMS regression must be avoided.
+
+STEP 11 — Extend Rollout Orchestration With Federation Metadata
+Add cross-channel rollout support where feasible.
+
+Suggested behavior:
+- Rollout plan may include channel scope metadata.
+- Federated rollout can target multiple channel scopes.
+- For SMS rollout, existing LS-022 + LS-023 behavior remains.
+- For non-SMS channels, rollout records orchestration/federation state where enforcement integration is available.
+
+Requirements:
+- Do not bypass release approval.
+- Do not bypass activation locks.
+- Do not mutate unrelated governance entities.
+- Do not break existing rollout behavior.
+- If full Email/Push/Webhook enforcement integration is not yet available, document limitation and implement federation/topology visibility first.
+
+STEP 12 — Add Federated Governance Analytics Service
+Add cross-channel analytics.
+
+Suggested interface:
+IGovernanceFederationAnalyticsService
+
+Suggested methods:
+- GetTopologyAnalyticsAsync(query, ct)
+- GetChannelGovernanceAnalyticsAsync(query, ct)
+- GetFederatedRulePackAnalyticsAsync(query, ct)
+- GetCrossChannelRolloutAnalyticsAsync(query, ct)
+
+Suggested metrics:
+- rule count by channel
+- rule match count by channel
+- governance block/warn/review by channel
+- tenant/channel coverage
+- federation group coverage
+- rollout status by channel
+- overlay count by channel
+- topology resolution warnings
+
+Requirements:
+- Use safe aggregate data only.
+- No raw phones.
+- No message bodies.
+- No provider payloads.
+- Bounded queries.
+- Reuse existing governance metrics where applicable.
+
+STEP 13 — Add Federation APIs
+Add admin APIs.
+
+Suggested endpoints:
+- GET /v1/admin/governance/topology
+- GET /v1/admin/governance/topology/explain
+- GET /v1/admin/governance/channel-scopes
+- POST /v1/admin/governance/channel-scopes
+- PUT /v1/admin/governance/channel-scopes/{id}
+- GET /v1/admin/governance/federated-rule-packs
+- POST /v1/admin/governance/federated-rule-packs
+- POST /v1/admin/governance/federated-rule-packs/{id}/disable
+- GET /v1/admin/governance/federation-overlays
+- POST /v1/admin/governance/federation-overlays
+- POST /v1/admin/governance/federation-overlays/{id}/activate
+- POST /v1/admin/governance/federation-overlays/{id}/disable
+- GET /v1/admin/governance/federation/audit
+- GET /v1/admin/governance/federation/analytics
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Use pagination where appropriate.
+- Validate channel values.
+- Validate overlay JSON.
+- Return safe DTOs.
+- Do not expose secrets, raw phones, message bodies, webhook URLs, or provider payloads.
+
+STEP 14 — Extend Control Center UI If Feasible
+Add federation UI.
+
+Suggested route:
+- /notifications/governance/federation
+
+Suggested sections:
+- unified governance topology graph
+- channel scope table
+- federated rule-pack mapping table
+- federation overlay table/editor
+- topology explanation viewer
+- cross-channel analytics
+- federation audit timeline
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate topology logic.
+- No raw phones, message bodies, credentials, webhook URLs, or provider payloads.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 15 — Documentation
+Update documentation/report notes for:
+- federation modes
+- channel scope behavior
+- topology resolution order
+- channel-aware overlays
+- SMS backward compatibility
+- non-SMS channel limitations
+- rollout federation behavior
+- analytics definitions
+- Control Center UI if implemented
+
+Documentation must explain:
+- federation extends SMS governance rather than replacing it.
+- SMS-only tenants retain previous behavior.
+- cross-channel governance is local and deterministic.
+- no external policy engines are used.
+- enforcement integration may be channel-specific.
+
+STEP 16 — Validation
+Perform validation/testing for:
+
+Channel scopes:
+- create/update/list channel scopes.
+- disabled scope ignored.
+- SMS default behavior preserved.
+- unknown channel fails open.
+
+Federated rule packs:
+- federate pack to sms.
+- federate pack to email.
+- tenant-specific federated pack resolves only for that tenant/channel.
+- disabled mapping ignored.
+- effective windows respected.
+
+Federation overlays:
+- channel overlay applies only to matching channel.
+- tenant/channel overlay applies only to matching tenant and channel.
+- overlay JSON safety guard works.
+- base rules unchanged.
+
+Topology resolution:
+- sms topology preserves LS-023 tenant resolution.
+- email topology resolves channel packs.
+- tenant+channel graph resolves correctly.
+- global fallback works.
+- resolution failures fail open.
+
+Rollout federation:
+- SMS rollout behavior unchanged.
+- federated rollout metadata persisted.
+- cross-channel rollout visibility works.
+- activation locks preserved.
+
+Analytics:
+- channel analytics return safe aggregate data.
+- topology analytics work.
+- federation group analytics work.
+- no raw messages/phones exposed.
+
+APIs:
+- PlatformAdmin authorization enforced.
+- pagination works.
+- validation errors returned safely.
+- no sensitive data exposed.
+
+Control Center UI if implemented:
+- topology graph renders.
+- channel scope table renders.
+- federation mappings render.
+- overlay editor renders.
+- analytics render.
+- no sensitive data displayed.
+
+Regression:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-023 behavior preserved.
+- SMS tenant resolution unchanged unless federation enabled/mapped.
+- dynamic rule evaluation preserved.
+- template governance preserved.
+- release management preserved.
+- rollout orchestration preserved.
+- delivery pipeline unchanged.
+
+Security:
+- no raw phones stored.
+- no raw message bodies stored.
+- no credentials exposed.
+- no webhook URLs exposed.
+- no provider payloads exposed.
+- admin authorization enforced.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- GovernanceChannelScope entity/table
+- GovernanceFederatedRulePack entity/table
+- GovernanceFederationOverlay entity/table
+- Optional GovernanceFederationAuditEvent entity/table
+- Governance federation configuration
+- Governance federation service
+- Governance topology resolver
+- Channel-aware rule resolution integration
+- Federated analytics service
+- Federation admin APIs
+- Optional Control Center federation UI
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Persist raw message content
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external policy engines
+- Call external deployment/workflow systems
+- Call external compliance/moderation APIs
+- Implement AI/ML governance recommendation
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Replace LS-019 dynamic rule engine
+- Replace LS-020 versioning/rollback behavior
+- Replace LS-021 release-management behavior
+- Bypass LS-021-HARDENING activation locking
+- Replace LS-022 rollout orchestration
+- Replace LS-023 tenant isolation
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-023 behavior

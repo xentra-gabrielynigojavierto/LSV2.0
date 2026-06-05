@@ -1,0 +1,395 @@
+You are a senior .NET platform engineer, distributed systems engineer, and SRE.
+
+Your task is to implement **Phase 3 hardening** for the .NET Documents Service ClamAV subsystem:
+
+# Phase 3 — Redis HA Readiness + Scan Completion Notifications
+
+## Primary Goal
+
+Harden the operational reliability and integration capabilities of the Documents Service by addressing two remaining production concerns:
+
+1. **Redis dependency hardening / HA readiness**
+2. **Scan completion event / notification model**
+
+This phase must improve resilience and integration ergonomics without weakening the existing security model, scan gating, or clean architecture.
+
+---
+
+## Important Constraints
+
+* Keep the current .NET Documents Service intact and build on top of it
+* Do NOT break existing APIs unnecessarily
+* Preserve clean architecture
+* Preserve current queue, retry, circuit breaker, and metrics behavior
+* Preserve fail-closed scanning and access control
+* Keep Node.js service untouched
+* Make real code changes, not just analysis
+* Add analysis/report output
+
+---
+
+## Current Context
+
+The service already has:
+
+* async scan worker
+* durable Redis-backed queue option
+* retry + backoff
+* worker concurrency
+* fail-fast queue saturation handling
+* Prometheus metrics
+* health checks (DB, ClamAV, signature freshness)
+* ClamAV circuit breaker
+* quarantine model
+* fail-closed access gating
+* large-file policy
+
+This phase must add:
+
+* Redis HA/operational readiness
+* scan completion event foundation and/or delivery mechanism
+
+---
+
+## Required Scope
+
+---
+
+### 1. Redis HA readiness
+
+Improve Redis-backed production readiness for:
+
+* scan queue
+* any Redis-backed token/state usage if present
+* future horizontal production deployment
+
+## Goal
+
+Make Redis dependency behavior explicit, observable, and production-safe.
+
+## Requirements
+
+### A. Redis health / readiness
+
+Add Redis-aware health and readiness support.
+
+Required:
+
+* Redis health check
+* surface Redis status in `/health/ready`
+* if Redis-backed queue is configured and Redis is unavailable:
+
+  * readiness should reflect this appropriately
+* if Redis is optional in local/dev mode:
+
+  * behavior should remain sensible
+
+Suggested endpoint behavior:
+
+* `/health` → liveness (service process + DB)
+* `/health/ready` → include Redis if Redis-backed mode is active
+
+### B. Startup validation
+
+At startup, validate Redis requirements clearly.
+
+Examples:
+
+* if `ScanWorker:QueueProvider=redis` and Redis config is missing → fail startup
+* if Redis-backed provider is configured but connection cannot initialize → fail startup or clearly surface degraded startup depending on your current operational model
+
+Prefer explicit, safe behavior.
+
+### C. Metrics and logging
+
+Add Redis operational visibility.
+
+Suggested metrics:
+
+* `docs_redis_healthy`
+* `docs_redis_connection_failures_total`
+* `docs_redis_stream_reclaims_total` (if practical)
+* `docs_redis_queue_depth` if distinct from generic queue depth
+* `docs_redis_notification_publish_failures_total` if notifications use Redis later
+
+Add structured logs for:
+
+* startup connection
+* reconnects/failures
+* degraded readiness
+* reclaim behavior if practical
+
+### D. Production configuration guidance
+
+Support/document HA-friendly Redis config patterns.
+
+Document guidance for:
+
+* standalone
+* Sentinel
+* Cluster
+* TLS
+* auth/password
+* connection string examples
+
+You do not need to implement every HA topology deeply, but the service should be **ready to be configured correctly** and the documentation/report should explain supported patterns and limitations.
+
+---
+
+### 2. Scan completion notification model
+
+Add a clean, extensible notification/event model for completed scans.
+
+## Goal
+
+Reduce client polling burden and create an internal integration foundation for products like CareConnect or future platform workflows.
+
+## Preferred approach
+
+Implement an **internal event foundation** first, with optional outbound delivery if feasible.
+
+### Minimum required capability
+
+When a scan finishes with:
+
+* `CLEAN`
+* `INFECTED`
+* `FAILED`
+
+the system should emit a **scan completion event** in a structured way.
+
+This can be implemented as one of:
+
+* a persisted internal event table
+* an internal event publisher abstraction
+* a Redis pub/sub or stream event
+* a lightweight webhook dispatcher
+* or a layered combination of these
+
+Prefer maintainability and extensibility over cleverness.
+
+---
+
+## Notification requirements
+
+### A. Internal event model
+
+Create a structured event that captures at minimum:
+
+* documentId
+* tenantId
+* versionId if applicable
+* scanStatus
+* occurredAt
+* correlationId if available
+* attempt count if relevant
+* source/service name
+
+Suggested event name:
+
+* `DocumentScanCompleted`
+
+### B. Delivery abstraction
+
+Create an abstraction such as:
+
+* `IScanCompletionPublisher`
+* `IScanCompletionDispatcher`
+
+Provide at least one concrete implementation.
+
+Recommended options:
+
+* log-only publisher (dev)
+* internal persistence publisher
+* Redis pub/sub publisher
+* webhook publisher
+
+If outbound delivery is too large for this phase, implement:
+
+* internal event persistence + clean abstraction + documentation for extension
+
+### C. Trigger point
+
+Emit the event from the background worker after final scan resolution:
+
+* `CLEAN`
+* `INFECTED`
+* `FAILED`
+
+Do NOT emit on intermediate retry attempts unless clearly marked as retry events.
+
+### D. Reliability
+
+The notification model should not break the scan pipeline if delivery fails.
+
+Requirements:
+
+* scan result persistence remains primary
+* notification delivery failure should:
+
+  * be logged
+  * be measurable
+  * not corrupt document state
+* if using persistence, preserve eventual delivery possibility
+
+### E. Metrics
+
+Add metrics for notification behavior.
+
+Suggested:
+
+* `docs_scan_completion_events_emitted_total`
+* `docs_scan_completion_delivery_failures_total`
+* `docs_scan_completion_delivery_success_total`
+
+### F. Documentation
+
+Clearly document:
+
+* what emits the event
+* event schema
+* delivery guarantees
+* whether it is at-most-once / at-least-once / best-effort
+* how clients/products should use it
+
+---
+
+### 3. Configuration
+
+Add or extend config as needed.
+
+Examples:
+
+```json
+{
+  "Redis": {
+    "Url": "redis://localhost:6379"
+  },
+  "ScanWorker": {
+    "QueueProvider": "redis"
+  },
+  "Notifications": {
+    "ScanCompletion": {
+      "Provider": "log"
+    }
+  }
+}
+```
+
+If implementing webhook or Redis publishing:
+
+```json
+{
+  "Notifications": {
+    "ScanCompletion": {
+      "Provider": "redis",
+      "Channel": "documents.scan.completed"
+    }
+  }
+}
+```
+
+or similar.
+
+Keep config explicit and safe.
+
+---
+
+### 4. Observability integration
+
+Update:
+
+* `/metrics`
+* `/health`
+* `/health/ready`
+
+Add Redis and notification visibility cleanly.
+
+Do not overcomplicate metric cardinality.
+
+---
+
+## Implementation Guidance
+
+### Preserve architecture
+
+Keep boundaries clean:
+
+* Domain → event contract / abstractions if needed
+* Application → orchestration and event trigger
+* Infrastructure → Redis health, publisher implementations, persistence, metrics
+* API/host → health endpoints and wiring
+
+### Backward compatibility
+
+* preserve current upload/scan/access API behavior
+* do not require clients to change unless they want to consume notifications
+
+### Security
+
+* do not put sensitive file contents into events
+* event payloads should contain identifiers and status only
+* preserve tenant isolation semantics in any persisted or published event
+
+---
+
+## Suggested Files to Create / Modify
+
+Possible examples:
+
+* `Documents.Infrastructure/Health/RedisHealthCheck.cs`
+* `Documents.Infrastructure/Observability/RedisMetrics.cs` or extend `ScanMetrics.cs`
+* `Documents.Domain/Events/DocumentScanCompletedEvent.cs`
+* `Documents.Domain/Interfaces/IScanCompletionPublisher.cs`
+* `Documents.Infrastructure/Notifications/LogScanCompletionPublisher.cs`
+* `Documents.Infrastructure/Notifications/RedisScanCompletionPublisher.cs`
+* update background worker to publish completion events
+* update DI wiring
+* update config models
+* update `appsettings.json`
+
+These are suggestions, not strict requirements.
+
+---
+
+## Deliverable
+
+Create:
+
+`/analysis/dotnet_phase3_redis_and_notifications.md`
+
+The report must include:
+
+1. Objective
+2. Redis readiness strategy
+3. Notification/event strategy
+4. Config added
+5. Files changed
+6. Metrics/health changes
+7. Delivery guarantees
+8. Verification steps
+9. Limitations / follow-ups
+
+---
+
+## Success Criteria
+
+This phase is successful when:
+
+* Redis readiness is visible operationally
+* Redis-backed mode fails or degrades explicitly and safely
+* metrics/logs exist for Redis health and failures
+* scan completion events are emitted for final scan outcomes
+* event delivery is structured and extensible
+* notification failures do not corrupt scan state
+* the service remains secure, modular, and backward-compatible
+
+---
+
+## Start now
+
+1. inspect the current hardened .NET Documents Service
+2. implement Redis HA readiness improvements
+3. implement scan completion event/notification foundation
+4. generate `/analysis/dotnet_phase3_redis_and_notifications.md`

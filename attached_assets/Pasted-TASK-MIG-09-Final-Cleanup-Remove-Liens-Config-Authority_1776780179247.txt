@@ -1,0 +1,305 @@
+TASK-MIG-09 — Final Cleanup (Remove Liens Config Authority)
+
+OBJECTIVE:
+Complete the Liens → Task configuration migration by removing Liens as a configuration system of record for task governance and templates, eliminating fallback and mirror logic, and preparing the legacy Liens config tables for safe removal.
+
+This is the FINAL cleanup step of the migration lane.
+
+NON-NEGOTIABLE RULES:
+- ZERO UI behavior regression
+- ZERO change to task generation, governance enforcement, or task-board behavior
+- MUST preserve all current runtime behavior from the user’s perspective
+- MUST create report FIRST and update incrementally
+- MUST validate against actual code/schema before implementation
+- MUST support rollback planning even though this step removes safety nets
+- DO NOT touch Flow orchestration tables in this prompt
+- DO NOT redesign generation rules in this prompt
+- DO NOT introduce new features
+- NO placeholders
+
+CRITICAL GOAL:
+After this step:
+- Liens no longer owns task templates or governance config
+- Liens no longer reads fallback config from its own DB for templates/governance
+- Liens no longer mirrors template/governance writes to its DB
+- legacy Liens config tables for templates/governance are removed or fully disconnected
+- Task is the only authoritative source for these config domains
+
+IMPORTANT SCOPE BOUNDARY:
+This prompt is primarily for:
+- `liens_TaskTemplates`
+- `liens_TaskGovernanceSettings`
+- related Liens repositories/services/sync/fallback logic
+
+Do NOT remove stage/transition tables unless code inspection proves they are fully migrated and no longer authoritative. If they are not ready, document them as remaining follow-up items and leave them alone.
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-09-report.md
+
+Initialize with:
+
+# TASK-MIG-09 Report — Final Cleanup
+
+## 1. Codebase Analysis
+## 2. Current Legacy Dependency Review
+## 3. Cleanup Design
+## 4. Read/Write Path Removal
+## 5. Legacy Table Removal / Decommissioning
+## 6. Validation Results
+## 7. Rollback Plan
+## 8. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT LEGACY DEPENDENCIES
+--------------------------------------------------
+
+Inspect the current implementation after MIG-07 and MIG-08.
+
+Identify all remaining references to:
+- `liens_TaskTemplates`
+- `liens_TaskGovernanceSettings`
+- `ILienTaskTemplateRepository`
+- `ILienTaskGovernanceSettingsRepository`
+- Liens DB fallback logic for templates
+- Liens DB fallback logic for governance
+- Liens DB mirror writes for templates
+- Liens DB mirror writes for governance
+- disabled sync services retained for rollback:
+  - `LiensTemplateSyncService`
+  - `LiensGovernanceSyncService`
+
+Also inspect:
+- admin endpoints
+- service methods
+- generation engine dependencies
+- task create/enforcement dependencies
+- any startup code / DI registrations
+- any migration files already prepared for table removal
+
+Document:
+- every remaining runtime dependency on legacy template/governance tables
+- which references are safe to remove now
+- which references are only rollback artifacts
+- whether stage/transition config is still Liens-authoritative and therefore out of scope for actual removal
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Legacy Dependency Review
+
+--------------------------------------------------
+STEP 2 — DESIGN THE FINAL CLEANUP
+--------------------------------------------------
+
+Define the exact cleanup plan.
+
+You MUST explicitly define:
+
+1. Template cleanup
+   - remove Liens DB fallback reads for templates
+   - remove Liens DB mirror writes for templates
+   - remove disabled template sync service
+   - decide whether `liens_TaskTemplates` can now be dropped safely
+
+2. Governance cleanup
+   - remove Liens DB fallback reads for governance
+   - remove Liens DB mirror writes for governance
+   - remove disabled governance sync service
+   - decide whether `liens_TaskGovernanceSettings` can now be dropped safely
+
+3. Repository / DI cleanup
+   - remove unused Liens repositories, interfaces, services, registrations
+   - remove dead DTOs/helpers only if no longer needed
+
+4. Version/conflict handling
+   - resolve the temporary version-authority split introduced during ownership flip
+   - ensure admin update flows use the Task-owned version source correctly
+   - do NOT leave conflict checking tied to Liens DB after fallback removal
+
+5. Scope exclusions
+   - clearly state any remaining Liens config tables that are NOT removed in this prompt and why
+
+Bias toward:
+- fully removing template/governance fallback
+- fully removing template/governance mirror
+- keeping only what is still truly needed
+
+Update:
+## 3. Cleanup Design
+
+--------------------------------------------------
+STEP 3 — REMOVE LEGACY READ/WRITE PATHS
+--------------------------------------------------
+
+For Templates:
+- remove Liens DB fallback from:
+  - admin list
+  - get-by-id
+  - contextual read
+  - generation read
+- remove Liens DB mirror writes from:
+  - create
+  - update
+  - activate
+  - deactivate
+- ensure all template reads/writes now use Task service only
+- resolve version handling so Task service is authoritative for admin update semantics
+
+For Governance:
+- remove Liens DB fallback from:
+  - `GetAsync`
+  - `GetOrCreateAsync`
+- remove Liens DB mirror writes from:
+  - create/upsert
+  - update
+- ensure all governance reads/writes now use Task service only
+- resolve version handling so Task service is authoritative
+
+Rules:
+- do not change endpoint shapes unless absolutely necessary
+- preserve UI/API behavior
+- if Liens endpoints remain, they should become pure Task-backed proxies
+- remove dead code paths rather than leaving disabled branches behind
+
+Update:
+## 4. Read/Write Path Removal
+
+--------------------------------------------------
+STEP 4 — REMOVE / DECOMMISSION LEGACY TABLE OWNERSHIP
+--------------------------------------------------
+
+If code inspection confirms template/governance legacy tables are no longer required at runtime:
+
+A. Create the Liens DB migration(s) needed to:
+- drop `liens_TaskTemplates`
+- drop `liens_TaskGovernanceSettings`
+- remove related indexes / FKs if applicable
+
+B. Remove repository/entity/config registrations that become dead after table removal.
+
+C. Remove disabled sync services:
+- `LiensTemplateSyncService`
+- `LiensGovernanceSyncService`
+
+D. Remove any helper DTOs / mapping code used only for Liens DB mirror/fallback flows.
+
+If immediate physical table drop is too risky based on actual code dependencies:
+- fully decommission them in code
+- leave them physically present
+- document exactly why drop is deferred
+
+But prefer full removal if the codebase is truly ready.
+
+Update:
+## 5. Legacy Table Removal / Decommissioning
+
+--------------------------------------------------
+STEP 5 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+Templates
+1. Admin template list works using Task only
+2. Admin template get-by-id works using Task only
+3. Template create works using Task only
+4. Template update works using Task only
+5. Template activate/deactivate works using Task only
+6. Generation engine still works with Task-only template reads
+
+Governance
+7. Governance read works using Task only
+8. Governance update/create works using Task only
+9. Task creation / enforcement still honors governance correctly
+10. No Liens DB fallback path is required
+
+Cleanup integrity
+11. Removed repositories/services are no longer referenced
+12. Disabled sync services are removed or truly unused
+13. Builds succeed for all changed services
+14. If tables were dropped, app startup/migrations succeed
+15. No UI regression occurs
+
+IMPORTANT:
+Do not mark PASS unless actually verified in code or execution.
+
+Update:
+## 6. Validation Results
+
+--------------------------------------------------
+STEP 6 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Because this is the final cleanup step, rollback must explain:
+- how to restore Liens fallback if needed
+- whether dropped tables require DB restore or reverse migration
+- whether code rollback alone is sufficient
+- how to restore sync services or mirror logic if necessary
+
+Be explicit about:
+- rollback complexity
+- which parts are reversible by code only
+- which parts require DB migration rollback
+
+Update:
+## 7. Rollback Plan
+
+--------------------------------------------------
+STEP 7 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any remaining Liens-owned config domains still not cleaned up (for example stages/transitions if still applicable)
+- any remaining temporary compatibility logic
+- any version-authority issues that could not be fully resolved
+- any follow-up needed outside this migration lane
+- whether Flow convergence remains a separate future project
+
+Update:
+## 8. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-09 is complete only if:
+
+1. Task is the sole authoritative owner for templates and governance
+2. Liens no longer uses fallback or mirror logic for templates/governance
+3. Legacy Liens template/governance config ownership is removed from code
+4. Legacy tables are dropped or fully decommissioned with documented justification
+5. UI/runtime behavior is unchanged
+6. Builds and runtime validation pass
+7. The Liens → Task config migration lane is complete
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT touch Flow orchestration tables
+- Do NOT migrate generation-rule ownership
+- Do NOT redesign stages/transitions unless code review proves they are also ready for final removal
+- Do NOT introduce new features
+- Do NOT leave partially removed fallback code
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens template services / endpoints / repositories / sync services
+- Liens governance services / endpoints / repositories / sync services
+- DI registrations
+- Liens migrations for legacy table removal if safe
+- Task-backed proxy logic and version handling
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

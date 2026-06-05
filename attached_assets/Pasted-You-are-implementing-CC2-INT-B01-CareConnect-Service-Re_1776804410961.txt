@@ -1,0 +1,390 @@
+You are implementing CC2-INT-B01 — CareConnect Service Replacement Foundation inside the main LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/CC2-INT-B01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This work is NOT a new standalone build.
+   It is a REPLACEMENT / INTEGRATION of the existing, wrongly built CareConnect service inside the LegalSynq platform.
+
+5. You MUST treat the uploaded CareConnect v2 source package as the canonical implementation to preserve, and the existing platform CareConnect service as the legacy implementation to be replaced.
+
+6. Do NOT create a second CareConnect service.
+   Do NOT leave two parallel CareConnect implementations alive.
+
+7. Preserve platform conventions and shared-service integration boundaries:
+   - Identity
+   - Audit
+   - Notifications
+   - Monitoring
+   - Documents
+   - Gateway
+   - BuildingBlocks
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Replace the existing incorrect CareConnect service inside the LegalSynq platform with the validated CareConnect v2 implementation foundation, while preserving:
+
+- the existing service identity in the platform
+- the platform solution structure
+- platform routing/gateway expectations
+- future integration readiness with shared services
+
+This block is the replacement foundation only.
+
+It should:
+- audit the existing CareConnect service
+- map what should be preserved structurally
+- replace the wrong internals with the CC2 implementation
+- prepare the service for downstream integration blocks
+
+This block should NOT yet complete:
+- Notifications service integration
+- Documents service integration
+- Identity full replacement
+- Common Portal final integration
+- Tenant portal final integration
+- final cutover validation
+
+--------------------------------------------------
+
+SOURCE OF TRUTH
+
+Use the uploaded CareConnect v2 source package as the functional source of truth for:
+- domain model
+- application logic
+- API structure
+- workflows
+- public/common-portal/tenant behavior
+
+Use the main LegalSynq platform source as the source of truth for:
+- solution structure
+- shared service conventions
+- platform wiring
+- project naming/location patterns
+- gateway/platform integration expectations
+
+If there is a conflict:
+- preserve platform-level identity and conventions
+- preserve CC2 product logic and behavior
+- remove/replace legacy CareConnect internals
+
+--------------------------------------------------
+
+PRIMARY TASKS
+
+1. Inspect the main LegalSynq platform source and locate:
+- existing CareConnect service/project(s)
+- solution file(s)
+- shared BuildingBlocks references
+- service registration / project structure patterns
+
+2. Inspect the uploaded CareConnect v2 package and identify:
+- API project
+- Application/Domain/Infrastructure projects
+- migrations
+- portal/frontend artifacts if present
+- configuration files
+- current mock/shared-service boundaries
+
+3. Produce a replacement plan in code:
+- what old CareConnect files/projects are legacy
+- what new CC2 files/projects replace them
+- what platform files need updates
+- what should be preserved vs removed
+
+4. Execute the replacement foundation:
+- keep the platform CareConnect service identity/name
+- replace the legacy domain/application/api implementation with CC2 structure
+- align project references and startup wiring to LegalSynq conventions
+- ensure the service builds inside the platform context
+
+--------------------------------------------------
+
+EXPECTED REPLACEMENT STRATEGY
+
+Use a hard-replace approach unless the codebase proves a safer partial merge is necessary.
+
+Keep:
+- service identity/name: CareConnect
+- platform solution membership
+- expected routing identity
+- platform config conventions
+- project placement conventions
+
+Replace:
+- legacy domain models
+- legacy workflow logic
+- legacy API endpoints where superseded by CC2
+- legacy persistence model where superseded by CC2
+- incorrect/refactored service internals
+
+If some old files must remain temporarily for compilation, clearly mark them as legacy/deprecated in the report.
+
+--------------------------------------------------
+
+BACKEND SCOPE
+
+You MUST align the platform CareConnect service to the validated CC2 structure:
+
+Preferred target project structure inside platform:
+
+- CareConnect.Api
+- CareConnect.Application
+- CareConnect.Domain
+- CareConnect.Infrastructure
+
+If the platform uses a different but equivalent naming convention, adapt accordingly without losing separation of concerns.
+
+Required outcomes:
+- project references are correct
+- solution references are correct
+- startup/build works
+- migrations are present and preserved
+- health endpoint still works
+- public / portal / tenant API surfaces exist in the integrated service
+
+Do NOT yet replace mocks with real shared services in this block unless absolutely required for compilation.
+Keep the abstractions intact.
+
+--------------------------------------------------
+
+FRONTEND SCOPE
+
+In this block, do NOT fully integrate frontend apps yet.
+
+However, you MUST:
+
+1. Inspect and identify:
+- the separate Common Portal app/source
+- the tenant-facing CareConnect UI source
+- where these will later integrate into platform apps
+
+2. Preserve them in a clean, integration-ready state.
+
+3. Document:
+- what belongs to separate Common Portal
+- what belongs to Tenant Portal
+- what should not be merged together
+
+Do NOT fold Common Portal into Tenant Portal.
+
+Architecture rule:
+- Common Portal remains separate
+- Tenant Portal remains tenant-specific
+- both share Identity later
+
+--------------------------------------------------
+
+IDENTITY ARCHITECTURE RULE
+
+Do NOT implement full Identity integration in this block, but preserve the correct target model:
+
+- Lien Company users → Identity-backed, tenant-linked, tenant portal access
+- Provider users → Identity-backed, common portal access
+- Law Firm users → Identity-backed, common portal access
+- Common Portal remains separate from Tenant Portal
+- current local portal account/auth structures may remain temporarily for compilation, but should be clearly identified as transitional
+
+Document exactly where local auth/session logic still exists after this block.
+
+--------------------------------------------------
+
+PLATFORM SERVICE BOUNDARY RULE
+
+CareConnect must remain integrated with common platform service boundaries, even if concrete integration is deferred:
+
+- Audit
+- Notifications
+- Monitoring
+- Documents
+- Identity
+- Gateway
+- BuildingBlocks
+
+In this block:
+- preserve abstractions
+- preserve extension points
+- align namespaces/project references
+- do NOT hardcode standalone-only assumptions
+
+--------------------------------------------------
+
+CODEBASE AUDIT REQUIREMENTS
+
+You MUST audit and document at least:
+
+1. Existing platform CareConnect service
+- location
+- structure
+- major legacy problems
+- files/projects likely to be replaced
+
+2. Uploaded CC2 package
+- location
+- structure
+- what is being imported
+- what is reusable as-is
+- what needs adaptation
+
+3. Platform integration impact
+- solution changes
+- project reference changes
+- config changes
+- route/service identity changes
+
+--------------------------------------------------
+
+CONFIGURATION REQUIREMENTS
+
+Align the integrated CareConnect service with platform configuration conventions:
+
+- appsettings structure
+- environment settings
+- connection strings pattern
+- feature flags if present
+- service-mode assumptions removed or documented
+
+Do not leave standalone-only defaults hardcoded unless required for temporary compile/run and clearly documented.
+
+--------------------------------------------------
+
+BUILD / STARTUP REQUIREMENTS
+
+At the end of this block:
+
+- the platform solution must build with CareConnect included
+- the CareConnect service must build cleanly in-platform
+- startup wiring must be valid
+- /api/health (or the platform-equivalent CareConnect health route) must still function
+- legacy duplicate CareConnect implementation must not remain active in parallel
+
+If full runtime execution is blocked by missing downstream integration, state that honestly and precisely.
+
+--------------------------------------------------
+
+ROUTE / API REQUIREMENTS
+
+Preserve the CC2 functional API surfaces within the integrated CareConnect service:
+
+- public endpoints
+- common portal endpoints
+- tenant endpoints
+
+You do NOT need to route them through Gateway in this block unless that is already part of the service replacement step in your codebase.
+But the integrated service must expose the correct endpoint families and compile.
+
+If route prefixes must be adapted to platform conventions, do so carefully and document every change.
+
+--------------------------------------------------
+
+CLEANUP REQUIREMENTS
+
+You MUST identify and handle legacy code safely.
+
+Actions may include:
+- remove obsolete files
+- de-register obsolete startup wiring
+- archive/deprecate old classes
+- leave TODO/deprecation notes only when removal would break the platform in this block
+
+Do NOT leave ambiguous duplicate implementations without documenting which one is canonical.
+
+--------------------------------------------------
+
+TESTING REQUIREMENTS
+
+You MUST test and document results for:
+
+CODEBASE / STRUCTURE
+1. Existing platform CareConnect service successfully audited
+2. Uploaded CC2 source successfully audited
+3. Replacement mapping documented
+
+BUILD / SOLUTION
+4. CareConnect projects are correctly added/aligned in the main platform solution
+5. Project references resolve correctly
+6. Main platform build succeeds, or exact blockers are documented
+7. CareConnect service build succeeds independently if full platform build is blocked
+
+RUNTIME / API
+8. CareConnect startup wiring is valid
+9. Health endpoint works, or exact blocker is documented
+10. Public endpoint family exists
+11. Portal endpoint family exists
+12. Tenant endpoint family exists
+
+CLEANUP
+13. Legacy duplicate CareConnect implementation is removed, disabled, or clearly isolated
+14. Common Portal and Tenant UI responsibilities are documented separately
+
+--------------------------------------------------
+
+REPORT FORMAT (MANDATORY)
+
+Create and continuously update:
+
+/analysis/CC2-INT-B01-report.md
+
+Use this exact structure:
+
+# CC2-INT-B01 Report
+
+## 1. Summary
+What was implemented
+
+## 2. Existing Platform CareConnect Audit
+What existed, what was wrong, what was preserved
+
+## 3. CC2 Source Audit
+What was imported/reused/adapted
+
+## 4. Replacement Strategy
+How the service was replaced and aligned
+
+## 5. Solution / Project Changes
+Solution references, project structure, config updates
+
+## 6. API / Runtime Status
+Endpoint families, startup status, health status
+
+## 7. Frontend Integration Boundaries
+What remains separate for Common Portal vs Tenant Portal
+
+## 8. Test Results
+Pass/fail with notes
+
+## 9. Issues / Gaps
+Anything incomplete, blocked, or deferred to later integration blocks
+
+--------------------------------------------------
+
+DO NOT:
+
+- create a second CareConnect service
+- integrate real SendGrid/S3 in this block unless absolutely required
+- merge Common Portal into Tenant Portal
+- implement full Identity integration yet
+- build new product features
+- continue standalone development patterns
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+- the platform CareConnect replacement foundation is in place
+- builds pass or blockers are clearly documented
+- the report is complete and saved to:
+  /analysis/CC2-INT-B01-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

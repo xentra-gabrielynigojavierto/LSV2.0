@@ -1,0 +1,183 @@
+Continue the LegalSynq platform upgrade from the current post-step3 state.
+
+The platform now has:
+- OrganizationType catalog
+- OrganizationRelationship graph
+- DB-backed product org-type rules
+- ScopedRoleAssignment
+- live HTTP-based organization relationship resolution from CareConnect to Identity
+- org_type_id available in request context
+- provider and facility organization linking
+- enriched referral and appointment relationship fields
+
+Your goal now is to harden the new architecture for production readiness and prepare safe retirement of the legacy paths.
+
+## Primary goal
+
+1. harden live Identity-to-CareConnect relationship resolution for production use
+2. add observability and diagnostics around relationship resolution and org-type/rule-based eligibility
+3. prepare and partially execute legacy cutover from:
+   - ProductRole.EligibleOrgType
+   - UserRoles / UserRoleAssignment write paths
+   - string-only org type assumptions
+4. build control-center admin pages for the new platform catalogs/rules
+5. generate a report
+
+## Required report output
+
+Create and save:
+ /analysis/step4_hardening-and-legacy-cutover.md
+
+Use this exact structure:
+
+# LegalSynq Hardening and Legacy Cutover
+## 1. Starting State
+## 2. Production Hardening Changes
+## 3. Observability and Diagnostics
+## 4. Legacy Cutover Progress
+## 5. Control-Center Admin UI Changes
+## 6. Files Changed
+## 7. Build / Verification Results
+## 8. Remaining Risks
+
+## Phase 1 — Harden service-to-service relationship resolution
+
+Current state:
+- HttpOrganizationRelationshipResolver exists
+- it depends on IdentityService:BaseUrl
+- production auth/header handling may still be missing
+
+Tasks:
+- inspect existing service-to-service HTTP auth patterns in the repo
+- if a standard API key/header/service token pattern exists, apply it to HttpOrganizationRelationshipResolver
+- make timeout, base URL, and optional auth header fully configurable
+- improve logging:
+  - log when resolver is disabled due to missing BaseUrl
+  - log timeouts distinctly
+  - log non-success status codes distinctly
+  - avoid noisy logs for expected “no matching relationship” cases
+- ensure the resolver remains fail-safe and never blocks referral creation
+
+If there is no existing service-to-service auth pattern, add a minimal configurable header-based option:
+- IdentityService:AuthHeaderName
+- IdentityService:AuthHeaderValue
+and apply it only when configured
+
+## Phase 2 — Add observability for architecture activation
+
+Tasks:
+- add targeted logging and/or counters around:
+  - AuthService eligibility path used:
+    - DB rule table
+    - legacy EligibleOrgType fallback
+    - unrestricted/no rule
+  - relationship resolution outcomes:
+    - resolved match
+    - no match
+    - disabled due to config
+    - HTTP/network failure
+  - provider/facility organization linking when new OrganizationId is supplied
+- keep logs structured and low-noise
+- do not spam logs on hot paths
+
+If the repo has existing telemetry abstractions, use them.
+Otherwise use consistent structured ILogger logging.
+
+## Phase 3 — Strengthen org_type_id usage in auth/context
+
+Tasks:
+- inspect authorization policies/helpers/middleware for string org type assumptions
+- where low-risk, prefer OrgTypeId first and fall back to OrgType string
+- do not break any existing authorization checks
+- add clear helper methods/utilities if repeated logic appears
+- document exactly what still depends on OrgType string after this phase
+
+## Phase 4 — Reduce legacy role-path usage
+
+Tasks:
+- inspect user creation/registration/admin role assignment flows
+- where low-risk, create ScopedRoleAssignment records alongside or instead of legacy UserRoles/UserRoleAssignment writes
+- preserve compatibility
+- do not remove old writes yet unless clearly safe
+- add comments/TODOs where cutover remains incomplete
+- identify exactly which flows still depend on legacy role tables after this phase
+
+## Phase 5 — Prepare retirement of EligibleOrgType fallback
+
+Tasks:
+- inspect current product roles and seeding/migrations
+- verify whether ProductOrganizationTypeRule coverage is complete for all active ProductRole rows
+- if not complete, seed/fill missing rules safely
+- add a validation or startup diagnostic that reports product roles still relying on EligibleOrgType with no rule-table coverage
+- do not drop the legacy column yet unless coverage is complete and low-risk
+- document exact retirement readiness
+
+## Phase 6 — Build control-center admin pages
+
+Backend API/types exist already. Now build minimal usable admin UI for:
+- Organization Types
+- Relationship Types
+- Organization Relationships
+- Product Organization Type Rules
+- Product Relationship Type Rules
+
+Tasks:
+- inspect control-center routing/layout/navigation patterns
+- add list pages first
+- if practical, add detail views and basic create/deactivate interactions for organization relationships
+- keep UI simple and consistent with existing control-center design
+- do not over-design
+- prefer working operational admin pages over polished but incomplete UX
+
+## Phase 7 — Verification and operator readiness
+
+Tasks:
+- verify build for Identity.Api
+- verify build for CareConnect.Api
+- run TypeScript checks for control-center
+- if practical, add a short operator/setup section in the report covering:
+  - required IdentityService configuration
+  - optional auth header config
+  - how to confirm relationship resolution is working
+  - how to detect legacy fallback usage still happening
+
+## Files to inspect first
+
+### CareConnect
+- apps/services/careconnect/CareConnect.Infrastructure/Services/HttpOrganizationRelationshipResolver.cs
+- apps/services/careconnect/CareConnect.Infrastructure/Services/IdentityServiceOptions.cs
+- apps/services/careconnect/CareConnect.Infrastructure/DependencyInjection.cs
+- apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+- apps/services/careconnect/CareConnect.Application/Services/FacilityService.cs
+- apps/services/careconnect/CareConnect.Application/Services/ProviderService.cs
+- apps/services/careconnect/CareConnect.Api/appsettings.json
+- apps/services/careconnect/CareConnect.Api/appsettings.Development.json
+
+### Identity / shared
+- apps/services/identity/Identity.Application/Services/AuthService.cs
+- apps/services/identity/Identity.Infrastructure/Repositories/UserRepository.cs
+- shared/building-blocks/BuildingBlocks/Context/CurrentRequestContext.cs
+- any policy/helper classes that read org type or roles
+- current user registration / role assignment flows
+
+### control-center
+- apps/control-center/src/lib/control-center-api.ts
+- apps/control-center/src/types/control-center.ts
+- apps/control-center/src/routes or pages
+- apps/control-center/src/components/admin* or similar patterns
+- navigation/sidebar/menu definitions
+
+## Implementation guidance
+
+- prefer production readiness and safe cutover prep over large new architecture work
+- preserve backward compatibility
+- avoid breaking migrations or requiring new migrations unless necessary
+- add useful operational logging, not noise
+- keep admin UI simple and functional
+- do not fully remove legacy paths unless retirement is clearly safe
+
+## Final instruction
+
+Do the work now.
+Harden the live platform architecture, make the legacy fallback paths measurable, and build the minimal admin UI needed to operate the new multi-product platform.
+Then generate /analysis/step4_hardening-and-legacy-cutover.md.

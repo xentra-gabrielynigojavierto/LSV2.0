@@ -1,0 +1,560 @@
+LSCC-01-004 — Admin Queue & Operational Visibility
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-004
+
+Initial implementation report:
+- /analysis/LSCC-01-004-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-01-004-YY-report.md
+
+Examples:
+- /analysis/LSCC-01-004-report.md
+- /analysis/LSCC-01-004-01-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Provide administrators with operational visibility into CareConnect so they can identify blocked providers, monitor referral flow health, detect stuck referrals, and take the next appropriate action.
+
+This feature must provide:
+
+1. admin dashboard summary metrics
+2. blocked provider queue
+3. referral queue with status and aging
+4. links from blocked providers into provisioning workflow
+5. minimal, admin-focused filtering and visibility
+
+Do NOT build a deep analytics platform.
+Do NOT redesign booking or appointment workflows.
+Do NOT build bulk admin actions unless trivially reusable and low-risk.
+
+This feature creates the control-plane view over the CareConnect system.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Admin dashboard summary view
+B. Blocked provider access logging
+C. Blocked provider queue UI + API
+D. Admin referral queue UI + API
+E. Minimal filters/sorting for operational use
+F. Navigation into LSCC-01-003 provisioning flow
+G. Tests
+H. Report
+
+Do NOT implement:
+- advanced analytics/trends/cohorts
+- booking or appointments redesign
+- notification redesign
+- provider UX redesign
+- bulk provisioning actions
+- full audit explorer
+- broad admin console expansion beyond this feature
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Keep this feature read-first and operations-focused
+2. Prefer small, explicit tables/queries over large generalized observability systems
+3. Use admin-only access everywhere
+4. Keep dashboard metrics simple and deterministic
+5. Use existing readiness/blocking logic from LSCC-01-002-02 as the source for blocked-access logging
+6. Reuse existing provisioning route from LSCC-01-003 for remediation links
+7. Keep filtering/pagination straightforward and testable
+8. Do NOT overbuild charts, pipelines, or BI infrastructure
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Backend:
+- apps/services/careconnect/...
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/admin/...
+- apps/web/src/components/careconnect/admin/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT modify unrelated product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+You already have:
+- secure referral workflow
+- authenticated acceptance model
+- provider access readiness checks
+- blocked-provider message for non-provisioned providers
+- admin provisioning interface (LSCC-01-003)
+
+Current gap:
+- no centralized operational visibility
+- no blocked-provider queue
+- no admin referral monitoring page
+- no simple dashboard showing what needs intervention
+
+LSCC-01-004 must make the system operable at admin level.
+
+==================================================
+CORE ADMIN QUESTIONS THIS FEATURE MUST ANSWER
+==================================================
+
+After this feature, admins should be able to answer:
+
+1. Which providers are currently blocked?
+2. Why are they blocked?
+3. Which referrals are waiting for action?
+4. Which referrals have been stuck too long?
+5. Where do I go to fix a blocked provider?
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. ADMIN DASHBOARD SUMMARY VIEW
+--------------------------------------------------
+
+Create an admin dashboard page.
+
+Suggested route:
+- /careconnect/admin/dashboard
+
+Purpose:
+- provide a quick operational snapshot of CareConnect health
+
+Minimum metrics to show:
+1. New Referrals (last 24h / current selected range)
+2. Accepted Referrals (last 24h / current selected range)
+3. Blocked Provider Attempts (last 24h / current selected range)
+4. Total Referral Activity (or Total Referrals) in range
+
+Optional low-risk metric:
+- Pending/Blocked providers currently unresolved
+- Provisioned vs unprovisioned providers if easy and already queryable
+
+UI:
+- simple cards
+- no heavy charts required
+- fast loading
+- each card may optionally link to the relevant queue page if trivial
+
+--------------------------------------------------
+B. BLOCKED ACCESS LOGGING
+--------------------------------------------------
+
+Whenever the LSCC-01-002-02 readiness check blocks a provider from referral access, record a blocked-access event.
+
+Minimum data to capture:
+- userId (if authenticated and known)
+- providerId (if known)
+- user email (if known)
+- organizationId (if known)
+- referralId (if present)
+- failureReason
+- timestamp
+
+Preferred storage:
+- a small, explicit table such as BlockedProviderAccessLogs
+
+Rules:
+- log only what is operationally necessary
+- keep sensitive data minimal and admin-visible only
+- avoid duplicate spam if one page refresh produces many identical writes in a tight window; use a simple dedupe strategy if practical
+- if exact dedupe is complex, capture events simply and dedupe in read/query layer
+
+Important:
+- this logging must not block the user-facing flow
+- blocked page must still render even if log write fails
+- log writes may be best-effort with warning logs on failure
+
+--------------------------------------------------
+C. BLOCKED PROVIDER QUEUE
+--------------------------------------------------
+
+Create an admin page for blocked providers.
+
+Suggested route:
+- /careconnect/admin/providers/blocked
+
+Purpose:
+- show providers/users who attempted access but failed readiness checks
+
+Minimum columns/fields:
+- Provider Name (or Unknown Provider if not resolvable)
+- User Email (or Unknown User)
+- Organization (if known)
+- Referral Id or referral link context (if known)
+- Failure Reason
+- Last Attempt At
+- Attempt Count (optional but preferred if easy)
+
+Default behavior:
+- newest first
+- group/deduplicate by provider/user where useful, showing latest attempt
+- prioritize recent unresolved blocked cases
+
+Required action:
+- link to LSCC-01-003 provisioning page
+  - ideally prefilled with the relevant userId/providerId when available
+
+Do NOT expose raw internal diagnostics to non-admins.
+Keep the queue readable and operationally useful.
+
+--------------------------------------------------
+D. ADMIN REFERRAL QUEUE
+--------------------------------------------------
+
+Create an admin referral monitoring page.
+
+Suggested route:
+- /careconnect/admin/referrals
+
+Purpose:
+- allow admins to monitor referral lifecycle health and identify stuck referrals
+
+Minimum columns/fields:
+- Referral ID
+- Law Firm / Referrer
+- Provider
+- Status
+- Created At
+- Updated At (or latest relevant timestamp if available)
+- Age (derived, e.g. hours/days since created)
+
+Required filters:
+- status
+- date range or simple date preset
+- simple search by referral id/provider/law firm if low-risk and already supported or easy to add
+
+Required sorting:
+- newest first
+- oldest first (to detect stuck referrals)
+
+Operational emphasis:
+- make referrals in New visible
+- make aged New referrals easy to identify
+- do not overbuild workflow actions here; this feature is primarily for visibility
+
+If linking to referral detail is straightforward, include it.
+
+--------------------------------------------------
+E. DASHBOARD METRICS API
+--------------------------------------------------
+
+Add a minimal admin metrics endpoint.
+
+Suggested example:
+- GET /api/admin/dashboard
+
+It should return enough information for the summary cards:
+- referral counts by selected/current range
+- blocked provider attempts count by selected/current range
+- optionally counts by status if easy
+
+Rules:
+- deterministic and lightweight
+- do not create heavy analytics infra
+- if date range is supported, keep it simple (e.g. last 24h/7d) or query params
+
+--------------------------------------------------
+F. BLOCKED PROVIDER QUEUE API
+--------------------------------------------------
+
+Add a minimal admin endpoint for blocked provider visibility.
+
+Suggested example:
+- GET /api/admin/providers/blocked
+
+Should support at minimum:
+- paging
+- newest-first sorting
+- grouped/latest view or raw log view (choose one clean approach)
+- optional failureReason filter if low-risk
+
+Preferred behavior:
+- return latest relevant attempt per provider/user tuple if that yields better operations UX
+- or return raw attempts with simple grouping info if easier
+
+Document the chosen strategy clearly in the report.
+
+--------------------------------------------------
+G. ADMIN REFERRAL QUEUE API
+--------------------------------------------------
+
+Add a minimal admin endpoint for referral monitoring.
+
+Suggested example:
+- GET /api/admin/referrals
+
+Should support:
+- paging
+- status filter
+- sort order
+- optional search if low-risk
+- optional date range/preset if low-risk
+
+Do NOT redesign the main referral search architecture broadly.
+Keep the admin query focused and practical.
+
+--------------------------------------------------
+H. FILTERING / DATE BEHAVIOR
+--------------------------------------------------
+
+Minimum required operational filtering:
+
+Dashboard:
+- current default range (e.g. last 24h or last 7d)
+- if date presets are added, keep them simple
+
+Blocked queue:
+- newest first by default
+- optional filter by failure reason if easy
+
+Referral queue:
+- status filter
+- newest/oldest sort
+- simple date range/preset if easy
+
+Rules:
+- preserve query params in URL when practical
+- keep filters deterministic and minimal
+- do not build a complex saved-view system
+
+--------------------------------------------------
+I. NAVIGATION / REMEDIATION LINKS
+--------------------------------------------------
+
+Blocked provider queue must provide a clear path into the provisioning workflow from LSCC-01-003.
+
+Preferred:
+- link to /careconnect/admin/providers/provisioning with relevant query params
+  - e.g. userId and/or providerId when known
+
+If referral queue links are easy:
+- include link to referral detail or admin referral context
+- but do not build new admin edit flows unless already existing
+
+--------------------------------------------------
+J. SECURITY / ACCESS CONTROL
+--------------------------------------------------
+
+Everything in this feature must be admin-only.
+
+Requirements:
+- dashboard page: admin-only
+- blocked provider queue: admin-only
+- admin referral queue: admin-only
+- dashboard metrics API: admin-only
+- blocked provider API: admin-only
+- admin referral queue API: admin-only
+
+Also:
+- no sensitive queue data exposed to providers or referrers
+- no cross-tenant leakage beyond what the applicable admin scope should allow
+- follow existing admin auth conventions already in CareConnect
+
+--------------------------------------------------
+K. DATA INTEGRITY / FAILURE HANDLING
+--------------------------------------------------
+
+Must enforce:
+
+1. blocked-access logging does not block user flow
+2. dashboard metrics remain stable if one data source is empty
+3. blocked queue handles unknown/missing provider or email gracefully
+4. referral queue handles missing provider/referrer labels gracefully
+5. no duplicate remediation links pointing to invalid targets
+6. admin pages show empty states clearly when there is no data
+
+Recommended empty states:
+- No blocked providers right now
+- No referrals match your filters
+- No recent CareConnect activity
+
+--------------------------------------------------
+L. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. authenticated blocked attempt with no provider mapping
+- show Unknown Provider
+- still log/use available identifiers
+
+2. repeated blocked attempts from same user
+- either group or show latest cleanly
+
+3. referral exists but provider label missing
+- safe fallback display
+
+4. no blocked attempts in range
+- empty queue state
+
+5. very old referrals
+- still sortable/filterable, no UI breakage
+
+6. provisioning target deleted or changed after blocked event
+- remediation link should fail safely or land on a diagnosable admin page
+
+--------------------------------------------------
+M. FRONTEND REQUIREMENTS
+--------------------------------------------------
+
+Build three admin surfaces as needed:
+
+1. /careconnect/admin/dashboard
+2. /careconnect/admin/providers/blocked
+3. /careconnect/admin/referrals
+
+UI priorities:
+- fast
+- clear
+- low-friction
+- operationally useful
+- no heavy visual polish required
+
+Suggested components:
+- summary metric cards
+- blocked provider table
+- referral table
+- simple filter bar
+- empty state blocks
+
+Do NOT overbuild charts or visualizations.
+Tables/cards are enough.
+
+--------------------------------------------------
+N. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+Backend:
+1. blocked-access events are logged correctly
+2. blocked-access logging is resilient / non-blocking
+3. blocked provider queue query returns expected shape/order
+4. referral queue query filters by status correctly
+5. referral queue sorting works (newest/oldest)
+6. dashboard metrics are correct for representative data
+7. admin-only access enforced on new endpoints
+
+Frontend:
+1. dashboard metrics render correctly
+2. blocked provider queue renders expected rows
+3. blocked provider remediation link points to provisioning page
+4. referral queue renders status/age correctly
+5. empty states render correctly
+6. filters/sort controls update displayed state correctly where feasible
+
+If full UI testing is limited:
+- test query/data shaping services thoroughly
+- test component rendering logic separately
+- document limitations in the report
+
+--------------------------------------------------
+O. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-004-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Dashboard view
+- route
+- metrics shown
+- filter/range behavior
+
+3. Blocked access logging
+- what is captured
+- how logging is triggered
+- dedupe/grouping approach
+
+4. Blocked provider queue
+- route
+- fields shown
+- remediation link behavior
+
+5. Referral queue
+- route
+- fields shown
+- filtering/sorting behavior
+- how “stuck” referrals are surfaced
+
+6. APIs added
+- dashboard
+- blocked providers
+- referrals
+- auth model for each
+
+7. Tests
+- what scenarios are covered
+- what gaps remain
+
+8. Known limitations / deferred items
+- anything intentionally left for future work
+
+9. Recommended next step
+- smallest logical follow-up after operational visibility
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. implement blocked-access logging
+2. add blocked provider queue query/API
+3. add admin referral queue query/API
+4. add dashboard metrics query/API
+5. build admin dashboard UI
+6. build blocked provider queue UI
+7. build admin referral queue UI
+8. add tests
+9. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-004 is complete ONLY if:
+
+1. admin can see blocked providers in a queue
+2. admin can navigate from blocked provider queue into provisioning
+3. admin can monitor referrals by status and age
+4. admin can identify stuck New referrals
+5. admin dashboard shows a useful system snapshot
+6. all new admin surfaces are access-controlled
+7. no regressions to LSCC-01-003 or prior CareConnect security/workflow behavior
+8. report exists at:
+   /analysis/LSCC-01-004-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this operational, minimal, and high-signal.
+
+This feature is about making CareConnect observable and manageable by admins, not about building a BI product or redesigning core workflows.
+
+Focus on the smallest admin control-plane that makes the existing system runnable at scale.

@@ -1,0 +1,130 @@
+Implement the first real SynqFund vertical slice in the existing Next.js tenant-aware frontend:
+
+law firm creates funding application -> views application detail -> funder reviews assigned applications -> funder approves or denies
+
+Current state already working:
+- Next.js tenant-aware platform scaffold is implemented
+- SessionProvider, guards, app shell, tenant branding, API client, and gateway-only access are working
+- CareConnect referral and appointment slices are already implemented
+- Backend enforces capabilities and org-participant checks
+- Product roles already exist:
+  - SYNQFUND_REFERRER
+  - SYNQFUND_FUNDER
+  - SYNQFUND_APPLICANT_PORTAL (later)
+
+Target vertical slice:
+create application -> list applications -> open detail -> approve/deny from funder side
+
+Business rules:
+- Law firm users with SYNQFUND_REFERRER can create and submit applications
+- Funder users with SYNQFUND_FUNDER can review assigned applications and approve/deny
+- Applications are multi-actor:
+  - ApplicantPartyId
+  - ReferringOrganizationId
+  - ReceivingOrganizationId
+- Frontend should shape UX by productRoles, but backend remains the security boundary
+- Party portal is not part of this slice yet
+
+Generate the output in these exact sections:
+
+1. SynqFund Slice Scope
+- define what is included in this slice
+- define what stays stubbed for later
+
+2. API Contract Assumptions
+List the frontend-facing API contracts assumed for:
+- GET /fund/api/applications
+- POST /fund/api/applications
+- GET /fund/api/applications/{id}
+- POST /fund/api/applications/{id}/submit
+- POST /fund/api/applications/{id}/begin-review
+- POST /fund/api/applications/{id}/approve
+- POST /fund/api/applications/{id}/deny
+For each include:
+- request params/body
+- response shape needed by frontend
+
+3. TypeScript Models
+Generate the TS models for:
+- FundingApplicationSummary
+- FundingApplicationDetail
+- CreateFundingApplicationRequest
+- SubmitFundingApplicationRequest
+- ApproveFundingApplicationRequest
+- DenyFundingApplicationRequest
+- FundingDecisionSummary
+- ApplicationStatusHistoryItem
+- FundingApplicationSearchParams
+- PartyBriefResponse
+
+4. Frontend Data Layer
+Generate:
+- fund-api.ts
+- application list/get/create/submit/begin-review/approve/deny methods
+- typed wrappers around apiClient
+
+5. Page Implementations
+Generate minimal but real implementations for:
+- /fund/applications
+- /fund/applications/new
+- /fund/applications/[id]
+
+Requirements:
+- applications list heading adapts by role:
+  - law firm sees “My Applications”
+  - funder sees “Assigned Applications”
+- detail page renders:
+  - applicant party summary
+  - referring org
+  - receiving org
+  - requested amount
+  - approved amount
+  - status
+  - attorney notes placeholder
+  - status history
+- detail page should show different action panels for referrer vs funder
+
+6. Create Application UI
+Design and generate:
+- CreateFundingApplicationForm
+- supports:
+  - applicant inline details for Phase 1 compatibility
+  - applicantPartyId optional
+  - requestedAmount
+  - caseType
+  - incidentDate
+  - attorneyNotes
+- handles success/error states
+- on success navigates to application detail page
+
+7. Submit / Review / Decision UI
+Design and generate:
+- SubmitApplicationPanel
+- ReviewDecisionPanel
+Requirements:
+- law firm can choose a funder org and submit Draft -> Submitted
+- funder can begin review Submitted -> UnderReview
+- funder can approve or deny from UnderReview
+- approval requires approvedAmount and optional terms fields placeholder
+- denial requires reason
+- handle 403/409 gracefully
+
+8. UX Role Shaping
+Explain and implement:
+- when law firms see create/submit controls
+- when funders see review/approve/deny controls
+- when a page becomes read-only
+- how to handle backend denial even if UI showed the action
+
+9. Minimal Component List
+Generate starter components for:
+- FundingApplicationListTable
+- FundingApplicationDetailPanel
+- CreateFundingApplicationForm
+- SubmitApplicationPanel
+- ReviewDecisionPanel
+- FundingStatusTimeline
+- ApplicantSummaryCard
+
+10. Implementation Sequence
+Give the exact order to build these files in the existing repo so the slice becomes runnable quickly.

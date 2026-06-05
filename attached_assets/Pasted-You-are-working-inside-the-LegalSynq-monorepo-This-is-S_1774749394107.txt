@@ -1,0 +1,118 @@
+You are working inside the LegalSynq monorepo.
+
+This is Step 05.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/step_05-control-center-tenants.md
+
+---
+
+Context:
+
+We have changed direction.
+
+Control Center is now a **fully independent app** located at:
+
+apps/control-center
+
+Do NOT continue building features under `apps/web`.
+That version is now considered a prototype/reference only.
+
+---
+
+Critical constraints:
+
+- Use the same stack family as operator portal:
+  - Next.js App Router
+  - TypeScript
+  - Tailwind CSS
+- But DO NOT depend on:
+  - `apps/web` routing
+  - `apps/web` layout/components
+  - `apps/web` navigation
+- No cross-imports from `apps/web/src/...`
+- Shared logic is allowed ONLY if placed in a neutral shared location (or duplicated for now)
+
+- All Control Center code must live under:
+  apps/control-center
+
+---
+
+Goal of this step:
+
+Implement the **Tenants List page** in the new standalone Control Center app.
+
+Reuse the ideas and structure from the prototype, but reimplement cleanly in the new app.
+
+---
+
+## 1. Create Tenants Route
+
+Create:
+
+apps/control-center/src/app/tenants/page.tsx
+
+Requirements:
+- async Server Component
+- protected route (use Control Center auth guard)
+- call:
+  controlCenterServerApi.tenants.list()
+- support:
+  - loading
+  - error
+  - empty state
+
+Page structure:
+- Title: "Tenants"
+- Right-side button: "Create Tenant" (no functionality yet)
+- Search input (can be functional with stub)
+- Table
+- Pagination footer
+
+---
+
+## 2. Create Tenant Table Component
+
+Create:
+
+apps/control-center/src/components/tenants/tenant-list-table.tsx
+
+Columns:
+- Name
+- Type
+- Status
+- Primary Contact
+- Created Date
+- Actions
+
+Requirements:
+- Tailwind styling consistent with platform
+- row hover
+- empty state
+- pagination footer
+- "View →" link to `/tenants/[id]`
+
+---
+
+## 3. Create Control Center API layer
+
+Create:
+
+apps/control-center/src/lib/control-center-api.ts
+
+Implement:
+
+controlCenterServerApi.tenants.list()
+
+- Use mock data (same dataset is fine to copy)
+- return:
+  {
+    data: TenantSummary[],
+    total: number
+  }
+
+Add TODO:
+```ts
+// TODO: replace with GET /identity/api/admin/tenants

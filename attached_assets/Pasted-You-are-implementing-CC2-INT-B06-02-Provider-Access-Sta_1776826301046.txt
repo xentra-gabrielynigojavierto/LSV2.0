@@ -1,0 +1,222 @@
+You are implementing CC2-INT-B06-02 — Provider Access Stage & Lifecycle for CareConnect.
+
+CRITICAL:
+
+1. Create report FIRST:
+   /analysis/CC2-INT-B06-02-report.md
+
+2. Update report incrementally.
+
+3. This is an iteration on B06-01.
+   DO NOT break provider registry model.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Introduce a **provider access-stage model**:
+
+- URL
+- COMMON_PORTAL
+- TENANT
+
+This controls how providers interact with CareConnect.
+
+--------------------------------------------------
+
+PART A — DATA MODEL
+
+--------------------------------------------------
+
+A.1 Update Provider entity
+
+Add fields:
+
+- AccessStage (enum/string)
+  Values:
+    - URL
+    - COMMON_PORTAL
+    - TENANT
+
+- IdentityUserId (nullable)
+- TenantId (nullable — already exists, now meaning "registering tenant")
+- CommonPortalActivatedAtUtc (nullable)
+- TenantProvisionedAtUtc (nullable)
+
+--------------------------------------------------
+
+PART B — DEFAULT BEHAVIOR
+
+--------------------------------------------------
+
+B.1 New providers created via:
+
+- referral flow
+- network "add new provider"
+
+MUST default to:
+
+AccessStage = URL
+
+--------------------------------------------------
+
+PART C — URL STAGE (CURRENT BEHAVIOR)
+
+--------------------------------------------------
+
+No change required except:
+
+- explicitly enforce that URL-stage providers:
+  - cannot access portals
+  - only use referral token URLs
+
+--------------------------------------------------
+
+PART D — COMMON PORTAL ACTIVATION
+
+--------------------------------------------------
+
+D.1 When provider activates via token:
+
+- If provider exists:
+    - link to Identity user
+    - set:
+        AccessStage = COMMON_PORTAL
+        IdentityUserId = created user
+        CommonPortalActivatedAtUtc = now
+
+- If provider already activated:
+    - reuse Identity user
+
+--------------------------------------------------
+
+D.2 Identity Integration
+
+- ensure provider Identity user:
+    - has product access: CareConnect
+    - role: provider access (existing or minimal)
+
+--------------------------------------------------
+
+PART E — TENANT STAGE
+
+--------------------------------------------------
+
+E.1 When provider creates/joins tenant:
+
+- link provider to tenant
+- set:
+
+    AccessStage = TENANT
+    TenantId = provider tenant
+    TenantProvisionedAtUtc = now
+
+--------------------------------------------------
+
+E.2 Behavior
+
+- provider uses Tenant Portal instead of Common Portal
+- Common Portal access can remain or be limited (do NOT break existing)
+
+--------------------------------------------------
+
+PART F — BACKEND ENFORCEMENT
+
+--------------------------------------------------
+
+F.1 Ensure APIs respect stage:
+
+- URL stage:
+    - token-only endpoints allowed
+
+- COMMON_PORTAL:
+    - portal endpoints allowed
+
+- TENANT:
+    - tenant-scoped endpoints allowed
+
+--------------------------------------------------
+
+PART G — FRONTEND
+
+--------------------------------------------------
+
+G.1 Common Portal
+
+- allow login only if:
+    AccessStage >= COMMON_PORTAL
+
+G.2 Tenant Portal
+
+- provider appears only if:
+    AccessStage = TENANT
+
+--------------------------------------------------
+
+G.3 Network UI
+
+- show provider stage badge:
+
+    URL
+    COMMON PORTAL
+    TENANT
+
+--------------------------------------------------
+
+PART H — MIGRATION
+
+--------------------------------------------------
+
+For existing providers:
+
+- default all to URL
+- do NOT attempt auto-upgrade
+
+--------------------------------------------------
+
+PART I — TESTING
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. New provider → URL stage
+2. Activation → COMMON_PORTAL
+3. Tenant onboarding → TENANT
+4. URL providers cannot access portal
+5. COMMON_PORTAL providers can login
+6. TENANT providers access tenant portal
+7. No duplicate providers created
+8. Identity linkage works
+9. Existing flows not broken
+
+--------------------------------------------------
+
+REPORT FORMAT
+
+/analysis/CC2-INT-B06-02-report.md
+
+# CC2-INT-B06-02 Report
+
+## 1. Summary
+## 2. Data Model Changes
+## 3. Stage Logic
+## 4. Identity Integration
+## 5. Backend Enforcement
+## 6. Frontend Changes
+## 7. Migration
+## 8. Test Results
+## 9. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- create duplicate provider records
+- break network association model
+- introduce new auth systems
+- modify unrelated services
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

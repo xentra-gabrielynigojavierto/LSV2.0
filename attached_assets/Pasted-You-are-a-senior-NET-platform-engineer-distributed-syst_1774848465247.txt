@@ -1,0 +1,378 @@
+You are a senior .NET platform engineer, distributed systems architect, SRE, and security engineer.
+
+Your task is to implement **Phase 4 — Final Hardening** for the .NET Documents Service scanning and eventing subsystem.
+
+# Phase 4 — Final Hardening
+
+## Redis Circuit Breaker + Durable Event Streaming + Correlation Propagation + Production Runbook
+
+## Primary Goal
+
+Take the current hardened Documents Service and close the final major production gaps so the platform is resilient under dependency failure, supports durable scan-completion event delivery, preserves end-to-end traceability, and is operationally ready for real production ownership.
+
+This phase should complete the last-mile hardening for the ClamAV/queue/event pipeline.
+
+---
+
+## Important Constraints
+
+* Keep the current .NET Documents Service intact and build on top of it
+* Do NOT break existing APIs unnecessarily
+* Preserve clean architecture
+* Preserve current queue/retry/circuit-breaker behavior unless improving it safely
+* Preserve fail-closed scan and access control behavior
+* Keep Node.js service untouched
+* Make real code changes, not just analysis
+* Add analysis/report output
+* Prefer backward-compatible changes
+
+---
+
+## Current Context
+
+The service already has:
+
+* async scan worker
+* durable Redis-backed queue option
+* retry + backoff
+* worker concurrency
+* fail-fast queue saturation handling
+* Prometheus metrics
+* health checks (DB, ClamAV, signature freshness, Redis)
+* ClamAV circuit breaker
+* quarantine model
+* fail-closed access gating
+* large-file policy
+* scan completion event abstraction
+* log publisher + Redis Pub/Sub publisher
+
+This phase must address the remaining production maturity gaps:
+
+1. Redis dependency resilience
+2. Durable event delivery
+3. End-to-end correlation/tracing
+4. Operator-ready runbook and alerting guidance
+
+---
+
+## Required Scope
+
+---
+
+### 1. Redis circuit breaker / resilience
+
+Add a resilience layer around critical Redis operations so Redis degradation does not create uncontrolled failure storms.
+
+## Goal
+
+Protect the service when Redis is slow, degraded, or unavailable.
+
+## Requirements
+
+Implement Redis resilience around critical operations used by:
+
+* Redis-backed scan queue
+* Redis-backed notification/event publishing
+* any other Redis-backed state if present
+
+Preferred approach:
+
+* Polly circuit breaker and/or resilience wrapper
+* keep implementation infrastructure-layer only
+
+### Behavior requirements
+
+* repeated Redis failures should open the circuit
+* when circuit is open:
+
+  * fail quickly
+  * avoid hammering Redis
+  * expose circuit state via logs and metrics
+* preserve safe behavior:
+
+  * queue writes should fail explicitly
+  * worker dequeue/read logic should degrade safely
+  * notifications should fail but not corrupt scan state
+
+### Metrics
+
+Add metrics such as:
+
+* `docs_redis_circuit_state`
+* `docs_redis_circuit_open_total`
+* `docs_redis_circuit_short_circuit_total`
+
+### Health
+
+Include circuit-open state meaningfully in readiness / health detail
+
+### Important
+
+Do not hide failures. Fast, explicit degradation is preferred.
+
+---
+
+### 2. Durable scan completion event delivery
+
+Current Redis Pub/Sub delivery is at-most-once and ephemeral.
+
+Upgrade the event pipeline so scan completion delivery has a **durable option**.
+
+## Goal
+
+Provide a reliable foundation for downstream consumers (CareConnect, portals, internal automation).
+
+## Requirements
+
+Add a durable scan completion publisher.
+
+Preferred approach:
+
+* Redis Streams-based event publisher
+
+Alternative acceptable:
+
+* outbox/persistent event table if done cleanly
+
+### If using Redis Streams
+
+Implement:
+
+* publish completion event via `XADD`
+* configurable stream key, e.g.:
+
+  * `documents:scan:completed`
+* support replay by downstream consumers
+* keep existing publisher abstraction
+* preserve existing `log` and `none` providers
+* you may keep Pub/Sub as an option, but add a durable provider and make it clear which is recommended for production
+
+### Delivery requirements
+
+* scan completion event must be emitted for terminal outcomes:
+
+  * `CLEAN`
+  * `INFECTED`
+  * `FAILED`
+* event publishing failure must not corrupt document state
+* event delivery failure must be measurable and logged
+* document state persistence remains primary
+
+### Metrics
+
+Add metrics such as:
+
+* `docs_scan_completion_stream_publish_total`
+* `docs_scan_completion_stream_publish_failures_total`
+
+### Configuration
+
+Example:
+
+```json
+{
+  "Notifications": {
+    "ScanCompletion": {
+      "Provider": "redis-stream",
+      "Redis": {
+        "Channel": "documents.scan.completed",
+        "StreamKey": "documents:scan:completed"
+      }
+    }
+  }
+}
+```
+
+Document clearly:
+
+* Pub/Sub = best-effort
+* Stream = durable/replayable
+* recommended production default
+
+---
+
+### 3. Correlation ID propagation
+
+Currently scan completion events may not have end-to-end correlation IDs.
+
+## Goal
+
+Preserve traceability from:
+
+* inbound upload request
+* queued scan job
+* background worker
+* emitted completion event
+* logs/metrics context where practical
+
+## Requirements
+
+Thread correlation ID through the scan pipeline.
+
+Suggested path:
+
+* HTTP request correlation ID
+* stored on scan job / carried through queue
+* included in:
+
+  * scan lifecycle logs
+  * terminal scan completion event payload
+  * audit detail where appropriate
+
+Do NOT introduce high-cardinality labels in Prometheus metrics.
+Correlation IDs should be:
+
+* in logs
+* in event payloads
+* optionally in audit payloads
+  not in metrics labels.
+
+---
+
+### 4. Production runbook and operator guidance
+
+Add production-facing operational guidance.
+
+## Goal
+
+Make the service support real operational ownership.
+
+Create documentation that explains:
+
+* required dependencies
+* health interpretation
+* common failure modes
+* recommended alert thresholds
+* recovery actions
+* production-safe config examples
+
+Include:
+
+* ClamAV outage behavior
+* Redis outage behavior
+* queue backlog behavior
+* stale signature behavior
+* queue saturation behavior
+* how to interpret event delivery failures
+* how to inspect stream backlog if using Redis Streams
+
+---
+
+### 5. Metrics / alerting polish
+
+Review and finalize metrics coverage for production.
+
+Requirements:
+
+* ensure Redis circuit breaker metrics exist
+* ensure durable event publisher metrics exist
+* ensure correlation IDs are not added as metric labels
+* add recommended alert rules in the report
+* include recommended dashboard panels
+
+Suggested final operator metrics categories:
+
+* scan throughput
+* scan latency
+* scan failures
+* queue depth
+* queue reclaim rate
+* ClamAV health / circuit state / signature age
+* Redis health / circuit state
+* notification publish success/failure
+* oversize file rejections
+
+---
+
+## Implementation Guidance
+
+### Preserve architecture
+
+Keep boundaries clean:
+
+* Domain → event contract / interfaces only
+* Application → orchestration only
+* Infrastructure → Redis resilience, durable publisher, health/metrics
+* API/host → health endpoints, wiring, worker
+
+### Backward compatibility
+
+* preserve existing upload/scan/access API behavior
+* existing notification providers can remain
+* add durable provider rather than replacing all providers unless clearly safe
+
+### Security
+
+* do not include sensitive file contents in events
+* preserve tenant-aware identifiers only
+* preserve fail-closed scan behavior
+
+### Reliability principle
+
+* document state persistence is the source of truth
+* event publishing is secondary but should be durable when configured that way
+
+---
+
+## Suggested Files to Create / Modify
+
+Possible examples:
+
+* `Documents.Infrastructure/Redis/RedisResiliencePolicy.cs`
+* `Documents.Infrastructure/Notifications/RedisStreamScanCompletionPublisher.cs`
+* update `NotificationOptions.cs`
+* update `DocumentScanCompletedEvent.cs`
+* update `ScanJob` / queue payload for correlation ID
+* update `RedisHealthCheck.cs`
+* update metrics files
+* update `DocumentScanWorker.cs`
+* update DI wiring
+* update `appsettings.json`
+
+These are suggestions, not strict requirements.
+
+---
+
+## Deliverable
+
+Create:
+
+`/analysis/dotnet_phase4_final_hardening.md`
+
+The report must include:
+
+1. Objective
+2. Redis resilience strategy
+3. Durable event delivery strategy
+4. Correlation propagation approach
+5. Config added
+6. Files changed
+7. Metrics / health changes
+8. Delivery guarantees
+9. Runbook / operational guidance
+10. Verification steps
+11. Remaining risks / follow-ups
+
+---
+
+## Success Criteria
+
+This phase is successful when:
+
+* Redis failures do not cause uncontrolled retry/command storms
+* Redis circuit state is visible operationally
+* scan completion has a durable delivery option
+* correlation ID is preserved from upload through scan completion event
+* production guidance exists for operators
+* metrics/alerts are sufficient for ownership
+* service remains secure, modular, and backward-compatible
+
+---
+
+## Start now
+
+1. inspect the current hardened .NET Documents Service
+2. implement Redis resilience hardening
+3. implement durable scan completion event delivery
+4. implement correlation propagation
+5. generate `/analysis/dotnet_phase4_final_hardening.md`

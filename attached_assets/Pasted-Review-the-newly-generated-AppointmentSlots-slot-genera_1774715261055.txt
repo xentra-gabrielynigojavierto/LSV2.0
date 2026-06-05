@@ -1,0 +1,162 @@
+Review the newly generated AppointmentSlots, slot generation, and Appointments implementation before applying any migration.
+
+Goal:
+Validate correctness, simplicity, and safety of the scheduling implementation before database changes are applied.
+
+Context:
+- Scheduling foundation already exists (Facilities, ServiceOfferings, AvailabilityTemplates)
+- New code includes:
+  - AppointmentSlots
+  - Appointments
+  - slot generation service
+  - slot endpoints
+  - appointment endpoints
+- Migration has been created but NOT yet applied
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. ENTITY REVIEW
+==================================================
+
+Confirm ONLY these new entities exist:
+- AppointmentSlot
+- Appointment
+
+Ensure NO accidental additions:
+- AppointmentStatusHistory
+- AvailabilityException
+- BookingQueue
+- Recurrence engine
+- Background jobs
+
+==================================================
+2. APPOINTMENTSLOTS VALIDATION
+==================================================
+
+Check:
+- TenantId exists
+- ProviderId, FacilityId present
+- StartAtUtc, EndAtUtc correct
+- Capacity and ReservedCount exist
+- Status exists and is string
+
+Confirm:
+- ReservedCount default = 0
+- Capacity > 0 always enforced
+
+Check index strategy:
+- (TenantId, ProviderId, StartAtUtc)
+- (TenantId, FacilityId, StartAtUtc)
+
+==================================================
+3. DUPLICATE SLOT PROTECTION (VERY IMPORTANT)
+==================================================
+
+Ensure slot generation prevents duplicates.
+
+Acceptable approaches:
+- check existing slots before inserting
+- OR enforce unique index on:
+  (ProviderId, StartAtUtc, FacilityId)
+
+Confirm:
+- running slot generation twice does NOT create duplicates
+
+==================================================
+4. SLOT GENERATION LOGIC REVIEW
+==================================================
+
+Verify:
+- uses ProviderAvailabilityTemplates
+- matches DayOfWeek correctly
+- splits time correctly using SlotDurationMinutes
+- generates slots between StartTimeLocal and EndTimeLocal
+- assigns:
+  - Capacity from template
+  - ReservedCount = 0
+  - Status = Open
+
+Confirm:
+- generation is tenant-scoped
+- generation respects date range
+
+==================================================
+5. APPOINTMENT LOGIC REVIEW
+==================================================
+
+Check booking logic:
+
+- slot must exist
+- slot must belong to tenant
+- slot must be Open
+- ReservedCount < Capacity
+
+Confirm:
+- ReservedCount increments on booking
+- booking + slot update happen in SAME transaction
+
+Check:
+- ScheduledStartAtUtc and End come from slot
+- Provider/Facility copied from slot
+
+==================================================
+6. VALIDATION RULES
+==================================================
+
+Ensure:
+- invalid slot booking returns 400
+- full slot cannot be booked
+- invalid date ranges rejected
+- page/pageSize validation exists
+
+==================================================
+7. ENDPOINT REVIEW
+==================================================
+
+Confirm endpoints:
+
+Admin:
+- POST /api/providers/{id}/slots/generate
+
+User:
+- GET /api/slots
+- POST /api/appointments
+- GET /api/appointments
+- GET /api/appointments/{id}
+
+==================================================
+8. AUTHORIZATION
+==================================================
+
+Confirm:
+- slot generation => admin only
+- booking => admin only (for now)
+- slot listing => authenticated user
+
+==================================================
+9. MIGRATION REVIEW
+==================================================
+
+Confirm migration:
+- AddAppointmentSlotsAndAppointments
+
+Creates ONLY:
+- AppointmentSlots
+- Appointments
+
+No unintended tables
+
+==================================================
+10. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- confirmation of:
+  - duplicate protection
+  - correct booking logic
+  - correct slot generation
+- whether migration is SAFE to apply

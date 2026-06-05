@@ -1,0 +1,468 @@
+LSCC-01-002-02 — Provider Activation & Role Assurance (Admin-Controlled Access)
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-01-002-02
+
+Report path:
+- /analysis/LSCC-01-002-02-report.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Ensure that only properly provisioned and authorized CareConnect providers can access and accept referrals after login.
+
+This feature must:
+
+1. verify that a provider is fully provisioned for CareConnect before referral access is granted
+2. verify that the authenticated user has the correct CareConnect receiver role/capabilities
+3. block non-provisioned or misconfigured providers from viewing or accepting referrals
+4. display a clear message instructing blocked users to contact their administrator
+5. preserve the secure login + returnTo flow
+6. remove any implicit auto-provisioning behavior from the referral access path
+
+Do NOT auto-provision providers in this feature.
+Do NOT dynamically assign roles during referral access.
+Do NOT redesign broader onboarding, booking, appointments, or admin user management.
+
+This feature hardens the authenticated referral flow into an admin-controlled access model.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Provider access readiness verification
+B. Admin-controlled access gating for referral entry
+C. Blocking state for non-provisioned / non-authorized providers
+D. Safe post-login referral access validation
+E. Role/capability assurance checks
+F. Legacy/misconfigured provider handling
+G. Tests
+H. Report
+
+Do NOT implement:
+- auto-provisioning
+- dynamic role assignment during referral flow
+- new onboarding flows
+- booking/appointments/scheduling changes
+- new analytics
+- full admin user management UI
+- broad RBAC redesign
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Authentication alone is NOT sufficient for referral access
+2. Referral access requires both:
+   - valid authenticated identity
+   - correct CareConnect provider provisioning/authorization
+3. Do NOT auto-provision or auto-assign roles in this flow
+4. Do NOT reveal referral details to non-provisioned providers
+5. Keep access readiness logic centralized and testable
+6. Preserve the existing secure token + login + returnTo pattern
+7. Use existing role/capability model already implemented in CareConnect
+8. Keep changes minimal, security-focused, and deterministic
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+- minimal identity/auth integration only as needed for access verification
+
+Frontend:
+- apps/web/src/app/referrals/...
+- apps/web/src/app/login/...
+- apps/web/src/app/(platform)/careconnect/referrals/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/components/auth/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT use this feature to redesign unrelated infrastructure or product areas.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Already implemented:
+- provider referral email with secure token entry
+- token validation and login redirect flow
+- authenticated-only referral acceptance
+- capability-based authorization
+- corrected referral state machine
+- provider activation/admin provisioning work in prior features
+
+Current risk:
+- a provider may authenticate successfully but still lack the correct CareConnect provisioning, organization linkage, or receiver role/capabilities
+- referral access must now be blocked cleanly unless provisioning is complete
+
+This feature must enforce an admin-controlled access model.
+
+==================================================
+FINAL PRODUCT RULE
+==================================================
+
+A provider may view or accept a referral ONLY if all of the following are true:
+
+1. they are authenticated
+2. they are the correct receiving-side participant or correctly linked provider user
+3. they are provisioned for CareConnect
+4. they have the required CareConnect receiver role/capabilities
+
+If any of the above are false:
+- do NOT show referral details
+- do NOT show accept action
+- show a blocking message instructing them to contact their administrator
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. PROVIDER ACCESS READINESS CHECK
+--------------------------------------------------
+
+Implement a centralized readiness check for provider referral access.
+
+Example intent only:
+- VerifyProviderReferralAccessReady(userId, providerId, organizationId, referralId)
+- GetProviderAccessReadiness(...)
+
+It must verify at minimum:
+1. authenticated user identity is valid
+2. user/provider mapping is valid for the receiving side
+3. required CareConnect provider role is present
+4. required CareConnect capabilities are present
+5. organization/provider linkage is valid
+
+The result should be explicit, for example:
+{
+  success: boolean,
+  isProvisioned: boolean,
+  hasReceiverRole: boolean,
+  hasReferralAccess: boolean,
+  reason?: string
+}
+
+Rules:
+- no hidden side effects
+- no auto-repair or auto-assignment in this flow
+- deterministic result for the same inputs
+
+--------------------------------------------------
+B. NO IMPLICIT AUTO-PROVISIONING
+--------------------------------------------------
+
+This feature explicitly forbids implicit provisioning during referral access.
+
+That means:
+- do NOT create provider accounts
+- do NOT create org links
+- do NOT assign CareConnect roles
+- do NOT grant product membership dynamically
+- do NOT treat login as activation completion
+
+If user is not provisioned correctly:
+- block access
+- show the administrator-contact message
+- log/surface the failure for operational follow-up if practical
+
+--------------------------------------------------
+C. SECURE TOKEN → LOGIN → ACCESS FLOW
+--------------------------------------------------
+
+When provider clicks a valid referral email link:
+
+1. token/referral context is validated safely
+2. if unauthenticated:
+   - redirect to login
+   - preserve safe returnTo
+3. after login:
+   - perform provider access readiness verification
+4. if access-ready:
+   - allow referral detail access
+5. if not access-ready:
+   - show blocking state
+   - do not render referral details
+
+Requirements:
+- preserve existing open-redirect protections
+- invalid/revoked/expired token still fails safely
+- token must not bypass provisioning checks
+
+--------------------------------------------------
+D. NON-PROVISIONED / MISCONFIGURED PROVIDER BLOCKING STATE
+--------------------------------------------------
+
+If the provider is not activated/provisioned for CareConnect, or lacks required receiver access:
+
+show a blocking page/state with messaging equivalent to:
+
+Title:
+- Access Not Available
+
+Body:
+- Your account is not yet activated for CareConnect. Please contact your administrator to request access.
+
+Optional low-risk extras:
+- Back to Login
+- generic support/help text if already supported in the product
+
+Rules:
+- do NOT expose referral details on this page
+- do NOT show accept action
+- do NOT imply the user can self-provision from this flow
+- keep messaging simple and deterministic
+
+--------------------------------------------------
+E. AUTHENTICATED REFERRAL ACCESS
+--------------------------------------------------
+
+If the provider passes readiness checks:
+
+- allow access to authenticated referral detail page
+- preserve existing authorization and participant checks
+- show Accept Referral only when state and role are valid
+- allow standard New → Accepted flow from the authenticated UI
+
+Requirements:
+- wrong-account user must be blocked safely
+- non-participant user must be blocked safely
+- no data leakage for unauthorized accounts
+
+--------------------------------------------------
+F. REQUIRED CARECONNECT ACCESS BUNDLE
+--------------------------------------------------
+
+Document and enforce the minimum provider-ready access bundle.
+
+At minimum, use the canonical existing equivalents of:
+- CareConnect receiver role
+- referral read addressed / provider-side read capability
+- referral accept capability
+
+This bundle must be the basis of the readiness check.
+
+Rules:
+- do not redesign the authorization model
+- align provisioning expectations to the current capability model already in place
+- one clear provider-ready access rule must exist after this feature
+
+--------------------------------------------------
+G. LEGACY / MISCONFIGURED PROVIDER HANDLING
+--------------------------------------------------
+
+There may already be providers/users who:
+- can authenticate
+- but lack receiver role/capabilities
+- or have incomplete org/provider linkage
+
+This feature must handle them safely.
+
+Acceptable behavior:
+- block access
+- show the admin-contact message
+- optionally log enough diagnostic detail for ops/admin follow-up
+
+If a repair/backfill path already exists elsewhere:
+- do not redesign it here
+- simply make this flow depend on correct provisioning
+
+Do NOT silently allow partial access.
+
+--------------------------------------------------
+H. ACCEPTANCE PATH READINESS
+--------------------------------------------------
+
+A provider is only considered ready if they can reach the referral detail and legitimately perform the acceptance action when the referral is New.
+
+Requirements:
+- do not treat “can log in” as “can accept”
+- readiness must imply actionability
+- any missing receiver capability or missing org/provider linkage must block the flow before referral interaction
+
+--------------------------------------------------
+I. DATA INTEGRITY / SECURITY RULES
+--------------------------------------------------
+
+Must enforce:
+
+1. no provider is treated as access-ready without correct provisioning
+2. no referral details shown to non-provisioned/misconfigured providers
+3. no cross-org or cross-provider access
+4. no duplicate role grants because none occur here
+5. no false-positive success when access is incomplete
+6. no token-based bypass of provisioning/authorization
+
+--------------------------------------------------
+J. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. authenticated user exists but lacks CareConnect receiver role
+- block with admin-contact message
+
+2. authenticated user has role but wrong organization/provider linkage
+- block safely
+
+3. token valid, login succeeds, access incomplete
+- blocking page shown
+- no referral details
+
+4. provider already fully configured
+- normal referral detail access works
+- acceptance works if referral state is New
+
+5. invalid/revoked/expired token
+- existing invalid flow remains intact
+
+6. retry / refresh
+- deterministic same blocking or success outcome
+
+--------------------------------------------------
+K. FRONTEND REQUIREMENTS
+--------------------------------------------------
+
+Keep UI changes minimal and focused.
+
+Minimum requirements:
+1. non-provisioned/misconfigured providers see the blocking state
+2. correctly provisioned providers continue into referral detail
+3. no referral data is rendered in blocking state
+4. no accept CTA is rendered in blocking state
+5. existing referral detail accept UX remains unchanged for valid providers
+
+Do NOT redesign broader activation, login, or referral pages.
+
+--------------------------------------------------
+L. BACKEND REQUIREMENTS
+--------------------------------------------------
+
+Implement or refine:
+- a centralized access-readiness check/service
+- referral-entry gating that uses it after authentication
+- safe failure semantics for incomplete access
+
+Requirements:
+- do not mutate data during readiness verification
+- do not create users/roles/org links
+- return explicit reasons for internal diagnostics where useful
+- expose only safe, minimal user-facing messaging
+
+--------------------------------------------------
+M. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+Backend:
+1. fully provisioned provider passes readiness check
+2. provider lacking receiver role fails readiness check
+3. provider lacking capability fails readiness check
+4. provider with wrong org/provider linkage fails readiness check
+5. token does not bypass provisioning check
+6. access is denied safely when incomplete
+7. properly provisioned provider still reaches authenticated accept flow
+
+Frontend:
+1. valid configured provider lands on referral detail
+2. unconfigured/misconfigured provider sees blocking message
+3. blocking page shows no referral details
+4. accept CTA not shown in blocked state
+
+If full auth/E2E testing is difficult:
+- test readiness service thoroughly
+- test redirect/access guard logic
+- test component rendering for ready vs blocked states
+- document limitations in report
+
+--------------------------------------------------
+N. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-01-002-02-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Provider-ready access rule
+- exact role/capability/linkage requirements
+
+3. Access readiness verification
+- how it works
+- where it is enforced
+
+4. Blocking state behavior
+- exact user-facing behavior
+- what is intentionally not exposed
+
+5. Token/login/access flow
+- how token validation, login, and readiness checks interact
+
+6. Legacy/misconfigured provider handling
+- how incomplete access is surfaced safely
+
+7. Tests
+- what scenarios are covered
+- what gaps remain
+
+8. Known limitations / deferred items
+- anything intentionally left for later
+
+9. Recommended next step
+- smallest logical follow-up after role assurance
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. define the provider-ready access bundle clearly
+2. implement centralized readiness verification
+3. wire referral-entry flow to block non-provisioned/misconfigured providers
+4. add the blocking state UI/message
+5. verify valid providers still reach referral detail and can accept
+6. add tests
+7. generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-01-002-02 is complete ONLY if:
+
+1. providers without correct CareConnect provisioning cannot view or accept referrals
+2. blocked providers see a clear “contact your administrator” style message
+3. no implicit auto-provisioning occurs during referral flow
+4. correctly provisioned providers can still log in and reach referral detail
+5. acceptance remains available only to authorized providers in valid state
+6. no regressions to LSCC-01-002 and LSCC-01-002-01 security model
+7. report exists at:
+   /analysis/LSCC-01-002-02-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this governed, secure, and enterprise-oriented.
+Do not drift into auto-provisioning, onboarding expansion, or broader RBAC redesign.
+This feature exists to ensure that referral access is available only to correctly provisioned CareConnect providers, with a clear admin-controlled blocking experience for everyone else.

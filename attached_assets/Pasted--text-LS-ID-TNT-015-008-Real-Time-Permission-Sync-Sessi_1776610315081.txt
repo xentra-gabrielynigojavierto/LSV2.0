@@ -1,0 +1,412 @@
+```text
+# LS-ID-TNT-015-008 — Real-Time Permission Sync (Session & UI Rehydration)
+
+## FEATURE OBJECTIVE
+
+Implement real-time permission sync so permission, role, and access changes are reflected in the active user session and UI without requiring a manual logout/login cycle.
+
+This feature closes the remaining UX consistency gap by ensuring:
+- frontend permission-aware UI updates promptly after access changes
+- stale sessions are detected and reconciled safely
+- backend remains authoritative
+- authorization changes become operationally visible to users and admins in near-real time
+
+This is a **session and UI rehydration feature**, not a redesign of the authorization model.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- identity lifecycle is complete
+- permission model is complete
+- backend enforcement is complete
+- UI gating is complete
+- explainability is complete
+- Insights is complete end-to-end
+
+The remaining gap is:
+- permission changes may not immediately appear in the active UI/session
+- users may continue to see stale actions briefly
+- admins may expect changes to reflect immediately after updating roles/permissions
+
+This feature makes the authorization system feel live and operational.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- websocket/event-bus architecture unless the current codebase already supports and clearly benefits from it
+- backend authorization redesign
+- tenant/control-center governance redesign
+- ABAC/policy activation
+- broad auth/token rewrite
+- speculative distributed cache/event infrastructure
+- placeholder sync behavior
+
+ONLY IMPLEMENT:
+- validated session refresh strategy
+- stale-session detection and reconciliation
+- near-real-time rehydration of permissions/products/roles in the UI
+- minimal backend support only if required by the current architecture
+- preservation of backend authority and existing access-version semantics
+- report-first implementation and honest documentation of sync behavior
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental authorization UX consistency feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, access, authorization, governance, UI gating, and backend enforcement behavior
+- validate the actual session/auth pipeline before changing anything
+- reuse the current session provider, `/auth/me`, access-version, and token refresh behavior where possible
+- keep backend authority intact
+- include explicit fallback/error behavior
+- NOT introduce placeholder logic
+- document exact sync behavior and limitations honestly
+- prefer the smallest robust mechanism that fits the current architecture
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-015-008-report.md
+
+Initialize with:
+
+# LS-ID-TNT-015-008 — Real-Time Permission Sync (Session & UI Rehydration)
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Session / Auth Flow Analysis
+## 4. Existing Access-Version / Refresh Behavior
+## 5. Sync Gap Analysis
+## 6. Chosen Sync Strategy
+## 7. Files Changed
+## 8. Backend / Session Implementation
+## 9. Frontend / UI Rehydration Implementation
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL SESSION / AUTH PIPELINE
+
+Inspect the actual codebase and document how session/auth currently works.
+
+You must identify and document:
+- where the active frontend session is stored and hydrated
+- how `PlatformSession` is built
+- how `/auth/me` works today
+- how JWT claims are issued and refreshed
+- whether `permissions`, `productRoles`, `systemRoles`, `userProducts`, `accessVersion`, etc. are already in the session
+- where the session provider refreshes today
+- what LS-ID-TNT-010 already implemented (for example visibilitychange, forced redirect on mismatch, etc.)
+- how tenant portal and product apps currently react to updated auth state
+
+Do NOT assume refresh behavior until you inspect the actual code.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Session / Auth Flow Analysis
+## 4. Existing Access-Version / Refresh Behavior
+
+---
+
+## STEP 2 — IDENTIFY THE REAL SYNC GAPS
+
+Based on the codebase, identify the exact scenarios where stale session/UI behavior still exists.
+
+Examples to validate:
+- role/permission changed by admin while user is active
+- product access removed while user is active
+- product access added while user is active
+- role-permission mapping updated while user is active
+- current tab remains open and UI still shows old actions until manual refresh
+- another tab updates faster/slower than current tab
+
+For each real gap, document:
+- what changes
+- what the user currently sees
+- how long it stays stale
+- whether backend already rejects correctly
+- what the desired post-fix behavior should be
+
+Update report:
+## 5. Sync Gap Analysis
+
+---
+
+## STEP 3 — CHOOSE THE SMALLEST ROBUST SYNC STRATEGY
+
+Choose the best-fit sync approach based on the current architecture.
+
+Possible strategies (choose based on actual fit, do NOT blindly combine everything):
+- access-version polling via `/auth/me`
+- refresh on tab focus / visibilitychange enhancement
+- refresh after known admin mutations
+- periodic background revalidation
+- storage/broadcast channel sync across tabs
+- token/session invalidation + silent rehydration
+
+Requirements:
+- prefer the smallest robust approach that fits the current stack
+- preserve security
+- avoid heavy infrastructure unless already present
+- do not require users to manually refresh
+- document the tradeoffs clearly
+
+The chosen strategy must define:
+- when refresh happens
+- how stale state is detected
+- what is refreshed
+- what happens when refresh fails
+- what happens when access is revoked vs expanded
+
+Update report:
+## 6. Chosen Sync Strategy
+
+---
+
+## STEP 4 — IMPLEMENT BACKEND / SESSION SUPPORT ONLY IF NEEDED
+
+If the current system already exposes enough data through `/auth/me` and access-version, reuse it.
+
+Only add backend changes if absolutely required and minimal.
+
+Possible minimal backend changes, only if needed:
+- ensure `/auth/me` includes the right freshness markers
+- ensure access-version increments on all relevant authorization mutations
+- ensure permission-changing operations bump version consistently
+- ensure response shape supports rehydration cleanly
+
+Do NOT redesign token issuance or auth flows unless the current architecture genuinely requires a small fix.
+
+Update report:
+## 8. Backend / Session Implementation
+
+---
+
+## STEP 5 — IMPLEMENT FRONTEND SESSION REHYDRATION
+
+Implement the chosen frontend sync mechanism.
+
+Possible areas to update (validate before use):
+- session provider
+- auth context
+- permission hook dependencies
+- focus/visibility handlers
+- background refresh timer
+- cross-tab coordination (BroadcastChannel or storage event) if justified by current architecture
+
+Requirements:
+- session must refresh cleanly without full logout when permissions/access are still valid
+- UI must update when session data changes
+- permission-aware actions must re-render correctly
+- no flickering or repeated hard refresh loops
+- preserve current route/product-access enforcement
+
+Update report:
+## 9. Frontend / UI Rehydration Implementation
+
+---
+
+## STEP 6 — HANDLE AUTHORIZATION CHANGE SCENARIOS CORRECTLY
+
+Implement correct behavior for these scenarios:
+
+### A. Permission revoked
+- action buttons should disappear/disable after refresh
+- direct action attempts should already fail backend-side
+- if current page is no longer allowed, route/product access handling should take over cleanly
+
+### B. Permission granted
+- newly allowed actions should appear without requiring logout/login
+- page should not require manual hard refresh
+
+### C. Product access revoked
+- current session should be invalidated or redirected appropriately based on existing access-version behavior
+- user should not remain in unauthorized product experience
+
+### D. Product access granted
+- product visibility/navigation should refresh appropriately
+
+Requirements:
+- document how each scenario now behaves
+- keep the behavior deterministic and stable
+
+Update report:
+## 9. Frontend / UI Rehydration Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 7 — SUPPORT MULTI-TAB CONSISTENCY IF FEASIBLE
+
+If the current architecture can support cross-tab sync with minimal complexity, implement it.
+
+Examples:
+- BroadcastChannel
+- `storage` event
+- shared refresh trigger marker
+
+Use this only if it cleanly fits the current frontend architecture.
+
+Requirements:
+- if one tab updates session due to a permission/access change, other tabs should rehydrate promptly if feasible
+- do not introduce brittle tab-coupling or event storms
+- if not implemented, document why and what remains
+
+Update report:
+## 9. Frontend / UI Rehydration Implementation
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 8 — PRESERVE BACKEND AUTHORITY AND EXISTING ERROR HANDLING
+
+Requirements:
+- backend remains the source of truth
+- stale UI must still fail safely if backend denial happens before refresh catches up
+- existing 403 handling should continue to work
+- no frontend-only trust decisions should be introduced
+
+Document how the sync strategy complements, rather than replaces, backend enforcement.
+
+Update report:
+## 8. Backend / Session Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 9 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- identity lifecycle flows
+- tenant permission UI
+- control center governance UI
+- permission-aware UI and explainability
+- route-level product access enforcement
+- invite/onboarding/password reset flows
+- existing non-Insights products
+- frontend build/runtime stability
+- service startup/build stability
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 10 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Session refresh
+- permission removed while user is active
+- permission added while user is active
+- product access removed while user is active
+- product access added while user is active
+- session refresh occurs without logout/login when appropriate
+
+### UI update
+- buttons/actions re-render correctly after refresh
+- no stale actions remain after sync window
+- no infinite refresh loop
+- no hydration/runtime issues
+
+### Cross-tab (if implemented)
+- change occurs in one tab/admin screen
+- other open tabs refresh or reconcile correctly
+
+### Backend alignment
+- if frontend is temporarily stale, backend still denies unauthorized actions safely
+- refreshed session matches backend truth
+
+### Regression
+- tenant permission UI still works
+- control center governance UI still works
+- route-level product access still works
+- existing permission-aware products still work
+- TypeScript/build/runtime remain clean
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what stale-session gaps were found
+- what sync strategy was chosen
+- what backend/session changes were made (if any)
+- what frontend rehydration changes were made
+- whether cross-tab sync was implemented
+- how quickly permission changes now reflect in the UI
+- what limitations remain
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Actual session/auth pipeline was analyzed from code
+✔ Real stale-session gaps were identified and documented
+✔ A concrete sync strategy was implemented using the current architecture
+✔ Permission/product/access changes now propagate into the active UI without requiring manual logout/login
+✔ Backend remains authoritative and existing 403/error handling continues to work
+✔ Existing identity/access/governance/product behavior does not regress
+✔ Verification/build/runtime results are documented clearly
+✔ The platform now behaves like a live authorization system rather than a refresh-dependent one
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working real-time permission/session sync for the validated scope
+2. UI rehydration behavior that reflects permission/access changes without manual logout/login
+3. Preserved backend-authoritative authorization behavior
+4. Completed report:
+/analysis/LS-ID-TNT-015-008-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

@@ -1,0 +1,123 @@
+You are implementing LS-NOTIF-CORE-024 — Identity Migration to Canonical Notifications.
+
+================================================================================
+WORKFLOW RULES (MANDATORY)
+================================================================================
+
+1. CREATE THE REPORT FILE FIRST:
+   /analysis/LS-NOTIF-CORE-024-report.md
+
+2. Update the report incrementally after each major step.
+
+3. At completion, the report MUST include:
+   - what Identity email flows were identified
+   - how they were migrated to Notifications
+   - eventKey usage
+   - payload structure
+   - files changed
+   - validation performed
+   - remaining gaps
+   - risks / follow-up recommendations
+
+================================================================================
+OBJECTIVE
+================================================================================
+
+Migrate Identity email delivery from `/internal/send-email` to the canonical
+Notifications API (`POST /v1/notifications`).
+
+Ensure Identity becomes a fully compliant Notifications producer using:
+- canonical contract
+- event taxonomy
+- service-to-service authentication
+
+================================================================================
+IN SCOPE
+================================================================================
+
+1. Identify Identity email flows:
+   - password reset
+   - user invite
+
+2. Replace internal email sending with:
+   POST /v1/notifications
+
+3. Use canonical event keys:
+   - identity.user.password.reset
+   - identity.user.invite.sent
+
+4. Include:
+   - productKey = "identity"
+   - sourceSystem = "identity-service"
+   - payload (links, tokens, names)
+
+5. Use service authentication (JWT)
+
+6. Preserve token generation and business logic
+
+================================================================================
+OUT OF SCOPE
+================================================================================
+
+- No redesign of Identity workflows
+- No template redesign
+- No Notifications service changes
+- No UI changes
+
+================================================================================
+IMPLEMENTATION GUIDELINES
+================================================================================
+
+- Keep Identity responsible for:
+   token generation
+   link construction
+   workflow logic
+
+- Notifications handles:
+   delivery
+   retry
+   provider routing
+   observability
+
+- Remove or isolate `/internal/send-email` usage
+
+================================================================================
+VALIDATION
+================================================================================
+
+You MUST:
+- build Identity service
+- verify notification requests succeed
+- verify emails are sent
+- verify eventKey correctness
+- verify no regression in flows
+
+================================================================================
+REPORT FORMAT
+================================================================================
+
+Create:
+   /analysis/LS-NOTIF-CORE-024-report.md
+
+Include:
+
+# LS-NOTIF-CORE-024 Report
+
+## Summary
+## Identity Email Flows
+## Notifications Integration
+## EventKey Usage
+## Files Changed
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+- Identity uses Notifications API
+- No reliance on `/internal/send-email`
+- Canonical event keys used
+- Emails successfully delivered
+- System remains stable

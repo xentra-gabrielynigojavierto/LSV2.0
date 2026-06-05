@@ -1,0 +1,102 @@
+UIX-002-01 — Admin Navigation Exposure
+Objective
+
+Expose User Management in the admin interface by adding a visible navigation entry in the sidebar for admin users.
+
+This is a UI-only change. Do NOT modify backend services.
+
+Scope
+Add "Users" under an Administration nav group
+Visible only to:
+PlatformAdmin
+TenantAdmin
+Ensure /admin/users route is accessible
+Implementation
+1. Update Navigation Builder
+
+File: src/lib/nav.ts
+
+Update buildNavGroups(session):
+
+if (session.isPlatformAdmin || session.isTenantAdmin) {
+  groups.push({
+    id: 'admin',
+    label: 'Administration',
+    icon: 'Settings',
+    items: [
+      { href: '/admin/users', label: 'Users' },
+      { href: '/admin/organizations', label: 'Organizations' },
+      { href: '/admin/products', label: 'Products' },
+      session.isPlatformAdmin
+        ? { href: '/admin/tenants', label: 'All Tenants' }
+        : null,
+    ].filter(Boolean),
+  });
+}
+2. Ensure Sidebar Renders All Groups
+
+File: src/components/shell/sidebar.tsx
+
+{navGroups.map(group => (
+  <NavGroup key={group.id} label={group.label}>
+    {group.items.map(item => (
+      <NavItem key={item.href} href={item.href} label={item.label} />
+    ))}
+  </NavGroup>
+))}
+
+Do NOT filter out admin groups.
+
+3. Ensure Users Page Exists
+
+Path: app/(admin)/admin/users/page.tsx
+
+If missing:
+
+export default function UsersPage() {
+  return (
+    <div>
+      <h1 className="text-xl font-semibold">User Management</h1>
+      <p className="text-muted-foreground">
+        Manage users, roles, and access.
+      </p>
+    </div>
+  );
+}
+4. Middleware Protection
+
+File: src/middleware.ts
+
+if (pathname.startsWith('/admin')) {
+  if (!session.isPlatformAdmin && !session.isTenantAdmin) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+}
+Expected Result
+Sidebar shows:
+Administration
+  - Users
+  - Organizations
+  - Products
+Only visible to admins
+/admin/users loads successfully
+Do NOT
+Do NOT implement user table yet
+Do NOT call APIs
+Do NOT modify backend
+Generate Report
+
+Create:
+
+/analysis/UIX-002-01-report.md
+
+Include:
+
+Files modified:
+- ...
+
+Validation:
+[ ] Admin group visible
+[ ] Users link visible
+[ ] Users page loads
+[ ] Non-admin cannot see admin nav

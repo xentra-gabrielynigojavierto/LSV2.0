@@ -1,0 +1,267 @@
+Create a focused hardening pass for the LegalSynq multi-tenant, multi-product platform architecture.
+
+Context:
+The platform foundation is now largely complete:
+- OrganizationType is active
+- OrganizationRelationship is active
+- ProductOrganizationTypeRule and ProductRelationshipTypeRule are active
+- ScopedRoleAssignments are now the sole role store
+- UserRoles and UserRoleAssignments have been retired in Phase G
+- CareConnect relationship activation is already in place
+- Provider and Facility link to OrganizationId as a transitional identity alignment step
+
+Phase G removed the legacy UserRoles and UserRoleAssignments tables and made ScopedRoleAssignments the sole authoritative role source. It also identified the next future work as OrgType string retirement, JWT org_type claim modernization, and Control Center updates for the new coverage shape. :contentReference[oaicite:0]{index=0}
+Step 6 also confirmed that OrganizationRelationship is active in referral and appointment workflows, and that Provider/Facility identity linkage is now applied before insert. :contentReference[oaicite:1]{index=1}
+
+## Objective
+
+Do NOT add new platform features yet.
+Do NOT implement subdomain-based tenancy yet.
+
+Instead, perform a hardening and completion pass to finish the multi-tenant, multi-product architecture so it is operationally reliable, internally consistent, and ready for product expansion.
+
+Focus on these goals:
+
+1. retire OrgType string dependency as far as safely possible
+2. harden cross-service identity consistency between Identity and CareConnect
+3. validate and strengthen non-global scoped authorization paths
+4. improve platform admin/bootstrap readiness
+5. generate a detailed report
+
+---
+
+## Deliverable
+
+Generate and save:
+
+/analysis/step8_platform-hardening-and-completion.md
+
+Use this exact report structure:
+
+# LegalSynq Platform Hardening and Completion
+## 1. Current State
+## 2. Risks and Gaps
+## 3. Identity Hardening Changes
+## 4. Authorization Hardening Changes
+## 5. CareConnect Consistency Hardening
+## 6. Admin and Bootstrap Readiness
+## 7. Build and Verification Status
+## 8. Remaining Follow-Up Work
+
+---
+
+## Phase 1 — OrgType string hardening and de-legacying
+
+Current state:
+- OrganizationTypeId exists and is active
+- OrgType string still exists for backward compatibility
+- JWT org_type still comes from OrgType string
+- Phase G identified OrgType string retirement as the next future step
+
+Tasks:
+- inspect all places where Organization.OrgType is still read or written
+- inspect JwtTokenService, CurrentRequestContext, DTOs, response models, and any auth/bootstrap code
+- change logic so OrganizationTypeId is the primary source of truth everywhere practical
+- where org_type string is still required, derive it from OrganizationTypeId using OrgTypeMapper
+- stop treating OrgType string as the authoritative write field
+- keep the OrgType column for compatibility, but mark all remaining usage with:
+  TODO [Phase H — remove OrgType string]
+- add defensive handling for rows where OrganizationTypeId is missing but OrgType string exists
+- if practical, add a consistency checker or startup warning for:
+  - OrganizationTypeId null while OrgType not null
+  - OrganizationTypeId and OrgType code mismatch
+
+Important:
+- do NOT drop the OrgType column yet
+- do NOT break JWT consumers
+- do NOT break existing API contracts
+
+---
+
+## Phase 2 — authorization hardening beyond global scope
+
+Current state:
+- ScopedRoleAssignments are now the sole role store
+- most proven usage is for GLOBAL scope
+- schema supports:
+  - GLOBAL
+  - TENANT
+  - ORGANIZATION
+  - PRODUCT
+  - RELATIONSHIP
+
+Tasks:
+- inspect AuthService, UserRepository, policies, request context, and any authorization helpers
+- identify where only GLOBAL scope is currently used in practice
+- implement or strengthen resolution for at least these paths where practical:
+  - TENANT
+  - ORGANIZATION
+  - PRODUCT
+  - RELATIONSHIP
+- if full enforcement cannot be implemented everywhere safely, then:
+  - add explicit helper methods
+  - add clear TODO markers
+  - add diagnostics/reporting so these scopes can be verified
+- ensure login/bootstrap response can surface enough scoped information for downstream services if needed
+- document actual supported scope behavior after changes
+
+Also:
+- verify there is no lingering hidden assumption that user has only one org or only one active scope
+- strengthen tests/build validation if the project already has a test pattern
+
+---
+
+## Phase 3 — CareConnect / Identity consistency hardening
+
+Current state:
+- Referral and Appointment use OrganizationRelationshipId
+- Provider and Facility can link to OrganizationId
+- linkage is soft cross-service alignment, not hard DB FK
+
+Tasks:
+- inspect:
+  - ProviderService
+  - FacilityService
+  - ReferralService
+  - AppointmentService
+  - resolver/service clients
+  - DTOs and repositories
+- improve consistency guarantees for:
+  - Provider.OrganizationId
+  - Facility.OrganizationId
+  - Referral.OrganizationRelationshipId
+  - Appointment.OrganizationRelationshipId
+
+Add practical hardening such as:
+- validation when linking Provider or Facility to OrganizationId
+- safe re-link/update behavior
+- better logging or diagnostics when relationship resolution fails
+- consistency checks when appointment relationship differs from referral relationship
+- retry-safe or null-safe resolver handling where useful
+
+If practical:
+- add an admin/reporting endpoint or health query that surfaces unresolved linkage counts:
+  - providers without OrganizationId
+  - facilities without OrganizationId
+  - referrals with org IDs but no OrganizationRelationshipId
+  - appointments missing OrganizationRelationshipId when referral has one
+
+Do NOT over-engineer.
+Prefer lightweight integrity checks and operational visibility.
+
+---
+
+## Phase 4 — platform admin/bootstrap readiness
+
+Current state:
+- backend admin endpoints exist for org types, relationship types, organization relationships, and product rule inspection
+- platform is structurally ready, but operating/admin readiness may still be incomplete
+
+Tasks:
+- inspect existing admin endpoints and control-center API clients/types/pages
+- improve the platform operating surface for:
+  - organization type visibility
+  - relationship type visibility
+  - organization relationship visibility
+  - product organization type rule visibility
+  - product relationship type rule visibility
+- if UI pages already exist, verify them against the new backend shapes
+- if no pages exist, at minimum ensure:
+  - TS types are current
+  - API client methods are current
+  - response mapping is correct
+- if practical, add one lightweight dashboard or summary endpoint for platform integrity/readiness
+
+Possible platform readiness signals:
+- org type coverage
+- product role coverage
+- organization linkage completeness
+- relationship usage completeness
+
+---
+
+## Phase 5 — observability and startup diagnostics
+
+Tasks:
+- inspect existing startup diagnostics in Identity.Api and any CareConnect startup or health checks
+- extend diagnostics to cover:
+  - OrganizationTypeId / OrgType mismatch
+  - missing org type rules
+  - missing scoped assignments by scope category if relevant
+  - unresolved provider/facility linkage counts if practical
+  - unresolved referral/appointment relationship linkage counts if practical
+- keep logs concise and actionable
+
+Goal:
+- make architecture regressions visible early
+
+---
+
+## Phase 6 — build and verification
+
+At the end:
+- build all impacted backend services
+- build impacted TypeScript projects
+- ensure no compile errors
+- verify:
+  - login still works
+  - JWT generation still works
+  - user role resolution still works
+  - referral creation still works
+  - appointment creation still works
+  - provider creation/update still works
+- include explicit build results in the report
+
+---
+
+## Files to inspect first
+
+### Identity
+- apps/services/identity/Identity.Domain/Organization.cs
+- apps/services/identity/Identity.Domain/OrganizationType.cs
+- apps/services/identity/Identity.Domain/OrgTypeMapper.cs
+- apps/services/identity/Identity.Domain/ScopedRoleAssignment.cs
+- apps/services/identity/Identity.Application/Services/AuthService.cs
+- apps/services/identity/Identity.Application/Services/UserService.cs
+- apps/services/identity/Identity.Infrastructure/Repositories/UserRepository.cs
+- apps/services/identity/Identity.Infrastructure/Services/JwtTokenService.cs
+- apps/services/identity/Identity.Api/Endpoints/AdminEndpoints.cs
+- apps/services/identity/Identity.Api/Program.cs
+
+### Shared
+- shared/building-blocks/BuildingBlocks/Context/CurrentRequestContext.cs
+- any shared authorization helpers or context readers
+
+### CareConnect
+- apps/services/careconnect/CareConnect.Application/Services/ProviderService.cs
+- apps/services/careconnect/CareConnect.Application/Services/FacilityService.cs
+- apps/services/careconnect/CareConnect.Application/Services/ReferralService.cs
+- apps/services/careconnect/CareConnect.Application/Services/AppointmentService.cs
+- apps/services/careconnect/CareConnect.Infrastructure/*
+- any resolver/service client for organization relationships
+
+### Frontend / Control Center
+- apps/control-center/src/*
+- apps/web/src/*
+- API client / mapper / types files related to admin and bootstrap
+
+---
+
+## Constraints
+
+- do NOT add subdomain tenancy yet
+- do NOT add major new modules
+- do NOT redesign the whole platform
+- do NOT break existing APIs or workflows
+- do NOT drop OrgType column yet
+- prefer additive hardening, consistency checks, and diagnostics
+
+---
+
+## Final instruction
+
+Do the work now.
+Focus on hardening and completing the multi-tenant, multi-product platform architecture so it is reliable and ready for expansion.
+Then generate the report at:
+
+/analysis/step8_platform-hardening-and-completion.md

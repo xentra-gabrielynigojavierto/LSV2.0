@@ -1,0 +1,289 @@
+You are implementing BLK-SEC-01 — Tenant & Internal API Security Hardening for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-SEC-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block secures ALL internal service-to-service endpoints.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - break existing onboarding flow
+   - modify business logic
+   - introduce new features
+   - weaken security for convenience
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Harden all internal APIs so that:
+
+- NO internal endpoint is publicly callable
+- ALL provisioning and membership endpoints require secure service-to-service authentication
+- NO anonymous provisioning is allowed in production
+- Secrets are enforced and validated
+
+--------------------------------------------------
+
+SECURITY TARGET AREAS
+
+You MUST secure:
+
+1. Tenant Service:
+   - POST /api/v1/tenants/provision
+   - GET /api/v1/tenants/check-code (if internal-only usage exists)
+
+2. Identity Service:
+   - POST /api/internal/users/assign-tenant
+   - POST /api/internal/users/assign-roles
+
+3. Any internal CareConnect calls using service tokens
+
+--------------------------------------------------
+
+PART A — ENFORCE PROVISIONING TOKEN (TENANT SERVICE)
+
+--------------------------------------------------
+
+Tenant provisioning MUST require:
+
+Header:
+X-Provisioning-Token: <secret>
+
+Steps:
+
+1. Locate provisioning endpoint
+2. Remove AllowAnonymous if present
+3. Add validation:
+
+- read configured secret from environment:
+  TenantService:ProvisioningSecret
+
+- validate:
+  if header missing OR mismatch → return 401
+
+4. Add structured logging for:
+   - missing token
+   - invalid token
+
+5. DO NOT allow fallback bypass in production
+
+--------------------------------------------------
+
+PART B — ENFORCE IDENTITY INTERNAL AUTH
+
+--------------------------------------------------
+
+For Identity endpoints:
+
+- /assign-tenant
+- /assign-roles
+
+Enforce:
+
+- require internal token OR service authentication
+
+Options:
+- reuse X-Provisioning-Token
+OR
+- introduce IdentityService:InternalSecret
+
+Requirements:
+
+- no anonymous access
+- no public access
+- reject invalid/missing tokens
+
+--------------------------------------------------
+
+PART C — REMOVE ALL ANONYMOUS ACCESS
+
+--------------------------------------------------
+
+Audit ALL services:
+
+- search for:
+  AllowAnonymous
+  unsecured endpoints
+
+You MUST:
+
+- remove or restrict any internal endpoint exposed publicly
+- document any endpoint that MUST remain public (with justification)
+
+--------------------------------------------------
+
+PART D — ENVIRONMENT CONFIGURATION
+
+--------------------------------------------------
+
+Add required config entries:
+
+Tenant Service:
+- TenantService:ProvisioningSecret
+
+Identity Service:
+- IdentityService:InternalSecret (if separate)
+
+Ensure:
+
+- app fails fast if secret missing in non-dev environment
+- DO NOT allow empty secrets in production
+
+--------------------------------------------------
+
+PART E — SERVICE CLIENT UPDATES
+
+--------------------------------------------------
+
+Ensure ALL internal calls include tokens:
+
+CareConnect → Tenant:
+- include X-Provisioning-Token
+
+CareConnect → Identity:
+- include internal auth token
+
+If HTTP clients exist:
+- centralize token injection
+- avoid duplicating logic per call
+
+--------------------------------------------------
+
+PART F — DEFENSIVE LOGGING
+
+--------------------------------------------------
+
+Add logs for:
+
+- unauthorized access attempts
+- token mismatch
+- missing headers
+
+DO NOT log actual secrets
+
+--------------------------------------------------
+
+PART G — VALIDATION
+
+--------------------------------------------------
+
+You MUST validate:
+
+1. Tenant provisioning FAILS without token
+2. Tenant provisioning SUCCEEDS with valid token
+3. Identity assignment FAILS without token
+4. Identity assignment SUCCEEDS with valid token
+5. No onboarding regression
+6. No public access to internal endpoints
+7. dotnet build succeeds for:
+   - Tenant service
+   - Identity service
+   - CareConnect service
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-SEC-01-report.md
+
+# BLK-SEC-01 Report
+
+## 1. Summary
+
+## 2. Secured Endpoints
+- list endpoints secured
+- auth method applied
+
+## 3. Token Strategy
+- how tokens are managed
+- config keys used
+
+## 4. Removed Anonymous Access
+- endpoints updated
+
+## 5. Client Updates
+- which services updated to pass tokens
+
+## 6. Security Validation Results
+
+## 7. Changed Files
+- full file paths
+
+## 8. Methods / Endpoints Updated
+
+## 9. GitHub Commits (MANDATORY)
+
+## 10. Issues / Gaps
+
+--------------------------------------------------
+
+PART I — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify commit ID
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-SEC-01-commit.diff.txt
+
+--------------------------------------------------
+
+PART I.1 — COMMIT SUMMARY
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-SEC-01-commit-summary.md
+
+Include:
+
+- Commit ID
+- Files changed
+- Key security changes:
+  - token enforcement
+  - endpoint protection
+  - config additions
+
+--------------------------------------------------
+
+PART I.2 — REPORT UPDATE
+
+--------------------------------------------------
+
+Append to report:
+
+## GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-SEC-01-commit.diff.txt
+- Summary: /analysis/BLK-SEC-01-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- ALL internal endpoints require auth
+- NO anonymous provisioning exists
+- secrets enforced
+- diff + summary generated
+- report complete
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

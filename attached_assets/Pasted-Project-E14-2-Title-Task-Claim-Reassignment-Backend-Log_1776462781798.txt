@@ -1,0 +1,322 @@
+Project: E14.2
+Title: Task Claim & Reassignment — Backend Logic
+
+You are implementing the backend behavior for task ownership transitions based on the Assignment Model introduced in E14.1.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E14.2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around AssignmentMode behavior, authorization model, concurrency handling, and how claim/reassign interacts with existing task lifecycle and workflow binding.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - APIs added
+   - assignment transition rules
+   - concurrency/consistency handling
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for queue API/UI or needs iteration
+
+REPORT FORMAT
+
+# E14.2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Assignment Transition Rules
+## API Endpoint Notes
+## Authorization Notes
+## Concurrency / Consistency Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Enable users and authorized actors to:
+- claim tasks from role/org queues
+- reassign tasks between users
+- (optionally) release tasks back to a queue
+
+while enforcing:
+- strict assignment mode invariants (E14.1)
+- tenant isolation
+- safe concurrency behavior
+- non-interference with workflow execution
+
+This phase introduces **ownership transitions**, not workflow transitions.
+
+SCOPE INCLUDES
+
+- claim task endpoint
+- reassign task endpoint
+- optional release/unclaim endpoint
+- assignment transition rules enforcement
+- authorization checks
+- concurrency protection
+- minimal audit metadata (AssignedAt / AssignedBy updates)
+- documentation/reporting
+
+DO NOT BUILD
+
+- team queue API (E14.3)
+- UI changes
+- notification triggers (E14.5)
+- workflow logic changes
+- task lifecycle changes (start/complete/cancel)
+- bulk operations
+- complex role/org resolution engines
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- respect AssignmentMode rules from E14.1
+- ensure only valid transitions are allowed
+- enforce tenant isolation
+- ensure concurrency-safe updates (no double-claim)
+- keep workflow binding (E11.7) unaffected
+- keep task lifecycle semantics unchanged
+- avoid silent overwrites of ownership
+
+CURRENT CONTEXT
+
+Already completed:
+- E14.1 Assignment model (AssignmentMode, invariants)
+- E11 task system (creation, lifecycle, binding)
+- My Tasks API (user-scoped)
+- My Work UI (user inbox)
+
+Current gap:
+- no way to claim or reassign tasks
+
+This phase fills that gap.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. CLAIM TASK
+
+Endpoint:
+POST /api/v1/workflow-tasks/{id}/claim
+
+Behavior:
+- user claims a task from a queue (RoleQueue or OrgQueue)
+
+Requirements:
+- allowed only if AssignmentMode is RoleQueue or OrgQueue
+- task must be in actionable state (Open or InProgress)
+- task must not already be owned by a user
+
+On success:
+- AssignmentMode → DirectUser
+- AssignedUserId → current user
+- AssignedAt → now
+- AssignedBy → current user
+
+Response:
+- updated task state
+
+Failure cases:
+- already claimed → 409
+- invalid mode → 422
+- unauthorized → 403
+- not found → 404
+
+---
+
+2. REASSIGN TASK
+
+Endpoint:
+POST /api/v1/workflow-tasks/{id}/reassign
+
+Request body:
+{
+  "targetUserId": "...",
+  "reason": "optional"
+}
+
+Behavior:
+- transfer ownership from one user to another
+
+Requirements:
+- allowed only if AssignmentMode = DirectUser
+- caller must be authorized (see Authorization section)
+- cannot reassign to null
+
+On success:
+- AssignedUserId → targetUserId
+- AssignedAt → now
+- AssignedBy → current user
+- AssignmentMode remains DirectUser
+
+Optional:
+- record reason if field exists
+
+Failure cases:
+- invalid state → 422
+- unauthorized → 403
+- not found → 404
+
+---
+
+3. RELEASE / UNCLAIM (OPTIONAL BUT RECOMMENDED)
+
+Endpoint:
+POST /api/v1/workflow-tasks/{id}/release
+
+Behavior:
+- move task from DirectUser back to queue
+
+Requirements:
+- must remember original queue (role/org)
+- only allowed if task was previously from a queue
+- AssignmentMode → RoleQueue or OrgQueue
+- AssignedUserId → null
+
+If original queue not stored:
+- document fallback behavior or defer feature
+
+---
+
+4. ASSIGNMENT TRANSITION RULES
+
+Define strict allowed transitions:
+
+| From | To | Action |
+|------|----|--------|
+| RoleQueue | DirectUser | claim |
+| OrgQueue | DirectUser | claim |
+| DirectUser | DirectUser | reassign |
+| DirectUser | RoleQueue/OrgQueue | release (optional) |
+
+Disallowed:
+- queue → queue direct reassignment
+- multiple simultaneous owners
+- assigning without proper mode
+
+---
+
+5. AUTHORIZATION
+
+Define minimal safe rules:
+
+### Claim
+- user must belong to role/org associated with task
+- or platform admin
+
+### Reassign
+- owner can reassign (optional)
+- or manager/admin role
+- document chosen rule clearly
+
+### Release
+- owner or admin
+
+Requirements:
+- enforce server-side
+- do not trust client
+
+---
+
+6. CONCURRENCY HANDLING
+
+Critical for claim:
+
+Use compare-and-swap logic:
+
+- update WHERE AssignmentMode IN (RoleQueue, OrgQueue)
+- ensure only one claimant succeeds
+
+For reassign:
+- optional check WHERE AssignedUserId = expected
+
+Requirements:
+- no double-claim
+- no silent overwrite
+- return 409 on conflict
+
+---
+
+7. DATA INTEGRITY
+
+Requirements:
+- always maintain valid AssignmentMode invariants
+- never leave task in mixed state
+- updates must be atomic
+
+---
+
+8. NON-INTERFERENCE
+
+You MUST confirm:
+
+- task lifecycle (start/complete/cancel) unchanged
+- workflow binding unchanged
+- My Tasks API unchanged
+- SLA/outbox unchanged
+- My Work UI unaffected
+
+---
+
+9. VALIDATION
+
+You MUST validate:
+
+Functional:
+- claim works correctly
+- reassign works correctly
+- release (if implemented) works correctly
+
+Concurrency:
+- two users cannot claim same task
+- conflicting updates handled safely
+
+Authorization:
+- unauthorized users blocked
+
+Compatibility:
+- existing task flows still work
+
+Build:
+- backend builds cleanly
+- no runtime errors
+
+Documentation:
+- transition rules documented
+- authorization rules documented
+
+---
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E14.2-report.md
+2. Review E14.1 assignment model
+3. Implement claim endpoint
+4. Implement reassign endpoint
+5. (Optional) implement release endpoint
+6. Add concurrency safeguards
+7. Add authorization checks
+8. Validate build/runtime behavior
+9. Finalize report
+
+---
+
+SUCCESS CONDITION
+
+- tasks can be claimed from queues safely
+- tasks can be reassigned between users
+- assignment invariants are enforced
+- concurrency issues are prevented
+- system remains stable and decoupled
+
+---
+
+FAILURE CONDITION
+
+- tasks can be double-claimed
+- ownership can be overwritten silently
+- invalid assignment states occur
+- workflow/task behavior is broken
+- authorization is bypassed

@@ -1,0 +1,477 @@
+You are implementing BLOCK 8 of the standalone Tenant service initiative in the existing LegalSynq monorepo.
+
+IMPORTANT:
+- Create the report file FIRST and update it incrementally as work progresses.
+- Report path: /analysis/TENANT-B08-report.md
+- This is a real implementation task. Do not leave placeholders, pseudo-code, TODO-only stubs, or fake endpoints.
+- Validate against the current codebase before making changes.
+- Reuse the Block 1–7 Tenant service structure and conventions already established.
+- Keep the implementation incremental and non-breaking.
+- This block is the CLEANUP + HARDENING + FINAL IDENTITY FIELD RETIREMENT PLANNING block.
+- This block must remain rollback-safe. Do NOT do destructive schema cleanup unless explicitly proven safe and gated.
+- This block must run in the current Replit environment.
+
+================================================================
+FEATURE ID
+TENANT-B08 — Cleanup, Hardening, and Final Identity Field Retirement Planning
+================================================================
+
+OBJECTIVE
+Complete the Tenant service initiative by hardening runtime behavior, improving observability, planning and partially preparing Identity tenant field retirement, and documenting the final production cutover/rollback posture.
+
+This block must add:
+1. production-grade observability for Tenant-vs-Identity runtime reads and fallbacks,
+2. caching and performance hardening for branding/resolution read paths,
+3. explicit Identity tenant field retirement planning and deprecation marking,
+4. final cutover validation tooling and operational checklist support,
+5. cleanup of obsolete or transitional code paths only where safe and explicitly non-breaking,
+6. a formal rollback playbook and cutover readiness summary.
+
+This block must NOT perform irreversible destructive cleanup unless clearly safe, gated, and documented.
+This block is the final stabilization phase before declaring the Tenant platform initiative production-complete.
+
+================================================================
+CONTEXT FROM BLOCKS 1–7 (DO NOT RE-ARCHITECT)
+================================================================
+
+Block 1 established:
+- standalone Tenant service
+- tenant_db
+- core tenant entity
+- migration-aware mapping from Identity -> Tenant
+
+Block 2 established:
+- expanded tenant profile
+- TenantBranding entity
+- branding APIs
+- public branding endpoints
+
+Block 3 established:
+- TenantDomain entity
+- public/internal resolution endpoints
+- compatibility fallback with legacy Tenant.Subdomain
+
+Block 4 established:
+- TenantProductEntitlement
+- TenantCapability
+- TenantSetting
+- migration dry-run utility
+
+Block 5 established:
+- migration execute endpoint
+- idempotent migration execution
+- migration run tracking
+- conflict detection
+- dual-write scaffolding
+
+Block 6 established:
+- configurable read-source abstraction
+- gateway Tenant public routes
+- web branding BFF transition
+- HybridFallback behavior
+
+Block 7 established:
+- final runtime transition controls
+- source-aware logo route
+- real Identity -> Tenant sync adapter and hook points
+- cutover-check endpoint
+- config-driven rollback path
+
+This block now hardens the system, prepares final Identity field retirement, and packages the system for safe long-term production operation.
+
+================================================================
+BLOCK 8 STORIES TO IMPLEMENT
+================================================================
+
+This block includes:
+
+- CLEANUP OF SAFE TRANSITIONAL PATHS
+- CACHING / PERFORMANCE HARDENING
+- OBSERVABILITY / METRICS UPGRADE
+- IDENTITY FIELD RETIREMENT PLANNING
+- FINAL CUTOVER VALIDATION SUPPORT
+- ROLLBACK PLAYBOOK / OPERATIONS HARDENING
+
+This is the final implementation block in the planned Tenant initiative.
+
+================================================================
+SCOPE
+================================================================
+
+A) Runtime observability hardening
+
+Upgrade observability from log-only to operationally useful metrics/diagnostics.
+
+At minimum add one or more of the following where practical:
+- per-source read counters:
+  - Tenant reads attempted
+  - Tenant reads succeeded
+  - Identity fallbacks triggered
+  - Tenant read failures
+- per-failure counters:
+  - timeout
+  - transport error
+  - 404 not found
+  - incomplete payload
+- dual-write counters:
+  - sync attempts
+  - sync success
+  - sync failure
+  - strict-mode failures
+
+Implement these in the safest way that fits current architecture:
+- in-memory counters are acceptable if persistent metrics infra does not exist yet
+- admin/internal diagnostics endpoints are acceptable
+- structured log summaries are acceptable as a supplement, not a replacement
+
+Recommended admin/internal diagnostics endpoint(s), protected:
+- GET /api/v1/admin/read-source-metrics
+- GET /api/v1/admin/dual-write-metrics
+or a consolidated:
+- GET /api/v1/admin/runtime-metrics
+
+Requirements:
+- do NOT expose these publicly
+- counters/metrics should be safe and non-sensitive
+- document reset behavior if counters are process-memory only
+
+B) Caching / performance hardening
+
+Add safe caching for high-frequency read paths.
+
+Target paths:
+- public branding lookup
+- public tenant resolution lookup
+- web BFF `/api/tenant-branding`
+- public logo route metadata lookup if appropriate
+
+Requirements:
+- cache only safe-to-cache read results
+- include TTLs
+- define cache key strategy clearly
+- preserve correctness with fallback behavior
+
+Recommended minimal approach:
+- in-memory cache per service/process if no distributed cache exists
+- short TTLs (for example 30–120 seconds depending on path)
+- negative caching optional but must be conservative
+- ability to disable caching via config if needed
+
+Possible config examples:
+- Features:TenantReadCachingEnabled = true/false
+- Features:TenantReadCacheTtlSeconds = 60
+
+Rules:
+- cache must not make rollback impossible
+- avoid caching admin-write responses
+- avoid stale poisoning when dual-write updates occur; keep TTL modest
+- document invalidation approach (TTL-based is acceptable in this block)
+
+C) Identity tenant field retirement planning
+
+This block must produce a concrete and code-aware retirement plan for tenant fields still stored in Identity.
+
+Do NOT destructively remove schema by default.
+Instead:
+1. inventory current tenant-related fields and code paths still in Identity
+2. classify them into:
+   - keep for now
+   - read-deprecated
+   - write-through / sync source only
+   - retire later
+3. where safe, mark code paths as deprecated / compatibility only
+4. optionally add comments, warnings, or clear abstraction naming that indicates Tenant is now the primary runtime source
+
+Examples of candidate fields/concerns in Identity:
+- Name
+- Code
+- IsActive / status
+- Subdomain
+- LogoDocumentId
+- LogoWhiteDocumentId
+- branding/bootstrap read endpoints
+- any local tenant lookup routines
+
+Expected result:
+- a concrete retirement matrix in the report
+- if safe, code comments or deprecation markers in Identity service
+- no destructive DB migration removing columns yet unless you can prove it is fully unused and rollback-safe (prefer defer)
+
+D) Safe cleanup of transitional code paths
+
+Only clean up what is proven safe.
+
+Examples of acceptable cleanup:
+- remove duplicate internal helper code that is fully replaced by central read-source abstraction
+- centralize fallback logic if duplicated
+- normalize source-selection utilities into one place
+- remove obviously dead temporary scaffolding if not used anywhere and not part of rollback
+
+Examples NOT allowed unless proven safe:
+- deleting Identity tenant endpoints still used for fallback
+- removing Identity tenant entity fields from persistence
+- deleting rollback code paths
+
+This block is about safe cleanup, not aggressive pruning.
+
+E) Final cutover validation support
+
+Enhance operator readiness tooling.
+
+Extend the existing cutover-check or add a new admin/internal diagnostic that can report:
+- current effective read source modes
+- latest migration run summary
+- whether all Identity tenants appear present in Tenant DB
+- whether fallback rate is acceptable
+- whether dual-write is enabled
+- whether strict mode is enabled
+- whether any obvious blockers remain for final Identity runtime retirement
+
+Recommended endpoint:
+- GET /api/v1/admin/cutover-check
+Enhance it if already present instead of creating duplicates.
+
+You may include a readiness classification such as:
+- not_ready
+- partial
+- ready
+with concrete reasons.
+
+F) Rollback playbook / operational controls
+
+Implement and document a practical rollback playbook.
+
+Requirements:
+- config-only rollback path remains intact
+- diagnostics clearly show current mode
+- no schema step in this block may remove rollback ability
+- if caching is added, ensure rollback behavior remains correct under short TTLs
+
+The report must include:
+- exact flags/env vars to flip for rollback
+- what order to revert them in
+- what signals/logs/metrics to watch after rollback
+
+G) Optional deprecation warnings / compatibility guards
+
+If helpful and low-risk, add:
+- warnings in logs when Identity-only runtime mode is still used in environments intended for Tenant-first operation
+- warnings when fallback rate exceeds some threshold (simple periodic logging acceptable)
+- comments or code annotations around Identity compatibility-only routes/services
+
+Keep this lightweight and non-breaking.
+
+H) Backward compatibility assurance
+
+Ensure all prior blocks remain functional:
+- Tenant APIs
+- public branding
+- public resolution
+- migration execute/history
+- dual-write hook path
+- Identity fallback path
+- rollback path
+
+================================================================
+IMPLEMENTATION GUIDANCE
+================================================================
+
+1) Caching choice
+
+Use the lightest safe cache that matches the current environment.
+If no platform cache abstraction exists, use:
+- ASP.NET Core IMemoryCache for .NET services
+- in-process memory cache for Next.js server routes if appropriate and safe
+- or centralize caching only in the backend/BFF routes
+
+Do not introduce a large new infrastructure dependency for this block unless clearly already present.
+
+2) Metrics choice
+
+If no metrics platform exists, implement:
+- in-memory counters + admin endpoint(s)
+- structured logging summary
+This is sufficient for this block.
+
+3) Identity retirement plan
+
+The most important deliverable here is a concrete retirement plan, not destructive removal.
+You may add code comments / TODO markers / `[Obsolete]`-style annotations only if they do not create noisy build failures.
+
+4) Cutover readiness logic
+
+Prefer deterministic checks over vague statements.
+Examples:
+- latest migration run status = success
+- missingInTenantService = 0
+- read source = Tenant or HybridFallback
+- fallback rate under acceptable threshold over current process lifetime
+If exact thresholds are not available, still report the raw counts so operators can decide.
+
+================================================================
+NON-GOALS / MUST NOT DO
+================================================================
+
+Do NOT implement in this block:
+- destructive dropping of Identity tenant columns/tables by default
+- forced permanent removal of Identity fallback logic
+- notification service integration
+- DNS verification
+- broad unrelated refactors
+- large new infrastructure dependencies unrelated to hardening
+- irreversible cleanup that would block rollback
+
+================================================================
+TECH STACK / IMPLEMENTATION RULES
+================================================================
+
+Frontend:
+- Next.js (React)
+- TypeScript
+- Tailwind CSS
+- existing provider/route architecture
+- pnpm monorepo
+
+Backend:
+- C# / .NET only
+- ASP.NET Core only
+- EF Core only where persistence is needed
+- MySQL only where persistence is needed
+
+Architecture:
+- monorepo
+- microservices
+- API Gateway
+- Replit-compatible
+- shell-script orchestration intact
+
+================================================================
+CONFIG / CONTRACT GUIDANCE
+================================================================
+
+Potential config additions (only if needed and aligned to existing style):
+- Features__TenantReadCachingEnabled=true
+- Features__TenantReadCacheTtlSeconds=60
+- TENANT_BRANDING_CACHE_TTL_SECONDS=60
+
+Do not add config sprawl unnecessarily. Prefer a minimal coherent config surface.
+
+Potential admin/internal endpoints:
+- GET /api/v1/admin/runtime-metrics
+- GET /api/v1/admin/cutover-check (enhanced)
+
+If you add metrics endpoints, protect them with AdminOnly or equivalent.
+
+================================================================
+ACCEPTANCE CRITERIA
+================================================================
+
+This block is complete only if all of the following are true:
+
+1. Runtime read-source behavior now has operationally useful observability beyond plain logs.
+2. Safe caching/performance hardening exists for key read paths.
+3. Existing fallback and rollback behavior still works.
+4. Cutover-check/readiness tooling is enhanced and useful for operators.
+5. Identity tenant field retirement planning is explicitly documented and grounded in the codebase.
+6. Any safe cleanup performed does not break rollback or fallback.
+7. Existing Blocks 1–7 functionality still works.
+8. The system is production-ready for a sustained Tenant-primary runtime mode.
+9. No destructive Identity schema cleanup is forced by this block.
+
+================================================================
+VALIDATION STEPS
+================================================================
+
+Validate and record results for:
+- solution/build success
+- Tenant service startup success
+- Identity service startup success
+- gateway startup success
+- web app startup success (if touched)
+- runtime metrics/admin diagnostics endpoint behavior
+- cutover-check behavior
+- caching behavior (cache hit/miss or equivalent evidence)
+- branding/bootstrap behavior in Identity / HybridFallback / Tenant modes
+- resolution behavior in Identity / HybridFallback / Tenant modes
+- rollback to Identity mode via config only
+- dual-write enabled/disabled behavior still intact
+- backward compatibility checks for Blocks 1–7
+
+If any validation fails:
+- fix it if feasible in this block
+- if not fully fixable, document exact blocker and root cause in the report
+
+================================================================
+REPORTING INSTRUCTIONS
+================================================================
+
+Create /analysis/TENANT-B08-report.md first, then update it incrementally as each step is completed.
+
+The report must contain, at minimum, these sections:
+
+# TENANT-B08 Report
+
+## 1. Objective
+
+## 2. Codebase Analysis
+- what Blocks 1–7 established
+- what still remains in Identity
+- what was hardened/cleaned in this block
+
+## 3. Runtime Hardening Design
+- caching strategy
+- metrics/observability strategy
+- fallback/rollback preservation
+- any new config added
+
+## 4. Identity Retirement Planning
+- field/code-path inventory
+- keep / compatibility-only / retire-later matrix
+- any deprecation markers/comments added
+
+## 5. Cutover Readiness / Operations
+- cutover-check enhancements
+- runtime metrics endpoints
+- rollback playbook
+- recommended production rollout order
+
+## 6. Implementation Summary
+- files added
+- files modified
+- configs added/changed
+- cleanup performed
+
+## 7. Validation Results
+- build
+- startup
+- metrics/cutover endpoints
+- caching checks
+- mode checks
+- rollback checks
+- backward compatibility
+
+## 8. Known Gaps / Deferred Items
+- destructive field removal deferred
+- notification integration deferred
+- DNS verification deferred
+- anything else intentionally left out
+
+## 9. Final Platform Assessment
+State whether the Tenant service initiative is:
+- functionally complete
+- production-ready with rollback
+- pending only cleanup/retirement work
+and explain clearly
+
+================================================================
+EXECUTION STYLE
+================================================================
+
+- Analyze first, then implement
+- Reuse current code patterns
+- Prefer minimal, correct, production-oriented code
+- Keep scope tight to Block 8
+- Preserve portability
+- Do not introduce breaking architectural drift
+
+Now execute this block end-to-end and write the report as you go.

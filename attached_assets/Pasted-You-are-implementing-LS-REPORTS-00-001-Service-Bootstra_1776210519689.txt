@@ -1,0 +1,407 @@
+You are implementing **LS-REPORTS-00-001 — Service Bootstrap** for the LegalSynq Reports Service.
+
+## Platform Stack
+This is a **.NET 8 microservice** running in the platform ecosystem and it should be structured for **MySQL** as the future persistence layer.
+
+## Architecture Direction
+Build this as a **standalone, portable service** that can later be extracted and reused in other platforms or other instances of the same platform stack.
+
+For this story, use:
+- **ASP.NET Core Web API**
+- **clean layered structure**
+- **MySQL-ready scaffolding only**
+- **no real DB connection yet**
+
+The **service code folder** must be:
+
+- `/reports`
+
+The **generated implementation report folder** must be at the root:
+
+- `/analysis`
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file first:
+
+- `/analysis/LS-REPORTS-00-001-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This report file must be the **first action**.
+Do not begin service creation until the report file exists.
+
+## 2. Update the report continuously
+Do not wait until the end.
+Update the report after each major step with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- issues encountered
+- decisions made
+- validation/build status
+
+## 3. Keep scope tight
+Do not add extra business features outside this story.
+
+## 4. Use the correct folders
+- All service code must go under `/reports`
+- All generated reports must go under `/analysis`
+
+## 5. Prefer the simplest portable option
+Keep the service lightweight, modular, and platform-agnostic.
+
+---
+
+# STORY ID
+**LS-REPORTS-00-001 — Service Bootstrap**
+
+---
+
+# OBJECTIVE
+Establish the standalone Reports Service foundation as a portable .NET backend microservice that can operate independently of LegalSynq and be integrated into any compatible platform via adapter contracts.
+
+This story must lay the groundwork for all later reporting capabilities by defining:
+- service structure
+- configuration model
+- core modules
+- health/readiness endpoints
+- adapter scaffolding
+- logging
+- worker/queue skeleton
+- guardrail stubs
+- report writer utility
+
+---
+
+# SCOPE
+
+## In Scope
+- standalone .NET backend service initialization
+- `/reports` service codebase creation
+- environment-based configuration
+- modular service structure
+- adapter interface scaffolding
+- mock adapter implementations
+- health and readiness endpoints
+- logging and request tracing basics
+- queue/worker skeleton
+- guardrail validation stubs
+- report writer utility that writes to `/analysis`
+- MySQL-ready persistence setup scaffolding only
+
+## Out of Scope
+- real database integration
+- real persistence
+- EF migrations for business entities
+- report templates
+- report execution logic
+- scheduling logic
+- tenant UI
+- control center UI
+- export rendering
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Folder Structure
+Create the Reports Service in:
+
+- `/reports`
+
+Recommended structure:
+
+/reports
+  /src
+    /Reports.Api
+    /Reports.Application
+    /Reports.Domain
+    /Reports.Infrastructure
+    /Reports.Worker
+    /Reports.Contracts
+    /Reports.Shared
+  /tests
+    /Reports.Api.Tests
+    /Reports.Application.Tests
+    /Reports.Infrastructure.Tests
+
+Also ensure this exists at root:
+
+- `/analysis`
+
+Use a clean .NET solution structure, for example:
+- `Reports.sln`
+
+---
+
+## B. Service Bootstrap
+Create a runnable .NET microservice named conceptually:
+
+- `Reports Service`
+
+Requirements:
+- runs independently
+- platform-agnostic
+- future-ready for containerization
+- no LegalSynq-specific business logic
+- clean layering and separation of concerns
+
+Preferred outcome:
+- ASP.NET Core Web API entrypoint
+- modular project organization
+- minimal but clean dependency setup
+
+---
+
+## C. Configuration
+Implement environment-driven configuration with at least:
+- `ASPNETCORE_ENVIRONMENT`
+- `PORT` or equivalent binding config
+- `SERVICE_NAME`
+- `LOG_LEVEL`
+
+Also include placeholder config sections for:
+- identity adapter
+- tenant adapter
+- entitlement adapter
+- audit adapter
+- document adapter
+- notification adapter
+- product data adapter
+- mysql connection settings placeholder
+
+These can be scaffolded but should be structured cleanly in .NET configuration.
+
+---
+
+## D. Adapter Interfaces
+Create interface definitions and mock implementations for:
+
+- `IIdentityAdapter`
+- `ITenantAdapter`
+- `IEntitlementAdapter`
+- `IAuditAdapter`
+- `IDocumentAdapter`
+- `INotificationAdapter`
+- `IProductDataAdapter`
+
+Requirements:
+- define expected methods clearly
+- keep methods minimal but sensible
+- include mock/default implementations so readiness can pass without real integrations
+
+Do not hardcode platform logic.
+
+---
+
+## E. Health & Readiness Endpoints
+Create endpoints:
+
+- `GET /health`
+- `GET /ready`
+
+### `/health`
+Should return a basic service-up response.
+
+### `/ready`
+Should validate at least:
+- config loaded
+- service boot complete
+- mock adapters initialized
+
+Return structured JSON.
+
+---
+
+## F. Logging & Request Tracing
+Implement:
+- basic logging using .NET logging abstractions
+- request logging middleware
+- basic correlation/request id support
+
+Keep this lightweight and portable.
+
+---
+
+## G. Queue / Worker Skeleton
+Create foundational interfaces and mock behavior for:
+- job queue
+- worker processor
+- enqueue job
+- process job
+
+No real background processing required yet.
+This is structural only.
+
+A lightweight hosted service stub is acceptable.
+
+---
+
+## H. Guardrail Stubs
+Create initial guardrail module with stub methods such as:
+- `ValidateExecutionLimits()`
+- `ValidateReportDefinition()`
+
+No heavy logic yet.
+
+---
+
+## I. Report Writer Utility
+Create a utility that supports writing implementation progress reports to `/analysis`.
+
+Suggested capability:
+- create report file
+- append section
+- append step update
+- write final summary
+
+This utility is for engineering workflow support and should be reusable by later stories if needed.
+
+---
+
+## J. MySQL Readiness
+Do **not** connect to a real MySQL database in this story.
+
+However, structure the service so MySQL can be added cleanly later:
+- placeholder persistence configuration section
+- optional repository interfaces
+- optional DbContext placeholder only if truly helpful, but do not add business entity persistence yet
+
+Keep it minimal.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+The story is complete only if:
+
+1. `/reports` exists and contains the standalone .NET service codebase
+2. `/analysis/LS-REPORTS-00-001-report.md` was created first and updated incrementally
+3. service starts successfully
+4. config loading works
+5. adapter interfaces and mock implementations exist
+6. `/health` works
+7. `/ready` works
+8. logger and request tracing basics exist
+9. queue/worker skeleton exists
+10. guardrail stub module exists
+11. report writer utility exists
+12. structure is ready for future MySQL integration without actually requiring DB connection
+13. implementation remains platform-agnostic
+
+---
+
+# IMPLEMENTATION STEPS
+Follow these steps in order, updating the report after each one.
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-00-001-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Endpoints Added
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Update the report immediately confirming it was created first.
+
+## Step 2 — Create service structure
+Create `/reports`, initialize the .NET solution and project structure.
+Update the report.
+
+## Step 3 — Bootstrap the service
+Create the ASP.NET Core API entrypoint and minimal runnable HTTP service.
+Update the report.
+
+## Step 4 — Add configuration layer
+Implement config loading and structured config objects, including MySQL placeholder settings.
+Update the report.
+
+## Step 5 — Add adapters
+Create interfaces and mock implementations.
+Update the report.
+
+## Step 6 — Add health/readiness routes
+Implement `/health` and `/ready`.
+Update the report.
+
+## Step 7 — Add logging and request tracing
+Implement logger and middleware.
+Update the report.
+
+## Step 8 — Add queue/worker skeleton
+Implement minimal queue/worker contracts and mocks.
+Update the report.
+
+## Step 9 — Add guardrail stubs
+Implement initial validation stub module.
+Update the report.
+
+## Step 10 — Add report writer utility
+Implement the report writer utility for `/analysis`.
+Update the report.
+
+## Step 11 — Validate
+Run restore/build/test/basic startup validation as appropriate.
+Capture outputs and issues in the report.
+
+## Step 12 — Finalize report
+Complete `/analysis/LS-REPORTS-00-001-report.md` with:
+- summary of work completed
+- file/folder overview
+- endpoints added
+- notable design decisions
+- build/test status
+- known gaps
+- recommended next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Endpoints Added
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+Done means:
+- the code exists under `/reports`
+- the report exists under `/analysis`
+- the report was created first
+- the report was updated throughout execution
+- the service is bootstrapped and structurally sound
+- the service is aligned to .NET microservice conventions
+- the structure is ready for future MySQL integration
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-00-001** exactly as described.

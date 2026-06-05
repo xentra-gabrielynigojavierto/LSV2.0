@@ -1,0 +1,200 @@
+Review the newly generated CareConnect notifications + reminder hooks implementation before applying any migration.
+
+Goal:
+Validate correctness, safety, and scope of:
+- CareConnectNotifications
+- referral status change notification hooks
+- appointment notification hooks
+- appointment reminder creation hooks
+before database changes are applied.
+
+Context:
+- CareConnect scheduling, lifecycle, notes, and attachment metadata already exist
+- New code includes:
+  - CareConnectNotification entity
+  - notification service
+  - referral/appointment trigger points
+  - notification query endpoints
+- Migration has been created but should NOT be applied yet
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. ENTITY REVIEW
+==================================================
+
+Confirm ONLY these new notification-related additions exist:
+- CareConnectNotification
+- notification constants / enums / helper classes if used
+- notification service(s)
+- query endpoints
+- business trigger hooks from referral/appointment actions
+
+Ensure NO accidental additions:
+- external email provider integration
+- external SMS provider integration
+- background job runner
+- cron/scheduler infrastructure
+- SynqNotify connector
+- webhooks to third parties
+- retry workers
+- queue consumers
+
+==================================================
+2. CARECONNECTNOTIFICATION REVIEW
+==================================================
+
+Check fields are correct:
+- Id
+- TenantId
+- NotificationType
+- RelatedEntityType
+- RelatedEntityId
+- RecipientType
+- RecipientAddress
+- Subject
+- Message
+- Status
+- ScheduledForUtc
+- SentAtUtc
+- FailedAtUtc
+- FailureReason
+- CreatedAtUtc
+- CreatedByUserId
+- UpdatedAtUtc
+- UpdatedByUserId
+
+Confirm:
+- table name is CareConnectNotifications
+- indexes are correct:
+  - (TenantId, Status, ScheduledForUtc)
+  - (TenantId, RelatedEntityType, RelatedEntityId)
+  - (TenantId, NotificationType)
+
+==================================================
+3. CONSTANTS / ALLOWED VALUES REVIEW
+==================================================
+
+Confirm NotificationType values are exactly:
+- ReferralStatusChanged
+- AppointmentScheduled
+- AppointmentConfirmed
+- AppointmentCancelled
+- AppointmentReminder
+
+Confirm RelatedEntityType values are exactly:
+- Referral
+- Appointment
+
+Confirm RecipientType values are exactly:
+- ClientEmail
+- ClientPhone
+- InternalUser
+- Provider
+
+Confirm Status values are exactly:
+- Pending
+- Ready
+- Sent
+- Failed
+- Cancelled
+
+==================================================
+4. TRIGGER HOOK REVIEW
+==================================================
+
+Verify referral trigger logic:
+- when referral status changes, a CareConnectNotification row is created
+- NotificationType = ReferralStatusChanged
+- RelatedEntityType = Referral
+- RelatedEntityId = referral id
+- tenant-scoped
+
+Verify appointment trigger logic:
+- when appointment is scheduled, create AppointmentScheduled notification row
+- when appointment is confirmed, create AppointmentConfirmed notification row
+- when appointment is cancelled, create AppointmentCancelled notification row
+
+Verify reminder hook logic:
+- when appointment is scheduled or confirmed, create AppointmentReminder notification row
+- ScheduledForUtc is set using a simple safe rule
+- does not create broken past-due reminder timestamps unless intentionally handled cleanly
+
+==================================================
+5. NO-SEND / NO-INTEGRATION REVIEW
+==================================================
+
+Confirm:
+- there is NO actual sending logic yet
+- there is NO SMTP, Twilio, SES, SNS, or third-party API integration
+- there is NO background processor
+- notifications are only recorded as intent rows for now
+
+==================================================
+6. QUERY ENDPOINT REVIEW
+==================================================
+
+Confirm endpoints:
+- GET /api/notifications
+- GET /api/notifications/{id}
+
+Optional filters should be clean if implemented:
+- status
+- notificationType
+- relatedEntityType
+- relatedEntityId
+- scheduledFrom
+- scheduledTo
+- page
+- pageSize
+
+Verify:
+- reads are tenant-scoped
+- endpoints are read-only in this step
+- there are NO manual POST/PUT notification endpoints exposed unless absolutely required
+
+==================================================
+7. TENANT ISOLATION REVIEW
+==================================================
+
+Verify:
+- all notification rows are created with TenantId
+- all notification queries are tenant-scoped
+- cross-tenant notification access would return 404 or filtered results appropriately
+
+==================================================
+8. VALIDATION / ERROR REVIEW
+==================================================
+
+Confirm:
+- invalid constants are rejected cleanly if applicable
+- invalid paging/filtering is handled cleanly
+- no raw DB exceptions leak
+- centralized exception handling is still being used
+
+==================================================
+9. MIGRATION REVIEW
+==================================================
+
+Confirm migration name is:
+- AddCareConnectNotifications
+or equivalent clean name
+
+Confirm migration creates ONLY:
+- CareConnectNotifications
+
+If the migration includes unrelated tables/columns, identify and fix before applying.
+
+==================================================
+10. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- confirmation that notification hooks are correct
+- confirmation that reminder creation is safe
+- confirmation that this layer is metadata/event only
+- confirmation that migration is SAFE to apply
+- final list of changed files

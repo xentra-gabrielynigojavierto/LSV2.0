@@ -1,0 +1,684 @@
+You are implementing LS-COMMS-02-BLK-001 — Email Intake and Threading for SynqComm as an INDEPENDENT SERVICE with its OWN PHYSICALLY SEPARATE DATABASE.
+
+OBJECTIVE:
+Extend SynqComm to support inbound email intake, email-to-thread matching, controlled creation of external participants from email identities, and storage of inbound email metadata and threading references. This block must preserve SynqComm’s independent service boundary, separate database, visibility rules, participant-based access model, and document ownership boundaries already established in prior blocks.
+
+THIS BLOCK BUILDS ON:
+- LS-COMMS-01-BLK-001 — Core Domain Foundation
+- LS-COMMS-01-BLK-002 — In-App Conversation Operations
+- LS-COMMS-01-BLK-003 — Documents and Audit Integration
+
+CURRENT FOUNDATION ALREADY EXISTS:
+- Independent SynqComm service with separate DB ✅
+- Participant-based access control ✅
+- Visibility enforcement ✅
+- Read/unread tracking ✅
+- Document attachment linking via Documents service ✅
+- Audit integration ✅
+- 41 passing tests from prior blocks ✅ :contentReference[oaicite:0]{index=0}
+
+ARCHITECTURE REQUIREMENTS:
+- Continue using SynqComm as an independent service under /apps/services/synqcomm
+- Continue using the dedicated SynqComm physical database only
+- Do not piggyback on another service database
+- Do not introduce cross-database joins for core logic
+- Follow the existing .NET 8, Clean Architecture, EF Core, minimal API, and BuildingBlocks patterns established in prior blocks
+- Email metadata and threading state must be owned by SynqComm
+- Document binaries must remain owned by the Documents service
+- Email provider integration must be implemented behind a clean abstraction/seam
+- This block is for INBOUND EMAIL INTAKE AND THREADING only; do not implement full outbound email sending in this block
+
+CRITICAL EXECUTION RULE:
+1. Create the report file FIRST
+2. Continuously update it as each implementation step is completed
+3. Save it at:
+/analysis/LS-COMMS-02-BLK-001-report.md
+
+DO NOT wait until the end to write the report.
+
+--------------------------------------------------
+STEP 1 — CREATE REPORT FILE FIRST
+--------------------------------------------------
+
+Create:
+/analysis/LS-COMMS-02-BLK-001-report.md
+
+Initialize it with:
+
+# LS-COMMS-02-BLK-001 — Email Intake and Threading Report
+
+## Status
+IN PROGRESS
+
+## Objective
+Extend SynqComm to support inbound email intake, thread matching, controlled external participant creation from email identities, and persistence of email metadata while preserving SynqComm service boundaries and prior security/visibility rules.
+
+## Architecture Requirements
+- Independent service under /apps/services/synqcomm
+- Continue using separate SynqComm physical database
+- No piggybacking on another service database
+- No cross-database joins for core logic
+- Email metadata owned by SynqComm
+- Documents remain owned by Documents service
+- Preserve Clean Architecture layering from BLK-001 / BLK-002 / BLK-003
+
+## Steps Completed
+- [ ] Step 1: Review existing implementation and platform patterns
+- [ ] Step 2: Design email intake and threading extensions
+- [ ] Step 3: Add email domain models and contracts
+- [ ] Step 4: Implement inbound email integration seam/client/contracts
+- [ ] Step 5: Implement email parsing and thread matching logic
+- [ ] Step 6: Implement external participant/email identity handling
+- [ ] Step 7: Implement inbound attachment handling/linkage
+- [ ] Step 8: Extend APIs and persistence
+- [ ] Step 9: Extend audit coverage
+- [ ] Step 10: Add/update migrations
+- [ ] Step 11: Add automated tests
+- [ ] Step 12: Final review
+
+## Findings
+- Pending
+
+## Files Created
+- Pending
+
+## Files Updated
+- Pending
+
+## Database Changes
+- Pending
+
+## API Changes
+- Pending
+
+## Test Results
+- Pending
+
+## Issues / Gaps
+- Pending
+
+## Next Recommendations
+- Pending
+
+--------------------------------------------------
+STEP 2 — REVIEW EXISTING IMPLEMENTATION AND PLATFORM PATTERNS
+--------------------------------------------------
+
+Inspect the current SynqComm implementation and confirm:
+- current entities, repositories, services, endpoints, migrations
+- current attachment integration with Documents service
+- current audit integration pattern
+- current auth/request context flow
+- current visibility and participant access enforcement
+- current route conventions
+- whether a platform email provider abstraction/client pattern already exists elsewhere in the repo
+- whether there is an existing mailbox/webhook ingestion pattern in other services
+- whether any shared utility already exists for email parsing, message-id handling, webhook verification, or provider event normalization
+
+Update the report with:
+- current implementation findings
+- exact approach chosen for inbound email handling
+- exact provider abstraction strategy selected
+- exact email-threading persistence strategy selected
+- any assumptions required
+
+IMPORTANT:
+Build incrementally on top of the current implementation.
+Do not rewrite prior blocks unless required.
+
+--------------------------------------------------
+STEP 3 — DESIGN EMAIL INTAKE AND THREADING EXTENSIONS
+--------------------------------------------------
+
+This block must add:
+- inbound email intake endpoint(s)
+- normalized inbound email DTO/model
+- email-to-conversation matching
+- persistence of email metadata and threading identifiers
+- controlled creation or reuse of external participants from sender identity
+- optional creation of a new conversation when no match is found
+- inbound attachment handling by linking/storing through the Documents service if feasible and aligned to existing platform conventions
+
+Key design principles:
+- SynqComm remains the owner of email-thread metadata and matching state
+- Documents service remains owner of binaries
+- Sender identity must be normalized
+- Matching must prefer explicit references before heuristics
+- Threading must not bypass participant/tenant/visibility rules
+- This block is inbound only; do not build full outbound email sending yet
+- Do not overbuild provider-specific logic into core domain classes
+
+Update the report with the chosen design before coding.
+
+--------------------------------------------------
+STEP 4 — ADD/EXTEND DOMAIN MODELS
+--------------------------------------------------
+
+Add the minimum persistent models needed for email intake and threading.
+
+Preferred models:
+
+A. EmailMessageReference
+Purpose:
+Stores email/provider identifiers and associates inbound/outbound email identities to SynqComm messages/conversations.
+
+Minimum fields:
+- id
+- tenantId
+- conversationId
+- messageId nullable (if a SynqComm message record exists separately)
+- providerMessageId nullable
+- internetMessageId
+- inReplyToMessageId nullable
+- referencesHeader nullable
+- providerThreadId nullable
+- emailDirection
+- fromEmail
+- fromDisplayName nullable
+- toAddresses normalized string/json
+- ccAddresses nullable normalized string/json
+- bccAddresses nullable normalized string/json if needed
+- subject
+- receivedAtUtc nullable
+- sentAtUtc nullable
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+B. ExternalParticipantIdentity
+Purpose:
+Maps normalized email addresses to external contacts/participants within SynqComm context.
+
+Minimum fields:
+- id
+- tenantId
+- normalizedEmail
+- displayName nullable
+- participantId nullable if tying to a participant record
+- isActive
+- createdAtUtc
+- updatedAtUtc
+- createdByUserId
+- updatedByUserId
+
+C. Optional: InboundEmailReceipt / EmailWebhookEvent
+Only add if needed for clean ingestion/audit/replay support.
+If added, keep it lightweight and avoid storing unnecessary raw payload blobs unless clearly justified.
+
+Rules:
+- normalize email addresses consistently (lowercase, trimmed)
+- maintain conversation linkage without cross-database joins
+- preserve provider identifiers for future reply threading
+- avoid duplicating entire raw MIME unless there is an existing platform convention and a good reason
+
+Document all schema changes in the report.
+
+--------------------------------------------------
+STEP 5 — EXTEND ENUMS / RULE DEFINITIONS
+--------------------------------------------------
+
+Add or extend rules for:
+
+Email direction:
+- INBOUND
+- OUTBOUND
+(Use an existing enum if already appropriate, otherwise create a dedicated one)
+
+Matching priority rules:
+1. Explicit conversation reference token in subject/body if implemented
+2. In-Reply-To / References / stored prior email thread mappings
+3. Provider thread id if reliable and supported
+4. Controlled subject + normalized sender heuristic as fallback
+5. Create new conversation if no safe match is found
+
+Conversation creation rules for unmatched inbound email:
+- create new conversation only if the inbound mailbox/tenant context can be resolved safely
+- default visibility for inbound external email content should be SHARED_EXTERNAL unless the design requires internal triage first
+- external sender may be represented as EXTERNAL_CONTACT participant
+- subject/body become the initial message content
+- if no safe tenant resolution exists, reject or route to documented gap path rather than guessing
+
+External participant rules:
+- reuse existing participant/identity if normalized email already exists in that tenant/conversation context
+- create new EXTERNAL_CONTACT participant only when needed and safe
+- external participants created from inbound email do not become authenticated portal users by default
+
+System note rules:
+- intake/matching decisions may create INTERNAL_ONLY system notes if helpful, but do not expose internal matching notes externally
+
+--------------------------------------------------
+STEP 6 — EXTEND APPLICATION LAYER CONTRACTS
+--------------------------------------------------
+
+Create or extend DTOs and response models as needed.
+
+Required request/response support:
+
+1. InboundEmailIntakeRequest
+Fields should include at minimum:
+- provider
+- internetMessageId
+- providerMessageId nullable
+- providerThreadId nullable
+- inReplyToMessageId nullable
+- referencesHeader nullable
+- fromEmail
+- fromDisplayName nullable
+- toAddresses
+- ccAddresses nullable
+- subject
+- textBody nullable
+- htmlBody nullable
+- receivedAtUtc
+- attachments metadata list if provided by the ingress layer
+- mailbox/tenant resolution metadata if available
+- raw headers or structured headers only if useful and aligned to current conventions
+
+2. InboundEmailIntakeResponse
+Include:
+- conversationId
+- createdNewConversation bool
+- createdNewParticipant bool
+- linkedMessageId
+- matchedBy strategy enum/string
+- attachmentCountProcessed
+- unreadState/result if useful
+
+3. EmailReferenceResponse
+4. ExternalParticipantIdentityResponse if needed
+5. Extend MessageResponse / ConversationThreadResponse if email metadata should be returned in thread views
+
+Do not add outbound send payloads yet.
+
+--------------------------------------------------
+STEP 7 — ADD/EXTEND REPOSITORIES
+--------------------------------------------------
+
+Add repository contracts and implementations for:
+- email message references
+- external participant identities
+- any inbound receipt entity if implemented
+
+Possible interfaces:
+- IEmailMessageReferenceRepository
+- IExternalParticipantIdentityRepository
+
+Required behaviors:
+- create email message reference
+- lookup by internetMessageId
+- lookup by providerMessageId
+- lookup by inReplyToMessageId / references
+- lookup latest conversation match candidates
+- get/create external identity by normalized email within tenant
+- prevent duplicate identity rows where reasonable
+
+Stay within SynqComm-owned database only.
+Do not access another service DB directly.
+Do not use cross-database joins.
+
+--------------------------------------------------
+STEP 8 — IMPLEMENT INBOUND EMAIL INTEGRATION SEAM / CLIENT / CONTRACTS
+--------------------------------------------------
+
+Implement a clean provider-agnostic inbound email intake abstraction.
+
+Requirements:
+- define an inbound email provider abstraction or normalization layer
+- support intake via internal API endpoint/webhook endpoint into SynqComm
+- do not hardcode provider-specific payloads into application/domain services
+- if the repo already has a provider pattern, reuse it
+- if none exists, create a clean seam that maps provider/webhook payload into InboundEmailIntakeRequest
+
+At minimum, this block must support:
+- a normalized inbound email intake path
+- provider message/thread IDs
+- sender/recipient normalization
+- attachment metadata intake
+- future ability to support providers such as Postmark, Mailgun, SendGrid, SES, etc. without rewriting core services
+
+Optional only if clean:
+- webhook signature verification abstraction
+- provider-specific adapter stub/example
+
+Do NOT:
+- implement provider-specific outbound send logic
+- tightly couple domain services to a specific provider payload shape
+
+--------------------------------------------------
+STEP 9 — IMPLEMENT EMAIL PARSING AND THREAD MATCHING LOGIC
+--------------------------------------------------
+
+Implement service-layer logic for email threading.
+
+Required operations:
+- normalize inbound email addresses
+- resolve tenant/mailbox context safely
+- find matching conversation using priority rules
+- create inbound SynqComm message from email content
+- store email message reference metadata
+- update conversation lastActivityAt
+- mark conversation unread for relevant internal participants where appropriate
+- maintain visibility rules
+
+Matching priority should be implemented as:
+
+1. Explicit conversation token match
+If the subject/body contains a conversation token/pattern already used or newly introduced in this block, use it.
+If you introduce a token pattern, document it clearly (example: [COMMS-<conversationId>] or similar).
+
+2. In-Reply-To / References match
+Use stored EmailMessageReference rows to map inbound replies to existing conversations.
+
+3. Provider thread id
+Use only if reliable and clearly scoped.
+
+4. Heuristic fallback
+Use normalized sender + normalized subject only if the match is safe and low-risk.
+Do not use broad fuzzy matching that could misroute email across conversations.
+
+5. New conversation
+If no safe match is found, create a new conversation.
+
+For new conversation creation:
+- create or reuse external participant identity
+- create conversation
+- create inbound message
+- store email reference
+- attach documents if available and supported in this block
+
+Document the exact matching rules and fallback behavior in the report.
+
+--------------------------------------------------
+STEP 10 — IMPLEMENT EXTERNAL PARTICIPANT / EMAIL IDENTITY HANDLING
+--------------------------------------------------
+
+Implement controlled external participant handling.
+
+Requirements:
+- normalize sender email
+- find existing external participant identity within tenant
+- reuse existing participant if conversation already has matching external participant
+- otherwise create EXTERNAL_CONTACT participant where needed
+- maintain display name if provided and useful
+- do not turn email identities into authenticated users
+- do not create duplicate participants unnecessarily
+
+If the message lands on an existing conversation:
+- ensure the sender identity is associated cleanly
+- decide whether new CC recipients should become participants in this block only if it is safe and simple
+- if not implemented, document CC handling limitations honestly
+
+This block should prioritize sender identity and primary threading correctness over broad CC participant automation.
+
+--------------------------------------------------
+STEP 11 — IMPLEMENT INBOUND ATTACHMENT HANDLING
+--------------------------------------------------
+
+Handle inbound email attachments in a way that preserves service boundaries.
+
+Requirements:
+- if normalized intake already contains documentIds produced upstream, link them to the created SynqComm message
+- if the current platform conventions allow SynqComm to call Documents service to register/store inbound email attachments, implement that through the existing or new document client seam
+- do not store binaries in SynqComm DB
+- ensure attachment linkage obeys the same message visibility rules
+- include attachment processing outcome in intake response/audit
+
+If full binary upload orchestration is too coupled for this block, support one of these clean options and document it:
+A. intake accepts attachment metadata + pre-created documentIds
+B. intake accepts attachment descriptors but stores a documented TODO/integration seam
+C. intake supports attachment-less flow first, with clean extension points
+
+Prefer real working attachment linkage if feasible, but do not fake document storage.
+
+--------------------------------------------------
+STEP 12 — EXTEND AUDIT COVERAGE
+--------------------------------------------------
+
+Extend the existing audit integration for email-related operations.
+
+Required audit events where feasible:
+- inbound email received
+- inbound email matched to existing conversation
+- inbound email created new conversation
+- external participant identity created
+- external participant attached to conversation
+- email reference stored
+- inbound attachment linked
+- email intake rejected due to invalid tenant/match/authorization rule
+- conversation reopened due to inbound email if that rule is used
+
+If structured audit payloads are supported, include relevant metadata such as:
+- tenantId
+- conversationId
+- messageId
+- normalized sender email
+- internetMessageId
+- providerMessageId
+- providerThreadId
+- matchedBy
+- createdNewConversation
+- attachmentCount
+
+Do not create a fake audit subsystem.
+Use the existing audit publisher pattern or extend it cleanly.
+
+--------------------------------------------------
+STEP 13 — API EXTENSIONS
+--------------------------------------------------
+
+Add or extend APIs to support BLK-001 of Epic 02.
+
+Required endpoint additions:
+
+POST /api/synqcomm/email/intake
+- Accepts normalized inbound email payload
+- Processes matching/new conversation creation
+- Returns intake result
+
+Optional only if clean:
+GET /api/synqcomm/conversations/{id}/email-references
+- Lists stored email references for the conversation
+
+If you add provider/webhook-specific endpoint(s), keep them thin adapters that convert to normalized intake requests, for example:
+POST /api/synqcomm/email/providers/{provider}/inbound
+
+Only do this if it cleanly fits the existing design.
+
+Keep existing endpoints working.
+
+--------------------------------------------------
+STEP 14 — AUTHORIZATION, TENANT RESOLUTION, AND VISIBILITY ENFORCEMENT
+--------------------------------------------------
+
+This remains a core requirement.
+
+Implement and enforce:
+- inbound email must resolve to a tenant/mailbox context safely
+- do not guess tenant from raw sender alone unless an existing platform-owned mailbox mapping makes it safe
+- inbound email added to an existing conversation must remain within that conversation’s tenant boundary
+- external email content must not bypass participant/visibility rules
+- internal-only notes about matching/routing must remain internal-only
+- any attachment links created from inbound email must respect message visibility
+
+If tenant resolution depends on external configuration not yet present, implement the clean seam and document the exact gap.
+Do not fake cross-tenant routing.
+
+--------------------------------------------------
+STEP 15 — DATABASE MIGRATION
+--------------------------------------------------
+
+Create a new SynqComm-only migration for BLK-001 of Epic 02.
+
+Expected changes may include:
+- new table for email message references
+- new table for external participant identities
+- optional table for inbound receipts if implemented
+- supporting indexes for lookup and threading
+
+Possible indexes:
+- IX_EmailRefs_TenantId_InternetMessageId
+- IX_EmailRefs_TenantId_ProviderMessageId
+- IX_EmailRefs_TenantId_InReplyToMessageId
+- IX_EmailRefs_TenantId_ConversationId
+- IX_ExternalParticipantIdentities_TenantId_NormalizedEmail (unique if appropriate)
+
+Do not modify another service database.
+Do not introduce cross-db dependencies.
+
+Document the migration name and exact schema changes in the report.
+
+--------------------------------------------------
+STEP 16 — AUTOMATED TESTS
+--------------------------------------------------
+
+Add real automated tests. This block must include tests.
+
+Minimum required test coverage:
+
+Test 1 — Existing Conversation Match by InReplyTo
+- seed prior email reference
+- inbound email with matching In-Reply-To
+- verify it appends to existing conversation
+
+Test 2 — New Conversation Created When No Match Exists
+- inbound email with no safe match
+- verify new conversation and inbound message are created
+
+Test 3 — Explicit Token Match
+- inbound email subject/body contains conversation token
+- verify correct conversation is matched
+
+Test 4 — External Identity Reuse
+- existing normalized external identity
+- inbound email from same address
+- verify identity/participant is reused, not duplicated
+
+Test 5 — Unsafe Match Not Accepted
+- ambiguous or invalid heuristic case
+- verify system does not attach to wrong conversation
+- verify it creates new conversation or rejects per chosen rule
+
+Test 6 — Email Reference Persistence
+- verify internetMessageId/provider IDs/references are stored correctly
+
+Test 7 — Inbound Attachment Linkage
+- if attachments are supported in this block, verify attachments are linked correctly
+- if not fully supported, verify documented seam behavior with mocks/stubs
+
+Test 8 — Audit Emission
+- verify audit publisher invoked for email intake/match/new conversation actions
+
+Test 9 — Prior BLK Behavior Still Works
+- at least one regression test for message visibility or read/unread to ensure prior blocks still hold
+
+If full integration tests are too heavy, use service-layer tests plus repository tests and mocked provider/document clients.
+Record exact commands run and exact results.
+
+--------------------------------------------------
+STEP 17 — FINAL REVIEW AND REPORT COMPLETION
+--------------------------------------------------
+
+Before finishing, confirm:
+- SynqComm remains an independent service
+- separate database boundary remains intact
+- email metadata/threading state is owned by SynqComm
+- Documents service remains owner of binaries
+- inbound email can be normalized and processed
+- matching logic is deterministic and documented
+- external participant/email identity handling is controlled
+- attachments, if supported, respect document boundaries
+- audit coverage is extended using existing patterns
+- no full outbound email sending was added yet
+- no notifications integration was added yet
+- no UI was added
+- tests were actually written and executed
+
+Update the report with:
+
+## Implementation Summary
+Provide a concise summary of what was built.
+
+## Architecture Alignment
+Explain how this block extends the prior SynqComm service without breaking service boundaries.
+
+## Email Threading Design
+Explain exactly how matching works and what identifiers are stored.
+
+## External Participant Handling
+Explain how sender identities are normalized, reused, or created.
+
+## Documents Integration
+Explain how inbound attachments were handled and what gaps remain.
+
+## Audit Integration
+Explain which email-related audit events are now emitted.
+
+## Database Changes
+Explain the new schema/migration additions.
+
+## Files Created
+List all created files.
+
+## Files Updated
+List all updated files.
+
+## API Changes
+List new or changed endpoints.
+
+## Test Results
+List commands run and pass/fail results.
+
+## Issues / Gaps
+List remaining issues honestly.
+
+## Next Recommendations
+Recommend the next logical block:
+LS-COMMS-02-BLK-002 — Outbound Email and Delivery Status
+
+Set final status to:
+
+## Status
+COMPLETE
+
+--------------------------------------------------
+CONSTRAINTS
+--------------------------------------------------
+
+Follow these strictly:
+- MUST keep SynqComm as an independent service under /apps/services/synqcomm
+- MUST continue using the separate SynqComm physical database
+- MUST not piggyback on another service DB
+- MUST not use cross-database joins for core logic
+- MUST follow existing .NET 8 / Clean Architecture / EF Core / minimal API patterns from prior blocks
+- MUST keep Documents service as the owner of binaries
+- MUST extend the existing audit pattern rather than inventing a new subsystem
+- MUST implement real automated tests in this block
+- MUST focus on inbound email intake and threading
+- MUST NOT implement full outbound email sending yet
+- NO notifications integration yet
+- NO UI
+- NO fake persistence
+- NO speculative future features beyond this block
+
+--------------------------------------------------
+EXPECTED OUTCOME
+--------------------------------------------------
+
+At the end of this block, SynqComm should support:
+- normalized inbound email intake
+- deterministic email-to-conversation matching
+- new conversation creation when no safe match exists
+- persisted email threading references
+- controlled external participant/email identity handling
+- inbound attachment linkage where supported
+- audit events for key email intake actions
+- automated tests proving these behaviors
+
+--------------------------------------------------
+REQUIRED FINAL OUTPUT
+--------------------------------------------------
+
+Return the completed report file:
+
+/analysis/LS-COMMS-02-BLK-001-report.md

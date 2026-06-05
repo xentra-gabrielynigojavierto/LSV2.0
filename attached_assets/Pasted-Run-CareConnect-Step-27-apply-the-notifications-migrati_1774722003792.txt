@@ -1,0 +1,91 @@
+Run CareConnect Step 27: apply the notifications migration and validate notification/event creation end to end.
+
+Goal:
+Verify that the CareConnect notification intent layer works in practice:
+- migration applies cleanly
+- referral status changes create notification rows
+- appointment schedule/confirm/cancel actions create notification rows
+- reminder rows are created safely
+- notification queries are tenant-scoped
+- there is still no external sending logic
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect scheduling, lifecycle, notes, and attachment metadata already exist
+- Notification code has already been generated and reviewed
+- Migration should already exist and be safe to apply
+- This step is for applying and testing, not adding new features
+
+Tasks
+
+1. Apply the CareConnect migration for notifications.
+Expected migration name:
+- AddCareConnectNotifications
+
+2. Start or confirm these services are running:
+- Gateway.Api on 5000
+- Identity.Api on 5001
+- CareConnect.Api on 5003
+
+3. Authenticate through Gateway using:
+- tenantCode = LEGALSYNQ
+- email = admin@legalsynq.com
+- password = ChangeMe123!
+
+4. Confirm prerequisite data exists:
+- at least one Referral exists
+- at least one Appointment exists
+If prerequisites are missing, identify exactly what is missing before notification tests continue.
+
+5. Trigger a referral status change that should create a notification row.
+Use an existing valid referral transition in the current workflow.
+
+6. Trigger appointment notification events:
+- create or identify a Scheduled appointment
+- confirm an appointment
+- cancel an appointment if safe for testing
+These actions should create:
+- AppointmentScheduled
+- AppointmentConfirmed
+- AppointmentCancelled
+as applicable
+
+7. Verify reminder creation:
+- when an appointment is scheduled or confirmed, a reminder notification row should be created
+- ScheduledForUtc should use the implemented reminder rule and be safe/non-broken
+
+8. Query notifications using:
+- GET /careconnect/api/notifications
+- GET /careconnect/api/notifications/{id}
+
+Also test filters if implemented:
+- status
+- notificationType
+- relatedEntityType
+- relatedEntityId
+- scheduledFrom
+- scheduledTo
+- page
+- pageSize
+
+9. Verify:
+- all notification rows are tenant-scoped
+- related entity links are correct
+- statuses are correct
+- no notification row is actually sent externally
+- no SMTP/SMS/send integration exists yet
+
+10. Output:
+- migration command used
+- whether migration succeeded
+- which business actions were used to trigger notification rows
+- sample notification rows observed
+- whether reminder rows were created
+- whether tenant-scoped queries worked
+- whether the layer remained metadata/event only
+
+Important:
+Do not add new schema or features in this step.
+Do not implement actual sending, retry workers, queues, or SynqNotify integration yet.
+This step is only to validate the notification intent layer end to end.

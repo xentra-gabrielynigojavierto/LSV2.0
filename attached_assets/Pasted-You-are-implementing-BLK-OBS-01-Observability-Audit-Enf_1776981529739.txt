@@ -1,0 +1,347 @@
+You are implementing BLK-OBS-01 — Observability & Audit Enforcement for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-OBS-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block strengthens operational observability and auditability across the platform after the tenant-isolation and security hardening work is complete.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new product features
+   - redesign UX
+   - change business workflows unless required for audit/trace correctness
+   - weaken security controls for convenience
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Establish production-grade observability and audit enforcement so that:
+
+- requests can be traced end-to-end
+- tenant-aware logs are emitted consistently
+- security-relevant actions are visible in logs and/or audit trail
+- operational failures are diagnosable without guessing
+- audit events are aligned with the actual trust boundary and role model
+
+At the end of this block:
+
+- correlation/request tracing is consistent
+- tenant-aware logging is present on sensitive flows
+- key admin and provisioning actions emit auditable events
+- security failures and tenant-boundary denials are observable
+
+--------------------------------------------------
+
+SCOPE
+
+This block includes:
+
+- request correlation / trace ID propagation audit
+- tenant-aware structured logging improvements
+- audit event enforcement for sensitive flows
+- security/event visibility improvements
+- validation of end-to-end traceability across key flows
+
+This block does NOT include:
+
+- new product capabilities
+- analytics dashboards
+- performance tuning beyond what is needed for observability
+- SIEM/export integrations unless already scaffolded
+
+--------------------------------------------------
+
+PART A — AUDIT CURRENT OBSERVABILITY COVERAGE
+
+--------------------------------------------------
+
+Audit current logging / tracing / audit coverage across at least these flows:
+
+1. Public trust-boundary flow
+   - public network requests
+   - public referral submission
+   - spoofed-header rejection
+   - gateway-origin validation failures
+
+2. Onboarding / provisioning flow
+   - provider onboarding
+   - tenant provisioning
+   - identity tenant assignment
+   - resume/retry path
+
+3. Admin / tenant-bound flows
+   - activation approval
+   - provider activation
+   - admin dashboard / analytics / performance endpoints
+   - cross-tenant denial paths
+
+4. Security-sensitive failures
+   - invalid provisioning token
+   - missing tenant claim
+   - host/JWT mismatch or boundary mismatch
+   - public trust-boundary rejection
+
+Document:
+- what is already logged
+- whether logs are structured
+- whether tenantId / userId / requestId are present
+- whether there is audit coverage for the action
+
+--------------------------------------------------
+
+PART B — REQUEST / CORRELATION ID ENFORCEMENT
+
+--------------------------------------------------
+
+Audit request tracing and ensure a correlation identifier is consistently available.
+
+Requirements:
+
+1. Incoming requests must have or be assigned a request/correlation ID
+2. The request/correlation ID must be:
+   - available to logs
+   - propagated across service boundaries where practical
+3. For key internal flows:
+   - CareConnect → Tenant
+   - CareConnect → Identity
+   include correlation propagation if the platform already has a pattern for it
+
+If there is an existing correlation middleware / header convention, align to it.
+If not, implement a minimal, consistent approach.
+
+Do NOT invent multiple competing tracing schemes.
+
+--------------------------------------------------
+
+PART C — TENANT-AWARE STRUCTURED LOGGING
+
+--------------------------------------------------
+
+Ensure structured logs for sensitive flows include, where applicable:
+
+- tenantId
+- userId
+- providerId
+- organizationId
+- requestId / correlationId
+- endpoint / route
+- action result
+- denial/failure reason
+
+Apply this especially to:
+
+- onboarding
+- provisioning
+- admin activation actions
+- cross-tenant denial paths
+- public trust-boundary validation failures
+
+Do NOT log secrets, raw tokens, or sensitive PII unnecessarily.
+
+--------------------------------------------------
+
+PART D — AUDIT TRAIL ENFORCEMENT
+
+--------------------------------------------------
+
+Identify key actions that MUST emit audit events or equivalent auditable records.
+
+At minimum validate/fix audit coverage for:
+
+1. Tenant provisioning
+2. Identity tenant assignment / role assignment
+3. Provider activation approval
+4. Provider activation-for-careconnect
+5. Sensitive admin actions that change tenant-bound data
+6. Cross-tenant denied attempts if your audit model supports security events
+
+If there is already an Audit service / event model in the repo, use it.
+If there is an existing audit abstraction, route through it.
+Do NOT create a parallel audit system.
+
+If a key action currently changes state without an audit event, fix that.
+
+--------------------------------------------------
+
+PART E — SECURITY-EVENT VISIBILITY
+
+--------------------------------------------------
+
+Ensure security-relevant denials are operationally visible.
+
+Examples:
+- invalid X-Provisioning-Token
+- missing tenant_id claim on tenant-bound endpoint
+- cross-tenant access denial
+- public spoofed-header rejection
+- invalid gateway-origin marker
+- invalid HMAC signature
+
+Requirements:
+- log at appropriate level
+- include requestId and safe context
+- do not leak secrets
+- make it possible to distinguish malicious input from configuration mistakes
+
+--------------------------------------------------
+
+PART F — ERROR / DENIAL CONSISTENCY
+
+--------------------------------------------------
+
+Audit how sensitive failures are surfaced and logged.
+
+Requirements:
+- logs should clearly distinguish:
+  - 401 unauthenticated
+  - 403 forbidden
+  - 404 not found due to scoped lookup
+  - 500 internal failure
+- tenant-bound denial paths should be diagnosable from logs
+- retryable onboarding failures should remain traceable across retries
+
+Where needed, improve logging or handler-level context capture.
+
+--------------------------------------------------
+
+PART G — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. A request/correlation ID is available through key request paths
+2. Public trust-boundary failures produce diagnosable logs
+3. Cross-tenant denial produces diagnosable logs
+4. Onboarding/provisioning flow can be traced end-to-end
+5. Sensitive admin actions emit audit records or existing audit events
+6. No secrets/tokens are written to logs
+7. dotnet build succeeds for:
+   - CareConnect
+   - Tenant
+   - Identity
+   - Gateway (if touched)
+8. Frontend / Next.js build succeeds if touched
+
+If feasible, add or update automated tests for:
+- correlation propagation
+- audit-event emission
+- logging of denial/security paths
+
+--------------------------------------------------
+
+PART H — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-OBS-01-report.md
+
+# BLK-OBS-01 Report
+
+## 1. Summary
+
+## 2. Observability Coverage Audit
+- what existed before
+- what was missing
+
+## 3. Correlation / Trace Enforcement
+- request ID / correlation approach
+- propagation behavior
+
+## 4. Tenant-Aware Logging
+- which flows now log tenant-aware structured context
+
+## 5. Audit Enforcement
+- which actions now emit audit events / records
+
+## 6. Security-Event Visibility
+- what denial/failure paths are now observable
+
+## 7. Validation Results
+
+## 8. Changed Files
+- full file paths
+
+## 9. Methods / Endpoints Updated
+
+## 10. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 11. Issues / Gaps
+
+--------------------------------------------------
+
+PART I — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-OBS-01-commit.diff.txt
+
+--------------------------------------------------
+
+PART I.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-OBS-01-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- correlation / trace enforcement
+- tenant-aware logging
+- audit event coverage
+- security-event visibility improvements
+
+--------------------------------------------------
+
+PART I.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 12. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-OBS-01-commit.diff.txt
+- Summary: /analysis/BLK-OBS-01-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- key flows are traceable
+- key sensitive actions are auditable
+- security denials are operationally visible
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

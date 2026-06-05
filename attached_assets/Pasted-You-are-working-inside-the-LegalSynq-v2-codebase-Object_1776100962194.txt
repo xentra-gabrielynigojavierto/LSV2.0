@@ -1,0 +1,175 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Apply a narrow hardening iteration to the gateway registration for the `liens` service by removing premature authentication enforcement from the gateway route configuration.
+
+This is a sequencing correction only. Do NOT add any new functionality.
+
+IMPORTANT ARCHITECTURE RULE:
+For the Liens build, all shared platform concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+IMPORTANT IMPLEMENTATION RULES:
+- Do NOT implement identity integration yet.
+- Do NOT add JWT assumptions for Liens at the gateway or service layer.
+- Do NOT add business endpoints.
+- Do NOT modify unrelated gateway routes.
+- Do NOT copy any code from v1.
+- Keep the change minimal and tightly scoped.
+
+--------------------------------------------------
+CONTEXT
+--------------------------------------------------
+
+In LS-LIENS-01-002, the Liens service was correctly registered in the gateway using the established YARP routing pattern.
+
+However, the protected catch-all route for `liens` introduced premature auth behavior.
+That must be removed for now.
+
+Current problem:
+- the `liens-protected` route requires authentication/JWT
+- identity integration has not been implemented yet
+- this creates an inconsistent service contract
+
+Target correction:
+- keep the route
+- keep the cluster
+- keep the path transform
+- remove auth enforcement for now
+
+--------------------------------------------------
+STEP 1 — UPDATE GATEWAY ROUTE CONFIG
+--------------------------------------------------
+
+Inspect the gateway configuration that was added for Liens.
+
+Locate the `liens-protected` route in:
+- `apps/gateway/Gateway.Api/appsettings.json`
+or the equivalent gateway config file if the implementation differs
+
+Remove the premature auth requirement from the `liens-protected` route.
+
+Preferred outcome:
+- make the route anonymous for now
+
+Acceptable approaches:
+- set `AuthorizationPolicy` to `Anonymous` if that matches existing gateway conventions
+OR
+- remove the `AuthorizationPolicy` property entirely if the gateway defaults to anonymous and that is the cleanest v2-aligned option
+
+IMPORTANT:
+- do NOT remove the route itself
+- do NOT remove the cluster
+- do NOT remove the path transform
+- do NOT change the external route shape unless strictly necessary
+
+--------------------------------------------------
+STEP 2 — PRESERVE THE ROUTE CONTRACT
+--------------------------------------------------
+
+Keep the Liens gateway registration intact.
+
+The route structure should still support:
+- `/liens/health`
+- `/liens/info`
+- `/liens/{**catch-all}`
+
+And when the BFF/Next layer adds `/api`, the full external platform contract remains:
+- `/api/liens/*`
+
+Keep the internal path rewrite behavior unchanged unless absolutely required.
+
+--------------------------------------------------
+STEP 3 — VALIDATE NO AUTH ASSUMPTION REMAINS
+--------------------------------------------------
+
+Confirm that after the change:
+
+- the gateway no longer requires JWT/auth for Liens routes
+- the Liens service still has no identity coupling
+- the gateway and service are now consistent in sequencing
+
+Do NOT add any auth scaffolding to compensate.
+This iteration is about removing premature auth, not replacing it.
+
+--------------------------------------------------
+STEP 4 — REGRESSION TESTING
+--------------------------------------------------
+
+Run the following validation:
+
+1. Build the gateway
+2. Build the Liens service
+3. Start the gateway
+4. Start the Liens service
+5. Test:
+   - `GET /liens/health` via gateway
+   - `GET /liens/info` via gateway
+   - one catch-all sample path via gateway, such as:
+     - `GET /liens/test`
+     or another harmless route that proves forwarding behavior
+
+If the catch-all sample returns 404 from the downstream service, that is acceptable as long as:
+- the request is forwarded successfully
+- the response proves auth is not blocking the route
+
+Capture the exact result clearly.
+
+--------------------------------------------------
+STEP 5 — KEEP SCOPE TIGHT
+--------------------------------------------------
+
+Do NOT:
+- add identity integration
+- add JWT config
+- add service auth middleware
+- add permission filters
+- add product access filters
+- add business endpoints
+- refactor unrelated gateway routes
+- modify other services beyond what is needed for validation
+
+--------------------------------------------------
+STEP 6 — GENERATE ITERATION REPORT
+--------------------------------------------------
+
+Create this file in the root `/analysis` folder:
+
+`/analysis/LS-LIENS-01-002-01-report.md`
+
+The report MUST include:
+
+1. Summary of correction made
+2. Exact gateway file(s) changed
+3. The previous auth behavior on the Liens catch-all route
+4. The new route configuration after correction
+5. Whether `AuthorizationPolicy` was removed or changed to Anonymous, and why
+6. Confirmation that route structure, cluster, and transforms were preserved
+7. Build results
+   - gateway
+   - liens service
+8. Run results
+   - gateway
+   - liens service
+9. Gateway test results for:
+   - `/liens/health`
+   - `/liens/info`
+   - one catch-all sample path
+10. Confirmation that no auth assumption remains for Liens in gateway registration
+11. Confirmation that no v1 services or logic were introduced
+12. Final readiness statement:
+   - Is LS-LIENS-01-002 now complete?
+   - Is the system ready for LS-LIENS-02-001?
+
+Be explicit and evidence-based.
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+The goal is to make the Liens gateway registration architecturally consistent with the current delivery stage by removing premature auth enforcement while preserving the clean v2 routing pattern.
+
+Proceed.

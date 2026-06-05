@@ -1,0 +1,381 @@
+You are implementing BLK-GOV-02 — Governance Enforcement & Least-Privilege Model for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-GOV-02-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block is a TARGETED ITERATION after BLK-GOV-01.
+   BLK-GOV-01 completed the audit and fixed immediate gaps.
+   BLK-GOV-02 must convert governance patterns into enforceable controls.
+
+5. You MUST also generate:
+   - GitHub commit diff file
+   - commit summary file
+
+6. DO NOT:
+   - add new product features
+   - redesign UX
+   - redesign Identity or Tenant architecture
+   - change provider lifecycle semantics
+   - weaken tenant isolation, security, or observability controls
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Move governance from convention-based enforcement to explicit least-privilege controls.
+
+After this block:
+
+- privileged actions use explicit policies or centralized guards
+- over-broad access is reduced
+- TenantAdmin and PlatformAdmin boundaries are enforced consistently
+- provider/common-portal access remains isolated
+- future endpoints have clear patterns to follow
+
+--------------------------------------------------
+
+CURRENT STATE
+
+BLK-GOV-01 found:
+
+1. Role model is clear
+2. Current endpoints are mostly correct
+3. A few defects were fixed
+4. But enforcement still relies heavily on:
+   - PlatformOrTenantAdmin + inline tenant checks
+   - developer discipline
+   - comments/documentation
+
+This block must strengthen those patterns without overbuilding.
+
+--------------------------------------------------
+
+PART A — DEFINE GOVERNANCE CONTROL PATTERNS
+
+--------------------------------------------------
+
+Create or formalize a small set of explicit access-control patterns.
+
+At minimum define these governance categories:
+
+1. Platform-only
+   - requires PlatformAdmin
+   - no TenantAdmin access
+   - examples: integrity diagnostics, platform-wide admin tools
+
+2. Tenant-scoped admin
+   - PlatformAdmin may act platform-wide only where explicitly supported
+   - TenantAdmin must be scoped to own tenant
+   - requires tenant context guard
+
+3. Provider self-service
+   - authenticated provider/user context
+   - no tenant-admin privilege implied
+   - ownership enforced through user/provider identity
+
+4. Product-role operational access
+   - normal users require product role
+   - TenantAdmin/PlatformAdmin bypass must be explicit and observable
+
+Document the final model in the report.
+
+--------------------------------------------------
+
+PART B — CENTRALIZE TENANT-SCOPED ADMIN GUARD
+
+--------------------------------------------------
+
+Where possible, create a reusable helper/extension for TenantAdmin vs PlatformAdmin scoping.
+
+Purpose:
+- avoid repeating fragile inline code everywhere
+- enforce consistent behavior when:
+  - PlatformAdmin has no tenant claim
+  - TenantAdmin requires tenant_id claim
+  - PlatformAdmin must provide explicit tenantId for single-tenant operations
+
+Example behavior:
+
+ResolveAdminTenantScope(ctx, optionalTenantId, mode)
+
+Suggested modes:
+- PlatformWideAllowed
+  - PlatformAdmin may return null scope
+  - TenantAdmin must return ctx.TenantId
+
+- SingleTenantRequired
+  - PlatformAdmin must provide explicit tenantId
+  - TenantAdmin must return ctx.TenantId
+
+- TenantAdminOnly
+  - PlatformAdmin rejected unless explicitly allowed
+  - TenantAdmin must return ctx.TenantId
+
+Rules:
+- use existing types/patterns if already present
+- do not overbuild a full authorization framework
+- helper should return safe results or IResult-style errors consistently
+
+--------------------------------------------------
+
+PART C — APPLY CENTRALIZED GUARD TO HIGH-RISK ADMIN ENDPOINTS
+
+--------------------------------------------------
+
+Replace duplicated inline tenant-scope checks where appropriate.
+
+At minimum review/apply to:
+
+1. Admin dashboard / analytics / performance endpoints
+2. Activation admin endpoints
+3. Provider admin endpoints
+4. Backfill endpoints
+5. Any endpoint currently using PlatformOrTenantAdmin + manual tenant checks
+
+Rules:
+- do not change intended permissions
+- preserve PlatformAdmin behavior where intended
+- preserve TenantAdmin scoping
+- make cross-tenant access behavior explicit
+
+--------------------------------------------------
+
+PART D — REDUCE OVER-BROAD POLICY USAGE
+
+--------------------------------------------------
+
+Audit endpoints using PlatformOrTenantAdmin.
+
+For each usage, classify:
+
+1. Correct as-is:
+   - tenant-scoped operation with explicit guard
+
+2. Too broad:
+   - should be PlatformAdmin only
+
+3. Needs narrower product/tenant policy:
+   - should be tenant-scoped admin or product-role operational access
+
+Tighten where necessary.
+
+Examples to check:
+- diagnostics
+- integrity
+- backfills
+- provider activation
+- bulk org linking
+- analytics/performance
+- admin referral monitors
+
+Do not loosen any existing protections.
+
+--------------------------------------------------
+
+PART E — MAKE ADMIN BYPASS EXPLICIT AND OBSERVABLE
+
+--------------------------------------------------
+
+Where TenantAdmin/PlatformAdmin bypass product-role checks via RequireProductRoleFilter:
+
+- ensure the bypass is logged clearly
+- include:
+  - userId
+  - tenantId
+  - productCode
+  - required role
+  - bypass source
+- ensure provider/common users cannot benefit from bypass
+
+If already logged, validate and document.
+
+If insufficient, improve structured logging.
+
+--------------------------------------------------
+
+PART F — PROVIDER / COMMON PORTAL BOUNDARY CONFIRMATION
+
+--------------------------------------------------
+
+Validate provider/common-portal endpoints remain intentionally outside tenant-admin governance.
+
+Requirements:
+- onboarding remains accessible to authenticated COMMON_PORTAL users
+- provider self-service remains identity-owned, not tenant-admin-owned
+- provider users cannot invoke admin endpoints
+- product-role or tenant-admin gates are not accidentally added where they would break onboarding
+
+Document this clearly.
+
+--------------------------------------------------
+
+PART G — GOVERNANCE DENIAL VISIBILITY
+
+--------------------------------------------------
+
+Ensure governance-sensitive denials are visible.
+
+Examples:
+- PlatformAdmin missing required tenantId on single-tenant operation
+- TenantAdmin attempting cross-tenant access
+- provider/common user attempting admin route
+- product-role denial
+- admin bypass event
+
+Use existing logging / exception / audit patterns.
+Do NOT create a new audit subsystem.
+
+--------------------------------------------------
+
+PART H — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Platform-only endpoints reject TenantAdmin
+2. Tenant-scoped admin endpoints:
+   - TenantAdmin succeeds only within own tenant
+   - TenantAdmin cannot access another tenant
+   - PlatformAdmin can act platform-wide only where explicitly allowed
+   - PlatformAdmin must supply tenantId for single-tenant operations
+3. Provider/common users cannot access admin endpoints
+4. Provider onboarding still works
+5. Product-role operational users still work
+6. Admin bypass logging is present and structured
+7. No regression in tenant isolation
+8. No regression in public routes
+9. dotnet build succeeds for:
+   - CareConnect
+   - Tenant
+   - Identity
+   - Gateway if touched
+10. Frontend / Next.js build succeeds if touched
+
+If feasible, add or update tests for:
+- tenant-scope guard helper
+- PlatformAdmin missing tenantId
+- TenantAdmin cross-tenant denial
+- provider/common admin denial
+
+--------------------------------------------------
+
+PART I — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-GOV-02-report.md
+
+# BLK-GOV-02 Report
+
+## 1. Summary
+
+## 2. Governance Control Model
+- platform-only
+- tenant-scoped admin
+- provider self-service
+- product-role operational access
+
+## 3. Centralized Tenant Scope Guard
+- helper/design implemented
+- behavior modes
+- endpoints migrated
+
+## 4. Policy Tightening
+- PlatformOrTenantAdmin usages reviewed
+- endpoints tightened or confirmed
+
+## 5. Admin Bypass Visibility
+- product-role bypass logging validation/improvements
+
+## 6. Provider/Common Portal Boundary
+- onboarding and provider self-service confirmed safe
+
+## 7. Governance Denial Visibility
+- what denial paths are observable
+
+## 8. Validation Results
+
+## 9. Changed Files
+- full file paths
+
+## 10. Methods / Endpoints Updated
+
+## 11. GitHub Commits (MANDATORY)
+- include ALL commit IDs for this block
+
+## 12. Issues / Gaps
+
+--------------------------------------------------
+
+PART J — GITHUB DIFF EXTRACTION (MANDATORY)
+
+--------------------------------------------------
+
+AFTER implementation and AFTER commit is created:
+
+1. Identify the commit ID for this block
+
+2. Generate:
+
+git show <commit-id> > /analysis/BLK-GOV-02-commit.diff.txt
+
+--------------------------------------------------
+
+PART J.1 — COMMIT SUMMARY FILE
+
+--------------------------------------------------
+
+Create:
+
+/analysis/BLK-GOV-02-commit-summary.md
+
+Content format:
+
+# Commit Summary
+
+## Commit ID
+<commit-id>
+
+## Files Changed
+- list all files changed in the commit
+
+## Key Changes
+- centralized tenant-scope guard
+- endpoint migrations
+- policy tightening
+- admin bypass logging
+- governance denial visibility
+
+--------------------------------------------------
+
+PART J.2 — REPORT UPDATE (MANDATORY)
+
+--------------------------------------------------
+
+Append to the report:
+
+## 13. GitHub Diff Reference
+
+- Commit ID: <commit-id>
+- Diff file: /analysis/BLK-GOV-02-commit.diff.txt
+- Summary: /analysis/BLK-GOV-02-commit-summary.md
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- governance controls are enforced centrally where appropriate
+- over-broad access is reduced
+- no existing security/tenant isolation protections regressed
+- report, diff, and summary all exist in /analysis
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

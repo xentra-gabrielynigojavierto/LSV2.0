@@ -1,0 +1,109 @@
+Design and implement a polished Control Center login page for LegalSynq.
+
+Goal:
+Create a modern, high-tech, premium login experience that still feels serious, trustworthy, and appropriate for legal + medical workflows. The page should feel enterprise-grade, clean, and credible rather than playful or flashy.
+
+Brand direction:
+- Use the existing LegalSynq font, logo, and color palette already present in the project.
+- Do not invent a new brand system if assets/styles already exist.
+- Reuse existing design tokens, theme variables, logo assets, and typography settings wherever possible.
+- If there is no centralized token file, infer the current brand colors from the existing app and keep the page visually consistent with the rest of the platform.
+
+Visual style:
+- Modern and high-tech
+- Serious, professional, enterprise
+- Elegant but restrained
+- Legal + medical trust aesthetic
+- Clean spacing, strong typography hierarchy, subtle depth
+- Avoid cartoonish, overly neon, overly gamer-like, or consumer-social aesthetics
+
+Page composition:
+Create a centered login experience with a strong layout and visual presence.
+
+Recommended layout:
+- Full-page responsive layout
+- Branded left or top visual section with logo, product name, and supporting message
+- Elevated login card/form section
+- Refined background treatment using subtle gradients, grid texture, glow accents, or abstract medical/legal-tech shapes
+- The result should look premium without feeling busy
+
+Content:
+Include:
+- LegalSynq logo
+- “Control Center” heading
+- Short supporting text such as:
+  “Secure administrative access to the LegalSynq platform.”
+- Email field
+- Password field
+- Sign in button
+- Forgot password link if the current flow supports it
+- Optional footer text for security/trust, such as:
+  “Protected access for authorized platform administrators”
+
+Tone:
+- Confident
+- Clear
+- Professional
+- Minimal copy
+- No cheesy marketing language
+
+Design details:
+- Use refined card styling with soft shadow, crisp border, rounded corners
+- Use subtle glass or layered enterprise UI styling only if it matches existing brand language
+- Prioritize strong readability and accessibility
+- Ensure excellent contrast
+- Make the primary button feel premium and authoritative
+- Inputs should feel modern and clean
+- Add tasteful focus and hover states
+- Keep motion subtle and professional
+
+Responsiveness:
+- Must look excellent on desktop first
+- Must remain clean and usable on tablet and mobile
+- On smaller screens, simplify the decorative panel/background without breaking layout
+
+Accessibility:
+- Proper labels
+- Keyboard-friendly
+- Visible focus states
+- Good contrast
+- Screen-reader-safe structure
+
+Implementation constraints:
+- Reuse existing app components, UI primitives, theme tokens, and asset pipeline where practical
+- Do not break the existing authentication flow
+- Keep logic intact unless a small cleanup is needed to support the new UI
+- Separate presentation from auth logic as much as possible
+- If an existing login page already exists, refactor it rather than creating disconnected duplicate logic
+
+Nice-to-have visual touches:
+- subtle animated background shimmer/grid
+- faint circuit/network lines
+- understated legal-medical-tech iconography or abstract geometry
+- secure enterprise badge or lock motif used sparingly
+- a refined “system access” feel, not a startup landing page feel
+
+Avoid:
+- bright rainbow gradients
+- overly playful illustrations
+- excessive glassmorphism
+- crowded dashboards on the login page
+- too much copy
+- consumer-app styling
+
+Deliverables:
+1. A redesigned Control Center login page
+2. Reused LegalSynq branding assets/colors/fonts
+3. Clean responsive behavior
+4. Preserved login functionality
+5. A concise report saved to /analysis/control-center-login-redesign-report.md
+
+The report must include:
+1. Summary
+2. Files changed
+3. Branding assets/tokens reused
+4. UX/design decisions
+5. Responsive behavior notes
+6. Accessibility considerations
+7. Any auth logic touched
+8. Known follow-ups

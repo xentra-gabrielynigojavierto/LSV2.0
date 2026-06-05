@@ -1,0 +1,394 @@
+You are implementing LS-LIENS-UI-006 for the LegalSynq Liens v2 migration.
+
+Feature ID: LS-LIENS-UI-006
+Feature Title: Contacts & Participants Integration
+
+Objective:
+Wire the Contacts module and participant relationships to real backend APIs so Cases, Liens, Servicing, and related workflows reference real people and organizations instead of mock records, static labels, or flattened display strings. Use the same enforced frontend service-layer architecture established in LS-LIENS-UI-002 through LS-LIENS-UI-005.
+
+This feature gives the system real participant identity and relationship integrity.
+
+--------------------------------------------------
+CRITICAL ARCHITECTURE RULES (NON-NEGOTIABLE)
+--------------------------------------------------
+
+1. Preserve the v2 shell (top nav + side nav).
+2. Preserve the current UI layout and workflow feel unless minimal changes are required for real API integration.
+3. Enforce strict layering:
+   - API client layer
+   - service layer
+   - mapper / adapter layer
+   - UI state layer
+   - presentation layer
+4. No direct HTTP calls in pages/components.
+5. No DTO-to-UI transformation logic inside components.
+6. No production mock/static contact or participant data.
+7. Follow the same architecture pattern used in LS-LIENS-UI-002, UI-003, UI-004, and UI-005.
+8. Do not invent backend APIs. Use only what actually exists.
+9. Preserve donor SynqLiens participant semantics where backend support exists.
+10. Participant relationships shown in Cases, Liens, and Servicing must come from real backend-linked records, not hardcoded labels.
+11. If Zustand or another store is used, it must be UI state only, not the source of truth for contact or participant data.
+
+--------------------------------------------------
+REQUIRED FRONTEND ARCHITECTURE
+--------------------------------------------------
+
+Create or refine a Contacts module with:
+
+- contacts.types.ts
+- contacts.api.ts
+- contacts.mapper.ts
+- contacts.service.ts
+
+Layer responsibilities:
+
+API Layer:
+- raw HTTP calls only
+- typed DTOs
+- endpoint definitions + params
+- no UI logic
+- no business logic
+
+Service Layer:
+- business-facing methods only
+- only approved UI data path
+- calls API layer
+- applies mappers
+- isolates backend quirks
+
+Mapper Layer:
+- DTO → UI model
+- contact display normalization
+- participant role/category mapping
+- cross-entity relationship mapping
+- null-safe defaults
+
+Types Layer:
+- backend DTOs
+- request/update models if supported
+- query models
+- UI models
+- minimal cross-entity reference models
+
+UI Layer:
+- presentation only
+- no HTTP
+- no mapping logic
+
+--------------------------------------------------
+IMPLEMENTATION SCOPE
+--------------------------------------------------
+
+1. Analyze existing Contacts UI:
+   - /lien/contacts
+   - /lien/contacts/[id]
+   - identify all mock data, placeholders, and static content
+
+2. Analyze backend APIs available for:
+   - list contacts
+   - get contact by id
+   - create/update contact if supported
+   - get contacts by related entity (case/lien/servicing) if supported
+   - participant link or relationship endpoints if supported
+   - search/filter/sort/pagination support
+
+3. Implement Contacts API client.
+
+4. Implement Contacts service layer.
+
+5. Implement Contacts mapper layer.
+
+6. Implement Contacts types.
+
+7. Wire Contacts list and detail pages to real APIs.
+
+8. Integrate contacts/participants into:
+   - Case Detail
+   - Lien Detail
+   - Servicing Detail
+
+9. Replace mock/static participant labels where backend-linked participant data exists.
+
+10. Handle unsupported actions properly.
+
+11. Implement loading/error/empty states.
+
+--------------------------------------------------
+A. CONTACTS API CLIENT
+--------------------------------------------------
+
+Create contacts.api.ts
+
+Responsibilities:
+- raw HTTP only
+- typed DTOs
+- endpoint definitions
+- no UI shaping
+
+Example methods, only if supported:
+- list(query)
+- getById(id)
+- create(request)
+- update(id, request)
+- getByEntity(entityType, entityId)
+- getParticipantLinks(entityType, entityId)
+- searchParticipants(query)
+
+--------------------------------------------------
+B. CONTACTS SERVICE LAYER
+--------------------------------------------------
+
+Create contacts.service.ts
+
+Responsibilities:
+- business-facing methods
+- call API client
+- apply mapper logic
+- isolate backend contract quirks
+
+Example methods:
+- getContacts(query)
+- getContact(id)
+- createContact(...)
+- updateContact(...)
+- getContactsForCase(caseId)
+- getContactsForLien(lienId)
+- getContactsForServicing(servicingId)
+- getParticipantsForEntity(entityType, entityId)
+
+--------------------------------------------------
+C. CONTACTS MAPPER
+--------------------------------------------------
+
+Create contacts.mapper.ts
+
+Must map:
+- contact list row
+- contact detail model
+- participant summary model
+- organization/person display model
+- participant role/type/category
+- null-safe defaults
+
+Rules:
+- no inline mapping in UI
+- no duplication across pages/components
+
+--------------------------------------------------
+D. CONTACTS TYPES
+--------------------------------------------------
+
+Create contacts.types.ts
+
+Include:
+- backend DTOs
+- request models if supported
+- query models
+- pagination
+- UI models
+- cross-entity participant reference model
+
+--------------------------------------------------
+E. CONTACTS LIST PAGE
+--------------------------------------------------
+
+Replace all mock/static contact data with:
+
+contactsService.getContacts()
+
+Must support:
+- load
+- refresh
+- search
+- filter
+- sort
+- pagination
+- open detail
+
+Add:
+- loading state
+- error state
+- empty state
+
+Preserve current layout.
+
+--------------------------------------------------
+F. CONTACT DETAIL PAGE
+--------------------------------------------------
+
+Use:
+
+contactsService.getContact()
+
+Must support:
+- route-based loading
+- metadata display
+- participant type/role display
+- linked entities if supported
+- loading/error/not-found states
+
+Preserve current layout.
+
+--------------------------------------------------
+G. CROSS-ENTITY PARTICIPANT INTEGRATION
+--------------------------------------------------
+
+Integrate real participant/contact data into:
+
+1. Case Detail
+   - replace fake provider/law-firm/contact labels where backend-linked data exists
+   - use getContactsForCase(caseId) or equivalent relationship endpoint
+   - display real linked participants
+   - enable navigation to contact detail where appropriate
+
+2. Lien Detail
+   - replace static participant labels where backend-linked data exists
+   - support seller / buyer / holder / provider / payer / law firm / contact person relationships if supported
+   - use real IDs and navigation
+
+3. Servicing Detail
+   - replace fake assigned/related participant labels where backend-linked data exists
+   - support real linked contacts/participants
+   - use navigation to contact detail where appropriate
+
+Rules:
+- all participant references must be real where API support exists
+- no fake labels should remain as domain truth
+- if only partial relationship support exists, implement what is available and document the rest
+
+--------------------------------------------------
+H. PARTICIPANT ROLE / CATEGORY MAPPING
+--------------------------------------------------
+
+The UI must map real backend contact or participant categories into stable display labels.
+
+Potential categories, only if supported by backend:
+- provider
+- law firm
+- insurer
+- adjuster
+- lien buyer
+- lien holder
+- seller
+- servicing contact
+- billing contact
+- case manager
+
+Rules:
+- use real backend values or centralized mapper normalization
+- do not hardcode fake categories as truth
+- keep mapping centralized in contacts.mapper.ts
+
+--------------------------------------------------
+I. UNSUPPORTED ACTIONS
+--------------------------------------------------
+
+If API does not support:
+- create contact
+- edit contact
+- delete contact
+- relink participant
+- entity-level participant editing
+
+Then:
+- disable OR hide OR label clearly
+
+No fake interactions allowed.
+
+--------------------------------------------------
+J. STATE MANAGEMENT
+--------------------------------------------------
+
+Allowed:
+- filters
+- page
+- sort
+- selected contact
+- modal/drawer state
+- loading/error
+- role/toast
+
+Not allowed:
+- mock contact data
+- fake participant relationships
+- local contact store as truth
+
+--------------------------------------------------
+K. ERROR / LOADING STATES
+--------------------------------------------------
+
+Must support:
+- loading
+- retry
+- empty
+- error
+- unauthorized
+- not found
+
+--------------------------------------------------
+L. FILES TO CREATE / MODIFY
+--------------------------------------------------
+
+Create:
+- contacts.types.ts
+- contacts.api.ts
+- contacts.mapper.ts
+- contacts.service.ts
+
+Modify:
+- contacts page
+- contacts detail page
+- case detail participant/contact sections
+- lien detail participant/contact sections
+- servicing detail participant/contact sections
+- any related shared participant display component only if needed
+
+--------------------------------------------------
+M. REPORT OUTPUT
+--------------------------------------------------
+
+Create:
+
+/analysis/LS-LIENS-UI-006-report.md
+
+Include:
+
+- Executive summary
+- Before vs after data flow
+- Backend endpoints used
+- Contacts API/service/mapper/types created or updated
+- Cases participant integration details
+- Liens participant integration details
+- Servicing participant integration details
+- Unsupported actions
+- Schema/contract mismatches
+- Files changed
+- Risks/blockers
+- Pattern consistency confirmation with UI-002 through UI-005
+- Recommended next module
+
+--------------------------------------------------
+EXECUTION INSTRUCTIONS
+--------------------------------------------------
+
+- Implement real code, not just analysis
+- Use existing repo patterns
+- If APIs are missing, partially implement with real endpoints and document the rest
+- Do not stop at planning
+- Save report in /analysis
+- Validate build
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+- Contacts list uses real APIs
+- Contact detail uses real data
+- No mock contact data remains in production flows
+- Cases show real linked contacts/participants where supported
+- Liens show real linked participants where supported
+- Servicing shows real linked contacts/participants where supported
+- Service layer is enforced
+- Mapper layer is enforced
+- UI layout unchanged
+- Report complete

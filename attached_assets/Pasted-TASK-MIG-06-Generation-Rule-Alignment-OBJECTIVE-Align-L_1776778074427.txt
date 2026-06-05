@@ -1,0 +1,285 @@
+TASK-MIG-06 — Generation Rule Alignment
+
+OBJECTIVE:
+Align Liens task generation rules with the migrated Task-hosted configuration model so rule execution continues to work correctly when templates, stages, and transitions are read primarily from the Task service, while Liens still owns the generation-rule definitions and event semantics.
+
+This step is the LAST major alignment step before ownership flips.
+
+NON-NEGOTIABLE RULES:
+- DO NOT migrate generation-rule ownership to Task in this prompt
+- DO NOT redesign the rule engine
+- DO NOT migrate Flow orchestration logic
+- DO NOT delete any Liens tables in this step
+- DO NOT remove fallback logic in this step
+- ZERO UI behavior regression
+- MUST preserve current Liens rule execution semantics
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- MUST inspect actual code/schema before implementation
+- NO placeholders
+
+CRITICAL BOUNDARY:
+- Generation rules remain Liens-owned in this prompt
+- Task remains the host for migrated config data (templates, stages, transitions)
+- Liens continues to interpret product-specific rule/event semantics
+- Do NOT push Liens-specific event logic into Task
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-06-report.md
+
+Initialize with:
+
+# TASK-MIG-06 Report — Generation Rule Alignment
+
+## 1. Codebase Analysis
+## 2. Current Rule Dependency Map
+## 3. Alignment Design
+## 4. Runtime Compatibility Changes
+## 5. Dual-Read / Fallback Adjustments
+## 6. Validation Results
+## 7. Rollback Plan
+## 8. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT GENERATION RULE IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the actual codebase for all generation-rule behavior.
+
+Liens:
+- `liens_TaskGenerationRules`
+- entity/configuration/repository/service usage
+- generation engine entry points
+- duplicate-prevention logic
+- stage applicability logic
+- template lookup
+- assignee/default-role resolution
+- due-date/default-priority/title/description resolution
+- any rule-admin endpoints or read paths
+
+Task:
+- template reads
+- stage reads
+- transition reads
+- duplicate-prevention support via Task queries / generation metadata
+- any APIs already used by the generation engine
+
+Document:
+- every runtime dependency a rule has on:
+  - template data
+  - stage data
+  - transition data
+  - governance data
+  - duplicate-prevention metadata
+- which of those dependencies are now Task-hosted vs still Liens-hosted
+- any remaining direct Liens DB assumptions in the generation path
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Rule Dependency Map
+
+--------------------------------------------------
+STEP 2 — DESIGN THE ALIGNMENT MODEL
+--------------------------------------------------
+
+Define exactly how generation rules should operate now that:
+- templates are migrated
+- stages are migrated
+- transitions are migrated
+- governance is migrated
+- rules themselves still live in Liens
+
+You MUST explicitly define:
+
+1. Which parts of rule execution remain Liens-owned
+   - event matching
+   - rule triggering
+   - duplicate-prevention mode interpretation
+   - contextual meaning of entity/event types
+
+2. Which config dependencies should now be read Task-first
+   - templates
+   - stages
+   - transitions
+   - governance where applicable
+
+3. Which rule fields still reference Liens-owned IDs/semantics
+   - `TaskTemplateId`
+   - `ApplicableWorkflowStageId`
+   - duplicate-prevention mode
+   - assignment mode / role behavior
+
+4. Whether any remaining generation-rule path still incorrectly assumes Liens-owned config as primary
+
+Decision rules:
+- preserve current behavior exactly
+- prefer Task-hosted config where already migrated
+- keep Liens-owned interpretation logic in Liens
+- do NOT move rule ownership in this step
+
+Update:
+## 3. Alignment Design
+
+--------------------------------------------------
+STEP 3 — RUNTIME COMPATIBILITY CHANGES
+--------------------------------------------------
+
+Implement the runtime alignment so generation rules execute correctly against the migrated config model.
+
+This includes, as applicable:
+- template lookup in generation rules
+- stage lookup / stage applicability checks
+- transition/movement compatibility checks if generation paths depend on them
+- governance-influenced start-stage behavior
+- duplicate-prevention behavior using canonical Task data
+- assignment/default-role logic where template metadata is now sourced from Task
+
+Requirements:
+- preserve current behavior exactly
+- keep Liens rule evaluation logic unchanged unless strictly necessary
+- remove remaining Liens-primary config assumptions where safe
+- centralize compatibility translation in the cleanest possible place
+- do not over-refactor the engine
+
+Important:
+Be explicit about where each dependency now comes from:
+- Task-first
+- Liens fallback
+- Liens-only
+
+Update:
+## 4. Runtime Compatibility Changes
+
+--------------------------------------------------
+STEP 4 — DUAL-READ / FALLBACK ADJUSTMENTS
+--------------------------------------------------
+
+Review and refine the current dual-read behavior used by generation-rule execution.
+
+Ensure the generation engine and any helper services now use the correct migrated sources for:
+- template fetch
+- contextual template behavior
+- stage lookup
+- stage list / start-stage resolution
+- transition validation if applicable
+- governance reads
+- duplicate-prevention queries
+
+Rules:
+- Task = primary where config is already migrated
+- Liens = fallback
+- no regression
+- no final ownership cutover yet
+- if a path remains intentionally Liens-only, document exactly why
+
+Add/adjust logging so source-of-truth is visible, for example:
+- `generation_template_source=task_service`
+- `generation_stage_source=task_service`
+- `generation_governance_source=task_service`
+- `generation_rule_source=liens_db`
+- `..._fallback=liens_db`
+
+Update:
+## 5. Dual-Read / Fallback Adjustments
+
+--------------------------------------------------
+STEP 5 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. Rule-based generation still works
+2. Template-based generation still works
+3. Duplicate-prevention still works correctly
+4. Stage applicability checks still work
+5. Governance-driven start-stage logic still works
+6. Default role / assignee logic still works
+7. Rule execution behaves correctly when Task service data is present
+8. Rule execution falls back safely when Task service data is missing
+9. Mixed state works (some configs synced, some not)
+10. No UI/admin behavior regression for rule-related flows
+11. No Flow orchestration concepts are pulled into Task
+12. Builds succeed for all changed services
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 6. Validation Results
+
+--------------------------------------------------
+STEP 6 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting any new Task-first generation dependency back to Liens-only reads
+- keeping Task data untouched
+- disabling any new sync or alignment path if needed
+- no data loss
+- no schema rollback unless strictly necessary
+
+If no schema/API changes were made, state that clearly.
+
+Update:
+## 7. Rollback Plan
+
+--------------------------------------------------
+STEP 7 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any remaining Liens-only rule semantics
+- any generation fields still not represented in Task
+- any residual reliance on Liens DB for rule execution
+- any ownership-flip dependencies
+- any later cleanup required before template/governance ownership cutover
+- whether rule migration itself should remain out of scope permanently or be reconsidered later
+
+Update:
+## 8. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-06 is complete only if:
+
+1. Generation-rule execution remains correct using the migrated config model
+2. Templates/stages/transitions/governance are used from the right sources
+3. Duplicate-prevention remains correct
+4. No regression is introduced
+5. Liens still owns rule semantics while Task hosts migrated config
+6. Safe to proceed to ownership-flip work
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT migrate generation-rule ownership to Task
+- Do NOT redesign the generation engine
+- Do NOT migrate Flow logic
+- Do NOT delete Liens tables
+- Do NOT remove fallback logic
+- Do NOT force final ownership cutover yet
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens generation engine / services / DTOs
+- Liens ↔ Task service client
+- Liens helper services for templates/stages/governance/transitions
+- Task service only if a minimal compatibility adjustment is truly required
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

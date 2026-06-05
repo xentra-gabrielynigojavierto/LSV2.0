@@ -1,0 +1,541 @@
+# LS-TENANT-002 — Tenant User Management (User + Access + Roles + Groups)
+
+## Objective
+
+Implement the **Tenant User Management UI** enabling tenant admins to:
+
+* view all users in their tenant
+* manage direct product access
+* manage direct role assignments
+* manage group memberships
+* view effective access and permission sources
+
+This is the **first fully functional tenant authorization feature**, built on top of LS-COR-AUT.
+
+At completion, tenant admins must be able to:
+
+```text
+View → Assign → Revoke → Understand → Verify
+```
+
+for user-level access.
+
+---
+
+## 🚨 Output Report (MANDATORY)
+
+Replit MUST generate a report as part of execution.
+
+### File Location
+
+```text
+/analysis/LS-TENANT-002-report.md
+```
+
+### Requirement
+
+* The report is **NOT optional**
+* The feature is **incomplete without the report**
+* Replit must generate the report automatically after implementation
+
+---
+
+## Architectural Principles
+
+### Backend is Source of Truth
+
+* all access data must come from LS-COR-AUT APIs
+* no frontend-derived authorization logic
+
+### Explainability First
+
+* every assignment must show **where it comes from**
+
+### Safe Mutations
+
+* all changes must:
+
+  * be validated
+  * show confirmation
+  * handle failure gracefully
+
+---
+
+## In Scope
+
+---
+
+# 1. User List Page
+
+## Route
+
+```text
+/tenant/authorization/users
+```
+
+## File
+
+```text
+app/(platform)/tenant/authorization/users/page.tsx
+```
+
+---
+
+## UI Requirements
+
+### Table Columns
+
+* Name
+* Email
+* Status
+* Direct Products (count)
+* Groups (count)
+* Roles (count)
+* Actions
+
+---
+
+## Features
+
+### Search
+
+* by name/email
+
+### Filters (basic)
+
+* status (active/inactive)
+
+### Pagination
+
+* required if list is large
+
+---
+
+## Data Source
+
+Use backend endpoint:
+
+```text
+GET /identity/api/admin/users?tenantId=...
+```
+
+(or equivalent existing API)
+
+---
+
+## Row Action
+
+Click row → navigate to:
+
+```text
+/tenant/authorization/users/[userId]
+```
+
+---
+
+# 2. User Detail Page
+
+## Route
+
+```text
+/tenant/authorization/users/[userId]
+```
+
+---
+
+## Layout Sections
+
+---
+
+## A. Identity Summary
+
+Display:
+
+* Name
+* Email
+* Status
+* Tenant
+
+---
+
+## B. Direct Product Access
+
+### Display
+
+List of products:
+
+```text
+SYNQ_FUND
+SYNQ_LIEN
+SYNQ_CARECONNECT
+```
+
+---
+
+### Actions
+
+* Add product access
+* Remove product access
+
+---
+
+### API
+
+```text
+POST /identity/api/admin/users/{id}/products
+DELETE /identity/api/admin/users/{id}/products/{productCode}
+```
+
+---
+
+## C. Direct Roles
+
+### Display
+
+List roles:
+
+```text
+SYNQ_FUND.FUNDER
+SYNQ_LIEN.ADMIN
+```
+
+---
+
+### Actions
+
+* Assign role
+* Remove role
+
+---
+
+### API
+
+```text
+POST /identity/api/admin/users/{id}/roles
+DELETE /identity/api/admin/users/{id}/roles/{roleCode}
+```
+
+---
+
+## D. Group Membership
+
+### Display
+
+List groups:
+
+* Group name
+* Role source
+
+---
+
+### Actions
+
+* Add to group
+* Remove from group
+
+---
+
+### API
+
+```text
+POST /identity/api/admin/groups/{groupId}/members
+DELETE /identity/api/admin/groups/{groupId}/members/{userId}
+```
+
+---
+
+## E. Effective Access (CRITICAL)
+
+### Display
+
+#### Products
+
+* full list of effective products
+
+#### Roles
+
+* role list with source:
+
+  * Direct
+  * Group (Group Name)
+
+#### Permissions
+
+* permission codes:
+
+```text
+SYNQ_FUND.application:approve
+```
+
+---
+
+### Data Source
+
+Use:
+
+```text
+GET /identity/api/admin/users/{id}/access-debug
+```
+
+---
+
+## F. Permission Source Attribution
+
+Show:
+
+```text
+Permission
+→ via Role
+→ via Group (if applicable)
+```
+
+Example:
+
+```text
+SYNQ_FUND.application:approve
+→ via role: FUND_APPROVER
+→ via group: Finance Team
+```
+
+---
+
+## G. Policy Impact (Optional if already available)
+
+If backend returns:
+
+* deny overrides
+* policy evaluation
+
+Display:
+
+* indicator badge
+* “restricted by policy” note
+
+---
+
+# 3. UX Requirements
+
+---
+
+## Assignment UX
+
+* use dropdown/select for:
+
+  * products
+  * roles
+  * groups
+
+---
+
+## Confirmation
+
+* removal actions require confirmation
+
+---
+
+## Feedback
+
+* success toast
+* error message
+* loading states
+
+---
+
+## Empty States
+
+Examples:
+
+```text
+No roles assigned
+No groups assigned
+No direct access configured
+```
+
+---
+
+# 4. Simulator Quick Access (Light Integration)
+
+---
+
+## Add Button
+
+On user detail page:
+
+```text
+"Simulate Access"
+```
+
+---
+
+## Behavior
+
+* navigates to:
+
+```text
+/tenant/authorization/simulator
+```
+
+* pre-fills:
+
+  * userId
+  * tenantId
+
+---
+
+# 5. API Integration Layer
+
+---
+
+## Create BFF Layer (if needed)
+
+```text
+apps/web/src/lib/tenant-api.ts
+```
+
+---
+
+## Responsibilities
+
+* wrap identity API calls
+* include auth headers
+* handle errors
+
+---
+
+## Required Methods
+
+* getUsers
+* getUserDetail
+* assignProduct
+* removeProduct
+* assignRole
+* removeRole
+* addToGroup
+* removeFromGroup
+* getAccessDebug
+
+---
+
+# 6. Security Rules
+
+---
+
+## Must Enforce
+
+* tenant admin only
+* tenant boundary respected
+* no cross-tenant user access
+* backend validates all actions
+
+---
+
+# 7. Validation Rules
+
+---
+
+## Frontend
+
+* required fields enforced
+* duplicate assignments prevented
+* valid IDs only
+
+---
+
+## Backend
+
+* trust backend validation errors
+* display clearly
+
+---
+
+# 8. Testing Requirements
+
+---
+
+## Unit Tests
+
+* component rendering
+* form validation
+* state updates
+
+---
+
+## Integration Tests
+
+* user list loads correctly
+* detail page loads correctly
+* assign/revoke flows work
+* access-debug integration works
+
+---
+
+## Security Tests
+
+* non-admin blocked
+* cross-tenant blocked
+* invalid userId handled
+
+---
+
+## Regression Tests
+
+* navigation unaffected
+* LS-TENANT-001 still valid
+
+---
+
+# Acceptance Criteria
+
+* user list page fully functional
+* user detail page implemented
+* product access assignment works
+* role assignment works
+* group membership works
+* effective access visible
+* permission sources displayed
+* simulator integration works
+* UI responsive and usable
+* system builds cleanly
+* report generated
+
+---
+
+# Implementation Notes
+
+* prioritize clarity over density
+* do not overload UI
+* keep sections clearly separated
+* reuse Control Center patterns where applicable
+
+---
+
+# Output Report (MANDATORY DETAILS)
+
+The report `/analysis/LS-TENANT-002-report.md` MUST include:
+
+1. user list implementation
+2. user detail implementation
+3. API integrations used
+4. assignment flows
+5. explainability integration
+6. simulator integration
+7. validation rules
+8. test results
+9. build status
+10. known limitations
+11. assumptions
+
+---
+
+# Final Goal
+
+After this feature:
+
+Tenant admins can:
+
+* manage users
+* assign access
+* understand access
+* verify access
+
+This is the first **fully operational tenant authorization capability**.

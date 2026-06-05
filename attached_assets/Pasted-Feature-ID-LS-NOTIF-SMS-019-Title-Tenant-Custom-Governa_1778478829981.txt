@@ -1,0 +1,607 @@
+Feature ID: LS-NOTIF-SMS-019
+
+Title:
+Tenant Custom Governance Rules, Dynamic Policy Packs, and Compliance Rule Management
+
+Objective:
+Extend the SMS governance platform with configurable tenant-specific governance rule packs, prohibited phrase dictionaries, compliance profiles, dynamic enforcement severity controls, governance simulation/testing, rule versioning, policy inheritance, and governance rule analytics without requiring code changes.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- dynamic SMS governance rule evaluation
+- rule-pack persistence
+- compliance profile assignment
+- rule inheritance resolution
+- governance simulation/testing
+- prohibited phrase dictionaries
+- dynamic enforcement severity
+- rule analytics APIs
+
+Control Center must only consume Notification Service APIs and render/administer governance rule management UX. Do not duplicate rule evaluation, inheritance, classification, or simulation logic in Control Center.
+
+Requirements:
+- Implement dynamic governance rules inside Notification Service.
+- Preserve LS-NOTIF-SMS-017 governance policies.
+- Preserve LS-NOTIF-SMS-018 template governance and content classification.
+- Dynamic rules must extend, not replace, existing governance.
+- Support global/platform rule packs and tenant-specific rule packs.
+- Support rule inheritance: global baseline plus tenant override/merge.
+- Support configurable enforcement severity: allow, warn, review_required, block, override_allowed.
+- Support governance simulation/testing without sending SMS.
+- Do not store raw phone numbers in new governance-rule tables.
+- Do not expose provider credentials, webhook URLs, SettingsJson, CredentialsJson, auth tokens, raw provider payloads, or recipient phone numbers.
+- Keep Control Center as admin/visibility UX only.
+- Preserve all LS-NOTIF-SMS-001 through LS-NOTIF-SMS-018 behavior.
+
+Implementation Requirements:
+1. Add SMS governance rule-pack persistence.
+2. Add SMS governance rule persistence.
+3. Add SMS compliance profile persistence.
+4. Add tenant/profile assignment support.
+5. Add dynamic rule inheritance resolver.
+6. Add dynamic governance rule engine.
+7. Add prohibited phrase dictionary support.
+8. Add restricted regex/pattern support with safety controls.
+9. Add variable-rule support for template payloads.
+10. Add URL/domain rule support where feasible.
+11. Add governance simulation/dry-run service.
+12. Add admin APIs for rule packs, rules, profiles, assignments, and simulation.
+13. Add Control Center governance rule management UI if feasible.
+14. Add governance rule analytics/audit visibility.
+15. Ensure dynamic rule failures degrade safely.
+
+Critical Constraints:
+- Reuse existing SmsGovernancePolicy, SmsGovernanceDecision, SmsTemplateGovernanceService, SmsTemplateGovernanceDecision, Notification, NotificationAttempt, routing/governance pipeline, admin endpoint, EF/migration, audit/logging, and Control Center governance UI patterns where appropriate.
+- Do NOT rewrite the Notification Service delivery pipeline.
+- Do NOT bypass existing preference/compliance enforcement.
+- Do NOT bypass LS-017 governance policies.
+- Do NOT bypass LS-018 template governance.
+- Do NOT implement AI/LLM rule generation or moderation.
+- Do NOT call external compliance, telecom, phone validation, moderation, or fraud APIs.
+- Do NOT persist raw phone numbers in rule tables or decision tables.
+- Do NOT expose credentials or secrets.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-019-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing LS-017 governance policy findings
+3. Existing LS-018 template governance findings
+4. Existing content classification/prohibited content findings
+5. Existing Control Center governance UI findings
+6. Files added
+7. Files modified
+8. Database/schema/config changes
+9. API/interface changes
+10. UI/route changes, if implemented
+11. Validation/testing performed
+12. Known gaps/issues
+13. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Governance and Template Enforcement Architecture
+- Identify:
+  - SmsGovernancePolicyService evaluation flow
+  - SmsGovernanceDecision persistence
+  - SmsTemplateGovernanceService classification/enforcement flow
+  - SmsTemplateGovernanceDecision persistence
+  - existing prohibited-content patterns
+  - existing template variable validation
+  - governance API conventions
+  - Control Center sms-governance and sms-templates pages
+  - existing policy JSON validation patterns
+  - existing audit/logging conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define Rule Pack Entity
+Add a Notification Service-local rule-pack entity.
+
+Suggested entity:
+SmsGovernanceRulePack
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- Name string
+- Description string? nullable
+- Version int
+- Status string
+- Enabled bool
+- InheritanceMode string
+- Priority int
+- EffectiveFrom DateTime? nullable
+- EffectiveTo DateTime? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested Status values:
+- draft
+- active
+- inactive
+- archived
+
+Suggested InheritanceMode values:
+- merge
+- override
+- append_only
+
+Requirements:
+- TenantId nullable means platform/global rule pack.
+- Multiple global packs may exist, ordered by Priority.
+- Tenant packs can merge with or override global packs.
+- Disabled/inactive packs must not evaluate.
+- Use EF/migration conventions.
+- Add indexes:
+  - TenantId, Enabled, Priority
+  - Status, Enabled
+  - EffectiveFrom, EffectiveTo
+
+STEP 3 — Define Governance Rule Entity
+Add individual dynamic rule entity.
+
+Suggested entity:
+SmsGovernanceRule
+
+Suggested fields:
+- Id Guid
+- RulePackId Guid
+- RuleType string
+- Name string
+- Description string? nullable
+- Pattern string? nullable
+- Severity string
+- Enabled bool
+- Priority int
+- MetadataJson string? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested RuleType values:
+- prohibited_phrase
+- restricted_pattern
+- classification_override
+- variable_rule
+- link_rule
+- delivery_restriction
+- escalation_rule
+
+Suggested Severity values:
+- allow
+- warn
+- review_required
+- block
+- override_allowed
+
+Requirements:
+- Rule belongs to a rule pack.
+- Pattern may be phrase, safe regex, URL/domain, variable name, or structured metadata depending on RuleType.
+- Validate severity.
+- Validate rule type.
+- Validate regex safety for restricted_pattern.
+- Do not store secrets.
+- Add indexes:
+  - RulePackId, Enabled, Priority
+  - RuleType, Enabled
+  - Severity
+
+STEP 4 — Define Compliance Profile Entity
+Add compliance profile support.
+
+Suggested entity:
+SmsComplianceProfile
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- Name string
+- Description string? nullable
+- Enabled bool
+- DefaultRulePackIdsJson string? nullable
+- EnforcementMode string
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested EnforcementMode values:
+- permissive
+- standard
+- strict
+
+Add profile assignment entity if needed:
+SmsComplianceProfileAssignment
+
+Suggested fields:
+- Id Guid
+- TenantId Guid
+- ProfileId Guid
+- Scope string
+- Enabled bool
+- CreatedAt DateTime
+- UpdatedAt DateTime
+
+Suggested Scope values:
+- tenant
+- provider
+- template_category
+- escalation
+
+Requirements:
+- Tenant-specific assignment should determine which rule packs apply.
+- If no profile assigned, use global/default active packs.
+- Do not store secrets.
+- Use safe inheritance rules.
+
+STEP 5 — Define Dynamic Rule Evaluation Result
+Add shared result model for dynamic rule evaluation.
+
+Suggested model:
+SmsGovernanceRuleEvaluationResult
+
+Suggested fields:
+- DecisionType
+- ReasonCode
+- MatchedRuleId nullable
+- MatchedRulePackId nullable
+- Severity
+- MatchedRuleType nullable
+- MatchedPatternMasked nullable
+- ContentClassification nullable
+- Metadata dictionary safe
+
+Suggested decisions:
+- allow
+- warn
+- review_required
+- block
+- override_allowed
+
+Suggested reason codes:
+- prohibited_phrase_match
+- restricted_pattern_match
+- classification_override
+- variable_rule_violation
+- disallowed_link
+- restricted_domain
+- delivery_restriction_match
+- escalation_rule_match
+- rule_engine_error
+- no_matching_rule
+
+Requirements:
+- Do not expose full sensitive content in decisions.
+- Mask matched patterns where appropriate.
+- Persist only safe metadata.
+
+STEP 6 — Add Rule Inheritance Resolver
+Add rule-pack/profile resolver.
+
+Suggested interface:
+ISmsGovernanceRuleResolver
+
+Suggested methods:
+- ResolveRulesAsync(Guid? tenantId, string? context, CancellationToken ct)
+- ResolveRulePacksAsync(Guid? tenantId, CancellationToken ct)
+
+Behavior:
+- Load active global packs.
+- Load active tenant packs.
+- Apply InheritanceMode:
+  - merge = global + tenant
+  - override = tenant replaces global for matching rule types or pack context
+  - append_only = global evaluated first, tenant evaluated after
+- Order by Priority.
+- Exclude disabled/inactive/expired packs/rules.
+- Respect compliance profile assignment where implemented.
+
+Requirements:
+- Deterministic resolution order.
+- Safe fallback to global packs.
+- If resolver fails, rule engine should fail open or according to config.
+- Document inheritance behavior.
+
+STEP 7 — Add Dynamic Governance Rule Engine
+Add rule engine service.
+
+Suggested interface:
+ISmsGovernanceRuleEngine
+
+Suggested methods:
+- EvaluateContentAsync(SmsGovernanceRuleEvaluationRequest request, CancellationToken ct)
+- EvaluateTemplateAsync(SmsGovernanceRuleEvaluationRequest request, CancellationToken ct)
+- EvaluateEscalationPayloadAsync(SmsGovernanceRuleEvaluationRequest request, CancellationToken ct)
+
+Suggested request:
+- tenantId nullable
+- notificationId nullable
+- templateId nullable
+- templateVersionId nullable
+- renderedBody nullable
+- templateBody nullable
+- variables dictionary nullable
+- contentClassification nullable
+- context string
+- nowUtc
+
+Requirements:
+- Use resolved dynamic rules.
+- Evaluate rules in deterministic priority order.
+- Highest severity should win unless policy says first-match.
+- No AI/ML.
+- No external APIs.
+- No raw phone persistence.
+- Evaluation failures must degrade safely.
+- Persist rule decision only when non-allow or when simulation requested.
+
+STEP 8 — Implement Rule Types
+Implement initial rule types.
+
+prohibited_phrase:
+- Case-insensitive phrase matching.
+- Whole-word option where MetadataJson specifies it.
+- block/review/warn based on Severity.
+
+restricted_pattern:
+- Safe regex only.
+- Enforce max pattern length.
+- Enforce timeout if regex engine supports it.
+- Reject catastrophic patterns where practical.
+- If regex unsafe, disable/reject rule at creation.
+
+classification_override:
+- If content matches metadata criteria, override classification to configured value.
+- Useful for tenant-specific category handling.
+
+variable_rule:
+- Validate variable names, disallowed variables, required variables, or value patterns.
+- Should integrate with LS-018 variable validation.
+
+link_rule:
+- Detect URLs/domains.
+- Block/warn/review based on allowedDomains/blockedDomains metadata.
+
+delivery_restriction:
+- Allow dynamic content/context restrictions without changing LS-017 policy schema.
+- Example: block after-hours escalation text or specific category.
+
+escalation_rule:
+- Apply dynamic governance to escalation payloads if low-risk.
+- If integration too risky, implement rule type and document escalation integration as future.
+
+STEP 9 — Integrate Dynamic Rules With LS-018 Template Governance
+Extend SmsTemplateGovernanceService.
+
+Expected behavior:
+1. Existing LS-018 deterministic classification.
+2. Existing variable validation.
+3. Existing prohibited-content checks.
+4. Dynamic rule engine evaluation.
+5. Final decision = stricter of LS-018 decision and dynamic rule decision.
+6. Persist template governance decision with dynamic rule metadata where applicable.
+
+Requirements:
+- Do not remove existing LS-018 rules.
+- Dynamic rules augment existing behavior.
+- Non-allow dynamic decisions should block/review/warn according to severity.
+- Template governance evaluate-test should support dynamic rule evaluation.
+- Existing LS-018 APIs remain backward compatible.
+
+STEP 10 — Integrate Dynamic Rules With LS-017 Governance Where Appropriate
+Extend governance evaluation if low-risk.
+
+Expected behavior:
+- Dynamic delivery_restriction rules can participate in pre-send evaluation.
+- Dynamic escalation_rule can participate in escalation governance where safe.
+- Do not duplicate LS-017 policy types.
+- Do not rewrite SmsGovernancePolicyService.
+- If integration is too large, expose simulation/API and document send-flow integration as future.
+
+Requirements:
+- Governance fail-open behavior preserved.
+- Dynamic rule evaluation errors do not crash delivery.
+- Existing governance policies continue to work.
+
+STEP 11 — Add Governance Simulation Service
+Add dry-run simulation.
+
+Suggested interface:
+ISmsGovernanceSimulationService
+
+Suggested method:
+- SimulateAsync(SmsGovernanceSimulationRequest request, CancellationToken ct)
+
+Suggested request:
+- tenantId nullable
+- renderedBody
+- templateKey nullable
+- variables dictionary nullable
+- contentClassification nullable
+- context
+- includeRuleTrace bool
+
+Suggested response:
+- finalDecision
+- finalReasonCode
+- contentClassification
+- matchedRules list
+- ruleTrace list optional
+- templateGovernanceDecision
+- dynamicRuleDecision
+- warnings
+
+Requirements:
+- Must not send SMS.
+- Must not persist live governance decisions unless explicitly requested.
+- Useful for Control Center testing.
+- No raw phone required.
+- No external APIs.
+
+STEP 12 — Add Admin Rule APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/governance/rule-packs
+- GET /v1/admin/sms/governance/rule-packs/{id}
+- POST /v1/admin/sms/governance/rule-packs
+- PUT /v1/admin/sms/governance/rule-packs/{id}
+- POST /v1/admin/sms/governance/rule-packs/{id}/disable
+- GET /v1/admin/sms/governance/rules
+- POST /v1/admin/sms/governance/rules
+- PUT /v1/admin/sms/governance/rules/{id}
+- POST /v1/admin/sms/governance/rules/{id}/disable
+- GET /v1/admin/sms/governance/profiles
+- POST /v1/admin/sms/governance/profiles
+- PUT /v1/admin/sms/governance/profiles/{id}
+- POST /v1/admin/sms/governance/simulate
+- GET /v1/admin/sms/governance/rule-analytics
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Validate rule type/severity.
+- Validate regex safety.
+- Validate pattern length.
+- Validate metadata JSON.
+- Use pagination.
+- Do not expose raw recipient phones, credentials, or provider payloads.
+- Return safe masked match info only.
+
+STEP 13 — Extend Control Center Governance UI If Feasible
+Extend existing governance UI.
+
+Suggested route:
+- /notifications/sms-governance/rules
+or add tab to /notifications/sms-governance
+
+Suggested sections:
+- rule-pack table
+- rule table/editor
+- compliance profile table
+- simulation/testing panel
+- rule analytics
+- prohibited phrase dictionary editor
+- inheritance preview
+
+Requirements:
+- PlatformAdmin-only.
+- Use Notification Service APIs only.
+- Do not duplicate rule logic.
+- No raw phone display.
+- No credentials.
+- Use existing UI patterns.
+- If too large, document as next feature.
+
+STEP 14 — Documentation
+Update documentation/report notes for:
+- rule-pack inheritance
+- rule types
+- severity handling
+- simulation behavior
+- dynamic vs static governance interaction
+- regex safety controls
+- profile assignment behavior
+- Control Center UI if implemented
+
+Documentation must explain:
+- dynamic rules extend LS-017/018 and do not replace them.
+- no AI/ML is used.
+- no external compliance APIs are used.
+- simulations do not send SMS.
+- inheritance resolution is deterministic.
+
+STEP 15 — Validation
+Perform validation/testing for:
+
+Rule packs:
+- create/update/disable rule pack.
+- global pack applies.
+- tenant pack applies.
+- inheritance merge works.
+- inheritance override works.
+- inactive/expired pack ignored.
+
+Rules:
+- prohibited_phrase matches correctly.
+- restricted_pattern works with safe regex.
+- unsafe regex rejected.
+- classification_override works.
+- variable_rule works.
+- link_rule blocks restricted domains.
+- severity controls decision outcome.
+- disabled rule ignored.
+
+Profiles:
+- profile create/update works.
+- tenant assignment works.
+- missing profile falls back safely.
+
+Simulation:
+- simulate does not send SMS.
+- returns matched rule trace.
+- returns final decision.
+- handles no matching rules.
+- handles malformed input safely.
+
+Integration:
+- dynamic prohibited rule blocks template governance.
+- dynamic warn rule allows but persists warning.
+- LS-018 deterministic rules still apply.
+- LS-017 governance still applies.
+- regression behavior unchanged when no dynamic rules exist.
+
+APIs:
+- PlatformAdmin authorization enforced.
+- pagination works.
+- validation works.
+- no raw phones/credentials/payloads exposed.
+
+Control Center UI if implemented:
+- rule pack table renders.
+- rule editor works.
+- simulation panel works.
+- no sensitive data displayed.
+
+Regression validation:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-018 behavior preserved.
+- template governance preserved.
+- operational governance preserved.
+- adaptive routing preserved.
+- recipient intelligence preserved.
+- alerting/escalation preserved.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsGovernanceRulePack entity/table
+- SmsGovernanceRule entity/table
+- SmsComplianceProfile entity/table
+- Optional SmsComplianceProfileAssignment entity/table
+- Rule inheritance resolver
+- Dynamic governance rule engine
+- Governance simulation service
+- Rule/profile admin APIs
+- Rule analytics APIs
+- Control Center dynamic governance UI if feasible
+- Completed analysis report
+
+Do NOT:
+- Persist raw phone numbers
+- Expose credentials or secrets
+- Expose webhook URLs
+- Call external compliance/moderation APIs
+- Implement AI/LLM governance
+- Rewrite delivery pipeline
+- Replace LS-017 governance
+- Replace LS-018 template governance
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-018 behavior

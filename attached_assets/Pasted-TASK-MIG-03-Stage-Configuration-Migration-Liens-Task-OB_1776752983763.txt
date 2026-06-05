@@ -1,0 +1,384 @@
+TASK-MIG-03 — Stage Configuration Migration (Liens → Task)
+
+OBJECTIVE:
+Migrate Liens task stage configuration from `liens_WorkflowConfigs` and `liens_WorkflowStages` into the Task service (`tasks_StageConfigs`) so Task becomes the primary owner of product-scoped task-board stage definitions for Liens.
+
+This step migrates **stage definitions only**.
+
+NON-NEGOTIABLE RULES:
+- DO NOT migrate Flow orchestration stages
+- DO NOT migrate orchestration transitions
+- DO NOT redesign workflow logic
+- DO NOT delete Liens stage tables in this step
+- DO NOT migrate stage-transition rules in this prompt
+- ZERO UI behavior regression
+- MUST preserve Liens task-board behavior
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- MUST inspect actual code/schema before implementation
+- NO placeholders
+
+CRITICAL BOUNDARY:
+- `liens_WorkflowStages` = task-board / kanban stage config → belongs in Task
+- `flow_workflow_stages` = orchestration step graph → stays in Flow
+- Do NOT blur these concepts anywhere in implementation
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-03-report.md
+
+Initialize with:
+
+# TASK-MIG-03 Report — Stage Configuration Migration
+
+## 1. Codebase Analysis
+## 2. Schema Comparison
+## 3. Migration Mapping Design
+## 4. Task Schema Adjustments
+## 5. Data Migration Execution
+## 6. Dual-Read / Fallback Logic
+## 7. Task Board Compatibility
+## 8. Validation Results
+## 9. Rollback Plan
+## 10. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT IMPLEMENTATION
+--------------------------------------------------
+
+Inspect the actual codebase for all Liens stage configuration usage.
+
+Liens:
+- `liens_WorkflowConfigs`
+- `liens_WorkflowStages`
+- entity/configuration/repository/service usage
+- where stages are read in:
+  - My Tasks / Task Manager
+  - task create flows
+  - governance start-stage derivation
+  - template contextual filtering
+  - generation rules / applicability checks
+- how `DefaultOwnerRole`, `SlaMetadata`, `StageOrder`, `IsActive`, and wrapper config fields are used
+
+Task:
+- `tasks_StageConfigs`
+- entity/configuration/repository/service/API usage
+- how Task currently resolves stages by tenant/product
+- whether current Task stage schema is sufficient for Liens semantics
+
+Document:
+- all fields in both schemas
+- runtime read/write paths
+- semantic mismatches
+- all code paths that depend on Liens stage IDs
+
+Update:
+## 1. Codebase Analysis
+## 2. Schema Comparison
+
+--------------------------------------------------
+STEP 2 — DESIGN FIELD MAPPING
+--------------------------------------------------
+
+Define how Liens stage config maps into Task stage config.
+
+At minimum evaluate mappings such as:
+- TenantId
+- ProductCode / SourceProductCode
+- StageName → Name
+- StageOrder → DisplayOrder
+- IsActive
+- any code/key field needed by Task
+
+Identify Liens-specific fields with no direct Task equivalent, likely including:
+- `DefaultOwnerRole`
+- `SlaMetadata`
+- any config-wrapper fields from `liens_WorkflowConfigs`
+- any display metadata or start-stage hints
+
+Decision rule:
+- DO NOT lose Liens-specific meaning
+- Store Liens-specific stage extensions using:
+  - `ProductSettingsJson` / `MetadataJson` / equivalent extension field if available
+  - only add explicit nullable columns if absolutely necessary
+
+Also decide:
+- whether stage IDs should be preserved
+- whether `liens_WorkflowConfig` wrapper should be:
+  1. represented implicitly by `(TenantId, SourceProductCode)` grouping in Task, or
+  2. modeled explicitly in Task
+
+Bias toward the simplest safe option:
+- preserve stage IDs if it reduces downstream remapping risk
+- drop wrapper-table semantics only if grouping is enough
+
+Update:
+## 3. Migration Mapping Design
+
+--------------------------------------------------
+STEP 3 — ADJUST TASK SCHEMA (IF REQUIRED)
+--------------------------------------------------
+
+If `tasks_StageConfigs` cannot safely represent Liens stage semantics, add the minimum safe extension.
+
+Preferred options:
+- `ProductSettingsJson` or `MetadataJson` on `tasks_StageConfigs`
+- preserve generic Task ownership
+- avoid Liens-specific columns unless there is no clean alternative
+
+Possible needs to evaluate:
+- storing `DefaultOwnerRole`
+- storing `SlaMetadata`
+- preserving wrapper-config metadata if needed
+
+Rules:
+- MUST be backward compatible
+- MUST NOT break existing Task stage consumers
+- MUST follow existing migration patterns
+- MUST keep Task generic
+
+If schema changes are needed:
+- create migration with a clear name
+- apply migration
+
+Update:
+## 4. Task Schema Adjustments
+
+--------------------------------------------------
+STEP 4 — DATA MIGRATION
+--------------------------------------------------
+
+Implement migration logic to copy/upsert Liens stage config into Task.
+
+For each tenant/product stage set in:
+- `liens_WorkflowConfigs`
+- `liens_WorkflowStages`
+
+Create or update rows in:
+- `tasks_StageConfigs`
+
+Requirements:
+- `SourceProductCode = SYNQ_LIENS`
+- migration must be idempotent
+- preserve order and active/inactive behavior
+- preserve stage identity safely if needed for downstream compatibility
+- no duplicate rows
+- log:
+  - created
+  - updated
+  - skipped
+  - failed
+
+Important:
+- Do NOT delete Liens stage rows
+- Do NOT migrate transitions yet
+- Do NOT break current stage ID references without a remapping plan
+
+If stage IDs are preserved:
+- implement that explicitly
+
+If stage IDs are not preserved:
+- implement a reliable mapping strategy and document all downstream consumers that require remapping
+
+Update:
+## 5. Data Migration Execution
+
+--------------------------------------------------
+STEP 5 — DUAL-READ IMPLEMENTATION
+--------------------------------------------------
+
+Modify Liens stage resolution so runtime reads can prefer Task while retaining Liens fallback.
+
+Apply this to all stage-resolution paths that matter for:
+- task-board stage loading
+- stage lookup by ID
+- governance start-stage derivation
+- template contextual filtering where stage IDs matter
+- any active-stage list used by the UI or task creation flows
+
+Read path rule:
+1. Try Task service first
+2. If missing / unavailable, fall back to Liens DB
+3. Log which source was used
+
+Rules:
+- Task = primary
+- Liens = fallback
+- no behavior regression
+- no forced ownership cutover yet
+
+Important:
+You must be careful with ID-based lookups. If any runtime code expects original Liens stage IDs, preserve compatibility.
+
+Update:
+## 6. Dual-Read / Fallback Logic
+
+--------------------------------------------------
+STEP 6 — TASK BOARD COMPATIBILITY
+--------------------------------------------------
+
+This step is critical.
+
+Ensure stage migration does NOT break:
+- My Tasks / Task Manager stage columns
+- start-stage derivation behavior
+- active/inactive stage filtering
+- stage ordering
+- any role/SLA metadata reads
+- template or generation-rule references to stages
+- case/task board rendering
+
+Specifically inspect:
+- where `ApplicableWorkflowStageId` from templates/rules is used
+- whether `DefaultStartStageMode` / `ExplicitStartStageId` in governance still expects Liens stage IDs
+- whether UI endpoints return stages directly from Liens DB today
+- whether the Task service API returns enough data for Liens to preserve current behavior
+
+If stage IDs are preserved:
+- validate that all references continue working directly
+
+If stage IDs are NOT preserved:
+- implement an explicit mapping/resolution layer
+- document all affected paths
+- ensure zero runtime regressions
+
+Document exactly how compatibility is preserved.
+
+Update:
+## 7. Task Board Compatibility
+
+--------------------------------------------------
+STEP 7 — WRITE-THROUGH BEHAVIOR
+--------------------------------------------------
+
+For Liens admin stage configuration writes:
+
+Keep Liens DB authoritative during this migration step, but implement best-effort sync to Task service using the same proven pattern as governance/templates where appropriate.
+
+Applies to:
+- create stage
+- update stage
+- activate/deactivate stage
+- reorder stage if supported
+- wrapper/config-level updates if they materially affect stage definitions
+
+Rules:
+- write to Liens DB first
+- sync to Task second
+- Task sync failure must NOT break admin save
+- startup/background sync may reconcile later
+
+If there is no admin write path in scope, document that clearly and implement only what the codebase actually uses.
+
+Update:
+## 6. Dual-Read / Fallback Logic
+## 7. Task Board Compatibility
+
+--------------------------------------------------
+STEP 8 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. Existing Liens task-board behavior unchanged
+2. Task service stores Liens stage configs correctly
+3. Task-first stage reads work
+4. Liens fallback works when Task stage data missing
+5. Migration is idempotent (running twice causes no duplicates)
+6. Mixed state works (some tenants migrated, some not)
+7. Stage ordering is preserved
+8. Active/inactive filtering is preserved
+9. Governance start-stage derivation still works
+10. Template stage applicability still works
+11. No runtime errors if Task service is temporarily unavailable
+12. Existing Task stage behavior for non-Liens consumers remains unchanged
+
+Verify builds for all changed services.
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 8. Validation Results
+
+--------------------------------------------------
+STEP 9 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting Liens runtime reads to Liens-only
+- keeping Task stage data untouched
+- disabling sync job / sync path
+- no data loss
+- no schema rollback required unless strictly necessary
+
+If Task schema was extended, explain whether rollback requires reversing the migration or whether the added fields are harmless if left in place.
+
+Update:
+## 9. Rollback Plan
+
+--------------------------------------------------
+STEP 10 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any fields not perfectly mapped
+- any wrapper-config semantics lost or flattened
+- stage ID risks
+- template/rule stage-reference risks
+- start-stage derivation risks
+- future transition-table dependency
+- future cleanup required before transition migration
+- whether a later cleanup task is required to remove Liens stage ownership
+
+Update:
+## 10. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-03 is complete only if:
+
+1. Liens stage configuration exists in Task service
+2. Liens can read stage config from Task successfully
+3. Liens fallback still works
+4. Task-board behavior remains unchanged
+5. Stage ordering and activity behavior are preserved
+6. Governance/template/generation stage references still work
+7. Migration is idempotent
+8. Safe to proceed later to transition migration
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT migrate Flow orchestration stages
+- Do NOT migrate Flow transitions
+- Do NOT add rules/conditions engine to Task
+- Do NOT add task-stage transitions in this prompt
+- Do NOT delete `liens_WorkflowConfigs` or `liens_WorkflowStages`
+- Do NOT redesign generation rules
+- Do NOT force final ownership cutover yet
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens stage entities / repositories / services / admin endpoints
+- Task stage entities / DTOs / services / endpoints
+- Liens ↔ Task service client
+- any startup/background sync component if needed
+- migrations only if required for safe schema extension
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

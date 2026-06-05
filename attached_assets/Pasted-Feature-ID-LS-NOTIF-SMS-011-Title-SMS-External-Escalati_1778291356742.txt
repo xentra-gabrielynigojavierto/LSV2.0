@@ -1,0 +1,569 @@
+Feature ID: LS-NOTIF-SMS-011
+
+Title:
+SMS External Escalation and Incident Notification Integrations
+
+Objective:
+Add operational escalation and incident-notification integrations inside Notification Service so critical SMS operational alerts can notify platform operators through configured external operational channels such as email, Microsoft Teams, Slack, PagerDuty, Opsgenie, and internal platform notifications.
+
+Critical Architectural Constraint:
+Although this feature will be implemented inside the LegalSynq monorepo, all SMS alert escalation policy evaluation, escalation persistence, retry handling, and external incident notification integration logic must remain inside the Notification Service boundary.
+
+Requirements:
+- Do not build Control Center UI in this feature.
+- Do not add SMS escalation logic to unrelated services.
+- Do not create shared cross-service escalation abstractions unless an existing Notification Service shared/internal module already exists.
+- Do not modify other services except where strictly necessary for build/config compatibility.
+- Notification Service must own:
+  - SMS alert escalation policy configuration
+  - SMS alert escalation routing
+  - SMS alert escalation delivery adapters
+  - SMS alert escalation persistence/history
+  - SMS alert escalation retry handling
+  - SMS alert escalation admin APIs
+- Control Center should consume Notification Service escalation APIs in a future UI feature.
+- Preserve Notification Service as the system of record for SMS operational alerts and SMS alert escalation outcomes.
+
+Implementation Requirements:
+1. Add SMS alert escalation policy support inside Notification Service.
+2. Escalate eligible SMS operational alerts based on severity, alert type, tenant, provider, and configured policy rules.
+3. Support at least internal platform notification and email escalation if existing Notification Service delivery patterns support them cleanly.
+4. Add Microsoft Teams and Slack webhook escalation adapters if straightforward within existing infrastructure patterns.
+5. Treat PagerDuty and Opsgenie as optional unless existing webhook/client patterns make them low-risk to implement.
+6. Persist escalation attempts and outcomes.
+7. Link escalation records to the originating SmsOperationalAlert.
+8. Add deduplication/cooldown to prevent escalation spam.
+9. Add retry handling for transient escalation delivery failures.
+10. Add admin APIs to list escalation history, summarize escalation outcomes, manage policies, and manually retry failed escalations.
+11. Preserve existing SMS alert evaluation behavior from LS-NOTIF-SMS-010.
+12. Preserve existing outbound SMS send, retry/dead-letter, webhook, compliance, tenant provider resolution, reconciliation, activity APIs, dashboard APIs, and Control Center dashboard behavior.
+13. Do not add or expand conversational inbound SMS behavior.
+
+Critical Constraints:
+- Reuse existing SmsOperationalAlert, audit, worker, endpoint, authorization, migration, notification delivery, HTTP client, and repository patterns where appropriate.
+- Do NOT introduce large rewrites.
+- Keep implementation incremental and production-oriented.
+- Escalation evaluation must not trigger SMS sends unless explicitly using the existing Notification Service as an internal notification channel and doing so does not create recursive SMS alert loops.
+- Avoid alert escalation through SMS by default to prevent recursion and incident noise.
+- External escalation failures must not crash Notification Service.
+- Escalation delivery must not expose provider credentials, CredentialsJson, SettingsJson, auth tokens, raw provider payloads, or full phone numbers.
+- Policy targets such as webhook URLs or email destinations must be treated as sensitive operational configuration and never returned in full unless existing admin patterns explicitly allow it.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-011-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS alert architecture findings
+3. Existing Notification Service delivery/channel findings
+4. Existing worker/retry pattern findings
+5. Existing external HTTP/webhook client pattern findings
+6. Existing audit/event findings
+7. Existing admin authorization findings
+8. Existing migration/schema safety-net findings
+9. Files added
+10. Files modified
+11. Database/schema/config changes
+12. API/interface changes
+13. Validation/testing performed
+14. Known gaps/issues
+15. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Notification Service Alert and Delivery Architecture
+- Identify:
+  - SmsOperationalAlert entity/repository/evaluator from LS-NOTIF-SMS-010
+  - Alert creation/update lifecycle
+  - Existing audit conventions
+  - Existing BackgroundService/worker patterns
+  - Existing retry/dead-letter patterns where reusable
+  - Existing notification delivery channels available inside Notification Service
+  - Existing email provider adapter or notification send flow
+  - Existing HTTP client/webhook integration patterns
+  - Existing admin endpoint patterns
+  - Existing authorization policy for PlatformAdmin/admin users
+  - Existing migration and startup schema safety-net conventions
+- Document findings in the report before implementation.
+
+STEP 2 — Define SMS Escalation Policy Domain Model
+Add a Notification Service-local escalation policy entity.
+
+Suggested entity:
+SmsOperationalEscalationPolicy
+
+Suggested fields:
+- Id Guid
+- Name string
+- Enabled bool
+- AlertType string? nullable
+- Severity string? nullable
+- TenantId Guid? nullable
+- Provider string? nullable
+- ProviderConfigId Guid? nullable
+- ChannelType string
+- Target string
+- TargetDisplay string? nullable
+- CooldownMinutes int
+- RetryEnabled bool
+- MaxRetryCount int
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Recommended ChannelType values:
+- internal_notification
+- email
+- teams_webhook
+- slack_webhook
+- pagerduty
+- opsgenie
+
+Requirements:
+- Policy matching must support null wildcard fields.
+- Target must be stored securely as operational configuration.
+- API responses should mask sensitive targets such as webhook URLs.
+- Use `TargetDisplay` or masking helper for safe display.
+- Policies must be disabled rather than physically deleted unless existing patterns prefer hard delete.
+- Add indexes suitable for enabled policy lookup by alert/severity/provider/tenant.
+
+STEP 3 — Define SMS Alert Escalation Attempt Domain Model
+Add a Notification Service-local escalation attempt/history entity.
+
+Suggested entity:
+SmsOperationalAlertEscalation
+
+Suggested fields:
+- Id Guid
+- AlertId Guid
+- PolicyId Guid? nullable
+- ChannelType string
+- TargetMasked string? nullable
+- Severity string
+- Status string
+- AttemptCount int
+- LastAttemptAt DateTime? nullable
+- SentAt DateTime? nullable
+- FailureReason string? nullable
+- NextRetryAt DateTime? nullable
+- SuppressedUntil DateTime? nullable
+- PayloadHash string? nullable
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- MetadataJson string? nullable
+
+Recommended Status values:
+- pending
+- sent
+- failed
+- suppressed
+- skipped
+
+Requirements:
+- Link each escalation attempt to originating SmsOperationalAlert.
+- Persist only safe metadata.
+- Do not store raw full webhook URLs in attempt records.
+- Store masked target or target display only.
+- Do not store raw provider payloads or phone numbers.
+- Add indexes for alertId, status, nextRetryAt, createdAt.
+
+STEP 4 — Add Escalation Policy Repository and APIs
+Add repository and admin APIs for escalation policies.
+
+Suggested repository:
+ISmsOperationalEscalationPolicyRepository
+
+Suggested methods:
+- ListAsync(query, ct)
+- GetByIdAsync(id, ct)
+- GetEnabledMatchingPoliciesAsync(alert, ct)
+- CreateAsync(policy, ct)
+- UpdateAsync(policy, ct)
+- DisableAsync(id, updatedBy, ct)
+
+Suggested endpoints:
+- GET /v1/admin/sms/alerts/policies
+- GET /v1/admin/sms/alerts/policies/{id}
+- POST /v1/admin/sms/alerts/policies
+- PUT /v1/admin/sms/alerts/policies/{id}
+- DELETE /v1/admin/sms/alerts/policies/{id} or POST /disable
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Validate ChannelType.
+- Validate Severity if provided.
+- Validate AlertType if provided against known alert types where practical.
+- Validate CooldownMinutes and MaxRetryCount bounds.
+- Mask Target in responses.
+- Do not expose full webhook URLs unless existing secure admin config pattern explicitly allows it.
+- Avoid logging target secrets.
+
+STEP 5 — Add Escalation Attempt Repository and APIs
+Add repository and admin APIs for escalation attempts/history.
+
+Suggested repository:
+ISmsOperationalAlertEscalationRepository
+
+Suggested methods:
+- CreateAsync(escalation, ct)
+- UpdateAsync(escalation, ct)
+- GetByIdAsync(id, ct)
+- ListAsync(query, ct)
+- SummarizeAsync(query, ct)
+- FindRecentDuplicateAsync(alertId, policyId, payloadHash, cooldown, ct)
+- GetPendingRetriesAsync(limit, now, ct)
+
+Suggested endpoints:
+- GET /v1/admin/sms/alerts/escalations
+- GET /v1/admin/sms/alerts/escalations/summary
+- GET /v1/admin/sms/alerts/escalations/{id}
+- POST /v1/admin/sms/alerts/escalations/{id}/retry
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Support filters:
+  - alertId
+  - policyId
+  - status
+  - channelType
+  - severity
+  - from
+  - to
+  - limit
+  - offset
+- Return masked targets only.
+- Do not expose target secrets, webhook URLs, credentials, or raw payloads.
+- Manual retry should only retry failed/pending eligible escalations.
+- Manual retry must not create duplicate unrelated escalation records.
+
+STEP 6 — Add Escalation Message Builder
+Create a service to build safe escalation payloads from SmsOperationalAlert.
+
+Suggested service:
+ISmsAlertEscalationMessageBuilder
+
+Responsibilities:
+- Generate subject/title.
+- Generate concise body/message.
+- Generate structured payload for Teams/Slack/webhook channels.
+- Generate payload hash for deduplication.
+- Include safe alert metadata:
+  - alertId
+  - alertType
+  - severity
+  - tenantId
+  - provider
+  - providerConfigId
+  - metricValue
+  - thresholdValue
+  - windowStart/windowEnd
+  - occurrenceCount
+  - createdAt/lastObservedAt
+- Exclude:
+  - phone numbers
+  - provider credentials
+  - raw provider payloads
+  - CredentialsJson
+  - SettingsJson
+  - auth tokens
+
+Requirements:
+- Message should include enough context for operators to act.
+- Include link target placeholder only if existing app has a known Control Center alert URL pattern; otherwise omit or document as future.
+- Keep payloads provider/channel safe.
+
+STEP 7 — Add Escalation Channel Adapters
+Add a local adapter abstraction for escalation channels.
+
+Suggested interface:
+ISmsAlertEscalationChannelAdapter
+
+Suggested methods:
+- bool Supports(string channelType)
+- Task<SmsEscalationDeliveryResult> SendAsync(SmsOperationalEscalationPolicy policy, SmsOperationalAlert alert, EscalationPayload payload, CancellationToken ct)
+
+Suggested result:
+- Success bool
+- Retryable bool
+- ErrorCode string? nullable
+- ErrorMessage string? nullable
+- ExternalMessageId string? nullable
+
+Initial adapters:
+1. Internal notification adapter
+   - Use existing Notification Service internal notification/send flow if safe.
+   - Avoid SMS channel to prevent recursion.
+   - Prefer email or in-app/platform notification where available.
+2. Email adapter
+   - Use existing email notification/provider patterns if clean.
+3. Teams webhook adapter
+   - POST JSON message card/adaptive-style payload to configured webhook URL.
+4. Slack webhook adapter
+   - POST JSON payload to configured webhook URL.
+5. PagerDuty/Opsgenie optional
+   - Implement only if low-risk; otherwise document as future.
+
+Requirements:
+- No SMS escalation by default.
+- Webhook adapters must use IHttpClientFactory or existing HTTP client pattern.
+- Timeouts must be bounded.
+- 2xx = success.
+- 429/5xx/network timeout = retryable failure.
+- 400/401/403 = non-retryable config/auth failure.
+- Do not log full webhook URL or payload secrets.
+- Keep channel-specific formatting isolated in adapters.
+
+STEP 8 — Add Escalation Service
+Add service to evaluate and execute escalation for alerts.
+
+Suggested interface:
+ISmsAlertEscalationService
+
+Suggested methods:
+- EscalateAlertAsync(Guid alertId, CancellationToken ct)
+- EscalateAlertAsync(SmsOperationalAlert alert, CancellationToken ct)
+- RetryEscalationAsync(Guid escalationId, string requestedBy, CancellationToken ct)
+- ProcessPendingRetriesAsync(int limit, CancellationToken ct)
+
+Expected behavior:
+1. Load alert.
+2. Find enabled matching policies.
+3. For each policy:
+   - build safe payload
+   - compute payload hash
+   - check recent duplicate/cooldown
+   - create pending escalation record
+   - send via adapter
+   - update status sent/failed/suppressed
+   - schedule retry if retryable and policy allows
+4. Audit escalation lifecycle event if audit patterns support it.
+
+Requirements:
+- External delivery failures must not crash alert evaluation.
+- No matching policy should result in a safe no-op/log.
+- Dedup/cooldown must prevent repeated spam.
+- Retry scheduling must be bounded by MaxRetryCount.
+- Do not trigger SMS sends.
+- Do not expose secrets.
+
+STEP 9 — Integrate Escalation With Alert Creation/Update
+Integrate escalation with LS-NOTIF-SMS-010 alert lifecycle.
+
+Options:
+- Preferred: after alert evaluator creates or updates an active alert, call escalation service asynchronously/best-effort within the same worker cycle.
+- Alternative: escalation worker scans active alerts without recent escalations.
+
+Requirements:
+- Preserve alert creation/update semantics.
+- Escalation failure must not fail alert creation/update.
+- Do not escalate resolved/suppressed alerts unless policy explicitly says so.
+- Critical alerts should escalate immediately where policy matches.
+- Warning alerts may escalate according to policy.
+- Respect policy cooldown.
+- Manual evaluation endpoint may trigger escalation unless a query/config option disables it; document behavior.
+
+STEP 10 — Add Escalation Retry Worker
+Add optional scheduled worker for retrying failed transient escalations.
+
+Suggested worker:
+SmsAlertEscalationRetryWorker
+
+Behavior:
+- Uses existing BackgroundService pattern.
+- Reads config:
+  - SMS_ESCALATION_RETRY_ENABLED=true/false default true or false according to existing conventions; safer default false if uncertain.
+  - SMS_ESCALATION_RETRY_INTERVAL_MINUTES=5
+  - SMS_ESCALATION_RETRY_BATCH_SIZE=50
+- Loads due failed/pending retry records.
+- Retries with same policy/channel/target.
+- Respects MaxRetryCount.
+- Logs failures without crashing service.
+- Respects CancellationToken.
+
+Requirements:
+- Bounded batch.
+- No SMS sends.
+- No provider calls except configured escalation channel HTTP calls.
+- Do not expose secrets in logs.
+
+STEP 11 — Add Configuration
+Add safe configuration for escalation behavior.
+
+Suggested config:
+SmsAlertEscalation:
+- Enabled bool default false
+- RetryEnabled bool default false
+- RetryIntervalMinutes int default 5
+- RetryBatchSize int default 50
+- DefaultCooldownMinutes int default 60
+- HttpTimeoutSeconds int default 10
+- EnableEmailAdapter bool default true if email is configured
+- EnableTeamsAdapter bool default true
+- EnableSlackAdapter bool default true
+- EnablePagerDutyAdapter bool default false
+- EnableOpsgenieAdapter bool default false
+
+Environment variables:
+- SMS_ALERT_ESCALATION_ENABLED=false
+- SMS_ALERT_ESCALATION_RETRY_ENABLED=false
+- SMS_ALERT_ESCALATION_HTTP_TIMEOUT_SECONDS=10
+
+Requirements:
+- Escalation disabled by default unless existing service convention prefers enabled.
+- Admin policy management can exist while delivery is globally disabled; in disabled mode, escalation service should no-op with clear status.
+- No secrets in global env except existing service-level webhook configuration if policy table is not used.
+
+STEP 12 — Audit Escalation Events
+Add audit events where existing audit patterns make this straightforward.
+
+Suggested audit events:
+- sms.alert.escalation.created
+- sms.alert.escalation.sent
+- sms.alert.escalation.failed
+- sms.alert.escalation.suppressed
+- sms.alert.escalation.retried
+- sms.alert.escalation.policy_created
+- sms.alert.escalation.policy_updated
+- sms.alert.escalation.policy_disabled
+
+Requirements:
+- Audit failures must not crash escalation.
+- Metadata must be safe.
+- Include alertId, escalationId, policyId, channelType, status, severity.
+- Do not include target secrets, webhook URLs, credentials, phone numbers, or raw payloads.
+
+STEP 13 — Documentation
+Update documentation/report notes for:
+- escalation policy model
+- escalation attempt/history model
+- supported channels
+- channel adapter behavior
+- retry behavior
+- cooldown/dedup behavior
+- admin APIs
+- security/privacy constraints
+- disabled-by-default operational behavior
+- future Control Center UI integration
+
+Documentation must explain:
+- escalation is based on persisted SMS operational alerts
+- escalation does not send SMS by default
+- escalation does not call SMS providers
+- webhook targets are sensitive operational config
+- failed escalations are retried only if configured
+- Control Center UI is out of scope
+
+STEP 14 — Validation
+Perform validation/testing for:
+
+Schema/model:
+- SmsOperationalEscalationPolicy table created
+- SmsOperationalAlertEscalation table created
+- indexes created if applicable
+- no credentials/raw phone numbers in escalation records
+- target masking works
+
+Policy APIs:
+- create policy works
+- list policies masks target
+- update policy works
+- disable policy works
+- invalid channelType rejected
+- invalid severity rejected
+- non-admin access rejected
+
+Escalation execution:
+- critical alert with matching policy creates escalation
+- no matching policy creates no escalation and no crash
+- disabled global escalation no-ops safely
+- cooldown prevents duplicate escalation spam
+- occurrence/dedup behavior works
+- escalation links to alertId and policyId
+- sent status persists on successful delivery
+- failed status persists on failed delivery
+- retryable failure schedules NextRetryAt
+- non-retryable failure does not schedule retry
+
+Channel adapters:
+- internal notification/email adapter sends through existing safe channel if implemented
+- Teams webhook 2xx returns success
+- Slack webhook 2xx returns success
+- webhook 429/5xx/network timeout returns retryable failure
+- webhook 400/401/403 returns non-retryable failure
+- webhook URL not logged
+- payload contains safe alert metadata only
+
+Retry worker:
+- disabled by default or according to config
+- processes due retry records
+- respects MaxRetryCount
+- bounded batch
+- respects cancellation
+- logs errors without crashing
+
+Admin escalation APIs:
+- list escalation history works
+- summary counts work
+- get escalation detail works
+- manual retry works for eligible failed escalation
+- manual retry rejected/skipped for sent or ineligible escalation
+- responses mask target and do not expose secrets
+
+Audit:
+- escalation created/sent/failed/suppressed/retried events emitted where implemented
+- policy created/updated/disabled events emitted where implemented
+- audit failures do not crash service
+- audit metadata safe
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 outbound SMS send unchanged
+- LS-NOTIF-SMS-002 preference enforcement unchanged
+- LS-NOTIF-SMS-003 inbound compliance behavior not expanded
+- LS-NOTIF-SMS-004 vendor reconciliation behavior unchanged
+- LS-NOTIF-SMS-005 tenant runtime provider resolution unchanged
+- LS-NOTIF-SMS-006 activity APIs unchanged
+- LS-NOTIF-SMS-007 reconciliation tracking unchanged
+- LS-NOTIF-SMS-008 dashboard APIs unchanged
+- LS-NOTIF-SMS-009 Control Center dashboard UI unchanged
+- LS-NOTIF-SMS-010 alert evaluation behavior preserved
+- email/in-app notification behavior unchanged except intentional internal/email escalation channel behavior if implemented
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- SmsOperationalEscalationPolicy domain entity/table
+- SmsOperationalAlertEscalation domain entity/table
+- Escalation policy repository/service/API
+- Escalation attempt repository/API
+- Escalation message builder
+- Escalation channel adapter abstraction
+- Internal notification/email adapter where safe
+- Teams webhook adapter
+- Slack webhook adapter
+- Optional PagerDuty/Opsgenie adapters if low-risk
+- Escalation service with dedup/cooldown
+- Escalation retry worker
+- Safe audit events
+- Configuration docs
+- Completed analysis report
+
+Do NOT:
+- Build Control Center UI
+- Trigger SMS sends by default
+- Trigger SMS provider calls
+- Add conversational inbound SMS
+- Add new SMS providers
+- Move escalation logic outside Notification Service
+- Add SMS escalation logic to unrelated services
+- Store provider credentials or secrets
+- Expose webhook URLs or escalation targets in full unless existing secure admin config patterns allow it
+- Store raw provider response payloads
+- Store or expose full phone numbers
+- Expose CredentialsJson, SettingsJson, auth tokens, or provider secrets
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-010 behavior

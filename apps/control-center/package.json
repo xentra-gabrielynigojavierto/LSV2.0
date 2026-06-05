@@ -1,0 +1,43 @@
+{
+  "name": "legalsynq-control-center",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 5004",
+    "build": "next build",
+    "start": "next start -p 5004",
+    "type-check": "tsc --noEmit",
+    "test": "tsx --test src/lib/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.4.1",
+    "next": "15.5.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remixicon": "^4.9.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "*",
+    "@types/node": "*",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "*",
+    "tailwindcss": "*",
+    "typescript": "*"
+  },
+  "overrides": {
+    "file-type": "^22.0.1",
+    "fast-xml-parser": "^5.7.1",
+    "uuid": "^11.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "lodash": "4.17.21",
+      "next": "^15.5.15",
+      "file-type": "^22.0.1",
+      "fast-xml-parser": "^5.7.1",
+      "uuid": "^11.0.5"
+    }
+  }
+}

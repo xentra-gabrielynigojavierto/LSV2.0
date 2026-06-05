@@ -1,0 +1,383 @@
+# LS-COR-AUT-010 — Permission Governance + Enforcement Migration
+
+## Objective
+
+Evolve LS-COR-AUT from **permission-enabled** to **fully governed and permission-driven authorization (PBAC)** by introducing:
+
+* explicit permission catalog (source-of-truth)
+* role → permission governance
+* permission lifecycle management
+* enforcement migration from roles → permissions
+* audit coverage for permission changes
+
+At completion, the system must support:
+
+```text
+User → Roles → Permissions → Enforcement (Primary)
+User → Roles → product_roles → Enforcement (Legacy fallback)
+```
+
+This feature establishes **permissions as the primary enforcement model**, while maintaining safe backward compatibility.
+
+---
+
+## Architectural Principles
+
+### Controlled Evolution
+
+* Do NOT break existing role-based enforcement
+* Introduce governance before enforcing migration
+
+### Single Source of Truth
+
+* Permissions must exist as **first-class entities**, not derived-only artifacts
+
+### Governance First
+
+* Define, manage, and audit permissions before making them primary
+
+---
+
+## In Scope
+
+---
+
+## 1. Permission Catalog (Source-of-Truth)
+
+### Create Entity
+
+`Permission`
+
+Fields:
+
+* `Id`
+* `PermissionCode` (string, unique)
+* `Name`
+* `Description`
+* `ProductCode`
+* `Category` (e.g., Referral, Billing, Admin)
+* `IsActive`
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
+
+---
+
+### Naming Convention (FINALIZE)
+
+```text
+{PRODUCT}.{domain}:{action}
+```
+
+Examples:
+
+```text
+SYNQ_CARECONNECT.referral:create
+SYNQ_CARECONNECT.referral:view
+SYNQ_FUND.application:approve
+```
+
+---
+
+### Rules
+
+* ProductCode must be valid
+* PermissionCode must be globally unique
+* Must follow naming convention
+
+---
+
+## 2. Role → Permission Mapping (Governed)
+
+### Update / Formalize Entity
+
+`RolePermission` (or `RoleCapabilityAssignment` if already exists)
+
+Fields:
+
+* `Id`
+* `RoleCode`
+* `PermissionCode`
+* `ProductCode`
+* `IsActive`
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+
+---
+
+### Required Enhancements
+
+* enforce product consistency
+* prevent duplicate mappings
+* support activation/deactivation (soft state)
+
+---
+
+## 3. Permission Resolution Refactor
+
+### Update `EffectiveAccessService`
+
+Replace implicit resolution with:
+
+```text
+UserRoles
+→ RolePermission (catalog-driven)
+→ Permission (catalog validation)
+→ Effective Permissions
+```
+
+---
+
+### Required Behavior
+
+* only include permissions where:
+
+  * RolePermission.IsActive = true
+  * Permission.IsActive = true
+* enforce product match
+* preserve provenance tracking (Direct / Group)
+
+---
+
+## 4. Permission Lifecycle Management APIs
+
+### Endpoints
+
+#### Permission Catalog
+
+* `GET /api/admin/permissions`
+* `POST /api/admin/permissions`
+* `PATCH /api/admin/permissions/{id}`
+* `DELETE /api/admin/permissions/{id}` (soft delete)
+
+#### Role Mapping
+
+* `GET /api/admin/roles/{roleCode}/permissions`
+* `POST /api/admin/roles/{roleCode}/permissions`
+* `DELETE /api/admin/roles/{roleCode}/permissions/{permissionCode}`
+
+---
+
+### Rules
+
+* admin-only (PlatformAdmin / TenantAdmin)
+* enforce product alignment
+* validate permission existence
+
+---
+
+## 5. Admin UI — Permission Governance
+
+### New Section: “Permissions”
+
+#### Permission Catalog Page
+
+* list all permissions
+* filter by product/category
+* create/edit/deactivate permissions
+
+---
+
+### Role Detail Page (Enhancement)
+
+Add:
+
+* assigned permissions
+* assign/remove permission UI
+
+---
+
+### User View (Enhancement)
+
+* already shows permissions → no major change
+* optionally highlight:
+
+  * missing permissions vs roles
+
+---
+
+## 6. Enforcement Migration (Controlled)
+
+### Phase 1 — Dual Enforcement
+
+Allow both:
+
+```csharp
+.RequireProductRole(...)
+.RequirePermission(...)
+```
+
+---
+
+### Phase 2 — Migration Targets
+
+Identify endpoints and migrate:
+
+```csharp
+.RequireProductRole("SYNQ_FUND", "FUNDER")
+```
+
+→
+
+```csharp
+.RequirePermission("SYNQ_FUND.application:approve")
+```
+
+---
+
+### Phase 3 — Deprecation Flag
+
+Introduce config:
+
+```text
+EnableRoleFallback = true | false
+```
+
+* when false:
+
+  * role-based enforcement disabled for selected endpoints
+
+---
+
+## 7. Permission-Based Audit Events
+
+Extend Synq Audit coverage:
+
+### New Events
+
+* `PERMISSION_CREATED`
+* `PERMISSION_UPDATED`
+* `PERMISSION_DEACTIVATED`
+* `ROLE_PERMISSION_ASSIGNED`
+* `ROLE_PERMISSION_REMOVED`
+
+---
+
+### Payload
+
+Include:
+
+* actorUserId
+* tenantId
+* roleCode
+* permissionCode
+* productCode
+* before/after state
+
+---
+
+## 8. Validation Rules
+
+### Permission
+
+* must follow naming convention
+* must belong to valid product
+
+### Role Mapping
+
+* role and permission must match product
+* duplicate mappings rejected
+
+### Enforcement
+
+* permission must exist AND be active
+* inactive permission must NOT grant access
+
+---
+
+## 9. Testing Requirements
+
+---
+
+### Unit Tests
+
+* permission CRUD validation
+* role-permission mapping validation
+* inactive permission exclusion
+* naming convention enforcement
+
+---
+
+### Integration Tests
+
+* login includes only active permissions
+* permission enforcement works
+* migration from role → permission works
+* role fallback works when enabled
+
+---
+
+### Security Tests
+
+* invalid permission rejected
+* inactive permission denied
+* cross-product permission blocked
+
+---
+
+## 10. Backward Compatibility
+
+* keep `product_roles` intact
+* keep role-based enforcement functional
+* ensure existing UI flows unaffected
+
+---
+
+## Acceptance Criteria
+
+* permission catalog exists and is governed
+* role → permission mapping is manageable via API/UI
+* effective access uses catalog-driven permissions
+* JWT permissions reflect only active mappings
+* permission-based enforcement works
+* audit events captured for permission changes
+* role-based fallback still operational
+* system builds cleanly
+
+---
+
+## Implementation Notes
+
+* reuse existing RoleCapability structures if possible
+* do NOT introduce permission hierarchy yet
+* keep naming consistent and enforceable
+* ensure migration path is gradual and safe
+
+---
+
+## Output Report (REQUIRED)
+
+Create:
+
+/analysis/LS-COR-AUT-010-report.md
+
+---
+
+### Report must include:
+
+1. permission catalog implementation
+2. role-permission mapping changes
+3. API endpoints added
+4. UI changes
+5. enforcement migration status
+6. audit events implemented
+7. test results
+8. build status
+9. known gaps
+10. assumptions
+
+---
+
+## Final Goal
+
+After this feature:
+
+LS-COR-AUT becomes:
+
+* **governed**
+* **permission-driven**
+* **auditable**
+* **enterprise-ready authorization system**
+
+Transition complete from RBAC → PBAC.

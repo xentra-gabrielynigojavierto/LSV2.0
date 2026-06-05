@@ -1,0 +1,395 @@
+You are implementing **LS-REPORTS-00-002 — Adapter Interface Hardening** for the LegalSynq Reports Service.
+
+## Platform Stack
+This is a **.NET 8 microservice** structured for **MySQL** as the future persistence layer.
+
+## Service Folders
+- Service code: `/reports`
+- Generated implementation reports: `/analysis`
+
+This story strengthens the adapter layer so the service has stable, portable integration contracts before any real persistence or reporting features are added.
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Before doing anything else, create this file first:
+
+- `/analysis/LS-REPORTS-00-002-report.md`
+
+If `/analysis` does not exist, create it first.
+
+This report file must be the **first action**.
+Do not begin code changes until the report file exists.
+
+## 2. Update the report continuously
+Do not wait until the end.
+Update the report after each major step with:
+- step completed
+- files created
+- files modified
+- implementation notes
+- issues encountered
+- decisions made
+- validation/build status
+
+## 3. Keep scope tight
+Do not add:
+- database integration
+- report templates
+- report execution logic
+- scheduling
+- UI
+- authentication middleware
+- business-specific integrations
+
+## 4. Use the correct folders
+- All service code changes must be under `/reports`
+- All generated reports must be under `/analysis`
+
+## 5. Preserve portability
+Do not introduce LegalSynq-specific logic or hardcoded platform assumptions.
+
+---
+
+# STORY ID
+**LS-REPORTS-00-002 — Adapter Interface Hardening**
+
+---
+
+# OBJECTIVE
+Evolve the current adapter layer from mock-friendly scaffolding into production-ready integration contracts that define how the Reports Service interacts with external platform services while remaining fully portable.
+
+This story must establish:
+- clear, typed adapter contracts
+- context models (tenant, user, product, request)
+- standard request/response patterns
+- structured adapter result contracts
+- error handling model
+- correlation propagation through the adapter layer
+- updated mock implementations that match the stronger contracts
+
+This is a boundary-definition story, not a persistence story.
+
+---
+
+# SCOPE
+
+## In Scope
+- adapter interface redesign with strong typing
+- shared context models
+- standard adapter result wrapper
+- adapter error model
+- correlation propagation model
+- update mock adapter implementations
+- update dependency injection wiring
+- preserve health/readiness behavior
+
+## Out of Scope
+- real adapter integrations
+- database/MySQL integration
+- report templates
+- report execution
+- scheduling
+- UI
+- authentication/authorization middleware
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+## A. Context Models
+Create standardized context models to be reused across adapters.
+
+### Required models
+At minimum:
+
+#### `RequestContext`
+Fields:
+- `CorrelationId`
+- `RequestId`
+- `Timestamp`
+- optional metadata dictionary
+
+#### `UserContext`
+Fields:
+- `UserId`
+- `Email` (optional)
+- `Roles` (collection)
+- `IsPlatformAdmin`
+
+#### `TenantContext`
+Fields:
+- `TenantId`
+- `TenantName` (optional)
+- `OrganizationType`
+- `IsActive`
+
+#### `ProductContext`
+Fields:
+- `ProductCode`
+- `ProductName` (optional)
+
+### Rules
+- place these in a reusable Contracts or Shared location
+- they must be portable and platform-agnostic
+- adapter methods should explicitly accept them where applicable
+
+---
+
+## B. Standard Adapter Result Model
+Introduce a uniform typed result wrapper for all adapter responses.
+
+### Required type
+Create something equivalent to:
+
+- `AdapterResult<T>`
+
+Fields:
+- `Success`
+- `Data`
+- `ErrorCode`
+- `ErrorMessage`
+- `IsRetryable`
+- optional metadata dictionary
+
+### Rules
+- all adapter methods must return `AdapterResult<T>`
+- do not return raw objects or primitives directly from adapter interfaces
+- keep the wrapper lightweight and clear
+
+---
+
+## C. Error Model
+Define a structured adapter error model.
+
+This can be:
+- constants
+- enum
+- typed error object
+- or a combination
+
+It must support at least:
+- not found
+- unauthorized
+- forbidden
+- unavailable
+- invalid request
+- timeout
+- unknown error
+
+Also support:
+- retryable vs non-retryable distinction
+
+Keep this general and reusable.
+
+---
+
+## D. Adapter Interface Redesign
+Refactor all existing adapter interfaces to use:
+- strongly typed inputs
+- explicit context objects
+- `AdapterResult<T>` return types
+
+### Required adapters
+- `IIdentityAdapter`
+- `ITenantAdapter`
+- `IEntitlementAdapter`
+- `IAuditAdapter`
+- `IDocumentAdapter`
+- `INotificationAdapter`
+- `IProductDataAdapter`
+
+### Requirements
+- keep methods minimal but sensible
+- do not overbuild
+- avoid vague `object` parameters
+- use typed request/response models where useful
+- support future real implementations without redesign
+
+---
+
+## E. Correlation & Traceability
+Ensure the adapter layer supports traceability.
+
+### Requirements
+- `CorrelationId` must flow through adapter calls
+- mock adapters should log the correlation id
+- request context should be part of method signatures where appropriate
+
+Do not build a full tracing system; just establish the contract properly.
+
+---
+
+## F. Mock Adapter Upgrade
+Update all mock adapters to:
+- match the new interface signatures
+- return structured `AdapterResult<T>` responses
+- log correlation id
+- simulate clean success responses
+- optionally simulate simple structured failure paths if easy and low-risk
+
+Do not create complex fake behavior.
+
+---
+
+## G. Dependency Injection Updates
+Update DI and service registration so:
+- all adapter implementations are registered correctly
+- the app still starts successfully
+- health/readiness checks continue to pass
+
+---
+
+## H. Health & Readiness Compatibility
+Preserve:
+- `GET /api/v1/health`
+- `GET /api/v1/ready`
+
+If readiness checks must change due to contract updates, keep behavior equivalent or better.
+
+---
+
+# ACCEPTANCE CRITERIA
+
+This story is complete only if:
+
+1. reusable context models exist
+2. all adapter interfaces use strong typing
+3. all adapter methods return `AdapterResult<T>`
+4. structured adapter error model exists
+5. correlation id is supported through adapter calls
+6. mock adapters are updated to the new contracts
+7. DI wiring is updated and functional
+8. service builds successfully
+9. service starts successfully
+10. `/api/v1/health` still works
+11. `/api/v1/ready` still works
+12. no database integration is introduced
+13. no business reporting logic is added
+
+---
+
+# IMPLEMENTATION STEPS
+Follow these steps in order, updating the report after each one.
+
+## Step 1 — Create report first
+Create:
+- `/analysis/LS-REPORTS-00-002-report.md`
+
+Seed it with:
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log
+- Files Created
+- Files Modified
+- Endpoints Added or Changed
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Immediately record that the report was created first.
+
+## Step 2 — Create context models
+Add reusable context models:
+- RequestContext
+- UserContext
+- TenantContext
+- ProductContext
+
+Update the report.
+
+## Step 3 — Create adapter result and error model
+Add:
+- AdapterResult<T>
+- adapter error model / codes
+
+Update the report.
+
+## Step 4 — Refactor adapter interfaces
+Update all required adapter interfaces to:
+- use strong typing
+- accept context objects where appropriate
+- return AdapterResult<T>
+
+Update the report.
+
+## Step 5 — Update mock adapters
+Refactor all mock implementations to align with the new contracts.
+Ensure correlation-aware logging.
+Update the report.
+
+## Step 6 — Update readiness and DI
+Adjust DI registrations and readiness checks if needed.
+Keep `/api/v1/health` and `/api/v1/ready` working.
+Update the report.
+
+## Step 7 — Minimal cleanup
+Do only minimal cleanup needed to keep the contract layer coherent.
+Do not expand scope.
+Update the report.
+
+## Step 8 — Validate
+Run restore/build/test/basic startup validation as appropriate.
+Verify:
+- build succeeds
+- service starts
+- `/api/v1/health` returns healthy
+- `/api/v1/ready` returns ready
+
+Capture outputs and issues in the report.
+
+## Step 9 — Finalize report
+Complete `/analysis/LS-REPORTS-00-002-report.md` with:
+- summary of contract changes
+- files changed
+- endpoint validation
+- notable design decisions
+- build/test/startup status
+- known gaps
+- recommendation for next story
+
+---
+
+# REPORT FORMAT REQUIREMENTS
+The report must include at minimum:
+
+- Title
+- Story ID
+- Objective
+- Scope
+- Execution Log (step-by-step)
+- Files Created
+- Files Modified
+- Endpoints Added or Changed
+- Build / Run / Validation Status
+- Issues Encountered
+- Decisions Made
+- Known Gaps / Not Yet Implemented
+- Final Summary
+
+Be concrete. Include enough detail so ChatGPT can assess the implementation without guessing.
+
+---
+
+# DEFINITION OF DONE
+Done means:
+- the story report exists under `/analysis`
+- the report was created first
+- the report was updated throughout execution
+- context models exist and are reusable
+- adapter interfaces are strongly typed
+- AdapterResult<T> is used consistently
+- structured adapter error handling exists
+- correlation support exists at contract level
+- mock adapters align to the new contracts
+- the service still builds and starts successfully
+- `/api/v1/health` and `/api/v1/ready` still work
+- no out-of-scope features were added
+
+Now implement **LS-REPORTS-00-002** exactly as described.

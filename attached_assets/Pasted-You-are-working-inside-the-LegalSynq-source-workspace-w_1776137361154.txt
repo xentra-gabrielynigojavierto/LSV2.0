@@ -1,0 +1,300 @@
+You are working inside the LegalSynq source workspace with access to:
+- the v2 codebase
+- the v1 SynqLiens and related legacy source/database artifacts
+- the Liens domain models already created in v2
+
+Objective:
+Create the authoritative migration matrix that maps the v1 SynqLiens database structures into the new v2 `liens` service model and the retained v2 shared services.
+
+This feature is analysis and design only. It is NOT for ETL scripts, DbContext creation, EF Core mappings, repositories, or migrations yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+All cross-cutting concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION RULES:
+- Preserve donor SynqLiens behavior
+- Preserve existing APIs as much as practical
+- Do NOT adopt the v1 schema unchanged as the final target
+- Liens-owned future persistence must align to the `liens_` prefix convention
+- Shared-service-owned future persistence must remain with their owning prefixes:
+  - Identity → `idt_`
+  - Documents → `docs_`
+  - Notifications → `ntf_`
+  - Audit → `aud_`
+
+NOTE:
+This feature should produce an execution-ready mapping artifact that will guide the next persistence and migration implementation phases.
+
+--------------------------------------------------
+STEP 1 — INSPECT THE AVAILABLE V1 DATABASE / SCHEMA SOURCES
+--------------------------------------------------
+
+Inspect the actual uploaded v1 schema/database artifacts directly.
+
+Relevant sources may include:
+- SynqLiens DB schema package(s)
+- v1 SynqLiens core source
+- any supporting SQL/schema files from related legacy services if they affect data ownership/migration
+
+Do NOT rely on assumptions.
+Use the real schema materials in the workspace.
+
+Identify:
+- database names / schema groupings
+- table names
+- major data areas
+- cross-table relationships if visible
+- data type patterns
+- legacy ownership patterns (PROGRAM / *_PROGRAM / legacy user/org refs)
+
+--------------------------------------------------
+STEP 2 — INSPECT THE CURRENT V2 TARGET MODEL
+--------------------------------------------------
+
+Inspect the current v2 targets that now exist or are already defined:
+
+### Liens domain
+- Case
+- Contact
+- Facility
+- LookupValue
+- Lien
+- LienOffer
+- BillOfSale
+
+### Shared service ownership model
+- Identity
+- Documents
+- Notifications
+- Audit
+
+### Naming / persistence convention
+- Liens future tables → `liens_*`
+- Identity → `idt_*`
+- Documents → `docs_*`
+- Notifications → `ntf_*`
+- Audit → `aud_*`
+
+Understand:
+- which v1 data areas map naturally into current domain entities
+- which data areas have no target yet and will require future entities
+- which legacy schemas should now be retired because v2 shared services own those concerns
+
+--------------------------------------------------
+STEP 3 — BUILD THE MIGRATION MATRIX
+--------------------------------------------------
+
+Create a structured migration matrix covering the relevant v1 tables.
+
+For EACH relevant table, include at minimum:
+
+1. v1 source table
+2. source database/service owner
+3. business purpose
+4. recommended destination:
+   - Liens
+   - Identity
+   - Documents
+   - Notifications
+   - Audit
+   - Retire / archive
+5. target v2 entity/table
+6. action:
+   - reuse conceptually
+   - redesign
+   - retire
+7. key field mappings
+8. required type fixes
+9. tenant/org mapping notes
+10. behavior/API preservation notes
+11. risks / caveats
+
+--------------------------------------------------
+STEP 4 — ANALYZE BY DATA AREA
+--------------------------------------------------
+
+Ensure the matrix covers these areas explicitly:
+
+### A. Core SynqLiens business tables
+Examples may include:
+- cases
+- contacts
+- facilities
+- lien medical / lien records
+- lien code / line items
+- settlement
+- task
+- notes
+- updates / history
+- bill-of-sale-related data if present
+
+### B. Lookup/reference tables
+Examples:
+- case status
+- lien status
+- accident type
+- document type
+- settlement status/type
+- states
+- medical status
+
+State whether they become:
+- `LookupValue`
+- preserved code sets
+- archived
+- split across services
+
+### C. Identity-related legacy tables
+Determine what is:
+- migrated as source/reference into v2 Identity
+- retired because v2 Identity now owns the runtime concern
+
+### D. Documents-related legacy tables
+Determine what becomes:
+- migrated document metadata/reference into v2 Documents
+- retired runtime storage structures
+
+### E. Notifications-related legacy tables
+Determine what becomes:
+- migrated templates/reference data if needed
+- retired runtime notification structures
+
+### F. Audit/update-log/history tables
+Determine what becomes:
+- migration/archive source only
+- replaced by v2 Audit as final runtime owner
+
+--------------------------------------------------
+STEP 5 — EXPLICIT NORMALIZATION ANALYSIS
+--------------------------------------------------
+
+The matrix must explicitly address:
+
+### Tenant / Org normalization
+Identify where v1 uses:
+- `PROGRAM`
+- `*_PROGRAM`
+- legacy org/user ids
+- contact/facility references with legacy semantics
+
+Map these to:
+- `TenantId`
+- `OrgId`
+- Identity-owned user/org ids
+- capability-aware future behavior where relevant
+
+### Data type correction
+Identify where v1 stores:
+- money as text
+- dates as text
+- status/code fields inconsistently
+- mixed-use catch-all columns
+
+Recommend the v2 correction strategy.
+
+### Behavior retention
+Call out fields critical to preserving:
+- case numbers
+- lien numbers
+- seller/buyer/holder behavior
+- offer/sale/bill-of-sale semantics
+- settlement/payment behavior
+- notes/tasks/history
+- provider internal-management workflows
+
+### API preservation
+Call out fields likely to be externally meaningful to preserve API shape and frontend expectations.
+
+--------------------------------------------------
+STEP 6 — ALIGN TO PROVIDER CAPABILITY MODES
+--------------------------------------------------
+
+In the matrix and summary, explicitly account for the newly established provider modes:
+
+- Sell Liens
+- Manage Own Liens
+- Both
+
+Determine whether any v1 tables/fields:
+- assume only marketplace selling
+- need reinterpretation to support internal management
+- should map differently depending on workflow mode
+
+Do NOT implement workflow changes here.
+Just document the migration/design implications.
+
+--------------------------------------------------
+STEP 7 — DO NOT IMPLEMENT YET
+--------------------------------------------------
+
+Do NOT:
+- write ETL scripts
+- create SQL migrations
+- add DbContext
+- add EF configurations
+- create repositories
+- change domain entities unless a blocking mismatch is found
+- modify API endpoints
+- modify frontend code
+
+This feature is analysis and design only.
+
+If you discover a blocking domain mismatch, document it clearly instead of making silent changes.
+
+--------------------------------------------------
+STEP 8 — GENERATE REPORT
+--------------------------------------------------
+
+Create this file:
+
+/analysis/LS-LIENS-03-005-report.md
+
+The report MUST include:
+
+1. Executive summary
+2. Migration strategy summary
+3. Source artifacts inspected
+4. Current v2 target model summary
+5. Table-by-table migration matrix
+6. Top reuse candidates
+7. Top redesign candidates
+8. Retire / archive candidates
+9. Tenant/org normalization notes
+10. Data type correction notes
+11. Behavior preservation notes
+12. API preservation notes
+13. Provider capability mode implications
+14. Prefix / service ownership alignment
+15. Unresolved questions or blocking mismatches
+16. Recommended next implementation sequence
+
+The table-by-table matrix must be detailed enough that the next feature can move directly into persistence/model implementation without having to repeat this analysis.
+
+--------------------------------------------------
+STEP 9 — FINAL QUALITY CHECK
+--------------------------------------------------
+
+Before finishing, verify:
+
+- the matrix clearly separates Liens-owned data from shared-service-owned data
+- no v1 shared-service schema is treated as a final target runtime schema
+- future Liens tables are identified conceptually as `liens_*`
+- donor behavior and API compatibility are preserved as much as practical
+- the report is evidence-based and grounded in the actual inspected schema artifacts
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Produce the authoritative v1 → v2 migration matrix for SynqLiens, aligned to:
+- the new v2 Liens domain model
+- the retained v2 shared services
+- provider capability modes
+- the new service-owned database naming convention
+
+Proceed.

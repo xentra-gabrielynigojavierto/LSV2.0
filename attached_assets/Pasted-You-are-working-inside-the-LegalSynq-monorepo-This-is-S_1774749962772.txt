@@ -1,0 +1,207 @@
+You are working inside the LegalSynq monorepo.
+
+This is Step 06.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/step_06-tenant-detail.md
+
+Critical constraints:
+- Work only inside `apps/control-center`
+- Do not import from `apps/web`
+- Keep Control Center fully independent
+- Use the same stack family and visual language as the platform:
+  - Next.js App Router
+  - TypeScript
+  - Tailwind CSS
+- Pages should remain Server Components unless interactivity is required
+- No new UI/component libraries
+- No hardcoded operator-portal paths
+- Keep all data access through `controlCenterServerApi` or `controlCenterApi`
+
+Goal of this step:
+Implement the **Tenant Detail page** in the standalone Control Center app:
+
+/tenants/[id]
+
+This page should be production-quality UI backed by mock data, and ready for backend wiring later.
+
+Tasks:
+
+## 1. Create Tenant Detail Route
+
+Create:
+
+apps/control-center/src/app/tenants/[id]/page.tsx
+
+Requirements:
+- async Server Component
+- call `requirePlatformAdmin()`
+- read `params.id`
+- call `controlCenterServerApi.tenants.getById(id)`
+- handle:
+  - error state
+  - not found state
+- render inside the existing `CCShell`
+
+Page structure:
+- back link to `/tenants`
+- page header with tenant name and code
+- status badge
+- action buttons on the right
+
+## 2. Create Tenant Detail Component
+
+Create:
+
+apps/control-center/src/components/tenants/tenant-detail-card.tsx
+
+Display these sections:
+
+### A. Header / Summary
+- Tenant name
+- Tenant code
+- Status badge
+- Tenant type
+- optional short description/subtext if useful
+
+### B. Core Information card
+Fields:
+- Tenant Type
+- Primary Contact
+- Email
+- Created Date
+- Last Updated Date
+
+### C. Stats card or stat row
+Show:
+- Total Users
+- Active Users
+- Linked Orgs or Linked Providers (choose a neutral field name that works for mock data)
+- Products Enabled
+
+### D. Product Entitlements card
+Table with:
+
+| Product | Enabled | Status |
+
+Products:
+- SynqFund
+- SynqLien
+- SynqBill
+- SynqRx
+- SynqPayout
+- CareConnect
+
+Display:
+- Enabled as Yes/No
+- Status badge or pill
+
+### E. Actions area
+Buttons:
+- Activate
+- Deactivate
+- Suspend
+
+Requirements:
+- no real backend mutation yet
+- UI only for now
+- disabled or placeholder buttons are acceptable
+- add TODO comments for future client-side action wiring
+
+## 3. Extend types
+
+Update:
+
+apps/control-center/src/types/control-center.ts
+
+Add or confirm:
+
+- `ProductEntitlementSummary`
+  - productCode
+  - enabled
+  - status
+
+- `TenantDetail`
+  - extends `TenantSummary`
+  - email?: string
+  - updatedAtUtc: string
+  - userCount: number
+  - activeUserCount: number
+  - linkedOrgCount?: number
+  - productEntitlements: ProductEntitlementSummary[]
+
+Keep naming backend-friendly.
+
+## 4. Extend API layer
+
+Update:
+
+apps/control-center/src/lib/control-center-api.ts
+
+Add:
+
+controlCenterServerApi.tenants.getById(id: string)
+
+Implementation:
+- use the existing mock tenant dataset
+- return a rich `TenantDetail`
+- for unknown id, return null or equivalent not-found result
+- add TODO comment:
+
+// TODO: replace with GET /identity/api/admin/tenants/{id}
+
+Optionally add helper functions to keep mock generation clean.
+
+## 5. Keep route helpers clean
+
+If a routes helper already exists, use it.
+If not, create or update a simple routes helper so tenant detail links are centralized.
+
+At minimum support:
+- tenants list
+- tenant detail by id
+
+Use the route helper everywhere instead of scattering strings.
+
+## 6. UI consistency
+
+Follow the style already established in the standalone app:
+- white cards
+- rounded borders
+- gray labels
+- clear spacing
+- existing shell/layout conventions
+- table styles consistent with Step 05
+
+Use Tailwind only.
+
+## 7. Backend readiness
+
+Do NOT:
+- fetch directly in components
+- bypass `controlCenterServerApi`
+- hardcode service URLs
+
+The page should be swappable to live backend with minimal changes in the API layer only.
+
+Output requirements:
+
+1. First show the file-by-file implementation plan
+2. Then generate code
+3. Then produce this report:
+
+# Step 06 – Tenant Detail Page
+
+## Files Created
+## Files Updated
+## Components Added
+## API Stubs Added
+## UI Patterns Used
+## TODOs for Backend Integration
+## Any Issues or Assumptions
+
+4. Save the report to:
+
+/step_06-tenant-detail.md

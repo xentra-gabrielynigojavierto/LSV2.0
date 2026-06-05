@@ -1,0 +1,252 @@
+You are working inside the LegalSynq v2 codebase.
+
+Objective:
+Define the foundational domain entities for the `liens` microservice so future Liens features can build on a clean, v2-aligned bounded context.
+
+This feature is about domain modeling only. It is NOT for database migrations, repositories, CRUD APIs, or frontend work yet.
+
+NON-NEGOTIABLE ARCHITECTURE RULE:
+For the Liens build, all shared platform concerns must use v2 services only:
+- Identity
+- Documents
+- Notifications
+- Audit
+
+CRITICAL MIGRATION RULE:
+- Preserve SynqLiens (v1) product behavior
+- Preserve existing APIs as much as possible
+- Use v1 as a donor for behavior and API shape, NOT as a direct schema to copy
+
+--------------------------------------------------
+STEP 1 — INSPECT EXISTING V2 DOMAIN PATTERNS
+--------------------------------------------------
+
+Inspect existing v2 services (Fund, CareConnect, Identity) to understand:
+
+- entity structure patterns
+- base entity / auditable patterns
+- value object usage
+- enum/constants placement
+- constructor/update patterns
+- tenant/org scoping patterns
+- separation from EF/HTTP concerns
+
+Follow these conventions strictly.
+
+--------------------------------------------------
+STEP 1A — DONOR BEHAVIOR & API PRESERVATION (CRITICAL)
+--------------------------------------------------
+
+Before defining entities:
+
+1. Review v1 SynqLiens concepts at a high level:
+   - Case structure
+   - Contact types and roles
+   - Facility structure
+   - Lookup/status usage
+
+2. Identify:
+   - key fields that drive behavior
+   - fields exposed in APIs
+   - fields that influence workflows (status, type, references)
+
+3. Apply these rules:
+
+### Behavior Preservation
+- Preserve meaning and purpose of core fields
+- Ensure entities can support the same workflows as v1
+- Do NOT remove critical business fields
+
+### API Compatibility Preservation
+- Prefer field names that map cleanly to existing APIs
+- Avoid renaming important fields unnecessarily
+- Design entities so future APIs can match v1 with minimal transformation
+
+### v2 Alignment
+- Replace `programId` → `TenantId` / `OrgId`
+- Normalize naming where needed
+- Keep structure clean and consistent with v2
+
+4. If you change/remove fields:
+- You MUST document and justify it in the report
+
+--------------------------------------------------
+STEP 2 — DEFINE CORE DOMAIN ENTITIES
+--------------------------------------------------
+
+In:
+apps/services/liens/Liens.Domain/Entities/
+
+Create:
+
+1. Case
+2. Contact
+3. Facility
+4. LookupValue
+
+Also create supporting folders if needed:
+- Enums
+- ValueObjects
+- Constants
+
+--------------------------------------------------
+STEP 3 — MODEL CLEAN V2 CANONICAL ENTITIES
+--------------------------------------------------
+
+Design entities with:
+
+### Case
+Support:
+- TenantId, OrgId
+- CaseNumber / ReferenceNumber
+- ExternalReference (preserve compatibility)
+- Title / DisplayName
+- Status (lookup-driven)
+- OpenedDate / ClosedDate
+- future linkage to contacts, facilities, liens, tasks, settlements
+
+### Contact
+Support:
+- TenantId, OrgId
+- ContactType (LawFirm, Provider, Funder, etc.)
+- FirstName, LastName, DisplayName
+- Email, Phone
+- IsActive
+
+### Facility
+Support:
+- TenantId, OrgId
+- Name
+- Code / ExternalReference
+- Address (value object preferred)
+- Phone, Email
+- IsActive
+
+### LookupValue
+Support:
+- Category (e.g., CaseStatus, LienStatus)
+- Code
+- Name
+- Description
+- SortOrder
+- IsActive
+- tenant/global scoping decision
+
+--------------------------------------------------
+STEP 4 — MULTI-TENANT / ORG DESIGN
+--------------------------------------------------
+
+Ensure all entities support:
+- TenantId
+- OrgId where appropriate
+
+Do NOT use:
+- programId
+- legacy identifiers
+
+Use clean v2 identifiers.
+
+--------------------------------------------------
+STEP 5 — KEEP DOMAIN CLEAN
+--------------------------------------------------
+
+Do NOT add:
+- EF attributes
+- DbContext
+- repositories
+- migrations
+- API models
+- HTTP logic
+- auth logic
+- service integrations
+
+Domain must remain pure.
+
+--------------------------------------------------
+STEP 6 — EXPRESS DOMAIN INTENT
+--------------------------------------------------
+
+Include where useful:
+- constructors or factory methods
+- update methods
+- simple validation guards
+- enums/value objects
+
+Do NOT over-engineer.
+
+--------------------------------------------------
+STEP 7 — RELATIONSHIP ASSUMPTIONS
+--------------------------------------------------
+
+Design should allow future relationships:
+
+- Case ↔ Contact
+- Case ↔ Facility
+- Facility ↔ Contact
+- Case ↔ LookupValue
+- future: Case ↔ Lien, Task, Settlement
+
+Do NOT force heavy collections unless necessary.
+
+--------------------------------------------------
+STEP 8 — VALIDATE BUILD
+--------------------------------------------------
+
+Confirm:
+- Liens service builds
+- Solution builds
+- Identity integration still works
+- Gateway unaffected
+
+--------------------------------------------------
+STEP 9 — GENERATE REPORT
+--------------------------------------------------
+
+Create:
+
+/analysis/LS-LIENS-03-001-report.md
+
+Report MUST include:
+
+1. Summary of implementation
+2. v2 domain patterns followed
+3. v1 donor concepts used (behavior only)
+4. Files created/changed
+5. Entity list:
+   - Case
+   - Contact
+   - Facility
+   - LookupValue
+   - supporting types
+6. Key fields and reasoning
+7. Multi-tenant/org design decisions
+8. Relationship assumptions
+9. What was deferred
+10. Build results
+11. Confirmation:
+   - no persistence logic
+   - no API logic
+   - no auth logic in Domain
+   - no v1 code copied
+
+### NEW REQUIRED SECTION
+
+12. API & Behavior Preservation Analysis
+- Which v1 fields influenced design
+- Which fields were preserved for compatibility
+- Any fields changed and why
+- How easily APIs can be mapped in future
+
+13. Risks / assumptions
+14. Final readiness:
+   - Is domain model established?
+   - Ready for next feature?
+
+--------------------------------------------------
+FINAL NOTE
+--------------------------------------------------
+
+Goal:
+Create a clean v2 domain model that preserves SynqLiens behavior and enables API compatibility without copying legacy structure.
+
+Proceed.

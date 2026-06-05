@@ -1,0 +1,168 @@
+You are working inside the LegalSynq monorepo.
+
+This is Step 20.
+
+File naming rule:
+The report generated in this step MUST be saved as:
+
+/analysis/step_20-user-impersonation.md
+
+---
+
+Critical constraints:
+
+- Work ONLY inside:
+  apps/control-center
+
+- Maintain full independence
+
+- Do NOT import anything from:
+  apps/web
+
+- Use existing helpers:
+  - getTenantContext()
+  - controlCenterServerApi
+  - auth helpers
+
+---
+
+Goal:
+
+Implement **User-Level Impersonation (Admin → Tenant User)**
+
+---
+
+## 1. Extend Types
+
+Update:
+
+apps/control-center/src/types/control-center.ts
+
+Add:
+
+UserImpersonationSession:
+- adminId
+- impersonatedUserId
+- impersonatedUserEmail
+- tenantId
+- startedAtUtc
+
+---
+
+## 2. Extend Auth Layer
+
+Update:
+
+apps/control-center/src/lib/auth.ts
+
+Add:
+
+getImpersonation()
+setImpersonation()
+clearImpersonation()
+
+Cookie:
+- name: "cc_impersonation"
+
+---
+
+## 3. Create Server Actions
+
+Create:
+
+apps/control-center/src/app/actions/impersonation.ts
+
+Add:
+
+startImpersonation(user)
+- sets impersonation cookie
+- redirects to "/"
+
+stopImpersonation()
+- clears cookie
+- redirects to "/tenant-users"
+
+---
+
+## 4. Add UI (User Detail Page)
+
+Update:
+
+apps/control-center/src/app/tenant-users/[id]/page.tsx
+
+Add button:
+- "Impersonate User"
+
+Behavior:
+- calls startImpersonation()
+
+---
+
+## 5. Add Global Impersonation Banner
+
+Create:
+
+apps/control-center/src/components/layout/impersonation-banner.tsx
+
+Display:
+- "Impersonating: [User Email]"
+- tenant name
+- "Exit Impersonation" button
+
+---
+
+## 6. Wire Banner into Layout
+
+Update shell/layout:
+
+- call getImpersonation()
+- if exists:
+  render banner (above tenant context banner)
+
+---
+
+## 7. Interaction Rules
+
+- impersonation overrides tenant context
+- show both banners if needed
+- exiting impersonation restores tenant context
+
+---
+
+## 8. UI Styling
+
+- distinct color (e.g. red/pink banner)
+- clearly different from tenant context
+
+---
+
+## 9. Backend readiness
+
+Add TODOs:
+
+// TODO: integrate with Identity service impersonation endpoint
+// TODO: issue temporary impersonation token
+// TODO: audit log impersonation events
+
+---
+
+## Output
+
+1. Show file-by-file implementation plan
+2. Generate code
+3. Produce report:
+
+# Step 20 – User Impersonation
+
+## Files Created
+## Files Updated
+## Cookie Strategy
+## UI Behavior
+## Interaction Rules
+## TODOs for Backend Integration
+## Independence Validation
+## Any Issues or Assumptions
+
+4. Save report to:
+
+/analysis/step_20-user-impersonation.md

@@ -1,0 +1,527 @@
+You are building the next UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase continues the Tenant Portal track.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-010 — Tenant Delivery Controls (Retry / Resend / Suppression Awareness)
+==================================================
+
+GOAL:
+Give tenant users limited, safe operational controls over failed or blocked notification outcomes, while preserving tenant isolation, suppression policy integrity, and backend truth.
+
+This phase adds:
+- controlled retry/resend actions for eligible notifications
+- suppression-aware messaging and visibility
+- contact health visibility linkage from notification detail
+- safe action gating and confirmation UX
+- post-action status refresh and audit-friendly feedback
+
+This phase is NOT broad orchestration.
+It is controlled, operational remediation.
+
+Do NOT overbuild.
+Do NOT expose Control Center capabilities.
+Do NOT build bulk send/retry.
+Do NOT let tenants bypass suppression or policy protections.
+Do NOT redesign the tenant portal shell.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Completed:
+- NOTIF-UI-006 — Tenant Branding Self-Service
+- NOTIF-UI-007 — Tenant Template Visibility (Read-Only)
+- NOTIF-UI-008 — Tenant Template Override
+- NOTIF-UI-009 — Tenant Notification Activity + Delivery Visibility
+
+This task adds limited tenant-side operational controls on top of delivery visibility.
+
+==================================================
+CRITICAL DOMAIN RULES (MANDATORY)
+==================================================
+
+1. All actions must remain tenant-scoped
+2. Retry/resend must only be available when backend state makes it safe
+3. Suppressed or policy-blocked notifications must NEVER be resent in a way that bypasses backend protection
+4. UI must represent backend truth honestly
+5. No bulk actions in this phase
+6. No manual arbitrary send flow in this phase
+7. If backend does not support a safe action, do NOT fake it
+
+==================================================
+ASSUMPTIONS / BACKEND EXPECTATION
+==================================================
+
+This UI phase assumes the backend either already supports or will support safe retry/resend and suppression-aware read endpoints.
+
+Expected backend capability patterns may include one or more of:
+- POST /notifications/v1/notifications/:id/retry
+- POST /notifications/v1/notifications/:id/resend
+- GET /notifications/v1/contacts/health/:channel/:contactValue
+- GET /notifications/v1/contacts/suppressions?contactValue=...&channel=...
+- notification detail indicating retry eligibility or blocked reason
+- action denial responses for ineligible notifications
+
+If actual backend routes differ:
+- inspect and use the real routes
+- adapt carefully
+- do NOT invent fake success flows
+- document capability gaps clearly in the report
+
+==================================================
+TENANT PORTAL SCOPE
+==================================================
+
+Audience:
+- tenant admins
+- tenant operations users
+
+Allowed capabilities:
+- inspect failed / blocked notifications
+- retry or resend a single eligible notification
+- understand suppression and contact health reasons
+- navigate from notification detail to contact suppression/health context where appropriate
+
+Not allowed:
+- bulk retry
+- arbitrary manual send
+- bypassing suppression
+- editing provider config
+- editing policy controls
+- cross-tenant operations
+
+==================================================
+PRIMARY FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. ELIGIBLE ACTIONS ON NOTIFICATION DETAIL
+--------------------------------------
+
+Enhance the tenant notification detail page from NOTIF-UI-009.
+
+Suggested existing route:
+- /tenant/notifications/activity/[notificationId]
+or the equivalent route already implemented
+
+Required behavior:
+- show action area on notification detail
+- determine action eligibility from backend truth where available
+
+Possible actions:
+- Retry
+- Resend
+
+Action display rules:
+- show only if notification is eligible
+- if not eligible, show clear explanation instead of dead buttons
+- if blocked due to suppression/policy, do NOT show retry/resend as available unless backend explicitly allows safe resend after state change
+
+Examples:
+- failed transient/provider error → retry may be allowed
+- blocked by suppression → retry not allowed
+- already delivered/sent final state → retry may not be allowed
+- accepted/processing → no retry action
+
+If backend does not expose explicit eligibility:
+- derive cautiously from status + failure category only if safe
+- otherwise do not expose action and document limitation
+
+==================================================
+2. RETRY / RESEND ACTION FLOW
+==================================================
+
+Implement single-notification retry/resend flow.
+
+Expected backend patterns:
+- POST /notifications/v1/notifications/:id/retry
+- or POST /notifications/v1/notifications/:id/resend
+
+Requirements:
+- explicit confirmation required before action
+- show what the action does in plain language
+- disable action while pending
+- show success state and resulting notification/attempt outcome if backend returns it
+- refresh notification detail/activity view after success
+- preserve tenant context and auth
+
+If backend returns a new notification ID or new attempt:
+- surface that clearly
+- optionally link to the new notification detail if appropriate
+
+Do NOT allow repeated rapid-fire clicking.
+Do NOT silently auto-retry in UI.
+
+==================================================
+3. SUPPRESSION AWARENESS PANEL
+==================================================
+
+On blocked or suppression-related failures, show a dedicated suppression awareness section.
+
+Display where possible:
+- blocked reason code
+- suppression reason
+- contact channel
+- contact value
+- whether contact is currently suppressed
+- whether issue appears to be unsubscribe / complaint / bounce / invalid / manual suppression
+
+Requirements:
+- distinguish clearly between:
+  - failed delivery
+  - blocked by policy
+  - blocked by suppression
+- use plain language for tenant users
+- do not expose irrelevant internal-only debug data
+
+If backend supports relevant endpoints:
+- fetch contact suppression details
+- fetch contact health details
+
+If not:
+- use notification detail fields only and document limitation
+
+==================================================
+4. CONTACT HEALTH LINKAGE
+==================================================
+
+Allow tenant users to understand the health state of the contact behind a failed/blocked notification.
+
+Requirements:
+- where channel + contact value are available, show:
+  - health status
+  - last event
+  - suppression presence
+- link to existing tenant contact health / suppressions pages if they exist and if routing is already in place
+- or show a compact embedded summary in the detail page
+
+Goal:
+- help user answer:
+  - is this address/number unhealthy?
+  - is it blocked?
+  - should I retry later or not?
+
+Do NOT let users directly lift suppression in this phase unless that capability already exists and is explicitly safe and allowed.
+
+==================================================
+5. ACTION OUTCOME / POST-ACTION UX
+==================================================
+
+After retry/resend:
+- show success or failure feedback clearly
+- refresh the page state
+- if a new notification or attempt was created, make that visible
+- if backend denies the action because state changed, show the denial clearly
+
+Examples:
+- "Retry submitted successfully"
+- "Resend created a new notification"
+- "This notification can no longer be retried"
+- "Blocked notifications cannot be resent while the contact remains suppressed"
+
+Use platform-native feedback patterns where available.
+
+==================================================
+6. LIST-LEVEL ACTION VISIBILITY (OPTIONAL LIGHTWEIGHT)
+==================================================
+
+On the activity list page, you may add lightweight indicators such as:
+- Retry available
+- Blocked by suppression
+- Failed — review details
+
+However:
+- do NOT put full retry buttons inline in the list unless the UX is very clean and clearly safe
+- primary control flow should still be from the detail page
+
+The detail page is the main operational action surface.
+
+==================================================
+7. TENANT CONTEXT / AUTH (MANDATORY)
+==================================================
+
+Tenant users must never enter tenantId manually.
+
+Requirements:
+- derive tenant from session (requireOrg or equivalent)
+- inject x-tenant-id automatically
+- all read and action flows are tenant-scoped
+- if tenant context is missing:
+  - safe failure state
+  - no backend calls
+
+==================================================
+8. TENANT-SAFE API CLIENT / SERVER ACTIONS
+==================================================
+
+Extend the tenant-side notifications API wrapper and/or server actions for:
+- retry/resend action
+- optional contact health/suppression reads if needed
+- action result handling
+
+Requirements:
+- Authorization/session preserved
+- x-tenant-id injected
+- server actions enforce tenant auth
+- structured action results returned to UI
+- no client-side direct mutation calls that bypass server safeguards
+
+==================================================
+9. UI COMPONENTS
+==================================================
+
+Create reusable components where useful, such as:
+- DeliveryActionPanel
+- RetryConfirmDialog
+- SuppressionAwarenessPanel
+- ContactHealthSummaryCard
+- ActionEligibilityNotice
+- ActionResultBanner
+
+Requirements:
+- loading state
+- success state
+- error state
+- empty/unavailable state
+- clear read-only vs actionable distinction
+
+==================================================
+10. ERROR / EMPTY / UNSUPPORTED STATES
+==================================================
+
+Handle clearly:
+- retry/resend route unavailable
+- notification not eligible
+- blocked due to suppression
+- contact health unavailable
+- suppression detail unavailable
+- backend denial due to changed state
+- action conflict/double submit
+- missing tenant context
+
+Do NOT let unsupported backend capability look like a broken button.
+If action is unavailable, say why.
+
+==================================================
+11. WHAT NOT TO BUILD IN NOTIF-UI-010
+==================================================
+
+Do NOT build:
+- bulk retry/resend
+- manual send composer
+- policy editing
+- suppression lifting (unless already existing and explicitly allowed, but do not add it here)
+- provider management
+- billing controls
+- campaign/journey orchestration
+- admin/Control Center features
+
+This phase is strictly tenant delivery controls for individual notifications.
+
+==================================================
+12. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. notification detail shows action eligibility or ineligibility clearly
+2. retry/resend action works for eligible notifications, or backend limitation is clearly represented
+3. confirmation UX exists before action execution
+4. blocked/suppression-aware messaging is implemented
+5. contact health linkage or summary is shown where backend data allows
+6. action result feedback is clear
+7. tenant context is enforced correctly
+8. tenantId is never manually entered
+9. no cross-tenant data is exposed
+10. no bulk or unsafe actions are introduced
+11. loading / success / error / unsupported states are handled
+12. UI compiles/runs cleanly
+
+==================================================
+OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-010-report.md
+
+==================================================
+REPORT GENERATION (MANDATORY)
+==================================================
+
+The report must include ALL sections below.
+
+--------------------------------------
+1. IMPLEMENTATION SUMMARY
+--------------------------------------
+- What was built
+- Scope completed vs requested scope
+- Overall completeness assessment
+
+--------------------------------------
+2. FILES CREATED / MODIFIED
+--------------------------------------
+List all files:
+- New files with purpose
+- Modified files with description of changes
+
+--------------------------------------
+3. FEATURES IMPLEMENTED
+--------------------------------------
+Break down all implemented features:
+- action eligibility UI
+- retry/resend flow
+- suppression awareness
+- contact health linkage
+- post-action feedback
+- any partial implementations
+
+--------------------------------------
+4. API / BACKEND INTEGRATION
+--------------------------------------
+List all endpoints used, grouped by:
+- notification detail/activity
+- retry/resend
+- suppression/health lookups
+- related issue/event reads
+
+For each:
+- endpoint
+- purpose
+- status (working / partial / assumed / unavailable)
+
+--------------------------------------
+5. DATA FLOW / ARCHITECTURE
+--------------------------------------
+Explain:
+- request flow
+- tenant context flow
+- server action flow
+- action confirmation flow
+- post-action refresh flow
+
+--------------------------------------
+6. VALIDATION & TESTING
+--------------------------------------
+Document:
+- typecheck/compile status
+- runtime checks
+- manual test flows
+- edge cases handled
+
+Mark each:
+- PASS / PARTIAL / FAIL
+
+--------------------------------------
+7. ERROR HANDLING
+--------------------------------------
+Describe:
+- action ineligibility handling
+- backend denial handling
+- suppression-related action blocking
+- unavailable capability handling
+- empty states
+
+--------------------------------------
+8. TENANT / AUTH CONTEXT
+--------------------------------------
+- how tenant context is derived
+- how auth is enforced
+- how x-tenant-id is injected
+- behavior when tenant context is missing
+
+--------------------------------------
+9. CACHE / PERFORMANCE
+--------------------------------------
+- cache/revalidation approach
+- performance considerations
+- known inefficiencies
+
+--------------------------------------
+10. KNOWN GAPS / LIMITATIONS
+--------------------------------------
+List all gaps:
+- backend limitations
+- missing features
+- assumptions made
+- technical debt if any
+
+For each:
+- severity (low / medium / high)
+- future phase or dependency
+
+--------------------------------------
+11. ISSUES ENCOUNTERED
+--------------------------------------
+List problems during implementation:
+- route/contract mismatches
+- action lifecycle constraints
+- suppression/health data availability
+- tenant-context issues
+
+Include:
+- resolution
+- status (open / resolved)
+
+--------------------------------------
+12. RUN INSTRUCTIONS
+--------------------------------------
+Provide exact steps:
+- how to start the system
+- how to access/test the feature
+- any tenant requirements
+
+--------------------------------------
+13. READINESS ASSESSMENT
+--------------------------------------
+Answer clearly:
+- Is NOTIF-UI-010 complete? (Yes / Mostly / Partial)
+- Do tenants now have safe delivery controls? (Yes / No)
+- Can we proceed to the next phase? (Yes / No)
+
+--------------------------------------
+14. NEXT STEPS
+--------------------------------------
+List:
+- next tenant portal features to build
+- remaining backend dependencies
+- whether provider visibility, usage/billing visibility, or suppression self-service should come next
+
+==================================================
+CRITICAL: REPORT GENERATION IS REQUIRED
+==================================================
+
+You MUST generate the report file after completing the implementation.
+
+This is NOT optional.
+
+If the report is not generated, the task is considered incomplete.
+
+File path must be:
+
+/analysis/NOTIF-UI-010-report.md
+
+Do NOT skip sections.
+Do NOT claim features that are not implemented.
+Do NOT hide limitations.
+
+==================================================
+EXECUTION
+==================================================
+
+Build NOTIF-UI-010 now.
+
+STRICTLY preserve:
+- tenant safety
+- single-notification, guarded controls only
+- suppression/policy truth
+- no bypass of backend rules
+- no bulk/unsafe actions
+
+Use real backend APIs where available.
+If a backend capability is missing, represent that honestly and implement the cleanest partial flow possible.
+
+Generate the required report at the end.

@@ -1,0 +1,149 @@
+Run CareConnect Step 28: validate the complete CareConnect v1 operational baseline and prepare a stable release checkpoint.
+
+Goal:
+Validate that the current CareConnect product baseline is coherent, tenant-safe, and ready to be checkpointed before moving to the next major phase.
+
+Current implemented scope:
+- Providers
+- Categories
+- Referrals
+- Referral status history
+- Referral workflow rules
+- Provider search/filtering + pagination
+- Facilities
+- ServiceOfferings
+- ProviderAvailabilityTemplates
+- AppointmentSlots
+- slot generation
+- Appointments
+- appointment lifecycle (confirm/cancel/reschedule/history)
+- ProviderAvailabilityExceptions
+- ReferralNotes
+- AppointmentNotes
+- ReferralAttachments metadata
+- AppointmentAttachments metadata
+- CareConnectNotifications and reminder hooks
+
+This step is only for validation and readiness review.
+Do not add new schema or features in this step.
+
+Tasks
+
+1. Review the current CareConnect implementation and confirm the implemented scope is exactly:
+- provider/referral core
+- scheduling foundation
+- booking baseline
+- appointment lifecycle
+- exceptions / blackout windows
+- notes and attachment metadata
+- notification intent layer
+
+2. Confirm these endpoint groups are present and working through Gateway:
+
+Core provider/referral:
+- GET /careconnect/api/providers
+- GET /careconnect/api/providers/{id}
+- POST /careconnect/api/providers
+- PUT /careconnect/api/providers/{id}
+- GET /careconnect/api/categories
+- GET /careconnect/api/referrals
+- GET /careconnect/api/referrals/{id}
+- POST /careconnect/api/referrals
+- PUT /careconnect/api/referrals/{id}
+- GET /careconnect/api/referrals/{id}/history
+
+Scheduling:
+- GET /careconnect/api/facilities
+- POST /careconnect/api/facilities
+- PUT /careconnect/api/facilities/{id}
+- GET /careconnect/api/service-offerings
+- POST /careconnect/api/service-offerings
+- PUT /careconnect/api/service-offerings/{id}
+- GET /careconnect/api/providers/{id}/availability-templates
+- POST /careconnect/api/providers/{id}/availability-templates
+- PUT /careconnect/api/availability-templates/{id}
+- POST /careconnect/api/providers/{id}/slots/generate
+- GET /careconnect/api/slots
+
+Appointments:
+- POST /careconnect/api/appointments
+- GET /careconnect/api/appointments
+- GET /careconnect/api/appointments/{id}
+- PUT /careconnect/api/appointments/{id}
+- POST /careconnect/api/appointments/{id}/cancel
+- POST /careconnect/api/appointments/{id}/reschedule
+- GET /careconnect/api/appointments/{id}/history
+
+Exceptions:
+- GET /careconnect/api/providers/{id}/availability-exceptions
+- POST /careconnect/api/providers/{id}/availability-exceptions
+- PUT /careconnect/api/availability-exceptions/{id}
+- POST /careconnect/api/providers/{id}/slots/apply-exceptions
+
+Notes and metadata:
+- GET /careconnect/api/referrals/{id}/notes
+- POST /careconnect/api/referrals/{id}/notes
+- PUT /careconnect/api/referral-notes/{id}
+- GET /careconnect/api/appointments/{id}/notes
+- POST /careconnect/api/appointments/{id}/notes
+- PUT /careconnect/api/appointment-notes/{id}
+- GET /careconnect/api/referrals/{id}/attachments
+- POST /careconnect/api/referrals/{id}/attachments
+- GET /careconnect/api/appointments/{id}/attachments
+- POST /careconnect/api/appointments/{id}/attachments
+
+Notifications:
+- GET /careconnect/api/notifications
+- GET /careconnect/api/notifications/{id}
+
+3. Confirm business rules are working correctly:
+- referrals follow valid transitions only
+- provider search and referral filtering are tenant-scoped
+- slot generation avoids duplicates
+- only Open slots can be booked
+- capacity is enforced
+- cancellation frees capacity safely
+- reschedule moves capacity safely
+- exceptions block generation and existing slots correctly
+- notes timelines order correctly
+- attachment endpoints remain metadata-only
+- appointment/referral actions create notification rows as expected
+
+4. Confirm tenant isolation:
+- all reads are tenant-scoped
+- all writes are tenant-scoped
+- cross-tenant access would return 404 or filtered results appropriately
+- notes, attachments, slots, appointments, exceptions, and notifications all remain tenant-safe
+
+5. Confirm authorization:
+- read endpoints require authenticated user
+- write endpoints requiring admin use PlatformOrTenantAdmin
+- no token => 401
+- wrong role => 403 on protected write routes
+
+6. Confirm validation and error handling:
+- invalid workflow transitions are rejected cleanly
+- invalid scheduling payloads are rejected cleanly
+- full slot booking fails cleanly
+- invalid exception windows fail cleanly
+- invalid note types / attachment statuses / notification filters fail cleanly as designed
+- no raw stack traces or DB exceptions leak
+
+7. Provide a concise v1 readiness summary:
+- implemented entities/tables
+- implemented endpoint groups
+- validated business rules
+- known limitations
+- recommended next phase options:
+  - maps / geo discovery
+  - provider portal
+  - SynqDocs integration
+  - SynqNotify sending integration
+  - reporting/dashboarding
+
+8. Provide exact git commands to commit and tag this as a checkpoint.
+
+Important:
+Do not modify working code unless something is clearly broken.
+Do not add maps, provider portal, real document storage, or real outbound notification delivery yet.
+This step is only to validate the CareConnect v1 operational baseline and confirm readiness for the next phase.

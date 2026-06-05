@@ -1,0 +1,306 @@
+TASK-B04 — Liens Consumer Cutover & Data Migration
+(Contains TASK-010, TASK-011, TASK-012)
+
+OBJECTIVE:
+Transition Synq Liens from owning task runtime to consuming the standalone Task service. This includes safe data migration, dual-write strategy, read cutover, and removal of Liens-owned task logic—without breaking the tenant portal experience.
+
+NON-NEGOTIABLE RULES:
+- Task service remains the single source of truth for all task runtime
+- Liens must become a consumer ONLY (no task persistence or business logic ownership)
+- ZERO breaking changes to tenant portal UX
+- MUST follow incremental migration (no big-bang switch)
+- MUST create report FIRST and update incrementally
+- MUST validate against current codebase before changes
+- MUST support rollback at every stage
+- NO placeholders or simulated migration logic
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-B04-report.md
+
+Initialize with:
+
+# TASK-B04 Report — Liens Cutover & Migration
+
+## 1. Codebase Analysis (Liens Task Runtime)
+## 2. Task Service Readiness Check
+## 3. Liens → Task Client Integration
+## 4. Dual-Write Implementation
+## 5. Data Backfill Execution
+## 6. Read Cutover
+## 7. Runtime Removal from Liens
+## 8. Validation Results
+## 9. Rollback Plan
+## 10. Known Gaps / Risks
+
+Update AFTER EACH STEP.
+
+--------------------------------------------------
+STEP 1 — ANALYZE LIENS TASK RUNTIME
+--------------------------------------------------
+
+Identify ALL task-related logic inside Liens:
+
+- entities (LienTask, etc.)
+- repositories
+- services
+- controllers/endpoints
+- UI endpoints used by tenant portal
+- workflow/task linkage logic
+- automation logic
+
+Map:
+
+Liens feature → Task service equivalent
+
+Document:
+## 1. Codebase Analysis
+
+--------------------------------------------------
+STEP 2 — VALIDATE TASK SERVICE READINESS
+--------------------------------------------------
+
+Before integration, confirm Task supports:
+
+- create/update/get/list tasks
+- assignment
+- notes/history
+- templates
+- governance
+- reminders
+- product-scoped filtering
+- GET /tasks/my
+- workflow linkage
+
+If gaps found → STOP and fix in Task before proceeding.
+
+Document:
+## 2. Task Service Readiness Check
+
+--------------------------------------------------
+STEP 3 — BUILD LIENS → TASK CLIENT (TASK-010)
+--------------------------------------------------
+
+Inside Liens service:
+
+Create TaskServiceClient using HttpClient.
+
+Capabilities:
+- CreateTask
+- UpdateTask
+- GetTask
+- ListTasks
+- AssignTask
+- AddNote
+- GetNotes
+- GetHistory
+
+Base URL:
+- from config (Task service)
+
+Auth:
+- reuse existing service-to-service pattern (JWT / delegated user token)
+
+Mapping rules:
+- Liens case/lien → Task context:
+  SourceProductCode = SYNQ_LIENS
+  SourceEntityType = LIEN_CASE or LIEN
+  SourceEntityId = caseId or lienId
+
+IMPORTANT:
+- Do NOT change Liens endpoints yet
+- Only introduce client
+
+Update:
+## 3. Liens → Task Client Integration
+
+--------------------------------------------------
+STEP 4 — IMPLEMENT DUAL-WRITE (TASK-011 PART 1)
+--------------------------------------------------
+
+Modify Liens task operations:
+
+When Liens creates/updates a task:
+
+1. Write to Task service
+2. Continue writing to existing Liens tables (temporary)
+
+Ensure:
+- both systems receive same data
+- failures are logged
+- Task write failure does NOT silently pass
+
+Add logging:
+- compare IDs
+- track sync success/failure
+
+DO NOT:
+- remove Liens writes yet
+
+Update:
+## 4. Dual-Write Implementation
+
+--------------------------------------------------
+STEP 5 — DATA BACKFILL (TASK-011 PART 2)
+--------------------------------------------------
+
+Create migration script/process:
+
+- read all existing Liens tasks
+- transform into Task format
+- write into Task service via API or direct DB insert (prefer API for consistency)
+
+Handle:
+- assignment
+- notes
+- history (best effort)
+- status
+- due dates
+- linkage (case/lien → context)
+
+Validation:
+- record counts match
+- sample records verified
+- assignment integrity maintained
+
+DO NOT delete Liens data yet
+
+Update:
+## 5. Data Backfill Execution
+
+--------------------------------------------------
+STEP 6 — READ CUTOVER (TASK-011 PART 3)
+--------------------------------------------------
+
+Switch Liens reads:
+
+OLD:
+- read from Liens DB
+
+NEW:
+- read from Task service via client
+
+Keep endpoints SAME for UI.
+
+Validate:
+- Task Manager UI unchanged
+- My Tasks working
+- case-level tasks working
+- filters working
+
+If issues:
+- fallback to Liens read path
+
+Update:
+## 6. Read Cutover
+
+--------------------------------------------------
+STEP 7 — REMOVE LIENS TASK RUNTIME (TASK-012)
+--------------------------------------------------
+
+After stable read cutover:
+
+REMOVE from Liens:
+- task repositories
+- task services
+- task automation logic
+- Flow sync logic (if present)
+
+KEEP:
+- TaskServiceClient
+- mapping logic (context adapter)
+
+Ensure:
+- no direct DB access for tasks remains
+- no orphan references
+
+Update:
+## 7. Runtime Removal from Liens
+
+--------------------------------------------------
+STEP 8 — VALIDATION
+--------------------------------------------------
+
+Test full system:
+
+1. Create task via Liens UI
+2. Update task
+3. Assign/reassign
+4. Add notes
+5. View history
+6. View My Tasks
+7. Filter by product
+8. Flow-linked tasks update correctly
+9. No UI regression
+10. Performance acceptable
+
+Verify:
+- data only stored in Task service
+- Liens no longer writes to its DB
+
+Document:
+## 8. Validation Results
+
+--------------------------------------------------
+STEP 9 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback:
+
+If failure occurs:
+
+- revert reads to Liens DB
+- keep Task data intact
+- disable Task writes
+- restore Liens runtime temporarily
+
+Document exact rollback steps:
+
+## 9. Rollback Plan
+
+--------------------------------------------------
+STEP 10 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+
+- any data inconsistencies
+- missing history
+- performance issues
+- permission gaps
+- monitoring gaps
+
+Update:
+## 10. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-B04 is successful only if:
+
+1. Liens no longer owns task runtime
+2. Task service is the single source of truth
+3. UI behavior unchanged
+4. Data migrated successfully
+5. No data loss
+6. No broken workflows
+7. Rollback is possible
+8. System is stable
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT redesign UI
+- Do NOT change UX flows
+- Do NOT introduce new task features
+- Do NOT break backward compatibility
+- Do NOT skip dual-write phase
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

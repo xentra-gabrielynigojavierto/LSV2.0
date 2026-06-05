@@ -1,0 +1,184 @@
+You are implementing LS-NOTIF-CORE-001 — Operational API Completion & Contract Alignment.
+
+WORKFLOW RULES:
+1. Create the report file FIRST at:
+   /analysis/LS-NOTIF-CORE-001-report.md
+2. Update the report incrementally after each major implementation step.
+3. Do not wait until the end to write the report.
+4. At the end, the report must clearly state:
+   - what was implemented
+   - what files were changed
+   - what remains incomplete
+   - build/runtime issues if any
+   - exact endpoints added/updated
+   - validation notes
+
+OBJECTIVE:
+Complete the existing Notifications microservice operational API surface so it supports real operational/admin usage and aligns with current UI expectations.
+
+IMPORTANT:
+- Build on the existing Notifications service already present in the repo.
+- Do NOT redesign the service from scratch.
+- Prefer additive, non-breaking changes.
+
+IN SCOPE:
+- Add GET /v1/notifications/stats
+- Add GET /v1/notifications/{id}/events
+- Add GET /v1/notifications/{id}/issues
+- Add POST /v1/notifications/{id}/retry
+- Add POST /v1/notifications/{id}/resend
+- Upgrade GET /v1/notifications to support paging, filtering, sorting, and a structured response envelope
+- Reuse existing domain/application/infrastructure layers where possible
+- Preserve backward compatibility for existing POST /v1/notifications producer integrations
+- Preserve existing internal email flow
+
+OUT OF SCOPE:
+- No full auth redesign
+- No full worker/reliability redesign
+- No new channels
+- No in-app notification center
+- No major frontend redesign beyond minimal compatibility adjustments if strictly needed
+
+FUNCTIONAL REQUIREMENTS:
+
+1. Stats endpoint
+   Add:
+   GET /v1/notifications/stats
+
+   Must return useful admin metrics such as:
+   - total notifications
+   - queued count
+   - sent count
+   - delivered count where provider/webhook data supports it
+   - failed count
+   - suppressed count
+   - channel breakdown
+   - provider breakdown when practical
+   - recent trend summary
+   - status distribution summary
+
+   Support filters where practical:
+   - date range
+   - status
+   - channel
+   - product
+   - tenant
+   - provider
+
+2. Events endpoint
+   Add:
+   GET /v1/notifications/{id}/events
+
+   Must return chronological event history such as:
+   - created
+   - queued
+   - recipients resolved
+   - provider selected
+   - attempted
+   - sent
+   - delivered
+   - suppressed
+   - retry scheduled
+   - retry attempted
+   - failed
+
+3. Issues endpoint
+   Add:
+   GET /v1/notifications/{id}/issues
+
+   Must return actionable issue/failure information such as:
+   - validation failures
+   - render/template failures
+   - suppression issues
+   - routing/provider failures
+   - delivery failures
+   - exhausted route or retry failures
+
+4. Retry endpoint
+   Add:
+   POST /v1/notifications/{id}/retry
+
+   Rules:
+   - only allow retry for retryable states
+   - must not duplicate successful deliveries
+   - must use existing delivery logic where possible
+   - must create audit/log trace
+   - must return updated notification state/result
+
+5. Resend endpoint
+   Add:
+   POST /v1/notifications/{id}/resend
+
+   Rules:
+   - resend is distinct from retry
+   - resend creates a new linked notification
+   - preserve traceability to the original
+   - do not silently mutate the original history
+   - only support overrides if already safe and practical; otherwise skip overrides in this feature
+
+6. List endpoint upgrade
+   Upgrade:
+   GET /v1/notifications
+
+   Must support:
+   - page
+   - pageSize
+   - status
+   - channel
+   - provider
+   - recipient
+   - productKey
+   - tenantId when supported by current access model
+   - from
+   - to
+   - sortBy
+   - sortDirection
+
+   Must return structured response, not a raw array:
+   - items
+   - page
+   - pageSize
+   - totalCount
+   - totalPages
+   - appliedFilters
+
+NON-FUNCTIONAL REQUIREMENTS:
+- Preserve current POST /v1/notifications behavior
+- Preserve current internal send-email behavior
+- Keep endpoint handlers thin
+- Put business logic in application/domain services
+- Reuse current repositories/entities/attempts/events/issues where possible
+- If event or issue persistence is incomplete, extend minimally and consistently
+- Ensure tenant safety is not weakened
+- Log/audit operator-triggered retry/resend actions
+- Avoid expensive graph loading in list/stats endpoints
+
+IMPLEMENTATION GUIDANCE:
+- Prefer additive changes over breaking changes
+- Reuse the existing layering and naming conventions
+- Do not create speculative abstractions
+- Do not move business logic into endpoint classes
+
+VALIDATION:
+- Build the affected Notifications projects
+- Resolve compile errors introduced by the feature
+- Smoke-test the new endpoints if practical
+- Document blockers clearly if something cannot be completed safely
+
+REQUIRED REPORT CONTENT:
+Create and maintain:
+   /analysis/LS-NOTIF-CORE-001-report.md
+
+Include these sections:
+
+# LS-NOTIF-CORE-001 Report
+
+## Summary
+## Implemented Endpoints
+## Files Changed
+## Data/Domain Changes
+## Validation Performed
+## Remaining Gaps
+## Risks / Follow-Up Recommendations
+
+If you find mismatches between frontend assumptions and backend reality, document them precisely in the report instead of guessing.

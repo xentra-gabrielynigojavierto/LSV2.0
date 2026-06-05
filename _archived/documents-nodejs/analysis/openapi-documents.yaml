@@ -1,0 +1,1135 @@
+openapi: 3.1.0
+
+info:
+  title: Documents Service API
+  version: "1.0.0"
+  description: |
+    Multi-tenant document management service for the LegalSynq platform.
+
+    ## Key behaviours
+    - All `/documents` routes require a Bearer JWT.
+    - `tenantId` is always sourced from the verified JWT — clients cannot override it.
+    - Documents belonging to other tenants return **404**, never 403, to prevent tenant enumeration.
+    - File access is brokered via opaque access tokens; storage URLs are never returned to clients.
+    - Files are malware-scanned before being written to storage.
+
+  contact:
+    name: LegalSynq Platform Engineering
+
+servers:
+  - url: http://localhost:5005
+    description: Local development (direct)
+  - url: http://localhost:5000/docs
+    description: Local development (via API gateway, if configured)
+
+# ── Security ──────────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT issued by the Identity Service. Required claims:
+        - `sub` or `userId` — user identifier
+        - `tenantId` or `tenant_id` — tenant UUID
+        - `roles` — array of role names
+
+  # ── Reusable schemas ────────────────────────────────────────────────────────
+
+  schemas:
+
+    # ── Common ──────────────────────────────────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      required: [error, message, correlationId]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+          example: NOT_FOUND
+        message:
+          type: string
+          description: Human-readable description
+          example: "Document not found: f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        correlationId:
+          type: string
+          description: Request correlation ID (echoed from X-Correlation-Id or auto-generated)
+          example: "a1b2c3d4-0000-0000-0000-000000000001"
+        details:
+          type: object
+          description: Field-level validation errors (400 responses only)
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    ValidationErrorResponse:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          properties:
+            error:
+              example: VALIDATION_ERROR
+            details:
+              example:
+                title: ["Required"]
+                tenantId: ["Invalid uuid"]
+
+    RateLimitErrorResponse:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          required: [retryAfter, limitDimension]
+          properties:
+            error:
+              example: RATE_LIMIT_EXCEEDED
+            retryAfter:
+              type: integer
+              description: Seconds until the rate limit window resets
+              example: 42
+            limitDimension:
+              type: string
+              enum: [ip, user, tenant]
+              description: Which rate-limit bucket was exceeded
+              example: user
+
+    # ── Document ──────────────────────────────────────────────────────────
+
+    DocumentStatus:
+      type: string
+      enum: [DRAFT, ACTIVE, ARCHIVED, DELETED, LEGAL_HOLD]
+      description: Lifecycle status of the document
+
+    ScanStatus:
+      type: string
+      enum: [PENDING, CLEAN, INFECTED, FAILED, SKIPPED]
+      description: |
+        - PENDING: scan not yet completed
+        - CLEAN: no threats found — access allowed
+        - INFECTED: malware detected — access always blocked
+        - FAILED: scanner error — access blocked when REQUIRE_CLEAN_SCAN_FOR_ACCESS=true
+        - SKIPPED: no scanner configured — access allowed
+
+    Document:
+      type: object
+      required:
+        - id
+        - tenantId
+        - productId
+        - referenceId
+        - referenceType
+        - documentTypeId
+        - title
+        - status
+        - mimeType
+        - fileSizeBytes
+        - versionCount
+        - scanStatus
+        - isDeleted
+        - createdAt
+        - createdBy
+        - updatedAt
+        - updatedBy
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        tenantId:
+          type: string
+          format: uuid
+          example: "aaaa0000-0000-0000-0000-000000000001"
+        productId:
+          type: string
+          example: "careconnect"
+        referenceId:
+          type: string
+          example: "mbr-001"
+        referenceType:
+          type: string
+          example: "member"
+        documentTypeId:
+          type: string
+          format: uuid
+          example: "10000000-0000-0000-0000-000000000001"
+        title:
+          type: string
+          example: "Medical History 2026"
+        description:
+          type: string
+          nullable: true
+          example: "Annual health review"
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        mimeType:
+          type: string
+          example: "application/pdf"
+        fileSizeBytes:
+          type: integer
+          example: 204800
+        currentVersionId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "bb2c10b-58cc-4372-a567-0e02b2c3d480"
+        versionCount:
+          type: integer
+          example: 2
+        scanStatus:
+          $ref: "#/components/schemas/ScanStatus"
+        scanCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-29T12:00:05.000Z"
+        scanThreats:
+          type: array
+          items:
+            type: string
+          description: Threat names detected. Typically empty; populated by ClamAV.
+          example: []
+        isDeleted:
+          type: boolean
+          example: false
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+          example: null
+        retainUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: Retention deadline. Document cannot be deleted before this date (once enforcement is implemented).
+          example: null
+        legalHoldAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: If set, document is on legal hold and cannot be deleted.
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-03-29T12:00:01.000Z"
+        createdBy:
+          type: string
+          format: uuid
+          example: "user-uuid-here"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-03-29T12:01:00.000Z"
+        updatedBy:
+          type: string
+          format: uuid
+          example: "user-uuid-here"
+
+    DocumentList:
+      type: object
+      required: [data, total, limit, offset]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+        total:
+          type: integer
+          description: Total matching documents (before pagination)
+          example: 1
+        limit:
+          type: integer
+          example: 50
+        offset:
+          type: integer
+          example: 0
+
+    # ── Version ───────────────────────────────────────────────────────────
+
+    DocumentVersion:
+      type: object
+      required:
+        - id
+        - documentId
+        - tenantId
+        - versionNumber
+        - mimeType
+        - fileSizeBytes
+        - scanStatus
+        - uploadedAt
+        - uploadedBy
+        - isDeleted
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+          example: 2
+        mimeType:
+          type: string
+          example: "application/pdf"
+        fileSizeBytes:
+          type: integer
+          example: 215040
+        scanStatus:
+          $ref: "#/components/schemas/ScanStatus"
+        scanCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        scanDurationMs:
+          type: integer
+          nullable: true
+          example: 142
+        scanThreats:
+          type: array
+          items:
+            type: string
+          example: []
+        scanEngineVersion:
+          type: string
+          nullable: true
+        uploadedAt:
+          type: string
+          format: date-time
+        uploadedBy:
+          type: string
+          format: uuid
+        label:
+          type: string
+          nullable: true
+          example: "v2-revised"
+        isDeleted:
+          type: boolean
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+
+    # ── Access token ──────────────────────────────────────────────────────
+
+    IssuedToken:
+      type: object
+      required: [accessToken, redeemUrl, expiresInSeconds, type]
+      properties:
+        accessToken:
+          type: string
+          description: Opaque 64-character lowercase hex token (256-bit entropy)
+          minLength: 64
+          maxLength: 64
+          pattern: "^[0-9a-f]{64}$"
+          example: "a3f9c2d1e8b74506a3f9c2d1e8b74506a3f9c2d1e8b74506a3f9c2d1e8b74506"
+        redeemUrl:
+          type: string
+          description: Relative path to redeem. Prepend the service base URL.
+          example: "/access/a3f9c2d1e8b74506..."
+        expiresInSeconds:
+          type: integer
+          description: Token TTL in seconds (default 300)
+          example: 300
+        type:
+          type: string
+          enum: [view, download]
+          example: "view"
+
+    # ── Health ────────────────────────────────────────────────────────────
+
+    HealthResponse:
+      type: object
+      required: [status, service, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          example: "docs-service"
+        timestamp:
+          type: string
+          format: date-time
+
+    ReadinessResponse:
+      type: object
+      required: [status, checks, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ready, degraded]
+        checks:
+          type: object
+          required: [database, storage]
+          properties:
+            database:
+              type: string
+              enum: [ok, fail]
+            storage:
+              type: string
+              description: Name of the active storage provider
+              example: "s3"
+        timestamp:
+          type: string
+          format: date-time
+
+  # ── Reusable responses ──────────────────────────────────────────────────────
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT
+      headers:
+        X-Correlation-Id:
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: AUTHENTICATION_REQUIRED
+            message: "Bearer token required"
+            correlationId: "req-abc-123"
+
+    Forbidden:
+      description: Insufficient role permission or cross-tenant access denied
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: ACCESS_DENIED
+            message: "Role(s) [DocReader] do not have 'delete' permission"
+            correlationId: "req-abc-123"
+
+    NotFound:
+      description: Resource not found (or belongs to another tenant)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: NOT_FOUND
+            message: "Document not found: f47ac10b-0000-0000-0000-000000000000"
+            correlationId: "req-abc-123"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds until the window resets
+        X-RateLimit-Limit:
+          schema: { type: integer }
+        X-RateLimit-Remaining:
+          schema: { type: integer }
+        X-RateLimit-Reset:
+          schema: { type: integer }
+          description: Unix timestamp (seconds) when the window resets
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/RateLimitErrorResponse" }
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ── Reusable parameters ─────────────────────────────────────────────────────
+
+  parameters:
+    DocumentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Document UUID
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Optional correlation ID for tracing; echoed in response body and logs
+
+# ── Global security ────────────────────────────────────────────────────────────
+
+security:
+  - BearerAuth: []
+
+# ── Paths ──────────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── Health ──────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Liveness check
+      description: Returns immediately. Does not check external dependencies.
+      security: []
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthResponse" }
+
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Readiness check
+      description: Checks database connectivity and reports the active storage provider.
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessResponse" }
+        "503":
+          description: Database unreachable — service not ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessResponse" }
+
+  # ── Documents ────────────────────────────────────────────────────────────────
+
+  /documents:
+    post:
+      tags: [Documents]
+      operationId: uploadDocument
+      summary: Upload a new document
+      description: |
+        Upload a new document. The file is malware-scanned **before** being written to storage.
+        If the scanner detects malware, the upload is rejected (422) and nothing is stored.
+
+        Rate limited: 10 requests/min per IP and per user, 20/min per tenant.
+
+        The `tenantId` in the request body must match the `tenantId` in the JWT.
+        Required role: `DocUploader` or higher.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - tenantId
+                - productId
+                - referenceId
+                - referenceType
+                - documentTypeId
+                - title
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: |
+                    The document file. Allowed MIME types: application/pdf, application/msword,
+                    application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+                    application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,
+                    image/jpeg, image/png, image/tiff, text/plain, text/csv.
+                    Maximum size: 50 MB (configurable).
+                tenantId:
+                  type: string
+                  format: uuid
+                  description: Must match the tenantId in the Bearer JWT
+                productId:
+                  type: string
+                  description: Product context identifier (e.g. careconnect, fund)
+                referenceId:
+                  type: string
+                  description: ID of the entity this document belongs to
+                referenceType:
+                  type: string
+                  description: Type of the referenced entity (e.g. member, application)
+                documentTypeId:
+                  type: string
+                  format: uuid
+                  description: ID from the document_types table
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                description:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "201":
+          description: Document created
+          headers:
+            X-Correlation-Id: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Document"
+        "400":
+          description: Validation error or empty/MIME-mismatch file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: File too large
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: FILE_TOO_LARGE
+                message: "File exceeds maximum allowed size of 50 MB"
+        "422":
+          description: Unsupported file type or infected file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                unsupported_type:
+                  value:
+                    error: UNSUPPORTED_FILE_TYPE
+                    message: "File type not permitted: application/x-executable"
+                infected:
+                  value:
+                    error: INFECTED_FILE
+                    message: "File rejected: malware detected (Eicar-Test-Signature)"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Documents]
+      operationId: listDocuments
+      summary: List documents for the authenticated tenant
+      description: |
+        Returns a paginated list of non-deleted documents scoped to the caller's tenant.
+        The tenant filter is always applied from the JWT — it cannot be overridden.
+        Required role: `DocReader` or higher.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - name: productId
+          in: query
+          schema: { type: string }
+          description: Filter by product ID
+        - name: referenceId
+          in: query
+          schema: { type: string }
+          description: Filter by referenced entity ID
+        - name: referenceType
+          in: query
+          schema: { type: string }
+          description: Filter by referenced entity type
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/DocumentStatus" }
+          description: Filter by document status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentList" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /documents/{id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+      - $ref: "#/components/parameters/CorrelationId"
+      - name: X-Admin-Target-Tenant
+        in: header
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: |
+          PlatformAdmin only. Allows cross-tenant access. Non-admin callers providing
+          this header have it silently ignored. Every cross-tenant access is audit-logged.
+
+    get:
+      tags: [Documents]
+      operationId: getDocument
+      summary: Get a document by ID
+      description: |
+        Returns a single document. Documents belonging to other tenants return 404.
+        Required role: `DocReader` or higher.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Document found
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Document" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    patch:
+      tags: [Documents]
+      operationId: updateDocument
+      summary: Update document metadata
+      description: |
+        Partially updates metadata fields. Only supplied fields are changed.
+        Status `DELETED` cannot be set via PATCH — use DELETE.
+        Required role: `DocUploader` or higher.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                description:
+                  type: string
+                  maxLength: 2000
+                documentTypeId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [DRAFT, ACTIVE, ARCHIVED, LEGAL_HOLD]
+                retainUntil:
+                  type: string
+                  format: date-time
+                  description: Retention deadline (ISO 8601)
+      responses:
+        "200":
+          description: Document updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Document" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags: [Documents]
+      operationId: deleteDocument
+      summary: Soft-delete a document
+      description: |
+        Marks the document as deleted. The record is retained in the database.
+        Documents on legal hold (`legalHoldAt` is set) cannot be deleted.
+        Required role: `DocManager` or higher.
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Document deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Permission denied or legal hold active
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                no_permission:
+                  value:
+                    error: ACCESS_DENIED
+                    message: "Role(s) [DocUploader] do not have 'delete' permission"
+                legal_hold:
+                  value:
+                    error: ACCESS_DENIED
+                    message: "Document is on legal hold and cannot be deleted"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /documents/{id}/versions:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+      - $ref: "#/components/parameters/CorrelationId"
+
+    post:
+      tags: [Documents, Versions]
+      operationId: uploadDocumentVersion
+      summary: Upload a new version
+      description: |
+        Uploads a new version of an existing document. The new file is scanned before storage.
+        The parent document's `currentVersionId`, `versionCount`, and `scanStatus` are updated atomically.
+        Rate limited: 10 requests/min per IP/user.
+        Required role: `DocUploader` or higher.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                label:
+                  type: string
+                  description: Optional version label (e.g. "v2-revised")
+      responses:
+        "201":
+          description: Version created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/DocumentVersion" }
+        "400":
+          description: File validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          description: File too large
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: Unsupported file type or infected file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Documents, Versions]
+      operationId: listDocumentVersions
+      summary: List versions of a document
+      description: |
+        Returns all non-deleted versions, ordered by version number descending (newest first).
+        Required role: `DocReader` or higher.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of versions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentVersion" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /documents/{id}/view-url:
+    post:
+      tags: [Documents, Access]
+      operationId: requestViewUrl
+      summary: Request a view access token
+      description: |
+        Issues a short-lived opaque access token for viewing the document file.
+        The client must redeem this token at `GET /access/{token}` to receive a 302 redirect.
+
+        **Scan gate:** The document must have scanStatus `CLEAN` or `SKIPPED`.
+        `INFECTED` always blocks. `PENDING`/`FAILED` block when the service is in strict scan mode.
+
+        Rate limited: 30 requests/min per IP/user, 60/min per tenant.
+        Required role: `DocReader` or higher.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Access token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/IssuedToken" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Permission denied or scan blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                scan_blocked:
+                  value:
+                    error: SCAN_BLOCKED
+                    message: "Access denied: file scan status is INFECTED. Only CLEAN files may be accessed."
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /documents/{id}/download-url:
+    post:
+      tags: [Documents, Access]
+      operationId: requestDownloadUrl
+      summary: Request a download access token
+      description: |
+        Identical to `POST /documents/{id}/view-url` but returns `type: "download"`.
+        The distinction signals to storage backends that a `Content-Disposition: attachment` header should be set.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Access token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/IssuedToken" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /documents/{id}/content:
+    get:
+      tags: [Documents, Access]
+      operationId: getDocumentContent
+      summary: Direct authenticated file access
+      description: |
+        Bypasses the access token flow. Validates the session JWT inline, checks scan status,
+        generates a 30-second presigned storage URL, and immediately responds with HTTP 302 Redirect.
+
+        Use this endpoint when the client already holds a valid JWT and you want a single-step
+        file fetch without the issue+redeem round-trip.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - $ref: "#/components/parameters/CorrelationId"
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [view, download]
+            default: view
+          description: Content disposition type
+      responses:
+        "302":
+          description: Redirect to the file (30-second presigned URL or internal token URL)
+          headers:
+            Location:
+              schema: { type: string }
+              description: Storage URL (valid for 30 seconds)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Permission denied or scan blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ── Access token redemption ──────────────────────────────────────────────────
+
+  /access/{token}:
+    get:
+      tags: [Access]
+      operationId: redeemAccessToken
+      summary: Redeem an access token
+      description: |
+        Unauthenticated endpoint. Redeems an opaque access token previously issued by
+        `POST /documents/{id}/view-url` or `POST /documents/{id}/download-url`.
+
+        **Validation:** Token must be exactly 64 lowercase hex characters.
+
+        **One-time use:** By default, tokens are one-time-use. Presenting a used token returns 401.
+
+        **Re-scan check:** The document's current scan status is re-checked at redemption time.
+        A document quarantined after token issuance will be blocked here.
+
+        **Redirect TTL:** The redirect target (storage URL) is valid for **30 seconds only**,
+        regardless of the token's original TTL.
+
+        **No rate limit** is currently applied to this endpoint.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-f]{64}$"
+            minLength: 64
+            maxLength: 64
+          description: Opaque access token (64 lowercase hex characters)
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "302":
+          description: Redirect to the file (valid 30 seconds)
+          headers:
+            Location:
+              schema: { type: string }
+              description: Storage URL — client should follow this redirect to fetch the file
+        "401":
+          description: Token invalid, expired, or already used
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                expired:
+                  value:
+                    error: TOKEN_EXPIRED
+                    message: "Access token has expired"
+                already_used:
+                  value:
+                    error: TOKEN_INVALID
+                    message: "Access token is invalid or has already been used"
+                bad_format:
+                  value:
+                    error: TOKEN_INVALID
+                    message: "Access token is invalid or has already been used"
+        "403":
+          description: Document scan status blocks access (re-scanned since token issuance)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: SCAN_BLOCKED
+                message: "Access denied: file scan status is INFECTED. Only CLEAN files may be accessed."
+        "404":
+          description: Document was deleted after the token was issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+# ── Tags ───────────────────────────────────────────────────────────────────────
+
+tags:
+  - name: Health
+    description: Liveness and readiness checks
+  - name: Documents
+    description: Document CRUD, upload, and metadata management
+  - name: Versions
+    description: Document version management
+  - name: Access
+    description: Access token issuance and redemption — the secure file access flow

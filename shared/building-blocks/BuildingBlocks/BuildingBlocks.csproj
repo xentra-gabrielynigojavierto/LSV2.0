@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- LS-FLOW-MERGE-P5 — service-token issuer (HS256) for machine-to-machine
+       Flow calls. JwtBearer is referenced so the AddServiceTokenAuthentication
+       extension can wire a second bearer scheme alongside the user token. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.5.*" />
+    <!-- Task #62 — MigrationCoverageProbe needs to inspect the live schema
+         (information_schema / sqlite_master) and the EF Core model. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- LS-ID-TNT-017-002 — User Access Audit:
+       Lightweight fire-and-observe audit client used by the shared authorization
+       filters (RequireProductAccessFilter, RequirePermissionFilter) to emit
+       denied-access canonical events to the Platform Audit Event Service.
+       Resolution is always optional (GetService) so services that do not register
+       the client simply skip audit emission with no failure. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\audit-client\LegalSynq.AuditClient\LegalSynq.AuditClient.csproj" />
+  </ItemGroup>
+
+</Project>

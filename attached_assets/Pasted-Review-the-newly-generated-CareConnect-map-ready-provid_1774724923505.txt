@@ -1,0 +1,155 @@
+Review the newly generated CareConnect map-ready provider discovery implementation before testing it.
+
+Goal:
+Validate correctness, safety, and scope of:
+- viewport / bounding-box search
+- map-friendly provider response shape
+- optional map search mode or dedicated map endpoint
+before functional testing begins.
+
+Context:
+- Gateway, Identity, and CareConnect are already working
+- MySQL + EF Core are configured
+- CareConnect already supports provider geolocation fields and radius-based geo search
+- New code includes:
+  - viewport / bounding-box search support
+  - map-friendly provider response additions
+  - optional map endpoint or response mode
+- This step is ONLY for review and cleanup
+
+Tasks
+
+==================================================
+1. SEARCH SURFACE REVIEW
+==================================================
+
+Confirm the implementation did one of these cleanly:
+- enhanced GET /api/providers
+OR
+- added a dedicated GET /api/providers/map endpoint
+
+Identify which approach was used and ensure it is consistent.
+
+If a new endpoint was added, confirm the original GET /api/providers behavior was not broken.
+
+==================================================
+2. VIEWPORT PARAM REVIEW
+==================================================
+
+Confirm support for these viewport params:
+- northLat
+- southLat
+- eastLng
+- westLng
+
+Check validation:
+- northLat >= southLat
+- latitudes between -90 and 90
+- longitudes between -180 and 180
+- invalid params return clean 400 using centralized exception handling
+
+==================================================
+3. GEO FILTER COMBINATION REVIEW
+==================================================
+
+Check how the implementation handles:
+- viewport filters
+- latitude/longitude/radiusMiles filters
+- existing provider filters:
+  - name
+  - categoryCode
+  - city
+  - state
+  - acceptingReferrals
+  - isActive
+  - page
+  - pageSize
+
+Confirm the chosen rule is clear and safe:
+- either radius + viewport can be combined with AND logic
+OR
+- the combination is rejected with a clean 400
+
+Document which rule was chosen.
+
+==================================================
+4. MAP RESPONSE REVIEW
+==================================================
+
+Confirm the provider response shape now includes map-relevant fields such as:
+- Id
+- Name
+- OrganizationName
+- City
+- State
+- AddressLine1
+- PostalCode
+- Email
+- Phone
+- AcceptingReferrals
+- IsActive
+- Latitude
+- Longitude
+- GeoPointSource
+- Categories
+- HasGeoLocation
+
+If optional summary fields were added, confirm they are simple and deterministic:
+- PrimaryCategory
+- DisplayLabel
+- MarkerSubtitle
+
+Ensure no unnecessary bloating or duplication was introduced.
+
+==================================================
+5. QUERY LOGIC REVIEW
+==================================================
+
+Verify:
+- tenant filter is applied first
+- providers without coordinates are excluded from viewport/radius search when geo params are used
+- geo filtering happens in database or with a clearly bounded approach
+- no external GIS dependencies were introduced
+- implementation remains simple and maintainable
+
+==================================================
+6. AUTHORIZATION REVIEW
+==================================================
+
+Confirm:
+- provider/map reads remain AuthenticatedUser
+- no write authorization rules were changed
+- no unexpected anonymous access was introduced
+
+==================================================
+7. TENANT ISOLATION REVIEW
+==================================================
+
+Verify:
+- all viewport and map queries remain tenant-scoped
+- cross-tenant provider results cannot leak
+- existing provider read behavior remains safe
+
+==================================================
+8. CODE SCOPE REVIEW
+==================================================
+
+Ensure NO accidental additions:
+- frontend map rendering
+- Google Maps / Mapbox / Leaflet integration
+- geocoding services
+- routing/travel estimates
+- clustering engine
+- provider portal changes
+
+==================================================
+9. OUTPUT
+==================================================
+
+Return:
+- issues found
+- fixes made
+- which search approach was used (enhanced providers endpoint or dedicated map endpoint)
+- how radius vs viewport filters are handled
+- confirmation that the implementation is SAFE to test
+- final list of changed files

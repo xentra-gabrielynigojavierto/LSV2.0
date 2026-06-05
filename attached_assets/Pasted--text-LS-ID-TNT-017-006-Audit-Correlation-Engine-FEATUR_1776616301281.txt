@@ -1,0 +1,430 @@
+```text
+# LS-ID-TNT-017-006 — Audit Correlation Engine
+
+## FEATURE OBJECTIVE
+
+Implement an **Audit Correlation Engine** that links related audit events into meaningful investigation chains so operators can move from isolated events to a coherent activity narrative.
+
+This feature should enable the platform to connect events across:
+- identity changes
+- access denials
+- successful high-value access
+- session invalidation
+- governance mutations
+- audit viewer traces
+
+The goal is to answer questions like:
+
+- which events are part of the same incident or action chain?
+- what permission change triggered later access failures?
+- which audit export followed which audit search/query activity?
+- what related events belong to the same actor/session/request/correlation flow?
+
+This is a **backend-first correlation and query-readiness feature**. It does NOT require a full analytics engine or anomaly detection system.
+
+---
+
+## WHY THIS FEATURE COMES NEXT
+
+Current state:
+- permission-change audit is complete
+- user access audit is complete
+- selective successful access audit is complete
+- governance mutation audit is complete
+- audit viewer is complete
+
+What is missing:
+- events are still mostly consumed one-by-one
+- there is limited ability to connect them into a single investigative thread
+- analysts still need to manually correlate actor, session, trace, and timing fields
+
+This feature turns the audit system from a **log repository** into an **investigation tool**.
+
+---
+
+## HARD SCOPE BOUNDARY (DO NOT VIOLATE)
+
+DO NOT IMPLEMENT:
+- anomaly detection / ML scoring
+- SIEM integrations
+- broad analytics dashboards
+- graph database migration
+- redesign of the canonical audit ingestion pipeline
+- speculative correlation rules not grounded in actual event fields
+- automatic incident classification beyond simple correlation groupings
+- full natural-language investigation assistant
+
+ONLY IMPLEMENT:
+- correlation data model and/or query model
+- event-linking based on existing fields already present in canonical audit events
+- backend query support for correlated event chains
+- minimal viewer integration if needed to surface related events
+- report-first implementation and honest documentation of supported correlation types
+
+---
+
+## BUILD INSTRUCTIONS (STRICTLY FOLLOW)
+
+You are implementing the next incremental governance/observability feature on top of:
+- LS-ID-TNT-001 — Tenant Users List Stabilization
+- LS-ID-TNT-002 — Add User Flow
+- LS-ID-TNT-003 — User Actions (Edit + Status Control)
+- LS-ID-TNT-004 — Password Reset + Last Admin Protection
+- LS-ID-TNT-005 — Backend Security Hardening
+- LS-ID-TNT-006 — Email Delivery Integration for Password Reset
+- LS-ID-TNT-007 — Invite-Based User Creation
+- LS-ID-TNT-008 — Access Model Expansion (Products + Groups + Tenant-Scoped Roles)
+- LS-ID-TNT-009 — Access Enforcement Layer (Products + Roles)
+- LS-ID-TNT-010 — Enforcement Completion (Route-Level + Token Consistency + Cross-Service Standard)
+- LS-ID-TNT-011 — Permission Model Foundation
+- LS-ID-TNT-012 — Backend Permission Enforcement
+- LS-ID-TNT-013 — Tenant Portal Permission Management UI
+- LS-ID-TNT-013-01 — Invite User Role Loading Fix
+- LS-ID-TNT-014 — Control Center Product Permission Governance UI
+- LS-ID-TNT-015 — Permission-Aware Product UI
+- LS-ID-TNT-015-004 — Disabled State Explainability
+- LS-ID-TNT-015-001 — Full UI Coverage for Permission-Aware Product UX
+- LS-ID-TNT-015-008 — Real-Time Permission Sync
+- LS-ID-TNT-017-001 — Permission Change Audit
+- LS-ID-TNT-017-002 — User Access Audit
+- LS-ID-TNT-017-002-01 — Selective Successful Access Audit
+- LS-ID-TNT-017-003 — Governance Mutation Audit
+- LS-ID-TNT-017-004 — Audit UI Viewer
+- LS-ID-TNT-022-001 — Define Insights Permission Codes
+- LS-ID-TNT-022-002 — Insights UI Permission Gating
+- LS-ID-TNT-022-003 — Insights Backend Permission Enforcement
+
+This feature MUST:
+- be incremental (NO rewrites)
+- preserve all existing identity, authorization, governance, and audit behavior
+- validate the real canonical event fields before defining correlation rules
+- reuse the existing audit query service and canonical event model where possible
+- keep tenant isolation intact
+- preserve fail-safe behavior and query safety
+- NOT introduce placeholder logic
+- document exactly which correlations are supported
+- prefer a small, robust correlation model over an overbuilt engine
+
+---
+
+## STEP 0 — CREATE REPORT (MANDATORY FIRST STEP)
+
+Create file:
+/analysis/LS-ID-TNT-017-006-report.md
+
+Initialize with:
+
+# LS-ID-TNT-017-006 — Audit Correlation Engine
+
+## 1. Executive Summary
+## 2. Codebase Analysis
+## 3. Existing Correlation Field Inventory
+## 4. Correlation Use Case Inventory
+## 5. Correlation Model Design
+## 6. Query / API Strategy
+## 7. Files Changed
+## 8. Backend Implementation
+## 9. Viewer / UX Integration
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+## 12. Final Status
+
+IMPORTANT:
+- Create this report FIRST
+- Update it incrementally after each major step
+- Do NOT wait until the end
+
+---
+
+## STEP 1 — ANALYZE THE ACTUAL CANONICAL AUDIT EVENT MODEL
+
+Inspect the real canonical audit model and query paths.
+
+You must identify and document:
+- what fields are already available on `CanonicalAuditEvent`
+- which of these are actually populated across the major event types:
+  - `correlationId`
+  - `requestId`
+  - `sessionId`
+  - `actorId`
+  - `tenantId`
+  - `targetId`
+  - `eventType`
+  - `tags`
+  - timestamps
+- whether any current endpoints already support:
+  - query by correlationId
+  - query by actorId
+  - query by entity/target
+  - query by sessionId
+  - query by requestId
+- whether the audit viewer already links any of these fields
+- where current gaps exist between what is stored and what is queryable
+
+Do NOT assume the current correlation field population is uniform across all event types until you inspect it.
+
+Update report:
+## 2. Codebase Analysis
+## 3. Existing Correlation Field Inventory
+
+---
+
+## STEP 2 — DEFINE THE REAL INVESTIGATION USE CASES
+
+Identify and document the actual investigation chains the platform should support.
+
+At minimum validate whether the current event model can support use cases like:
+- permission change → access version stale → user re-login → new successful access
+- denied access attempts by actor across a time window
+- audit query access → audit export submission
+- governance mutation by actor followed by later access/queries
+- all actions in the same session
+- all actions in the same request/correlation flow
+- all events affecting the same target entity
+
+For each use case:
+- define the investigative question
+- define which fields enable the correlation
+- define whether current data is sufficient
+- document any missing fields or weak spots
+
+Update report:
+## 4. Correlation Use Case Inventory
+
+---
+
+## STEP 3 — DESIGN THE CORRELATION MODEL
+
+Choose the smallest robust model that fits the current architecture.
+
+Possible approaches:
+- query-time correlation only (derive relationships dynamically using existing fields)
+- lightweight correlated-view endpoint(s) using existing audit storage
+- explicit correlation grouping record only if genuinely necessary
+
+Preferred default:
+- **query-time correlation using existing canonical fields**, unless the codebase clearly requires a persisted correlation table
+
+Requirements:
+- correlation must remain tenant-safe
+- avoid overbuilding
+- do not duplicate event storage
+- make supported relationships explicit and deterministic
+
+Document:
+- which correlation keys are primary (e.g. correlationId, actorId, sessionId, targetId)
+- which are fallback relationships
+- how time-window logic is applied
+- what ordering model is used (normally occurredAtUtc ascending)
+
+Update report:
+## 5. Correlation Model Design
+
+---
+
+## STEP 4 — IMPLEMENT BACKEND QUERY SUPPORT FOR CORRELATED EVENT CHAINS
+
+Implement the minimal backend support needed to query related events.
+
+Possible outputs to support:
+- "related events for audit event X"
+- "timeline for correlationId"
+- "timeline for actor + session"
+- "timeline for target entity"
+- mixed strategy: try strongest key first, then fallback keys
+
+Requirements:
+- only add endpoints/query methods that are actually useful
+- keep authorization and tenant scoping enforced by existing query authorizer
+- do not expose unrestricted correlation queries to unauthorized users
+- preserve pagination or sensible result limits
+- return events in a stable time order
+
+Examples of acceptable outcomes:
+- `GET /audit/events/{id}/related`
+- extended existing trace endpoint/query
+- reusable internal correlation service consumed by existing controllers
+
+Choose the smallest coherent design and document why.
+
+Update report:
+## 6. Query / API Strategy
+## 8. Backend Implementation
+
+---
+
+## STEP 5 — DEFINE THE CORRELATION RESOLUTION RULES
+
+Document and implement deterministic correlation logic.
+
+Example precedence (only if supported by real data):
+1. exact `correlationId`
+2. exact `requestId`
+3. exact `sessionId`
+4. same actor + same target + bounded time window
+5. same actor + bounded time window + relevant event-type families
+
+Requirements:
+- rules must be deterministic
+- rules must be documented clearly in code/report
+- avoid vague "smart" heuristics
+- use bounded time windows where weaker keys are used
+- do not produce excessive unrelated events
+
+If confidence tiers are useful, you may define them (e.g. exact vs inferred), but keep it simple.
+
+Update report:
+## 5. Correlation Model Design
+## 8. Backend Implementation
+
+---
+
+## STEP 6 — INTEGRATE WITH THE EXISTING AUDIT VIEWER / TRACE EXPERIENCE
+
+Hook the new correlation capability into the current audit UI in the smallest coherent way.
+
+Possible integrations:
+- "Related Events" panel in audit detail
+- link from audit detail to correlated timeline
+- trace viewer enhancement using correlation keys
+- actor/entity/correlation quick links that now show better grouped results
+
+Requirements:
+- reuse existing SYNQAUDIT navigation if possible
+- do not redesign the whole viewer
+- ensure operators can move from one event to its related chain with minimal friction
+- if no frontend change is strictly required because an existing view can consume the new query path, document that clearly
+
+Update report:
+## 9. Viewer / UX Integration
+
+---
+
+## STEP 7 — PRESERVE TENANT ISOLATION AND AUTHORIZATION
+
+Requirements:
+- all correlation queries must remain tenant-safe
+- cross-tenant related-event leakage must be impossible
+- platform-admin global view remains allowed
+- tenant-scoped callers only see their own tenant’s correlated events
+- no fallback correlation rule may bypass query authorization
+
+Document how the existing query authorizer is reused or extended.
+
+Update report:
+## 8. Backend Implementation
+## 10. Verification / Testing Results
+
+---
+
+## STEP 8 — ENSURE EVENTS REMAIN VIEWER-FRIENDLY
+
+Requirements:
+- correlated chains should still show readable event types, descriptions, actors, and timestamps
+- if confidence/source of correlation is returned, it should be interpretable
+- do not require a specialized UI to understand the relationship
+- avoid returning huge unrelated event sets
+
+If you return a correlation explanation field (recommended if lightweight), keep it concise:
+- `match: correlationId`
+- `match: sessionId`
+- `match: actor+target+time_window`
+
+Update report:
+## 9. Viewer / UX Integration
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 9 — PRESERVE BACKWARD COMPATIBILITY
+
+Ensure and document that the following do not regress:
+- audit ingestion
+- audit viewer list/detail
+- permission-change audit
+- access audit
+- governance mutation audit
+- audit export/query paths
+- service startup/build stability
+- query performance on existing endpoints
+
+Update report:
+## 10. Verification / Testing Results
+## 11. Known Issues / Gaps
+
+---
+
+## STEP 10 — TESTING / VERIFICATION
+
+Test and document each scenario.
+
+### Exact correlation
+- events sharing the same correlationId are returned together
+- requestId/sessionId based chains work if populated
+
+### Fallback correlation
+- actor + target + bounded time window returns sensible related events
+- unrelated events are not over-included
+
+### Viewer integration
+- operator can navigate from an event to related events
+- related chain is readable and ordered
+
+### Security
+- tenant-scoped query cannot see other tenant events
+- platform-admin still has full visibility where appropriate
+
+### Regression
+- existing audit queries still work
+- existing audit viewer still works
+- no build/runtime regressions
+- performance is acceptable
+
+Update report:
+## 10. Verification / Testing Results
+
+---
+
+## STEP 11 — FINALIZE REPORT
+
+Complete:
+## 1. Executive Summary
+## 11. Known Issues / Gaps
+## 12. Final Status = Complete
+
+Your final report must clearly state:
+- what correlation keys are now supported
+- what related-event queries are supported
+- what fallback logic is used
+- what UI integration was added
+- what remains weak due to missing source-event fields
+- how tenant isolation is preserved
+
+---
+
+## SUCCESS CRITERIA
+
+✔ Real canonical event fields were analyzed from code
+✔ Practical investigation use cases were defined
+✔ A deterministic correlation model was implemented
+✔ Related-event query support now exists for the validated scope
+✔ Existing audit query/authorization architecture is reused
+✔ Tenant isolation remains intact
+✔ Existing audit behavior does not regress
+✔ Operators can navigate from a single event to a correlated event chain
+✔ Coverage and limitations are documented honestly
+
+---
+
+## FINAL DELIVERABLES
+
+1. Working audit correlation backend/query capability for the validated scope
+2. Minimal viewer/trace integration for related-event navigation
+3. Reuse of the existing audit query and authorization architecture
+4. Completed report:
+/analysis/LS-ID-TNT-017-006-report.md
+
+---
+
+END OF IMPLEMENTATION
+```

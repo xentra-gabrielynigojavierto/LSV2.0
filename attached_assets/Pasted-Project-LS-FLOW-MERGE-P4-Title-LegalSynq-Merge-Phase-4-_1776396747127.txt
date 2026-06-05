@@ -1,0 +1,269 @@
+Project: LS-FLOW-MERGE-P4
+Title: LegalSynq Merge Phase 4 — Operational Hardening & Product Integration
+
+You are implementing Phase 4 of the Flow-to-LegalSynq merge plan.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-MERGE-P4-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around product integration points, workflow-instance design, migration/data transition, permission-code centralization, and anything you could not safely automate.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - product-side integration changes
+   - workflow-instance model changes
+   - migration/data transition changes
+   - authorization/capability hardening changes
+   - operational hardening changes
+   - build/run notes
+   - validation/build/test/runtime/end-to-end results
+   - known gaps/issues
+   - recommendation: ready for next phase or needs iteration
+
+REPORT FORMAT
+
+# LS-FLOW-MERGE-P4 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Workflow Instance Model Notes
+## Migration / Data Transition Notes
+## Authorization / Capability Hardening Notes
+## Product Integration Notes
+## Operational Hardening Notes
+## Frontend / Product UX Validation Notes
+## Documentation Changes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Take Flow from a product-consumable workflow service to an operationally hardened, production-grade, multi-product platform capability by completing real product-side integrations, introducing a dedicated workflow-instance model, centralizing authorization constants/policies, executing DB-backed validation, and tightening operational behavior without breaking the bounded-service architecture established in earlier phases.
+
+This phase is operational hardening and real product integration, not shared-DB consolidation or wholesale workflow-engine redesign.
+
+SCOPE INCLUDES
+
+- product-side integration from SynqLien, CareConnect, and SynqFund into Flow APIs
+- dedicated WorkflowInstance model introduction
+- migration away from TaskItem as workflow-instance surrogate
+- safe migration/data transition updates
+- permission/capability constant centralization
+- DB-backed and end-to-end validation
+- operational hardening for logging/config/adapter safety
+- minimal product UI validation needed to prove real usage
+- documentation updates
+
+DO NOT BUILD
+
+- shared DB merge
+- direct DB access from product services into Flow
+- full enterprise event bus rollout
+- broad workflow redesign
+- broad UI redesign across all products
+- deep analytics/reporting suite
+- generalized external integrations unless required for chosen product paths
+- full platform authorization redesign
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve Flow as a bounded shared service under /apps/services/flow
+- keep Flow API-first and DB-isolated
+- introduce a real WorkflowInstance model
+- migrate product mapping away from TaskItem-as-instance
+- centralize new permission/capability strings into shared platform constants
+- wire real product-side integrations through APIs/gateway, not DB access
+- validate real end-to-end product-linked workflow paths
+- harden operational behavior enough for supportable multi-product usage
+- document all migration/data/runtime assumptions clearly
+
+CURRENT CONTEXT FROM PHASE 3
+
+Flow already has:
+- real event emission from WorkflowService and TaskService
+- Audit + Notifications triggered via dispatcher
+- product-aware authorization policies
+- ProductWorkflowMapping entity and APIs
+- product-facing Flow endpoints for synqlien / careconnect / synqfund
+- safe tenant enforcement and gateway exposure
+
+Known Phase 3 findings to address now:
+- product-side adapters/callers are not yet built
+- WorkflowInstanceTaskId is still a TaskItem surrogate
+- permission claim strings are inline and should be centralized
+- DB-backed validation was limited by local environment
+
+IMPLEMENTATION REQUIREMENTS
+
+1. DEDICATED WORKFLOW INSTANCE MODEL
+
+Requirements:
+- introduce a dedicated WorkflowInstance entity/model
+- clearly separate workflow definition/template vs workflow instance vs tasks
+- update Flow services/APIs/mapping model to use the new instance concept
+- migrate ProductWorkflowMapping to reference WorkflowInstanceId instead of WorkflowInstanceTaskId
+- keep backward compatibility where practical, or document any controlled contract change clearly
+
+2. MIGRATION / DATA TRANSITION
+
+Requirements:
+- create EF/Core migrations for the new WorkflowInstance model and mapping updates
+- safely handle existing data, including:
+  - legacy "default" tenant rows
+  - existing ProductWorkflowMappings
+  - existing workflow/task records that need instance correlation
+- prefer explicit, idempotent, well-documented migration logic
+- do not perform silent destructive migration
+
+3. AUTHORIZATION / CAPABILITY HARDENING
+
+Requirements:
+- centralize Flow-related permission/capability constants into the shared platform location (for example BuildingBlocks.PermissionCodes)
+- replace inline strings in Flow and product integration code with centralized constants
+- validate policy behavior for platform admins, tenant admins, product-scoped users, and unauthorized users
+- keep any dev-only fallback explicitly environment-gated and justified
+
+4. REAL PRODUCT-SIDE INTEGRATION
+
+Requirements:
+- implement the maximum safe subset of real product-side integration for:
+  - SynqLien
+  - CareConnect
+  - SynqFund
+- product services should call Flow through API/gateway patterns
+- products should be able to create/correlate workflows from real product context
+- products should be able to retrieve workflow status and progress relevant tasks where appropriate
+- do not introduce direct DB joins/shared-table access
+
+5. END-TO-END VALIDATION
+
+Requirements:
+- validate at least one real product-linked path for each chosen target subset
+- validation should cover:
+  - auth
+  - tenant enforcement
+  - product-to-flow correlation
+  - audit path
+  - notification path where applicable
+  - runtime startup/gateway/API behavior
+- use real DB-backed validation where available
+- if environment limitations prevent full validation, perform the maximum safe subset and document the exact gap
+
+6. OPERATIONAL HARDENING
+
+Requirements:
+- improve logging around workflow execution and integration points as needed
+- ensure adapter failures remain safe and diagnosable
+- review retry/timeout/config behavior for HTTP integrations
+- improve health/info/status/config clarity as needed
+- document operational run commands and config expectations clearly
+
+7. PRODUCT UX VALIDATION
+
+Requirements:
+- add the minimum safe UI integration needed in product surfaces to prove real usage
+- examples:
+  - launch/start workflow from product record
+  - view correlated workflow status from product screen
+  - navigate to Flow task/workflow detail from product context
+- keep UI changes narrow and validation-oriented
+- do not perform broad redesign
+
+8. DOCUMENTATION
+
+Update docs under /apps/services/flow/docs and relevant product docs as needed to cover:
+- WorkflowInstance model
+- product-side integration pattern
+- permission/capability centralization
+- migration/data transition details
+- operational runbook/config
+- end-to-end validation scenarios
+- remaining future-phase deferrals
+
+Suggested files:
+- README.md
+- architecture.md
+- merge-phase-4-notes.md
+- optional product integration notes
+
+9. EXPLICIT DEFERRALS
+
+Document that these remain deferred unless strictly required:
+- full event bus rollout
+- complete workflow coverage for every product process
+- deep analytics/reporting
+- broad UI redesign
+- shared DB consolidation
+- wholesale workflow-engine redesign
+- generalized external ecosystem integrations
+
+VALIDATION
+
+You MUST confirm and record in the report:
+
+Repository / Architecture
+- Flow remains under /apps/services/flow
+- service boundary preserved
+- products use APIs/gateway, not DB coupling
+
+Backend / Data
+- backend builds successfully
+- WorkflowInstance model is implemented
+- migrations compile and are valid
+- ProductWorkflowMapping references WorkflowInstance correctly
+- legacy data handling is safe and documented
+
+Authorization
+- centralized permission codes are used
+- policy behavior works correctly
+- unauthorized requests are denied
+
+Product Integration
+- at least one real integrated path exists for each chosen target product subset
+- products can start/query/progress workflows through Flow
+- tenant/auth/correlation integrity remain correct
+
+Runtime / Operations
+- services start cleanly
+- logging/health/config behavior are adequate
+- adapter failures are safe
+- gateway routing works under real usage
+
+Frontend / UX
+- minimal product UI validation paths compile/work
+- workflow-related functionality is reachable from product context
+
+Documentation
+- docs updated
+- migration/operational notes documented
+- future deferrals documented
+
+EXECUTION ORDER
+
+1. Inspect current Phase 3 state and relevant product service integration points.
+2. Create /analysis/LS-FLOW-MERGE-P4-report.md immediately and begin logging actions/assumptions.
+3. Introduce the dedicated WorkflowInstance model.
+4. Update ProductWorkflowMapping and related services/APIs to use WorkflowInstance.
+5. Create and verify migrations/data transition logic.
+6. Centralize permission/capability constants and update policies.
+7. Implement real product-side integration for SynqLien.
+8. Implement real product-side integration for CareConnect.
+9. Implement real product-side integration for SynqFund.
+10. Strengthen operational/logging/config behavior as needed.
+11. Add minimal product UI validation paths as needed.
+12. Run DB-backed/runtime/end-to-end validation for chosen scenarios.
+13. Update docs.
+14. Finalize report with exact gaps and next-step recommendations.
+
+SUCCESS CONDITION
+
+Flow has a dedicated WorkflowInstance model, product services really integrate with it through APIs, permission/capability rules are centralized and enforced, migrations/data transitions are safe, at least one real end-to-end product-linked workflow path works for each chosen target subset, operational behavior is supportable, and Flow remains a bounded shared service ready for broader rollout.
+
+FAILURE CONDITION
+
+The work introduces DB coupling, leaves TaskItem as the workflow-instance surrogate without a clear migration, keeps permission logic fragmented, fails to achieve real product-linked validation, or entangles Flow with product-specific implementation in a way that weakens its shared-service role.

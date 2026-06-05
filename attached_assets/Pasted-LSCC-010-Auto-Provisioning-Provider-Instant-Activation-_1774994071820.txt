@@ -1,0 +1,498 @@
+LSCC-010 — Auto Provisioning (Provider Instant Activation)
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-010
+
+Initial implementation report:
+- /analysis/LSCC-010-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-010-XX.md
+
+Examples:
+- /analysis/LSCC-010-report.md
+- /analysis/LSCC-010-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Eliminate the manual admin approval step from the happy-path provider activation flow by automatically provisioning the provider into the platform at the moment they complete activation.
+
+This feature must:
+
+1. create or resolve the provider’s tenant / organization automatically
+2. link the provider to that organization safely
+3. activate the provider access path immediately in the happy path
+4. preserve referral context and route the provider back into the referral flow
+5. fall back safely to the LSCC-009 admin activation queue when auto-provisioning cannot complete
+
+Do NOT redesign the identity platform broadly.
+Do NOT add billing/subscription logic.
+Do NOT build a full onboarding system.
+Do NOT expand unrelated CareConnect workflows.
+
+This is a backend-heavy but controlled growth optimization on top of LSCC-008 and LSCC-009.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Auto-provision service
+B. Automatic organization / tenant creation or resolution
+C. Provider-to-organization linking in the happy path
+D. Activation-flow integration
+E. Safe fallback to LSCC-009 activation queue
+F. Auto-provision tracking / audit events
+G. Report
+
+Do NOT implement:
+- full onboarding wizard
+- billing/subscriptions
+- multi-user org setup UI
+- admin CRM tooling
+- advanced analytics
+- unrelated frontend UX refactors
+- broad identity service rewrites
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse the existing provider activation funnel from LSCC-008
+2. Reuse the existing admin activation queue from LSCC-009 as the fallback path
+3. Prefer the smallest viable organization/tenant creation path
+4. Keep logic separated:
+   - auto-provision orchestration
+   - organization/tenant creation or lookup
+   - provider linking
+   - activation fallback
+   - tracking/audit
+5. Make the happy path idempotent
+6. Never create duplicate organizations for the same provider
+7. Never overwrite a valid existing provider organization link
+8. If any auto-provision step cannot complete safely, fall back to LSCC-009 instead of guessing
+9. Preserve all existing secure token and referral context behavior
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+- only minimal identity / organization integration points already needed for provider activation and login routing
+
+Frontend:
+- apps/web/src/app/referrals/activate/...
+- apps/web/src/app/referrals/accept/...
+- auth/login/signup-related context preservation only as needed
+
+Do NOT use this feature to refactor unrelated infrastructure or UI broadly.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Already implemented:
+- LSCC-008 provider activation funnel
+- pending vs active provider routing
+- activation start tracking
+- context preservation through login/returnTo
+- LSCC-009 admin activation queue with:
+  - ActivationRequest entity
+  - approve & activate flow
+  - provider.OrganizationId linking
+  - idempotent approval
+
+Current gap:
+- providers still depend on admin intervention to become active
+- activation requests exist, but conversion is delayed
+- the system needs an instant-activation happy path with safe fallback
+
+LSCC-010 must remove that manual bottleneck while preserving operational safety.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. AUTO-PROVISION SERVICE
+--------------------------------------------------
+
+Implement a dedicated orchestration service for provider instant activation.
+
+Suggested intent:
+- AutoProvisionProviderAsync(providerId, referralId, requesterContext, ct)
+
+The service must:
+1. validate the provider is still eligible for auto-provisioning
+2. resolve whether provider is already active
+3. create or resolve an organization/tenant for the provider
+4. link provider to the organization safely
+5. emit success/failure tracking
+6. return a structured result indicating:
+   - success
+   - organizationId if created/resolved
+   - whether fallback to LSCC-009 is required
+   - whether provider was already active
+
+Example result shape (adapt to repo conventions):
+{
+  success: boolean,
+  organizationId: Guid?,
+  alreadyActive: boolean,
+  fallbackRequired: boolean,
+  failureReason: string?
+}
+
+Rules:
+- service must be idempotent
+- repeated calls must not create duplicate organizations or links
+- if provider already has a valid OrganizationId, treat as already active and do not reprovision
+
+--------------------------------------------------
+B. ORGANIZATION / TENANT CREATION
+--------------------------------------------------
+
+Implement the minimal safe organization creation/resolution rule.
+
+Preferred happy-path rule:
+- if provider has no valid organization link, create a minimal organization/tenant for that provider automatically
+
+Minimum organization creation requirements:
+- deterministic name based on provider identity
+- stable uniqueness rule
+- generated tenant/organization id
+- no billing setup
+- no broad user-management setup
+
+Acceptable implementation patterns:
+1. create a new organization record in the existing identity/organization system
+2. if a deterministic existing organization match already exists and is platform-supported, reuse it
+3. if deterministic resolution is impossible, fail safely and trigger LSCC-009 fallback
+
+Rules:
+- do NOT guess organization matches from weak heuristics
+- do NOT create more than one org for the same provider
+- document the exact creation/linking rule in the report
+
+--------------------------------------------------
+C. PROVIDER LINKING
+--------------------------------------------------
+
+After successful organization creation/resolution:
+
+- set provider.OrganizationId (or equivalent existing link field)
+
+Rules:
+- if already set correctly, do nothing
+- do not overwrite a valid different link without explicit safe handling
+- if a conflicting link exists, fail safely and route to fallback rather than forcing reassignment
+
+This must be idempotent and concurrency-safe as much as the existing architecture allows.
+
+--------------------------------------------------
+D. ACTIVATION FLOW INTEGRATION
+--------------------------------------------------
+
+Integrate auto-provisioning into the LSCC-008 activation flow.
+
+Current flow:
+- provider submits activation form
+- activation request / tracking is created
+- admin approval may be required
+
+New happy path:
+1. provider submits activation form
+2. system attempts auto-provision
+3. if successful:
+   - provider becomes active immediately
+   - preserve referral context
+   - redirect to login or directly into portal depending on existing auth conventions
+4. if auto-provision cannot complete safely:
+   - create/update LSCC-009 activation request
+   - show fallback message
+
+Rules:
+- keep the same primary CTA where possible
+- do not break the existing pending-provider activation landing
+- do not remove the manual fallback path
+
+--------------------------------------------------
+E. LOGIN / RETURN-TO / CONTEXT PRESERVATION
+--------------------------------------------------
+
+Preserve referral context end-to-end in the auto-provision happy path.
+
+Minimum required:
+- activation form submit
+- auto-provision success
+- login or auth handoff
+- redirect to /careconnect/referrals/{id}
+
+If direct auto-login is not already supported:
+- redirect to login with safe returnTo
+- reuse existing open-redirect guard behavior
+- preserve referral destination
+
+Do NOT lose:
+- referral id / destination
+- provider flow source
+- activation context
+
+--------------------------------------------------
+F. SAFE FALLBACK TO LSCC-009
+--------------------------------------------------
+
+If auto-provisioning fails or cannot complete safely at any step:
+
+1. create or upsert an ActivationRequest using LSCC-009 model/service
+2. preserve provider + referral context
+3. show a clear message such as:
+   - "We're setting up your account. You'll be notified shortly."
+4. do not leave the provider in an ambiguous partial state
+
+Fallback scenarios include:
+- organization creation failure
+- conflicting existing provider link
+- missing provider data
+- deterministic provisioning rule cannot be satisfied
+- downstream identity service failure
+
+Rules:
+- fallback must be the default safety net
+- no silent drop of activation intent
+- no partial “success” message if provisioning did not complete
+
+--------------------------------------------------
+G. TRACKING / AUDIT EVENTS
+--------------------------------------------------
+
+Extend funnel tracking with minimal additional events.
+
+Required events:
+- AutoProvisionStarted
+- AutoProvisionSucceeded
+- AutoProvisionFailed
+
+You may also reuse/create:
+- ActivationStarted
+- ActivationCompleted (if meaningfully distinct in current model)
+
+Preferred implementation:
+- reuse existing audit/event infrastructure already used by LSCC-008 and LSCC-009
+
+Rules:
+- events must be attributable to provider/referral context where possible
+- do not build a full analytics system
+- enough eventing must exist to analyze success vs fallback later
+
+--------------------------------------------------
+H. ACTIVATION COMPLETION STATE
+--------------------------------------------------
+
+On successful auto-provision:
+- provider should be considered active by the same logic used in LSCC-008 state detection
+- provider should be able to authenticate and continue into the portal referral flow
+
+If current architecture requires a separate user/account creation step that is not yet automated:
+- implement the furthest safe automatic step possible
+- if full “instant active” cannot truly happen, fall back to LSCC-009 rather than pretending it succeeded
+- document the exact completion semantics in the report
+
+--------------------------------------------------
+I. SECURITY / SAFETY REQUIREMENTS
+--------------------------------------------------
+
+Maintain strict safeguards:
+
+1. token must still be validated before public activation actions
+2. no cross-tenant linking
+3. no broad exposure of org creation endpoints publicly
+4. no unsafe matching by email/domain/name alone unless already an explicit platform rule
+5. no duplicate organization creation under retry/double-submit conditions
+6. protect against double form submission / refresh races as much as practical
+
+If concurrency locking is limited by current architecture:
+- make operations idempotent
+- add unique constraints/checks where practical
+- document remaining limits
+
+--------------------------------------------------
+J. UI / UX REQUIREMENTS
+--------------------------------------------------
+
+Keep frontend changes minimal and focused on the activation experience.
+
+Minimum requirements:
+- activation form shows a provisioning/loading state:
+  - "Setting up your account..."
+- successful auto-provision path routes cleanly forward
+- fallback path shows clear manual-review message
+- already-active providers still follow active routing
+- invalid/accepted token states continue to work
+
+Do NOT redesign the broader CareConnect UI.
+
+--------------------------------------------------
+K. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. provider already active
+- skip provisioning
+- route to login/portal path
+
+2. double submit
+- no duplicate org creation
+- no duplicate activation request creation
+
+3. partial failure after org create but before provider link
+- either recover safely or fall back with explicit reporting
+- do not leave silent ambiguity
+
+4. conflicting provider link
+- do not overwrite blindly
+- fall back
+
+5. accepted referral before activation completes
+- destination should show accepted state, not prompt duplicate acceptance
+
+6. restart/retry during provisioning
+- idempotent behavior
+
+--------------------------------------------------
+L. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+1. auto-provision happy path
+   - provider without org gets organization created/resolved
+   - provider gets linked
+   - success result returned
+
+2. already-active provider
+   - no duplicate org created
+   - alreadyActive result/path returned
+
+3. fallback path
+   - failure creates/upserts LSCC-009 activation request
+   - fallbackRequired returned
+
+4. idempotency
+   - repeated activation submit does not create duplicate orgs
+   - repeated activation submit does not create duplicate links
+
+5. conflict handling
+   - conflicting existing link handled safely
+
+6. tracking/events
+   - started/succeeded/failed events emitted as designed
+
+7. context preservation
+   - login/returnTo destination still points to referral
+
+If full frontend auth-flow tests are difficult:
+- test service-layer and URL-builder / action logic
+- document any limitation in the report
+
+Pre-existing unrelated test failures must not be counted as regressions, but note them if still present.
+
+--------------------------------------------------
+M. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-010-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Auto-provision strategy
+- exact service flow
+- how organization creation/resolution works
+- idempotency strategy
+
+3. Provider linking
+- exact linking rule
+- conflict handling
+
+4. Activation flow integration
+- where auto-provision is triggered
+- success vs fallback behavior
+
+5. Fallback behavior
+- when LSCC-009 activation request is created/updated
+- user-facing fallback messaging
+
+6. Tracking/events
+- what events are emitted
+- where they are stored
+
+7. Security/safety
+- how duplicate org creation is prevented
+- how unsafe matches are avoided
+
+8. Tests
+- what scenarios are covered
+- what gaps remain
+
+9. Known limitations / deferred items
+- anything left for future provisioning or onboarding work
+
+10. Recommended next step
+- smallest logical follow-up after auto provisioning
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. Inspect LSCC-008 activation flow and LSCC-009 activation request + provider link model
+2. Implement auto-provision orchestration service
+3. Implement minimal organization creation/resolution
+4. Implement safe provider linking
+5. Integrate into activation form submit flow
+6. Add fallback to LSCC-009 activation request path
+7. Add tracking/events
+8. Add tests
+9. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-010 is complete ONLY if:
+
+1. the happy path auto-provisions a pending provider into an active provider account/link without admin intervention
+2. provider/referral context is preserved through the auth return flow
+3. fallback to LSCC-009 occurs safely when auto-provision cannot complete
+4. duplicate org creation and duplicate linking are prevented
+5. tracking exists for started/succeeded/failed auto-provision outcomes
+6. LSCC-008 and LSCC-009 behaviors remain intact
+7. report exists at:
+   /analysis/LSCC-010-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this backend-heavy but controlled.
+Do not drift into a full onboarding platform.
+Build the smallest safe instant-activation path that removes manual admin dependency in the happy path while preserving LSCC-009 as the fallback safety net.

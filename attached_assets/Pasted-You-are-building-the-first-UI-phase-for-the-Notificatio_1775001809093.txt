@@ -1,0 +1,474 @@
+You are building the first UI phase for the Notifications platform inside the MAIN PLATFORM project.
+
+This phase is the Control Center foundation.
+
+Follow these requirements exactly.
+
+==================================================
+PROJECT: NOTIF-UI-001 — Control Center Foundation
+==================================================
+
+GOAL:
+Build the first operational UI for the Notifications platform inside the main platform.
+
+This is a Control Center for internal/admin users.
+
+The UI must focus on:
+- visibility
+- monitoring
+- troubleshooting
+- operational inspection
+
+This phase is intentionally read-heavy first.
+
+Do NOT overbuild.
+Do NOT build the tenant portal yet.
+Do NOT redesign the platform shell.
+Do NOT build heavy editing workflows yet.
+
+==================================================
+ROLLOUT CONTEXT
+==================================================
+
+Phase 1 = Control Center
+Phase 2 = Tenant Portal
+
+This task is ONLY for Phase 1 Control Center foundation.
+
+==================================================
+IMPLEMENTATION CONTEXT
+==================================================
+
+Build this UI INSIDE the main platform, not as a standalone app.
+
+The Notifications backend has already been merged and is available through the platform.
+
+Expected backend surfaces include:
+- /v1/notifications
+- /v1/templates
+- /v1/providers
+- /v1/webhooks
+- /v1/billing
+- /v1/contacts
+
+The backend already supports:
+- notification send lifecycle
+- delivery events
+- templates
+- BYOP providers
+- billing / rate limits
+- suppressions / contact health
+- delivery issues
+
+The UI must consume those backend capabilities.
+
+==================================================
+DESIGN / UX RULES
+==================================================
+
+- Use the main platform design system / styling approach
+- Inherit platform theme (fonts, colors, spacing, CSS variables/tokens)
+- Keep layout platform-native
+- Do not introduce isolated branding
+- Desktop-first responsive design
+- Readability and operational clarity matter more than flashy visuals
+- Use reusable status badges and structured detail panels
+- Prefer server-driven views over heavy client-side state
+
+==================================================
+PRIMARY NAVIGATION SCOPE
+==================================================
+
+Add a Notifications Control Center module with this left-nav structure under the platform shell:
+
+- Overview
+- Notifications
+- Contacts
+  - Health
+  - Suppressions
+  - Policies
+- Delivery Issues
+- Billing
+
+Do NOT add tenant portal navigation in this task.
+Do NOT add heavy configuration pages yet (templates/providers editing comes later).
+
+==================================================
+PHASE 1 FEATURES TO BUILD
+==================================================
+
+--------------------------------------
+1. CONTROL CENTER LAYOUT + NAVIGATION
+--------------------------------------
+
+Build the Notifications Control Center shell/module within the main platform.
+
+Requirements:
+- platform-native page layout
+- page header/title support
+- left navigation for the Notifications module
+- route structure for all pages listed below
+- support direct deep linking to section pages
+
+Do NOT rebuild the global platform chrome if it already exists.
+Use the existing shell.
+
+==================================================
+2. OVERVIEW DASHBOARD
+==================================================
+
+Purpose:
+Provide a high-level operational snapshot of the Notifications system.
+
+Build an Overview page with summary cards/widgets for:
+
+- notifications sent today / current period
+- failed notifications
+- blocked notifications
+- active delivery issues
+- active suppressions
+- provider health summary
+- usage vs quota summary
+- recent failures list
+
+Behavior:
+- backend-driven data
+- loading, empty, and error states handled cleanly
+- no fake data unless absolutely necessary and clearly marked
+
+If the backend does not provide one aggregate endpoint, compose from available endpoints cleanly.
+
+==================================================
+3. NOTIFICATIONS — LIST VIEW
+==================================================
+
+Build a Notifications list page.
+
+Required columns:
+- timestamp
+- channel
+- recipient
+- status
+- provider
+- provider ownership mode
+- template key
+- blocked indicator
+- override used indicator
+
+Required filters:
+- status
+- channel
+- provider
+- date range
+- blocked only
+- failed only
+
+Behavior:
+- server-driven pagination/filtering where practical
+- clean loading and error states
+- clicking a row opens a detail view/page
+
+==================================================
+4. NOTIFICATIONS — DETAIL VIEW
+==================================================
+
+Build a Notification detail page or detail panel.
+
+Required sections:
+- notification metadata
+- rendered content
+- attempt history
+- event timeline
+- suppression/enforcement result
+- template information
+- usage/metering summary
+
+Behavior:
+- structured, readable layout
+- timeline should show meaningful event progression
+- show blocked/failure context clearly
+
+This should become the primary debugging view for a single notification.
+
+==================================================
+5. CONTACTS — HEALTH
+==================================================
+
+Build a Contact Health page.
+
+Required list columns:
+- contact value
+- channel
+- health status
+- last event
+- failure count
+- last updated
+
+Required filters:
+- channel
+- health status
+- has active suppression
+
+Build a detail view or detail panel showing:
+- normalized contact value
+- health status
+- last events
+- related suppressions
+- related notifications if available
+
+==================================================
+6. CONTACTS — SUPPRESSIONS
+==================================================
+
+Build a Suppressions page.
+
+Required list columns:
+- contact value
+- channel
+- suppression type
+- source
+- status
+- created date
+- expiration date
+
+Required filters:
+- active / expired / lifted
+- suppression type
+- channel
+
+Build a detail view or detail panel showing:
+- suppression reason
+- source
+- notes
+- timestamps
+
+This page should make compliance-related states visually clear.
+
+==================================================
+7. CONTACTS — POLICIES
+==================================================
+
+Build a Policies page for viewing tenant/global contact enforcement policies.
+
+Display:
+- global policy
+- channel-specific policy overrides if present
+- block rules:
+  - suppressed
+  - unsubscribed
+  - complained
+  - bounced
+  - invalid
+  - carrier-rejected
+- allow manual override
+
+Requirements:
+- read-first presentation
+- if edit capability is straightforward and safe, allow light editing
+- if editing is added, keep it simple and backend-driven
+- make it visually clear that unsubscribe/complaint may still be non-overrideable by backend rule
+
+If editing is too large for this phase, implement read-only cleanly and document it.
+
+==================================================
+8. DELIVERY ISSUES
+==================================================
+
+Build a Delivery Issues page.
+
+Required list columns:
+- issue type
+- contact
+- channel
+- provider
+- notification reference
+- recommended action
+- created date
+- status if available
+
+Required filters:
+- open / resolved if supported
+- issue type
+- channel
+
+Build a detail view or detail panel showing:
+- issue metadata
+- linked notification
+- contact health summary
+- suppression state
+- recommended action
+
+This page should feel like an operational work queue, even if actions are read-only for now.
+
+==================================================
+9. BILLING — SUMMARY
+==================================================
+
+Build a Billing Summary page.
+
+Required widgets/sections:
+- total requests
+- email attempts
+- sms attempts
+- blocked requests
+- billable usage
+- non-billable usage
+- usage vs quota
+- active plan summary if available
+- rate limit summary if available
+
+Optional lightweight table:
+- recent usage events
+
+This should be read-only in this phase unless edit flows are trivial.
+
+==================================================
+10. REUSABLE UI COMPONENTS
+==================================================
+
+Create shared/reusable domain components where appropriate, such as:
+- NotificationStatusBadge
+- ProviderHealthBadge
+- SuppressionTypeBadge
+- DeliveryIssueBadge
+- UsageUnitBadge
+- StatCard
+- FilterBar
+- DetailPanel
+- Timeline
+- EmptyState
+- ErrorState
+- LoadingState
+
+Do not over-componentize everything.
+But do avoid repeating status rendering logic across pages.
+
+==================================================
+11. DATA / API INTEGRATION
+==================================================
+
+Requirements:
+- use real backend APIs
+- keep data fetching modular by domain
+- support loading / error / empty states
+- avoid giant global data layer complexity
+- prefer feature-scoped hooks/services
+
+Suggested domain organization:
+- notifications
+- contacts
+- deliveryIssues
+- billing
+- shared UI/state helpers
+
+If some aggregate UI surface needs composition from multiple endpoints, implement it cleanly in the frontend service layer.
+
+==================================================
+12. TENANT CONTEXT
+==================================================
+
+The backend requires tenant context.
+
+The UI must ensure requests include tenant context correctly using the platform’s current mechanism.
+
+If the platform already injects tenant context globally, use that.
+If a temporary explicit header injection is required, implement it cleanly and document it.
+
+Do NOT hardcode fake tenant values in scattered components.
+Use one consistent integration path.
+
+==================================================
+13. ROUTING / PAGE STRUCTURE
+==================================================
+
+Implement clean routes/pages for at least:
+
+- notifications/overview
+- notifications/list
+- notifications/:id
+- notifications/contacts/health
+- notifications/contacts/suppressions
+- notifications/contacts/policies
+- notifications/delivery-issues
+- notifications/billing
+
+Adapt exact route naming to platform conventions if needed, but preserve the structure and intent.
+
+==================================================
+14. STATE / INTERACTION RULES
+==================================================
+
+- Keep state mostly server-driven
+- Use local state for filters, panels, dialogs
+- Do not introduce heavy global state management unless already standard in platform
+- Avoid building optimistic mutation-heavy UX in this phase
+- Readability and operational inspection come first
+
+==================================================
+15. WHAT NOT TO BUILD IN NOTIF-UI-001
+==================================================
+
+Do NOT build yet:
+- tenant portal
+- provider config editing flows
+- template editing flows
+- heavy policy authoring workflows
+- advanced saved filters
+- dashboard builder
+- cross-tenant super-admin mode unless trivially available
+- notification compose/send UI
+- productized wizard flows
+- charts that require speculative backend data not available yet
+
+Keep this phase focused on operational visibility.
+
+==================================================
+16. ACCEPTANCE CRITERIA
+==================================================
+
+Implementation is complete only if ALL are true:
+
+1. Notifications Control Center module exists inside the main platform
+2. Platform-native layout/navigation is used
+3. Overview page works
+4. Notifications list page works
+5. Notification detail view works
+6. Contact Health page works
+7. Suppressions page works
+8. Policies page works (read-only acceptable if editing is not clean yet)
+9. Delivery Issues page works
+10. Billing Summary page works
+11. Real backend APIs are used
+12. Tenant context is handled consistently
+13. Loading / empty / error states are handled
+14. No standalone or duplicate app shell was built
+15. No tenant portal UI was introduced
+16. UI compiles/runs cleanly in the main platform
+
+==================================================
+17. OUTPUT REQUIREMENT
+==================================================
+
+After implementation, create:
+
+/analysis/NOTIF-UI-001-report.md
+
+The report must include:
+- pages/routes implemented
+- components added
+- backend endpoints consumed
+- tenant-context handling approach
+- any pages that are read-only vs editable
+- assumptions made
+- issues encountered
+- run instructions
+- what remains for NOTIF-UI-002 and NOTIF-UI-003
+
+==================================================
+18. EXECUTION
+==================================================
+
+Build the full NOTIF-UI-001 scope now.
+Do not overbuild.
+Keep the UI operational, platform-native, and aligned to the real backend.
+Generate the required report at the end.

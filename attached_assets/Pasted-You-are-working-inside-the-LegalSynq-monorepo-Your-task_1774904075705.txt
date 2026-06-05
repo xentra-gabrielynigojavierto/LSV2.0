@@ -1,0 +1,445 @@
+You are working inside the LegalSynq monorepo.
+
+Your task is to execute a combined **Step 24: Cutover, Producer Integration, and UI Activation** for the Platform Audit/Event Service.
+
+Do the work now.
+
+This is a mixed **planning + implementation** step:
+
+* implement what is practical and safe in the current codebase
+* generate the missing architecture and rollout plan where full cutover should not yet be hard-switched
+* wire the highest-value producers
+* activate the Control Center and Tenant portal audit/event views
+* produce a final report that is detailed enough for architectural review
+
+Do NOT redesign the audit platform from scratch.
+Do NOT remove existing working functionality.
+Do NOT delete legacy audit tables or endpoints.
+Prefer additive, controlled, production-safe changes.
+
+---
+
+# PRIMARY OBJECTIVES
+
+You must complete all of the following in one step:
+
+## A. Design the cutover plan
+
+Create a concrete transition strategy from legacy audit patterns/endpoints/tables to the canonical Platform Audit/Event Service.
+
+## B. Execute Step 24 producer integration
+
+Integrate the highest-value producers so the audit service begins receiving real events from the platform.
+
+## C. Activate audit/event UI consumption
+
+Wire the Control Center portal and Tenant portal so they can query and display audit/event data from the Platform Audit/Event Service.
+
+## D. Revalidation-ready reporting
+
+Produce a comprehensive report that explains:
+
+* what was implemented
+* what remains
+* what the safest rollout path is
+* what assumptions were made
+
+---
+
+# HARD CONSTRAINTS
+
+* Do NOT remove or drop the legacy `AuditEvents` model/table/endpoints
+* Do NOT fully cut over all producers blindly
+* Do NOT break current platform behavior
+* Do NOT enable destructive retention changes as part of this step
+* Do NOT introduce Kafka or a large new infrastructure dependency
+* Do NOT assume all services are already integrated
+* Prefer additive adapters, client helpers, feature flags, and documentation-backed rollout steps
+* If some areas cannot be fully implemented safely, create the integration seam and document the remaining rollout task clearly
+
+---
+
+# PART 1 — CUTOVER PLAN (HIGHEST COMPLEXITY)
+
+## Goal
+
+Design and partially implement a safe cutover from:
+
+* legacy audit storage / endpoints / flows
+  to
+* canonical `AuditEventRecords` + `/internal/audit/*` + `/audit/*`
+
+## What to analyze
+
+Inspect and identify:
+
+* legacy `AuditEvents` model and endpoints
+* canonical `AuditEventRecords`
+* old ingest/query endpoints
+* new internal ingest endpoints
+* all currently active code paths that still use legacy audit behavior
+* any admin or UI components still pointed at legacy audit data
+
+## Deliverables required
+
+Create a real cutover plan that includes:
+
+### 1. Current-state inventory
+
+Identify:
+
+* legacy write paths
+* legacy read paths
+* canonical write paths
+* canonical read paths
+* services still not integrated
+
+### 2. Cutover model
+
+Define phases such as:
+
+* Phase 0: coexistence
+* Phase 1: producer onboarding
+* Phase 2: dual-read or canonical-read switch
+* Phase 3: legacy freeze
+* Phase 4: legacy retirement
+
+### 3. Implementation changes
+
+Where practical, implement safe cutover helpers such as:
+
+* config flag(s) for canonical vs legacy read preference
+* adapter layer(s)
+* clear service selection logic
+* warnings/logs if legacy endpoints are still used
+* documentation for deprecated paths
+
+### 4. Legacy safety rules
+
+Make sure:
+
+* legacy writes are not silently lost
+* canonical writes are not mixed incorrectly
+* read paths are explicit and inspectable
+* current UI screens are not broken
+
+## Strong recommendation
+
+If it is safe, add a configuration-driven read preference such as:
+
+* `AuditReadMode = Legacy | Canonical | Hybrid`
+  or equivalent, and use it only where it improves safety and observability.
+
+Do NOT fake a full migration if historical data migration is not implemented.
+Document clearly what still requires data migration or dual-write planning.
+
+---
+
+# PART 2 — STEP 24 PRODUCER INTEGRATION
+
+## Goal
+
+Integrate real platform producers into the audit service.
+
+## Minimum producer set to wire now
+
+At minimum, inspect and integrate these if present and practical:
+
+### Priority 1
+
+* Identity / Auth service
+
+  * login success
+  * login failure
+  * logout
+  * tenant context switch
+  * impersonation start/stop
+  * auth denial
+* Admin / Control Center actions
+
+  * tenant created
+  * role assignment changed
+  * user invited / deactivated
+  * product access changes
+
+### Priority 2
+
+* CareConnect service
+
+  * referral created / updated
+  * appointment scheduled / updated / cancelled
+  * provider/facility linkage changes
+
+### Priority 3
+
+* document access events if present
+* workflow approval events if present
+
+## Requirements
+
+Create or reuse a shared audit client / integration helper and use it consistently.
+
+The producer integration must:
+
+* call the canonical internal audit ingest API
+* include idempotency keys where appropriate
+* include correlationId, requestId, sessionId when available
+* include tenant / organization / entity / actor scope correctly
+* fail safely (audit failure must not break primary business flow)
+* log integration failures clearly
+* be configuration-driven
+
+## Deliverables
+
+* implement the shared producer integration helper if needed
+* wire the highest-value services
+* document exactly which event types are now emitting
+* document which services remain unintegrated
+
+## Important
+
+If full integration of every producer is too large, implement the shared helper and wire the most critical 2–3 services completely.
+
+---
+
+# PART 3 — CONTROL CENTER + TENANT PORTAL AUDIT UI ACTIVATION
+
+## Goal
+
+Make audit/event data visible in:
+
+1. Control Center portal
+2. Tenant portal
+
+Use the current platform UI patterns.
+Do NOT redesign the whole UI unless required.
+
+## Control Center requirements
+
+Implement or activate an audit/event screen that:
+
+* queries the Platform Audit/Event Service
+* supports platform-wide / cross-tenant views for authorized admins
+* supports filters:
+
+  * tenant
+  * organization
+  * actor
+  * event type
+  * event category
+  * severity
+  * date range
+  * correlation id
+* shows event details if practical
+* supports export initiation if supported
+
+## Tenant portal requirements
+
+Implement or activate a tenant audit/activity screen that:
+
+* is strictly tenant-scoped
+* uses the canonical audit query APIs
+* supports filters appropriate for tenant users/admins:
+
+  * actor
+  * event category
+  * event type
+  * entity
+  * date range
+* does NOT expose cross-tenant or platform-only records
+* follows current navigation/layout style
+
+## UI implementation guidance
+
+* prefer existing API client patterns
+* prefer existing table/timeline components if available
+* use server-side filtering
+* preserve current branding and layout conventions
+* if detail drawer/modal patterns already exist, reuse them
+
+## If full UI cannot be completed
+
+At minimum:
+
+* create the route/page/component shells
+* wire the API integration
+* render a working basic table
+* document remaining UX improvements
+
+---
+
+# PART 4 — REQUIRED TECHNICAL REVIEW
+
+Inspect these areas before making changes:
+
+## Audit/Event Service
+
+* controllers
+* services
+* repositories
+* middleware
+* auth
+* retention
+* forwarding
+* export
+* background services
+* config / appsettings
+* docs
+* tests
+
+## Legacy audit surfaces
+
+* legacy `AuditEvents`
+* old controllers/routes
+* old admin views
+* old API consumers
+
+## Producer services
+
+* identity/auth
+* admin / tenant management
+* careconnect
+* other obvious business event producers
+
+## UI apps
+
+* Control Center
+* Tenant portal
+* shared UI/API client layers
+
+---
+
+# PART 5 — REQUIRED OUTPUTS
+
+You must save these outputs:
+
+## Main report
+
+`/analysis/step24_cutover_producer_ui_report.md`
+
+## Optional supporting docs
+
+If useful, also save:
+
+* `/analysis/step24_cutover_inventory.md`
+* `/analysis/step24_event_matrix.md`
+* `/analysis/step24_ui_activation_notes.md`
+
+---
+
+# MAIN REPORT FORMAT
+
+Your main report must contain these sections in this exact order:
+
+# Step 24 — Cutover, Producer Integration, and UI Activation
+
+## 1. Executive Summary
+
+* what was analyzed
+* what was implemented
+* what remains
+
+## 2. Legacy vs Canonical Audit Inventory
+
+* legacy write paths
+* legacy read paths
+* canonical write paths
+* canonical read paths
+* active gaps
+
+## 3. Recommended Cutover Strategy
+
+* phased cutover plan
+* feature flags/config strategy
+* what should switch first
+* what must wait
+
+## 4. Producer Integration Changes
+
+* shared helper/client created or reused
+* services integrated
+* event types now emitted
+* failure-handling model
+
+## 5. Control Center Integration Changes
+
+* pages/routes/components changed
+* API integration
+* filters supported
+* remaining UI gaps
+
+## 6. Tenant Portal Integration Changes
+
+* pages/routes/components changed
+* API integration
+* tenant-scope enforcement
+* remaining UI gaps
+
+## 7. Files Changed
+
+* exact files changed
+* grouped by service/app
+
+## 8. Risks and Gaps
+
+* what is still risky
+* what was intentionally deferred
+* what needs follow-up
+
+## 9. Safe Rollout Order
+
+* exact sequence for enabling:
+
+  * producers
+  * Control Center
+  * tenant portal
+  * cutover flags
+
+## 10. Recommended Next Step
+
+* what Step 25 should be
+
+## 11. Revalidation Notes
+
+At the end of the report include:
+
+* assumptions made
+* areas that need architectural review
+* anything uncertain or inferred
+
+---
+
+# REQUIRED IMPLEMENTATION QUALITY
+
+Your work must be:
+
+* grounded in the actual codebase
+* implementation-first where safe
+* architecture-aware where full switchovers are risky
+* explicit about what was inferred
+* explicit about what is still not migrated
+
+Do NOT produce generic agile filler.
+
+---
+
+# FINAL INSTRUCTION
+
+Do the work now.
+
+Implement as much as is practical and safe.
+
+If some parts cannot be fully completed:
+
+* create the seam
+* wire the safe minimum
+* document the remainder clearly
+
+Then write the report.
+
+When done, return a short completion note that says:
+
+* which major areas were reviewed
+* where the report was saved
+* top 5 things completed
+* top 3 remaining gaps

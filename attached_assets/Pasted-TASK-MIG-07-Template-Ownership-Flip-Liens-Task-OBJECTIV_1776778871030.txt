@@ -1,0 +1,290 @@
+TASK-MIG-07 — Template Ownership Flip (Liens → Task)
+
+OBJECTIVE:
+Flip template ownership so the Task service becomes the authoritative write/read owner for Liens task templates, while Liens becomes a consumer of Task-hosted template data only. This step removes Liens template authority without changing user-facing behavior.
+
+This is the FIRST ownership-flip step.
+
+NON-NEGOTIABLE RULES:
+- ZERO UI behavior regression
+- ZERO change to template semantics
+- MUST preserve generation behavior exactly
+- MUST preserve existing template IDs
+- MUST support rollback
+- MUST create report FIRST and update incrementally
+- MUST validate against actual code/schema before implementation
+- DO NOT delete `liens_TaskTemplates` in this step
+- DO NOT remove rollback-safe fallback immediately unless explicitly validated
+- DO NOT migrate stage ownership again in this prompt
+- NO placeholders
+
+CRITICAL GOAL:
+After this step:
+- Task service is the primary write target for template admin operations
+- Task service is the primary read source for runtime template use
+- Liens DB template table is retained only as temporary rollback safety, not as authority
+
+--------------------------------------------------
+STEP 0 — CREATE REPORT FIRST
+--------------------------------------------------
+
+Create:
+/analysis/TASK-MIG-07-report.md
+
+Initialize with:
+
+# TASK-MIG-07 Report — Template Ownership Flip
+
+## 1. Codebase Analysis
+## 2. Current Ownership Review
+## 3. Ownership Flip Design
+## 4. Write Path Changes
+## 5. Read Path Changes
+## 6. Sync / Fallback Changes
+## 7. Validation Results
+## 8. Rollback Plan
+## 9. Known Gaps / Risks
+
+Update after every step.
+
+--------------------------------------------------
+STEP 1 — ANALYZE CURRENT TEMPLATE OWNERSHIP
+--------------------------------------------------
+
+Inspect the actual current implementation after MIG-02 through MIG-06.
+
+Identify:
+- all Liens template write paths
+- all Liens template read paths
+- which paths currently write Liens DB first
+- which paths currently read Task first vs Liens first
+- how startup sync currently behaves
+- where `liens_TaskTemplates` is still authoritative
+- where template IDs are assumed/preserved
+- where Task template endpoints are already sufficient for direct ownership
+
+Document:
+- admin create/update/activate/deactivate flows
+- generation engine template read flow
+- contextual template read flow
+- any remaining Liens-only template reads
+- any places where Liens DB writes are still required for compatibility
+
+Update:
+## 1. Codebase Analysis
+## 2. Current Ownership Review
+
+--------------------------------------------------
+STEP 2 — DESIGN THE OWNERSHIP FLIP
+--------------------------------------------------
+
+Define the exact ownership transition model.
+
+You MUST explicitly define:
+
+1. New write authority:
+   - Task service becomes primary owner for template create/update/activate/deactivate
+
+2. New read authority:
+   - runtime reads should use Task service as authoritative
+   - identify whether any admin reads can also move to Task now
+   - document any read path that must temporarily remain Liens-backed and why
+
+3. Transitional persistence strategy:
+   Choose one:
+   - A. write Task first, mirror to Liens best-effort for rollback safety
+   - B. write Task only, keep Liens table as stale rollback copy
+   - C. another clearly justified approach grounded in current codebase
+
+Bias toward the safest option that proves Task ownership while preserving rollback.
+
+4. Startup sync changes:
+   - determine whether `LiensTemplateSyncService` should be disabled, inverted, removed, or replaced
+   - avoid old Liens → Task sync overwriting Task-owned updates after the flip
+
+5. ID preservation:
+   - template IDs must remain stable and unchanged
+
+6. Admin/API compatibility:
+   - existing Liens endpoints must continue to work, even if they become Task-backed proxies
+
+Update:
+## 3. Ownership Flip Design
+
+--------------------------------------------------
+STEP 3 — WRITE PATH CHANGES
+--------------------------------------------------
+
+Implement the ownership flip for template writes.
+
+Target operations include:
+- create template
+- update template
+- activate template
+- deactivate template
+
+Requirements:
+- Task service becomes the primary write target
+- existing Liens endpoints may remain, but they should now proxy to Task service instead of writing Liens DB first
+- if rollback safety mirroring is chosen, mirror to Liens DB only after Task write succeeds and mark/document it as non-authoritative
+- preserve existing validation and audit behavior as much as possible
+- preserve template IDs
+- preserve product-specific JSON metadata
+
+If Task service lacks any write capability needed by Liens admin flows:
+- add the minimum safe Task-side support
+- keep Task generic
+- avoid Liens-specific schema additions unless absolutely necessary
+
+Update:
+## 4. Write Path Changes
+
+--------------------------------------------------
+STEP 4 — READ PATH CHANGES
+--------------------------------------------------
+
+Flip template reads so Task is authoritative.
+
+At minimum review and update:
+- generation engine template reads
+- contextual template reads
+- template by ID
+- template list/admin reads if safe
+- any template selection UI endpoints
+- any helper services that still prefer Liens DB
+
+Rules:
+- prefer Task service reads
+- preserve exact behavior
+- preserve stage/context filtering behavior
+- if some admin reads remain Liens-backed temporarily, document why clearly
+
+Important:
+If contextual filtering still requires Liens-side interpretation of `ProductSettingsJson`, that is fine — but the template data source should still be Task when possible.
+
+Update:
+## 5. Read Path Changes
+
+--------------------------------------------------
+STEP 5 — SYNC / FALLBACK CHANGES
+--------------------------------------------------
+
+Rework migration-era sync/fallback behavior so it matches the new ownership model.
+
+Requirements:
+- old Liens → Task startup sync must not continue overwriting Task-owned data
+- if Liens mirror is retained for rollback, ensure it does NOT act as authoritative source
+- remove or disable obsolete sync flows where safe
+- keep rollback-safe fallback only as much as necessary
+- logging must make source-of-truth clear, for example:
+  - `template_write_owner=task_service`
+  - `template_read_owner=task_service`
+  - `template_mirror_target=liens_db`
+  - `template_fallback_source=liens_db`
+
+Be explicit about:
+- whether fallback is still enabled
+- under what conditions it is used
+- when it should be removed later
+
+Update:
+## 6. Sync / Fallback Changes
+
+--------------------------------------------------
+STEP 6 — VALIDATION
+--------------------------------------------------
+
+Test and document at minimum:
+
+1. Template create through Liens-facing API writes successfully to Task as primary
+2. Template update writes successfully to Task as primary
+3. Template activate/deactivate works with Task as primary
+4. Template IDs remain unchanged
+5. Generation engine still works using Task-owned templates
+6. Contextual template filtering still works
+7. Admin/template list/read flows still work
+8. If Liens mirroring is retained, mirror does not become authoritative
+9. Startup sync no longer overwrites Task-owned edits
+10. No UI behavior regression
+11. Builds succeed for all changed services
+12. Rollback path is viable
+
+IMPORTANT:
+Do not mark PASS unless it was actually verified in code or execution.
+
+Update:
+## 7. Validation Results
+
+--------------------------------------------------
+STEP 7 — ROLLBACK PLAN
+--------------------------------------------------
+
+Define rollback clearly.
+
+Rollback must allow:
+- reverting Liens endpoints to Liens-DB-primary writes if necessary
+- preserving Task template data
+- optionally re-enabling prior sync behavior if needed
+- no data loss
+- no forced DB rollback unless strictly necessary
+
+If Task-side changes were added:
+- explain whether they are harmless if left in place
+- explain whether rollback is code-only or requires DB changes
+
+Update:
+## 8. Rollback Plan
+
+--------------------------------------------------
+STEP 8 — KNOWN GAPS
+--------------------------------------------------
+
+Document:
+- any remaining Liens mirror dependency
+- any admin path still not fully Task-backed
+- any stale-data risk in retained Liens tables
+- any follow-up cleanup needed before `liens_TaskTemplates` can be dropped
+- whether MIG-08 depends on any lessons from this ownership flip
+
+Update:
+## 9. Known Gaps / Risks
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+TASK-MIG-07 is complete only if:
+
+1. Task service is the authoritative owner of template writes
+2. Task service is the authoritative source for runtime template reads
+3. Existing Liens-facing APIs still work
+4. Generation behavior is unchanged
+5. Template IDs remain stable
+6. Old Liens → Task sync no longer overrides Task-owned data
+7. Safe to proceed to governance ownership flip
+
+--------------------------------------------------
+DO NOT DO
+--------------------------------------------------
+
+- Do NOT delete `liens_TaskTemplates`
+- Do NOT migrate governance ownership in this prompt
+- Do NOT migrate stage ownership again
+- Do NOT redesign generation rules
+- Do NOT remove rollback safety unless clearly validated
+- Do NOT force cleanup of fallback tables yet
+
+--------------------------------------------------
+FILES / AREAS TO UPDATE
+--------------------------------------------------
+
+Update whatever is necessary in the current codebase, including but not limited to:
+- Liens template services / endpoints / client usage
+- Liens startup sync behavior for templates
+- Task template services / endpoints only if required
+- Liens admin/template read paths if safely movable
+- logging around source-of-truth and mirroring
+
+--------------------------------------------------
+END OF PROMPT
+--------------------------------------------------

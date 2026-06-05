@@ -1,0 +1,373 @@
+Feature ID: UIX-005
+Feature Title: Permissions & Effective Access Management
+
+Implement UIX-005 for the LegalSynq Control Center and Identity service.
+
+Context:
+- UIX-001, UIX-002, UIX-003, UIX-003-01, UIX-003-02, UIX-003-03, and UIX-004 are already implemented
+- The platform already supports:
+  - users
+  - roles
+  - groups
+  - memberships
+  - access management
+  - audit/activity
+- Current gap:
+  - permissions are not yet fully manageable in the Control Center
+  - role → permission assignment is not exposed as an operational admin workflow
+  - effective permissions on user detail are not fully visible/trustworthy from backend truth
+  - groups need clearer permission-related UX
+- This feature must complete the access-control loop
+- Backend remains the security authority
+
+Objective:
+Make permissions operational, visible, and explainable by implementing:
+
+- permission catalog visibility
+- role-permission assignment / revocation
+- effective user permission visibility
+- clearer group permission visibility or explicit informational fallback
+- readable source attribution for effective access
+
+This feature should allow admins to understand:
+- what a role grants
+- what a user can do
+- why a user has that access
+- how group/role inheritance contributes to effective permissions
+
+========================================
+CORE RULES
+========================================
+
+1. Backend must remain the source of truth for effective permissions
+2. Do NOT fake effective permission inference purely in frontend if backend truth is needed
+3. Do NOT redesign the identity/session model
+4. Do NOT introduce per-user permission overrides unless already trivially supported
+5. Do NOT redesign product-role behavior
+6. Keep the feature additive and scoped
+
+========================================
+MVP SCOPE FOR UIX-005
+========================================
+
+Implement the first real permissions-management slice:
+
+1. Permission Catalog
+- global/admin-visible permission catalog page
+- list/search/filter permissions
+- readable label + description + category
+- raw code can be secondary text
+
+2. Role → Permission Management
+- view permissions currently assigned to a role
+- assign permission to a role
+- revoke permission from a role
+- clear distinction between assigned vs available permissions
+
+3. Effective User Permissions
+- on user detail page, show effective permissions for the user
+- show source attribution:
+  - via role
+  - via group
+  - multiple sources if applicable
+- group by category if practical
+
+4. Group Permission Visibility
+- if backend supports direct group permissions now, expose them
+- if not, make group permission section read-only / informational and clearly label the limitation
+- do not fake unsupported group-permission assignment
+
+========================================
+DO NOT IMPLEMENT IN UIX-005
+========================================
+
+Do NOT implement unless trivially required:
+- custom role builder
+- permission editor for creating new permission definitions
+- per-user permission overrides
+- advanced policy engine / ABAC redesign
+- export/diff/comparison tooling
+- bulk permission operations
+- MFA/session/security work
+- org switching
+- product role redesign
+
+========================================
+BACKEND — IDENTITY SERVICE
+========================================
+
+Implement or verify the permission model and the query/mutation surface needed by UIX-005.
+
+1. Permission Model
+Use the existing model if already present. If missing, add the smallest safe version needed.
+
+Minimum concepts:
+- Permission
+- RolePermissionAssignment (or equivalent)
+- optional GroupPermissionAssignment only if already supported or very easy to add safely
+
+Minimum permission fields needed for UI:
+- Id
+- Code
+- Label
+- Description
+- Category
+- IsActive
+
+If labels/descriptions are not already stored, add the smallest safe mapping layer required and document it in the report.
+
+2. Permission Catalog Endpoint
+Implement and verify:
+- GET /identity/api/admin/permissions
+
+Supports at minimum:
+- page
+- pageSize
+- category optional
+- search optional if cheap enough
+
+Return enough data for the UI to show:
+- label
+- code
+- description
+- category
+- active state if relevant
+
+3. Role Permission Endpoints
+Implement and verify:
+- GET /identity/api/admin/roles/{id}/permissions
+- POST /identity/api/admin/roles/{id}/permissions
+- DELETE /identity/api/admin/roles/{id}/permissions/{permissionId}
+
+Requirements:
+- prevent duplicate role-permission assignment
+- return clear 409/400 errors where appropriate
+- enforce TenantAdmin / PlatformAdmin scope correctly
+- emit audit events for assignment and revocation
+
+4. Effective User Permissions Endpoint
+Implement and verify:
+- GET /identity/api/admin/users/{id}/permissions
+
+Return backend-truth effective permissions for that user, including:
+- permission id
+- code
+- label
+- description
+- category
+- sources array (at minimum)
+  - role
+  - group
+  - both if applicable
+- optional source detail if cheaply available
+  - role names
+  - group names
+
+Requirements:
+- must be computed or queried from backend truth
+- do not require frontend to reconstruct effective permissions by guessing
+
+5. Group Permission Visibility
+If direct group-permission assignment already exists or is very easy to add safely:
+- implement and verify:
+  - GET /identity/api/admin/groups/{id}/permissions
+  - optionally POST/DELETE only if truly safe and within MVP
+
+If direct group-permission assignment does NOT exist:
+- expose a read-only informational endpoint only if useful
+- otherwise keep the UI clearly informational and document the limitation
+
+6. Scope Enforcement
+Enforce in backend:
+- TenantAdmin → tenant-scoped only
+- PlatformAdmin → broader scope where existing architecture supports it
+- non-admin blocked
+- backend must not rely only on BFF for scope safety
+
+========================================
+CONTROL CENTER — FRONTEND / BFF
+========================================
+
+Implement the admin UI for permissions visibility and management.
+
+1. Permission Catalog Page
+Create or update a page such as:
+- /permissions
+
+Requirements:
+- real backend fetch
+- search/filter UI
+- category visibility
+- readable labels/descriptions
+- empty states
+- pagination if supported
+
+Suggested components:
+- PermissionCatalogTable
+- PermissionCategoryFilter
+- EmptyPermissionsState
+
+2. Role Permission Management UI
+If you already have a roles page, extend it.
+If not, add the smallest clear admin surface needed.
+
+Requirements:
+- select or open a role
+- show currently assigned permissions
+- show available permissions not yet assigned
+- assign permission
+- revoke permission
+- confirmation for revoke
+- clear success/error/loading states
+
+Suggested components:
+- RolePermissionPanel
+- AssignedPermissionList
+- AvailablePermissionSelector
+
+3. User Detail Effective Permissions
+Extend:
+- /tenant-users/[id]
+
+Add a panel/section showing:
+- effective permissions
+- grouped or listed clearly
+- source badges
+- category grouping if practical
+- readable explanation of why the user has the permission
+
+Suggested components:
+- EffectivePermissionsPanel
+- PermissionSourceBadge
+
+4. Group Permission Visibility
+Extend:
+- /groups/[id]` if appropriate
+
+Requirements:
+- if supported, show group permissions clearly
+- if not supported, show:
+  - informational placeholder
+  - explanation that group permission assignment is not editable in current MVP
+- do not mislead admins
+
+Suggested component:
+- GroupPermissionsPanel
+
+5. BFF Routes
+Add/update BFF handlers as needed for:
+- GET /api/identity/admin/permissions
+- GET /api/identity/admin/roles/[id]/permissions
+- POST /api/identity/admin/roles/[id]/permissions
+- DELETE /api/identity/admin/roles/[id]/permissions/[permissionId]
+- GET /api/identity/admin/users/[id]/permissions
+- GET /api/identity/admin/groups/[id]/permissions if implemented
+
+Use `requireAdmin()` and preserve tenant-safe behavior.
+
+========================================
+UX RULES
+========================================
+
+1. Permission labels should be human-readable first
+2. Raw codes may appear as secondary/supporting text
+3. Assigned vs available permissions must be visually distinct
+4. Effective permission source must be explicit:
+- Role
+- Group
+- Multiple
+5. Conflict errors should be human-readable
+6. Empty states must be explicit:
+- no permissions assigned to role
+- no available permissions left
+- user has no effective permissions
+- group permissions not configured in current MVP
+7. Keep all permission UI readably structured; avoid giant undifferentiated tables if possible
+
+========================================
+TENANTADMIN / PLATFORMADMIN BEHAVIOR
+========================================
+
+TenantAdmin:
+- may manage/view permissions only within allowed tenant scope
+- must not gain cross-tenant permission management visibility
+
+PlatformAdmin:
+- broader scope where current architecture supports it
+
+If PlatformAdmin behavior remains tenant-context-limited in some pages, document that clearly rather than faking broad support.
+
+========================================
+VALIDATION REQUIREMENTS
+========================================
+
+At minimum, after implementation, an admin should be able to:
+
+1. open a permission catalog page
+2. search/filter permissions
+3. open a role-permission management surface
+4. assign a permission to a role
+5. revoke a permission from a role
+6. open a user detail page and see effective permissions
+7. understand why the user has a permission (source attribution)
+8. view group permission visibility or a clearly labeled limitation
+
+And the platform should enforce:
+1. duplicate permission assignment is prevented
+2. tenant admin scope is enforced
+3. non-admin users cannot access these pages/endpoints
+4. no fake effective permission inference is used where backend truth is required
+
+========================================
+REPORT REQUIREMENT
+========================================
+
+After implementation, generate this report file exactly:
+
+/analysis/UIX-005-report.md
+
+The report must include these sections exactly:
+
+1. Report Title
+2. Feature ID
+3. Summary
+4. Scope Implemented
+5. Backend Permission Model / Query Implementation
+6. Endpoints Implemented / Verified
+7. BFF Routes Implemented / Updated
+8. Permission Catalog Page Implementation
+9. Role-Permission Management Implementation
+10. Effective User Permissions Implementation
+11. Group Permission Visibility Implementation
+12. TenantAdmin / PlatformAdmin Scope Handling
+13. Known Issues / Missing Backend Support
+14. Manual Test Results
+15. What remains for Phase 2
+16. Validation Checklist
+
+In the Validation Checklist, include checkbox-style items for:
+- permission catalog page implemented
+- permission search/filter works
+- role permissions can be viewed
+- permission assignment to role works
+- permission revocation from role works
+- duplicate assignment prevented
+- user effective permissions endpoint works
+- user detail shows effective permissions
+- source attribution is visible
+- group permission visibility handled clearly
+- tenant admin scope enforced
+- platform admin behavior documented
+- non-admin blocked
+- no fake effective permission inference used
+- report generated correctly
+
+========================================
+IMPORTANT DELIVERY RULE
+========================================
+
+- extend the current platform; do not redesign it
+- prefer backend-truth permission queries over frontend inference
+- if some permission capabilities are not yet modeled, document the limitation honestly
+- keep this feature operational and scoped
+- save the report to /analysis/UIX-005-report.md

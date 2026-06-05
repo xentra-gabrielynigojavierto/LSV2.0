@@ -1,0 +1,377 @@
+Project: E17
+Title: Outbox / Ops Visibility — Dead Letter, Retry State, Metrics, and Controlled Retry
+
+You are implementing the operational visibility layer for the LegalSynq async processing infrastructure.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E17-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around current outbox schema, retry/backoff rules, dead-letter semantics, idempotency guarantees, admin-role model, payload-sanitization, and any limits in correlating outbox items back to workflows/tasks.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - outbox read model changes
+   - API changes
+   - Control Center UI changes
+   - manual retry behavior
+   - metrics / summary behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for work distribution intelligence / escalation phase or needs iteration
+
+REPORT FORMAT
+
+# E17 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Outbox Read Model Notes
+## Outbox List / Dead Letter Notes
+## Outbox Detail Notes
+## Manual Retry Notes
+## Metrics / Summary Notes
+## API Notes
+## Control Center Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Expose the operational health of the async processing layer so admins/operators can inspect pending, failed, retrying, and dead-lettered outbox items, understand which workflows/tenants are affected, and safely perform a governed manual retry where appropriate.
+
+This phase must make the outbox observable and operable without redesigning the outbox core or turning Control Center into a raw infrastructure console.
+
+SCOPE INCLUDES
+
+- outbox read model
+- read-only outbox list APIs
+- failed / dead-letter visibility
+- outbox detail inspection
+- lightweight metrics / summary counts
+- controlled manual retry action if safe
+- Control Center operational UI
+- documentation/reporting
+
+DO NOT BUILD
+
+- full observability stack integration
+- tracing platform rollout
+- infrastructure dashboards outside Control Center
+- auto-remediation logic
+- outbox core redesign
+- bulk replay tools unless truly trivial and safe
+- workflow-engine redesign
+- tenant-portal exposure of outbox internals
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve the existing E10.2 outbox as the single async processing mechanism
+- expose read-only inspection first, with retry as a narrowly governed action
+- preserve idempotency guarantees
+- restrict outbox visibility to authorized admin/operator roles
+- avoid exposing unnecessary sensitive payload detail
+- keep all UI/API changes additive
+- preserve tenant isolation and non-leakage
+- avoid turning Control Center into a DB admin surface
+
+CURRENT CONTEXT
+
+Already completed:
+- E10.2 transactional outbox + async processor + retry/backoff + dead-letter
+- E10.1 admin actions
+- E10.3 SLA / timer engine
+- E16 timeline / history layer
+- Control Center workflow visibility and detail surfaces
+
+Current limitation:
+- operators cannot inspect outbox health directly
+- dead-letter items are not visible in UI
+- retrying items are opaque
+- SLA or timeline gaps can be hard to diagnose because async health is not surfaced
+
+This E17 phase should solve that by exposing outbox visibility and controlled remediation.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. OUTBOX READ MODEL
+
+Create a normalized outbox inspection model.
+
+Required fields at minimum:
+- Id
+- TenantId
+- WorkflowInstanceId
+- EventType
+- Status
+- AttemptCount
+- CreatedAt
+- NextAttemptAt
+- ProcessedAt
+- LastError
+- optional PayloadSummary
+- optional Source / Category
+
+Supported statuses at minimum:
+- Pending
+- Processing
+- Succeeded
+- Failed
+- DeadLettered
+
+Rules:
+- read-only model
+- deterministic
+- safe for operator inspection
+- do not expose full raw payload unless clearly sanitized and necessary
+
+2. OUTBOX LIST / FILTER APIs
+
+Add read-only admin APIs.
+
+Examples:
+- GET /api/v1/admin/outbox
+- GET /api/v1/admin/outbox/{id}
+
+Requirements:
+- paginated/filterable
+- filters at minimum:
+  - status
+  - eventType
+  - tenantId
+  - workflowInstanceId
+  - search by id if practical
+- stable ordering (document whether newest-first or oldest-first)
+- additive only
+- preserve tenant/platform visibility rules
+
+3. DEAD LETTER VISIBILITY
+
+This is the highest-priority operational slice.
+
+Requirements:
+- allow operators to quickly isolate DeadLettered items
+- show:
+  - event type
+  - tenant/workflow context
+  - attempts exhausted
+  - last error
+  - created / processed / next attempt timestamps where relevant
+- expose either:
+  - a dedicated dead-letter page/view
+  - or a filter preset on a unified outbox page
+
+Document the chosen pattern clearly.
+
+4. RETRY VISIBILITY
+
+Requirements:
+- clearly distinguish:
+  - retrying/transient failures
+  - permanently dead-lettered failures
+  - succeeded items
+- show:
+  - attempt count
+  - next retry time
+  - last failure summary
+- make it obvious whether the system is still trying or has given up
+
+5. OUTBOX DETAIL INSPECTION
+
+Add a detail drawer/page for a selected outbox item.
+
+Show at minimum:
+- event type
+- status
+- attempt count
+- timestamps
+- tenant id
+- workflow instance id
+- short payload summary
+- error details
+- optional related links if safely derivable
+
+Rules:
+- inspectable but safe
+- avoid dumping noisy or sensitive raw JSON unnecessarily
+- enough detail for diagnosis without becoming a raw internals console
+
+6. MANUAL RETRY ACTION
+
+Support a governed manual retry if safe.
+
+Requirements:
+- available only to authorized admin/operator roles
+- action must go through a dedicated backend path, for example:
+  - POST /api/v1/admin/outbox/{id}/retry
+- action must be intentional and confirmable
+- must be audited
+- must not bypass idempotency protections
+- should not allow arbitrary payload editing
+- should requeue or reset the outbox item according to the current outbox design, not invent a second retry mechanism
+
+Rules:
+- do not add bulk retry in this phase
+- if certain items are non-retryable under current design, document and enforce that clearly
+
+7. METRICS / SUMMARY
+
+Add lightweight summary visibility.
+
+Requirements:
+- surface at minimum:
+  - count of pending items
+  - count of failed items
+  - count of dead-lettered items
+  - optional recent successes if easy/safe
+- can be shown as summary cards/header on the outbox page
+- keep it lightweight; not a full analytics dashboard
+
+8. CONTROL CENTER INTEGRATION
+
+Expose outbox visibility in Control Center.
+
+Requirements:
+- add a dedicated operational view or page consistent with current Control Center patterns
+- make dead-letter / failed state easy to reach
+- preserve read-first design
+- no broad redesign
+
+Recommended pattern:
+- a dedicated `/outbox` or `/operations/outbox` page
+- detail drawer from the list
+- summary cards + filters
+
+9. WORKFLOW / ENTITY LINKING
+
+Where deterministic and safe:
+- link an outbox item to its workflow instance
+- optionally link to related task/source record if this can be derived safely
+- keep linkage minimal and trustworthy
+
+Do NOT overbuild cross-entity stitching in this phase.
+
+10. SECURITY / VISIBILITY MODEL
+
+Requirements:
+- outbox views restricted to admin/operator roles
+- ordinary tenant users must not see outbox internals
+- preserve tenant non-leakage
+- platform admins may see cross-tenant items
+- if tenant-admin scope is supported, enforce tenant scoping server-side
+
+Recommendation:
+- start with PlatformAdmin-only UI if that matches current Control Center posture
+- broaden later only if clearly needed
+
+11. AUDIT REQUIREMENTS
+
+Manual operational actions must themselves be auditable.
+
+At minimum audit:
+- manual retry action
+
+Minimum audit fields:
+- outbox id
+- event type
+- tenant id
+- workflow instance id
+- action performed
+- performedBy
+- timestamp
+- reason if collected
+
+12. ERROR / PRESENTATION MODEL
+
+Requirements:
+- present readable states:
+  - Pending
+  - Processing
+  - Retrying
+  - Failed
+  - Dead letter
+  - Processed
+- raw/internal error details may be shown in metadata/detail, but summaries must remain operator-friendly
+- avoid low-level infrastructure jargon as the primary UI language unless it aids diagnosis
+
+13. VALIDATION
+
+You MUST validate and record in the report:
+
+Functional
+- outbox items can be listed and filtered
+- dead-letter items are clearly visible
+- retrying items show attempt and next-attempt state
+- detail view is useful and accurate
+- manual retry works for eligible items if implemented
+
+Security
+- only authorized admins/operators can access outbox views
+- retry is restricted and audited
+- no tenant leakage
+
+Data Integrity
+- detail view matches actual outbox state
+- retry does not violate idempotency model
+- metrics reflect current data accurately
+
+Build / Runtime
+- backend builds
+- Control Center frontend compiles
+- existing outbox processor behavior is not regressed
+- existing workflow / SLA / timeline surfaces remain stable
+
+14. DOCUMENTATION
+
+Document in the report and any lightweight notes if appropriate:
+- outbox statuses supported
+- filters supported
+- retry semantics
+- audit behavior for manual retry
+- what is shown vs intentionally hidden in payload details
+- what remains for escalation / intelligence phases
+
+15. EXPLICIT DEFERRALS
+
+Document clearly that these remain out of scope for E17 unless strictly required:
+- bulk replay tools
+- infrastructure platform integrations
+- tracing rollout
+- auto-remediation
+- advanced analytics dashboards
+- outbox core redesign
+- tenant-portal exposure
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Inspect the current outbox schema, processor states, retry/dead-letter rules, and Control Center patterns.
+2. Create /analysis/E17-report.md immediately and begin logging assumptions/actions.
+3. Build the outbox read model and list/detail APIs.
+4. Add dead-letter and failed visibility filters/presets.
+5. Build the Control Center outbox list page and detail drawer.
+6. Add summary metrics.
+7. Add the manual retry action if safe and governable in this phase.
+8. Validate security, idempotency, and build/runtime behavior.
+9. Finalize the report.
+
+SUCCESS CONDITION
+
+E17 is successful when:
+- operators can inspect outbox health and failures
+- dead-letter and retry states are visible and understandable
+- manual retry is possible through a governed path if implemented
+- async infrastructure becomes operationally observable
+- workflow/SLA reliability can be diagnosed more confidently
+
+FAILURE CONDITION
+
+E17 fails if:
+- outbox remains opaque
+- manual retry bypasses governance or idempotency
+- UI exposes too much low-level noise
+- security boundaries are weakened
+- the phase becomes an infrastructure rewrite instead of an ops surface

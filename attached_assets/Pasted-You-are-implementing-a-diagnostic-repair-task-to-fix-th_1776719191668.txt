@@ -1,0 +1,231 @@
+You are implementing a diagnostic + repair task to fix the public `/status` page so availability bars render correctly in deployed environments.
+
+OBJECTIVE
+Determine why the public status page is not showing availability bars for 24h / 7d / 30d, then implement the smallest correct fix so the page renders bars from real uptime history data.
+
+CONTEXT
+Current behavior:
+- `/status` loads correctly
+- summary/status/incidents render correctly
+- window selector works (`24h`, `7d`, `30d`)
+- availability bars do NOT render in any window
+- this strongly suggests the uptime data path is empty or failing, not a CSS/layout issue
+
+EXPECTED ROOT CAUSES TO CHECK
+You must verify all of these, in order:
+1. `MONITORING_SOURCE` is not `service` in the deployed Control Center runtime
+2. `/api/monitoring/uptime` is returning empty `components`
+3. `/api/monitoring/uptime` is failing and the page is silently degrading
+4. BFF can reach rollups endpoint but history fetches are empty/failing
+5. uptime aggregation engine is not producing rollup/history rows
+6. name-based mapping is failing after data comes back
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-STATUS-FIX-001-report.md
+- Update the report incrementally after each step
+- Do NOT wait until the end to write the report
+- Do NOT guess
+- Do NOT apply blind UI fixes
+- Do NOT fake bars or placeholder history
+- Fix the actual data/config/runtime issue only
+- Prefer minimal, reversible changes
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-STATUS-FIX-001-report.md
+
+Initialize with:
+
+# MON-INT-STATUS-FIX-001 — Public Status Page Availability Bars Fix
+
+## 1. Task Summary
+## 2. Runtime Diagnosis
+## 3. API / BFF Findings
+## 4. Root Cause
+## 5. Fix Implemented
+## 6. Validation
+## 7. Files Changed
+## 8. Remaining Risks / Notes
+
+Explicitly state the report was created FIRST.
+
+---
+
+STEP 2 — VERIFY THE PUBLIC BFF RESPONSE
+
+Directly inspect the deployed/runtime response shape for:
+
+- `/api/monitoring/uptime?window=24h`
+- `/api/monitoring/uptime?window=7d`
+- `/api/monitoring/uptime?window=30d`
+
+Document exactly:
+- HTTP status
+- response JSON
+- whether `components` is empty
+- whether `components[].buckets` is empty
+- whether `totalBars` is present
+- whether the route is public or redirecting
+
+Do this from the running environment, not just by reading code.
+
+---
+
+STEP 3 — VERIFY MONITORING SOURCE MODE
+
+Inspect the actual runtime environment/config used by Control Center.
+
+Determine:
+- what `MONITORING_SOURCE` is set to in the running app
+- whether the deployed environment is using `local` or `service`
+- whether the app needs restart/redeploy to pick up the intended value
+
+If `MONITORING_SOURCE != service`, classify that as a likely root cause.
+
+Document the exact observed value.
+
+---
+
+STEP 4 — VERIFY BFF INTERNAL FLOW
+
+Inspect and test the BFF route implementation for `/api/monitoring/uptime`.
+
+Trace:
+1. source mode branch
+2. gateway URL used
+3. rollups request
+4. history fan-out request(s)
+5. sanitization/mapping
+6. returned payload to `/status`
+
+Add targeted logging or temporary diagnostics if needed, but keep them minimal and remove them before finalizing unless they are genuinely useful and safe.
+
+Specifically verify:
+- rollups endpoint returns components with entityIds
+- history endpoint returns buckets for those entityIds
+- BFF successfully maps history back by component name
+- no exception path is swallowing errors and returning empty data silently
+
+Document actual findings.
+
+---
+
+STEP 5 — VERIFY MONITORING SERVICE DATA EXISTS
+
+Check the Monitoring Service side.
+
+Validate:
+- uptime rollup endpoint returns real data
+- uptime history endpoint returns real buckets
+- aggregation engine is running
+- rollup/history tables contain rows
+- 24h data exists for at least some components
+
+Test at least:
+- `/monitoring/uptime/rollups?window=24h`
+- `/monitoring/uptime/history?entityId=<real-entity-id>&window=24h`
+
+If needed, inspect DB contents or logs to confirm rollups exist.
+
+Document whether data exists and where the pipeline breaks:
+- no raw data
+- no rollups
+- no history
+- BFF mapping issue
+- env/config issue
+
+---
+
+STEP 6 — IDENTIFY THE ROOT CAUSE
+
+Based on actual evidence, classify the root cause as one of:
+
+A. Wrong env/config (`MONITORING_SOURCE=local`)
+B. Public BFF route misconfigured
+C. Gateway route failure
+D. Monitoring Service rollup/history empty
+E. BFF mapping bug
+F. Mixed issue (specify)
+
+Do NOT proceed with a fix until the report clearly states the root cause.
+
+---
+
+STEP 7 — IMPLEMENT THE SMALLEST CORRECT FIX
+
+Apply only the minimal fix needed based on the diagnosed root cause.
+
+Examples:
+- fix runtime config to use `MONITORING_SOURCE=service`
+- fix BFF route logic
+- fix gateway URL/path
+- fix history mapping
+- fix silent error swallowing
+- fix startup/config so aggregation engine actually runs
+
+Do NOT change UI styling unless the diagnosis proves a rendering issue.
+Do NOT add fake fallback data.
+
+If the issue is operational/config-only and no code change is needed:
+- make the required config change in the app
+- document it clearly
+- validate after restart
+
+---
+
+STEP 8 — VALIDATE THE FIX
+
+After the fix, validate all of the following:
+
+A. `/status?window=24h` shows bars
+B. `/status?window=7d` shows bars or documented limited-history bars
+C. `/status?window=30d` shows bars or documented limited-history bars
+D. `/api/monitoring/uptime?window=24h` returns non-empty component history
+E. no UUIDs are exposed publicly
+F. no admin controls are exposed
+G. `/status` still loads without auth
+H. internal `/monitoring` page is not broken
+
+Document:
+- exact route outputs
+- what changed before vs after
+- screenshots or HTML/text evidence if possible
+
+---
+
+STEP 9 — REMOVE TEMPORARY DIAGNOSTICS
+
+If you added temporary logs or debug code:
+- remove them unless they are clearly safe and useful long-term
+
+Keep the final implementation clean.
+
+---
+
+STEP 10 — FILES CHANGED
+
+List every file/config changed and why.
+
+This may include:
+- app env/config
+- BFF route
+- monitoring service config
+- startup/runtime scripts
+- gateway config
+
+Be explicit.
+
+---
+
+DONE CONDITION
+
+This task is complete when:
+- the actual root cause has been proven
+- the smallest correct fix has been applied
+- `/status` shows real availability bars
+- the fix is validated in the running environment
+- no fake data was introduced
+- the report fully documents diagnosis and outcome

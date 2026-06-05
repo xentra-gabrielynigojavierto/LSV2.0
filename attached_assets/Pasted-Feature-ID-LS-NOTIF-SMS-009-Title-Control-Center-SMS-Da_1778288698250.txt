@@ -1,0 +1,344 @@
+Feature ID: LS-NOTIF-SMS-009
+
+Title:
+Control Center SMS Dashboard UI Integration
+
+Objective:
+Add the Control Center SMS Dashboard UI that consumes the Notification Service dashboard APIs from LS-NOTIF-SMS-008, allowing platform admins to monitor SMS delivery activity, reconciliation health, tenant activity, provider usage, and failure trends without duplicating SMS aggregation logic outside Notification Service.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for SMS delivery, reconciliation, provider attribution, and dashboard aggregation. Control Center must only consume Notification Service APIs and render the dashboard UI.
+
+Requirements:
+- Build UI inside the existing Control Center/admin portal application only.
+- Do not add SMS dashboard aggregation logic to Control Center.
+- Do not add SMS delivery, reconciliation, provider lookup, or compliance logic to Control Center.
+- Do not modify Notification Service unless strictly necessary for API client compatibility.
+- Control Center must consume the existing Notification Service endpoints from LS-NOTIF-SMS-008:
+  - GET /v1/admin/sms/dashboard/summary
+  - GET /v1/admin/sms/dashboard/trends
+  - GET /v1/admin/sms/dashboard/failures
+  - GET /v1/admin/sms/dashboard/tenants
+  - GET /v1/admin/sms/dashboard/providers
+- Dashboard UI must be read-only.
+- Dashboard UI must not trigger SMS sends, retries, reconciliation, provider calls, or config changes.
+- Do not expose provider credentials, CredentialsJson, SettingsJson, auth tokens, raw provider payloads, or full phone numbers.
+- Preserve existing Control Center functionality and routing.
+
+Implementation Requirements:
+1. Add a PlatformAdmin-only SMS Dashboard page in Control Center.
+2. Add API client methods for the Notification Service SMS dashboard endpoints.
+3. Add dashboard filters for date range, tenant, provider, provider ownership mode, status, and trend bucket.
+4. Render high-level SMS KPI cards.
+5. Render delivery/reconciliation trend chart.
+6. Render failure category/error breakdown table.
+7. Render tenant activity breakdown table.
+8. Render provider/provider-config breakdown table.
+9. Handle loading, empty, and error states cleanly.
+10. Preserve existing authentication/authorization behavior.
+11. Do not duplicate aggregation logic already owned by Notification Service.
+
+Critical Constraints:
+- Reuse existing Control Center architecture, routing, layout, API client, auth, role guard, table, card, and chart patterns where available.
+- Do NOT introduce a large UI rewrite.
+- Keep implementation incremental and production-oriented.
+- Do NOT create fake/mock dashboard data unless the existing app already uses a development mock pattern.
+- Do NOT hardcode provider secrets or tenant-sensitive values.
+- Do NOT expose full phone numbers.
+- Use backend-provided aggregate DTOs directly where practical.
+- If tenant name enrichment already exists in Control Center, use it; otherwise display tenantId and document tenant-name enrichment as a future improvement.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-009-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing Control Center routing/layout findings
+3. Existing admin authorization/role guard findings
+4. Existing API client/service pattern findings
+5. Existing chart/table/card component findings
+6. Files added
+7. Files modified
+8. API/client changes
+9. UI/route changes
+10. Validation/testing performed
+11. Known gaps/issues
+12. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing Control Center Architecture
+- Identify:
+  - Control Center/admin portal app location in the monorepo
+  - Existing routing structure
+  - Existing admin-only route/role guard pattern
+  - Existing page layout/navigation/sidebar pattern
+  - Existing API client/service abstraction
+  - Existing environment variable/config pattern for Notification Service base URL
+  - Existing table component patterns
+  - Existing chart component patterns
+  - Existing card/KPI component patterns
+  - Existing loading/error/empty-state patterns
+- Document findings in the report before implementation.
+
+STEP 2 — Add Notification Service SMS Dashboard API Client
+Add or extend the Control Center API client/service layer to call:
+
+- GET /v1/admin/sms/dashboard/summary
+- GET /v1/admin/sms/dashboard/trends
+- GET /v1/admin/sms/dashboard/failures
+- GET /v1/admin/sms/dashboard/tenants
+- GET /v1/admin/sms/dashboard/providers
+
+Requirements:
+- Reuse existing authenticated request mechanism.
+- Reuse existing base URL/config mechanism for Notification Service.
+- Add TypeScript DTOs/interfaces matching LS-NOTIF-SMS-008 responses.
+- Support common query parameters:
+  - tenantId
+  - provider
+  - providerConfigId
+  - providerOwnershipMode
+  - status
+  - failureCategory
+  - from
+  - to
+- Support trend-specific parameter:
+  - bucket=hour|day|week
+- Do not expose or request credentials/secrets.
+- Handle API failures using existing error handling conventions.
+
+STEP 3 — Add SMS Dashboard Route and Navigation Entry
+Add a new PlatformAdmin-only dashboard route.
+
+Suggested route:
+- /admin/sms-dashboard
+or follow existing Control Center route conventions.
+
+Suggested navigation label:
+- SMS Dashboard
+
+Requirements:
+- Route must be restricted to existing PlatformAdmin/admin role.
+- Non-admin users must not see navigation entry.
+- Direct navigation by non-admin users must be rejected or redirected according to existing patterns.
+- Preserve existing navigation structure.
+
+STEP 4 — Build Dashboard Filter Bar
+Add a filter bar for dashboard-wide filters.
+
+Filters:
+- Date range
+- Tenant
+- Provider
+- Provider ownership mode: tenant/platform/unknown/all
+- Status
+- Trend bucket: hour/day/week
+
+Requirements:
+- Apply filters consistently across all dashboard API calls.
+- Default date range should align with API defaults or explicitly use last 30 days.
+- Avoid unbounded dashboard queries.
+- Use existing form/select/date components where available.
+- Provide clear reset behavior.
+- If tenant lookup/name enrichment exists, use tenant selector; otherwise allow tenantId input or omit tenant selector until tenant lookup is available and document the gap.
+
+STEP 5 — Render KPI Cards
+Render high-level KPI cards from `/summary`.
+
+Recommended cards:
+- Total Attempts
+- Sent
+- Delivered
+- Failed
+- Pending/Processing
+- Dead Letter
+- Tenant-Owned
+- Platform-Owned
+- Reconciled Total
+- Never Reconciled
+- Lookup Failed
+- Provider Config Failures
+
+Requirements:
+- Use existing KPI/card components if available.
+- Format counts consistently.
+- Show loading skeleton/spinner while fetching.
+- Show error state if summary call fails.
+- Do not display sensitive data.
+
+STEP 6 — Render Trend Chart
+Render delivery/reconciliation trend data from `/trends`.
+
+Requirements:
+- Support bucket selection: hour/day/week.
+- Display total, delivered, failed, pending, reconciled, lookup failed where practical.
+- Use existing charting library/component if available.
+- If no charting library exists, implement a simple accessible table or lightweight visual consistent with current UI rather than adding a heavy dependency unless the codebase already permits it.
+- Handle empty data gracefully.
+- Use UTC/date formatting consistent with existing app conventions.
+
+STEP 7 — Render Failure Breakdown Table
+Render `/failures`.
+
+Columns:
+- Failure Category
+- Error Code
+- Count
+- Latest Occurrence
+
+Requirements:
+- Sort by count descending if API output does not already sort.
+- Show clear empty state when no failures exist.
+- Do not display raw provider payloads or unsafe error messages.
+- Use existing table component pattern.
+
+STEP 8 — Render Tenant Activity Table
+Render `/tenants`.
+
+Columns:
+- Tenant ID
+- Tenant Name if already resolvable in Control Center
+- Total Attempts
+- Sent
+- Delivered
+- Failed
+- Pending
+- Reconciled Total
+- Never Reconciled
+- Tenant-Owned
+- Platform-Owned
+- Latest Activity
+
+Requirements:
+- If tenant name enrichment is not available, display tenantId only.
+- Do not call unrelated services unless existing Control Center tenant lookup pattern already exists.
+- Preserve admin-only access.
+- Use existing table component pattern.
+
+STEP 9 — Render Provider Activity Table
+Render `/providers`.
+
+Columns:
+- Provider
+- Provider Config ID
+- Ownership Mode
+- Total Attempts
+- Sent
+- Delivered
+- Failed
+- Reconciled Total
+- Lookup Failed
+- Latest Activity
+
+Requirements:
+- ProviderConfigId may be displayed as opaque operational metadata.
+- Do not display CredentialsJson, SettingsJson, authToken, fromNumber, or provider secrets.
+- Use existing table component pattern.
+
+STEP 10 — Loading, Error, and Empty States
+Implement robust UI states.
+
+Requirements:
+- Page-level loading state for initial load.
+- Section-level loading states if calls are independent.
+- Clear error messages per failed dashboard section.
+- Retry button if existing UI pattern supports it.
+- Empty states for no activity, no failures, no tenant data, no provider data.
+- API failure in one section should not necessarily blank the whole dashboard if independent loading pattern exists.
+
+STEP 11 — Security and Privacy Review
+Verify:
+- Non-admin users cannot access route.
+- Non-admin users cannot see navigation item.
+- No provider credentials are requested or rendered.
+- No full phone numbers are rendered.
+- No raw provider payloads are rendered.
+- No dashboard action triggers sends, retries, reconciliation, or provider calls.
+- Logs do not print sensitive API responses.
+
+STEP 12 — Documentation
+Update documentation/report notes for:
+- dashboard route
+- API endpoints consumed
+- required role
+- filter behavior
+- known limitations
+- tenant name enrichment behavior
+- statement that Notification Service owns aggregation and Control Center only renders
+
+STEP 13 — Validation
+Perform validation/testing for:
+
+Routing/security:
+- PlatformAdmin can access SMS dashboard
+- non-admin cannot access SMS dashboard
+- navigation entry visible only to PlatformAdmin
+- unauthorized API failure handled correctly
+
+API client:
+- summary endpoint called with filters
+- trends endpoint called with filters and bucket
+- failures endpoint called with filters
+- tenants endpoint called with filters
+- providers endpoint called with filters
+- auth headers included according to existing client pattern
+
+UI rendering:
+- KPI cards render expected fields
+- trend chart/table renders expected buckets
+- failure table renders expected rows
+- tenant table renders expected rows
+- provider table renders expected rows
+- empty states render
+- error states render
+- filter reset works
+- date range filter works
+- bucket filter works
+- status/provider/ownership filters work where implemented
+
+Security:
+- credentials are not displayed
+- full phone numbers are not displayed
+- raw provider payloads are not displayed
+- no send/retry/reconciliation action exists on page
+
+Existing behavior preservation:
+- existing Control Center routes continue working
+- existing admin pages continue working
+- Notification Service APIs are not modified except client consumption
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-008 behavior remains unchanged
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Control Center SMS Dashboard route/page
+- Notification Service SMS dashboard API client methods
+- TypeScript DTOs/interfaces for dashboard responses
+- Dashboard filter bar
+- KPI cards
+- Trend chart or trend table
+- Failure breakdown table
+- Tenant breakdown table
+- Provider breakdown table
+- Loading/error/empty states
+- PlatformAdmin route/navigation guard
+- Completed analysis report
+
+Do NOT:
+- Add backend aggregation logic to Control Center
+- Modify SMS delivery behavior
+- Trigger SMS sends/retries/reconciliation
+- Add provider credential management UI
+- Add tenant portal UI
+- Add new Notification Service dashboard endpoints unless absolutely required
+- Expose provider credentials or secrets
+- Expose raw phone numbers
+- Add conversational inbound SMS
+- Break existing Control Center functionality
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-008 behavior

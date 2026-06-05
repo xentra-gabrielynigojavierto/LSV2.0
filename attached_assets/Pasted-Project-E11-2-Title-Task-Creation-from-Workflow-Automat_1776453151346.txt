@@ -1,0 +1,263 @@
+Project: E11.2
+Title: Task Creation from Workflow — Automatic Work Item Generation
+
+You are implementing the next core behavior phase for Flow.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/E11.2-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around workflow lifecycle hooks, actionable step detection, duplicate prevention, transaction boundaries, and interaction with admin retry.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - workflow integration points
+   - task creation rules
+   - duplicate prevention strategy
+   - transaction behavior
+   - validation/build/runtime results
+   - known gaps/issues
+   - recommendation: ready for E11.3 or needs iteration
+
+REPORT FORMAT
+
+# E11.2 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Task Creation Logic Notes
+## Actionable Step Rules
+## Duplicate Prevention Notes
+## Transaction / Consistency Notes
+## Admin Retry Interaction Notes
+## Validation Results
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Enable automatic creation of WorkflowTask records from workflow execution so that when a workflow enters an actionable step, a corresponding human work item is created.
+
+This must be done without changing workflow execution authority or introducing a second execution engine.
+
+SCOPE INCLUDES
+
+- task creation triggered from workflow lifecycle
+- integration into workflow start and advance flows
+- mapping WorkflowInstance.CurrentStepKey → WorkflowTask.StepKey
+- deterministic task title generation
+- duplicate prevention logic
+- safe persistence behavior
+- documentation/reporting
+
+DO NOT BUILD
+
+- assignment rules or routing
+- task APIs
+- task UI
+- notifications
+- task SLA
+- task reassignment
+- task completion advancing workflow
+- workflow redesign
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- keep WorkflowInstance as execution authority
+- derive tasks from workflow state transitions
+- prevent duplicate active tasks per step
+- ensure task creation does not break workflow transitions
+- avoid touching outbox (E10.2) and SLA logic (E10.3)
+- keep logic inside Flow (not UI or product services)
+
+CURRENT CONTEXT
+
+Already completed:
+- workflow engine
+- admin actions (E10.1)
+- outbox (E10.2)
+- SLA (E10.3)
+- task entity (E11.1)
+
+This phase activates the task model.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. TASK CREATION TRIGGER POINTS
+
+Integrate task creation into:
+- workflow start
+- workflow advance (step transition)
+
+Optional:
+- admin retry if it results in actionable step evaluation
+
+Requirements:
+- task creation must occur when CurrentStepKey is set/changed
+- must be tied to workflow lifecycle methods (StartAsync, AdvanceAsync or equivalent)
+- document exact integration points
+
+2. ACTIONABLE STEP DETECTION
+
+Define rule for when a step should create a task.
+
+Recommended implementation:
+- create task when workflow enters a non-terminal step
+- do NOT create task for terminal workflow states (Completed, Cancelled, Failed)
+
+Requirements:
+- use current workflow status and step key
+- keep logic simple and deterministic
+- document rule clearly
+
+3. TASK CREATION DATA
+
+When creating a task:
+
+Set:
+- WorkflowInstanceId
+- StepKey = CurrentStepKey
+- TenantId
+- Status = Open
+- Priority = Normal
+- Title (required)
+- Description (optional, minimal)
+- assignment fields = null
+
+Title rules:
+- must be deterministic
+- must be human-readable
+- example pattern:
+  "<WorkflowName or ProductKey> — <StepKey>"
+
+Requirements:
+- do not depend on UI-only data
+- do not include volatile content
+
+4. DUPLICATE PREVENTION
+
+This is critical.
+
+Implement logic such that:
+- if an Open or InProgress task exists for the same WorkflowInstanceId + StepKey
+  → DO NOT create a new task
+- if all existing tasks for that step are terminal
+  → ALLOW creation of a new task
+
+Requirements:
+- enforce at application level
+- consider race conditions
+- if possible, support with DB-level safeguard (document approach)
+
+Document:
+- exact query used to detect existing tasks
+- whether enforcement is optimistic or strongly consistent
+
+5. TRANSACTION BEHAVIOR
+
+Define how task creation relates to workflow transition.
+
+Requirements:
+- task creation should occur in the SAME transaction as workflow state change when feasible
+- if workflow transition fails → task must not be created
+- no orphan tasks
+
+Document clearly:
+- whether shared DbContext/transaction is used
+- any limitations
+
+6. RE-ENTRY HANDLING
+
+Handle workflows re-entering a step.
+
+Requirements:
+- if prior task for step is Completed/Cancelled → create new task
+- if prior task is Open/InProgress → do not create duplicate
+
+Document behavior explicitly.
+
+7. ADMIN RETRY INTERACTION
+
+Define behavior when:
+- admin retry resets workflow state
+
+Requirements:
+- retry alone must NOT create duplicate task
+- only create task if workflow actually re-enters a step and no active task exists
+
+Document interaction clearly.
+
+8. ELIGIBLE WORKFLOW STATES
+
+Define when tasks can be created.
+
+Recommended:
+- allowed: Active (and similar non-terminal states)
+- not allowed: Completed, Cancelled, Failed
+
+Requirements:
+- document mapping from workflow status → task creation eligibility
+
+9. NON-INTERFERENCE
+
+You MUST confirm:
+- workflow execution still works
+- admin actions still work
+- outbox still works
+- SLA evaluator still works
+- no regression in tenant portal or Control Center
+
+VALIDATION REQUIREMENTS
+
+Functional:
+- starting workflow creates task if step is actionable
+- advancing workflow creates task for new step
+- terminal states do not create tasks
+- duplicate prevention works
+- re-entry logic works
+
+Consistency:
+- no orphan tasks
+- no duplicate active tasks
+- transaction consistency holds
+
+Platform:
+- build passes
+- workers (outbox/SLA) still run
+- no regression in workflow behavior
+
+Documentation:
+- trigger points documented
+- actionable step rule documented
+- duplicate prevention documented
+- retry behavior documented
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+1. Create /analysis/E11.2-report.md
+2. Inspect workflow lifecycle methods
+3. Define actionable step rule
+4. Implement task creation helper/service
+5. Integrate into start/advance flows
+6. Add duplicate prevention
+7. Validate re-entry and retry behavior
+8. Validate build/runtime
+9. Finalize report
+
+SUCCESS CONDITION
+
+- tasks are automatically created from workflow transitions
+- tasks are linked to workflow instance and step
+- duplicate active tasks are prevented
+- workflow remains execution authority
+- no platform regression
+
+FAILURE CONDITION
+
+- duplicate tasks created unpredictably
+- task creation breaks workflow execution
+- tasks become execution driver
+- platform stability is impacted

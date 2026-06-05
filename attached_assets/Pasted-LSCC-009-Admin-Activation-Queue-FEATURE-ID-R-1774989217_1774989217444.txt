@@ -1,0 +1,496 @@
+LSCC-009 — Admin Activation Queue
+
+==================================================
+FEATURE ID & REPORTING
+==================================================
+
+Feature ID: LSCC-009
+
+Initial implementation report:
+- /analysis/LSCC-009-report.md
+
+If this is an iteration, use:
+- /analysis/LSCC-009-XX.md
+
+Examples:
+- /analysis/LSCC-009-report.md
+- /analysis/LSCC-009-01.md
+
+You MUST generate the report as part of this task.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Build the minimum viable admin activation queue so activation requests created by the LSCC-008 provider activation funnel can be reviewed, approved, and converted into active provider accounts/tenant links.
+
+This feature must let an authorized admin:
+
+1. view pending provider activation requests
+2. inspect provider + referral context
+3. approve and activate the provider
+4. link the provider to a tenant / organization
+5. mark the activation request as completed
+6. optionally notify the provider that access is ready
+
+Do NOT build a full CRM.
+Do NOT build a full onboarding platform.
+Do NOT redesign auth or tenant management broadly.
+Do NOT expand into analytics or notifications centers.
+
+This is the smallest operational admin workflow that completes the activation loop started in LSCC-008.
+
+==================================================
+SCOPE (STRICT)
+==================================================
+
+You are ONLY implementing:
+
+A. Activation request data source / model strategy
+B. Admin activation queue list
+C. Admin activation request detail view
+D. Approve & activate action
+E. Provider-to-tenant linking
+F. Activation status updates
+G. Optional activation-ready email if low-risk and practical
+H. Report
+
+Do NOT implement:
+- full onboarding wizard
+- billing/subscription
+- broad role management UI
+- advanced filtering/reporting
+- auto-provisioning beyond the minimal tenant/link step required here
+- unrelated CareConnect UX work
+- large admin framework refactors
+
+==================================================
+ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1. Reuse LSCC-008 activation data/events if possible
+2. Prefer the smallest viable data model
+3. Separate:
+   - activation request retrieval
+   - admin queue UI
+   - activation approval service logic
+   - tenant/provider linking
+4. Do NOT duplicate referral/provider data unnecessarily
+5. Do NOT guess or infer tenant links unsafely
+6. Activation must be idempotent and safe against double approval
+7. Keep security strict: admin-only access
+8. Preserve existing referral, token, and acceptance behavior from LSCC-005 through LSCC-008
+
+==================================================
+REPO / IMPLEMENTATION BOUNDARY
+==================================================
+
+Primary likely target areas:
+
+Backend:
+- apps/services/careconnect/...
+- only minimal identity/tenant linkage touchpoints already required for provider activation
+
+Frontend:
+- apps/web/src/app/(platform)/careconnect/admin/...
+- apps/web/src/components/careconnect/...
+- apps/web/src/lib/...
+- apps/web/src/types/...
+
+Do NOT use this feature to refactor unrelated platform modules.
+Do NOT redesign the existing referral engine or public activation funnel.
+
+==================================================
+EXISTING CONTEXT
+==================================================
+
+Already implemented:
+- LSCC-005 referral engine
+- LSCC-005-01 email/token hardening
+- LSCC-005-02 retry/operational visibility
+- LSCC-007 / 007-01 CareConnect UX layer and navigation polish
+- LSCC-008 provider activation funnel:
+  - pending provider landing
+  - activation start tracking
+  - active provider routing
+  - context preservation
+
+Current gap:
+- activation requests can be initiated
+- but admins have no structured queue to process them
+- provider conversion still requires manual invisible handling
+
+LSCC-009 must close the operational conversion loop.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+--------------------------------------------------
+A. ACTIVATION REQUEST DATA SOURCE / MODEL
+--------------------------------------------------
+
+Implement the smallest practical activation-request model.
+
+Preferred approach:
+- derive requests from existing LSCC-008 funnel tracking/event data plus referral/provider records
+
+If existing event/audit data is insufficient for a stable admin queue:
+- add a minimal ActivationRequest table/model
+- keep it narrow and purpose-specific
+
+Conceptual fields required, whether derived or persisted:
+- activation request id (or stable identifier)
+- referral id
+- provider id
+- provider name
+- provider email
+- referring law firm / referral context
+- created timestamp
+- status
+- linked tenant / organization id if approved
+- approved timestamp if approved
+- approved by user id if available
+
+Minimum statuses:
+- Pending
+- Approved
+
+Optional:
+- Rejected
+Only add if it is genuinely useful now and low-risk; otherwise defer.
+
+Rules:
+- do not duplicate broad referral payloads
+- do not build a generic workflow engine
+- if using event-derived requests, document exactly how deduplication/stability is handled
+
+--------------------------------------------------
+B. ADMIN ACTIVATION QUEUE LIST
+--------------------------------------------------
+
+Create an admin-only page:
+
+- /careconnect/admin/activations
+
+Purpose:
+- show pending activation requests in a scannable queue
+
+Minimum columns/fields:
+- Provider Name
+- Provider Email
+- Referral context (patient/referred party name, law firm)
+- Requested / created date
+- Status
+
+Default behavior:
+- show Pending items only
+
+Optional low-risk additions:
+- simple status filter
+- simple date sort (newest first)
+
+Rules:
+- page must be admin-only
+- clear empty state if no pending requests
+- keep UI minimal and operational, not consumer-facing
+
+--------------------------------------------------
+C. ADMIN ACTIVATION DETAIL VIEW
+--------------------------------------------------
+
+Create a detail page:
+
+- /careconnect/admin/activations/{id}
+
+Must show:
+- provider information
+- referral summary
+- activation request timestamp
+- current request status
+- current provider organization/tenant link status
+- primary approval action
+
+The page should give the admin enough context to make the activation decision without navigating across multiple unrelated screens.
+
+Keep layout simple and clear.
+
+--------------------------------------------------
+D. APPROVE & ACTIVATE ACTION
+--------------------------------------------------
+
+Primary action:
+- "Approve & Activate"
+
+On action:
+
+1. validate the activation request still exists and is still pending
+2. validate provider record exists
+3. determine/create the target tenant/organization link according to the chosen minimal implementation
+4. link provider to the tenant/organization
+5. mark activation request status = Approved
+6. record approval timestamp
+7. record approver identity if available
+8. preserve/reflection of the provider’s ability to log in and reach the referral through the LSCC-008 return path
+
+Rules:
+- must be idempotent
+- second approval attempt must not create duplicate tenants/links
+- if provider is already active, the system should surface that cleanly and avoid duplicate activation
+- if activation fails partway, do not leave ambiguous state without reporting it
+
+--------------------------------------------------
+E. PROVIDER-TO-TENANT LINKING
+--------------------------------------------------
+
+After approval, the provider must become an active provider in the platform.
+
+Minimum requirement:
+- provider.OrganizationId (or equivalent existing link field) is set correctly
+
+Tenant / organization strategy:
+Choose the smallest safe implementation that matches current architecture.
+
+Acceptable patterns:
+1. create a minimal tenant / organization automatically for the provider
+2. link to an existing tenant / organization if the system already has a deterministic matching path
+3. present a lightweight selection step only if absolutely necessary and low-risk
+
+Preferred direction:
+- minimal automatic creation/linking if architecture supports it safely
+
+Rules:
+- do not guess unsafely
+- do not create duplicate provider org links
+- document the exact rule used
+
+--------------------------------------------------
+F. ACTIVATION STATUS UPDATES
+--------------------------------------------------
+
+The activation request must reflect its lifecycle.
+
+Minimum required:
+- Pending before approval
+- Approved after successful activation
+
+If using event-derived requests rather than a dedicated table:
+- you must still expose a stable "approved" state in the queue/detail view
+- document how that state is persisted or inferred
+
+Rules:
+- queue list should no longer show already-approved requests in the default pending view
+- detail page should clearly show approved state when applicable
+
+--------------------------------------------------
+G. OPTIONAL PROVIDER NOTIFICATION EMAIL
+--------------------------------------------------
+
+If practical and low-risk within current architecture, send an activation-ready email when approval succeeds.
+
+Suggested message:
+- "Your account is ready. Log in to manage your referrals."
+
+This is optional.
+If implemented:
+- use existing email infrastructure
+- keep template minimal
+- document exact behavior in the report
+
+If not implemented:
+- explicitly state it was deferred
+
+--------------------------------------------------
+H. SECURITY / ACCESS CONTROL
+--------------------------------------------------
+
+This feature must be admin-only.
+
+Requirements:
+- queue list requires admin authorization
+- detail page requires admin authorization
+- approve action requires admin authorization
+- validate all ids and ownership/tenant boundaries
+- no public access
+- no provider-side visibility into admin queue
+
+Do NOT weaken any existing auth model.
+
+--------------------------------------------------
+I. EDGE CASES
+--------------------------------------------------
+
+Handle safely:
+
+1. duplicate activation requests for same provider/referral
+- do not create duplicate activations
+- surface or collapse duplicates deterministically
+
+2. provider already activated
+- show already active state
+- do not create duplicate tenant link
+
+3. missing provider record
+- safe error state
+- no partial activation
+
+4. missing/invalid referral context
+- safe error state
+- do not approve blindly
+
+5. partial failure during activation
+- report failure clearly
+- avoid ambiguous success state
+
+6. admin retries approval after success
+- idempotent response / already-approved handling
+
+--------------------------------------------------
+J. UI / UX REQUIREMENTS
+--------------------------------------------------
+
+This is an admin tool.
+
+Priorities:
+- clarity
+- low friction
+- correctness
+- scanability
+
+Do NOT over-design.
+Do NOT build a large admin console.
+
+Minimum UX expectations:
+- queue is understandable at a glance
+- detail page supports confident approval
+- success/failure feedback is explicit
+- empty state is clear
+
+Use existing component conventions where practical.
+
+--------------------------------------------------
+K. TESTING (MINIMUM)
+--------------------------------------------------
+
+Add focused tests for:
+
+1. activation request retrieval / derivation
+   - pending request appears
+   - approved request no longer appears in pending default view
+
+2. approval flow
+   - valid pending request → approved
+   - provider linked to tenant/org
+   - duplicate approval is idempotent
+
+3. already-active provider handling
+   - second activation path handled safely
+
+4. invalid/missing records
+   - missing provider
+   - missing referral context
+
+5. auth/access control
+   - non-admin blocked
+   - admin allowed
+
+6. optional email notification behavior if implemented
+
+7. queue/detail shaping logic
+   - required fields present and correct
+
+If full frontend tests are difficult:
+- test service-layer and data shaping logic
+- document frontend test limitations in the report
+
+Pre-existing unrelated test failures must not be counted as regressions, but note them if still present.
+
+--------------------------------------------------
+L. REPORT (REQUIRED OUTPUT)
+--------------------------------------------------
+
+Generate report at:
+
+/analysis/LSCC-009-report.md
+
+The report MUST include:
+
+1. Summary
+- what was implemented
+- what remains incomplete
+
+2. Activation request model/data source
+- event-derived or persisted table
+- fields used
+- deduplication/stability strategy
+
+3. Admin queue
+- route
+- fields shown
+- default behavior
+
+4. Detail page
+- fields shown
+- approval UX
+
+5. Approval/activation logic
+- exact tenant/provider linking rule
+- idempotency handling
+- already-active handling
+
+6. Security
+- admin access enforcement
+- safe failure handling
+
+7. Email notification
+- whether implemented
+- behavior if included
+
+8. Tests
+- what scenarios are covered
+- what gaps remain
+
+9. Known limitations / deferred items
+- anything left for LSCC-010 or later
+
+10. Recommended next step
+- smallest logical follow-up after admin activation queue
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+Follow this order:
+
+1. Inspect LSCC-008 activation tracking and provider link model
+2. Choose and implement the minimal activation request data source/model
+3. Build the admin queue list page
+4. Build the admin detail page
+5. Implement approve & activate service/action
+6. Add optional activation-ready email only if low-risk
+7. Add tests
+8. Generate report
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+LSCC-009 is complete ONLY if:
+
+1. admin can view activation requests in a queue
+2. admin can open a request detail view
+3. admin can approve and activate a provider safely
+4. provider is linked to a tenant/organization correctly
+5. request status updates to Approved
+6. duplicate/invalid/already-active cases are handled safely
+7. LSCC-008 funnel remains intact
+8. report exists at:
+   /analysis/LSCC-009-report.md
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Keep this operational and minimal.
+Do not drift into a full onboarding platform.
+Build the smallest admin workflow that turns activation requests into active provider accounts safely and predictably.

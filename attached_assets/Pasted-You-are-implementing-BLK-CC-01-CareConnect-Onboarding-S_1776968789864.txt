@@ -1,0 +1,362 @@
+You are implementing BLK-CC-01 — CareConnect Onboarding Switch (Phase 1) for the LegalSynq platform.
+
+CRITICAL (NON-NEGOTIABLE):
+
+1. Create the report FIRST:
+   /analysis/BLK-CC-01-report.md
+
+2. Update the report incrementally after each major step.
+
+3. The report MUST be saved in the ROOT /analysis folder.
+
+4. This block switches CareConnect provider onboarding away from Identity-owned tenant creation
+   and toward the new architecture:
+
+   CareConnect → Tenant service (tenant creation / code validation / product activation)
+               → Identity service (user ↔ tenant membership / roles)
+
+5. This is PHASE 1 of the CareConnect onboarding switch.
+   The goal is to rewire the service calls and restore the broken flow caused by BLK-ID-01.
+
+6. DO NOT:
+   - reintroduce tenant creation into Identity
+   - modify provider registry model
+   - modify referral core logic
+   - redesign provider lifecycle
+   - remove backward-compatible internal provisioning behavior from Identity
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Refactor CareConnect onboarding so that:
+
+- tenant code availability checks call Tenant service
+- tenant creation / self-provisioning calls Tenant service
+- Identity is used only for tenant membership / role assignment
+- provider lifecycle remains:
+    URL → COMMON_PORTAL → TENANT
+
+At the end of this block:
+
+- CareConnect no longer calls retired Identity tenant endpoints
+- provider onboarding works again
+- provider transitions to TENANT stage through:
+    Tenant service → Identity membership APIs → CareConnect provider update
+
+--------------------------------------------------
+
+CONTEXT
+
+Current known state:
+
+- BLK-TS-01 created Tenant code-check + tenant provision APIs
+- BLK-TS-02 added Tenant-owned provisioning state + product activation
+- BLK-ID-01 retired Identity tenant creation and tenant code-check endpoints (410 Gone)
+- BLK-ID-02 added Identity membership APIs:
+    - POST /api/internal/users/assign-tenant
+    - POST /api/internal/users/assign-roles
+
+CareConnect onboarding is expected to still be pointing at the retired Identity endpoints.
+This block must replace that.
+
+--------------------------------------------------
+
+PART A — AUDIT CURRENT CARECONNECT CALLS
+
+--------------------------------------------------
+
+Audit CareConnect and identify every place still calling Identity for:
+
+- tenant code availability
+- self-provisioning / tenant creation
+- any onboarding-specific tenant creation behavior
+
+You MUST find and document:
+
+- exact service classes
+- exact methods
+- exact endpoint paths
+- where the old Identity coupling remains
+
+Expected likely areas:
+- HttpIdentityOrganizationService
+- ProviderOnboardingService
+- onboarding-related API clients/services
+- provider common portal onboarding page actions
+
+--------------------------------------------------
+
+PART B — REPLACE TENANT CODE CHECK
+
+--------------------------------------------------
+
+Replace old call:
+
+- GET /api/admin/tenants/check-code    (Identity, retired)
+
+With Tenant service call:
+
+- GET /api/v1/tenants/check-code?code={code}
+
+Requirements:
+- preserve normalization behavior
+- preserve code-availability UX in onboarding page
+- preserve conflict/error handling semantics where practical
+
+If CareConnect currently has a typed client for Identity, add or adapt a typed client for Tenant service instead of misusing Identity clients.
+
+--------------------------------------------------
+
+PART C — REPLACE SELF-PROVISION / TENANT CREATION
+
+--------------------------------------------------
+
+Replace old call:
+
+- POST /api/admin/tenants/self-provision   (Identity, retired)
+
+With Tenant service call:
+
+- POST /api/v1/tenants/provision
+
+The provisioning flow must now become:
+
+1. CareConnect validates provider is eligible for onboarding
+   - provider exists
+   - AccessStage == COMMON_PORTAL
+   - IdentityUserId exists
+
+2. CareConnect calls Tenant service to provision tenant
+   Input should include at least:
+   - tenantName
+   - tenantCode
+
+3. CareConnect receives:
+   - tenantId
+   - tenantCode
+   - subdomain
+
+4. CareConnect then calls Identity membership API to assign the existing user to the new tenant
+   - POST /api/internal/users/assign-tenant
+   - include roles as needed (e.g. TenantAdmin)
+
+5. CareConnect updates provider:
+   - provider.MarkTenantProvisioned(tenantId)
+
+6. CareConnect returns onboarding success result to frontend
+   - tenantId
+   - subdomain
+   - portalUrl
+
+--------------------------------------------------
+
+PART D — IDENTITY MEMBERSHIP INTEGRATION
+
+--------------------------------------------------
+
+Use Identity only for membership / role assignment.
+
+Required behavior:
+- DO NOT create a new Identity user
+- reuse existing provider.IdentityUserId
+- assign the user to the new tenant
+- assign required tenant role(s)
+- preserve login behavior at new tenant subdomain
+
+Use the new BLK-ID-02 APIs.
+Do NOT bypass them with direct DB assumptions from CareConnect.
+
+--------------------------------------------------
+
+PART E — CARECONNECT CLIENT / SERVICE REFACTOR
+
+--------------------------------------------------
+
+Refactor service clients cleanly.
+
+Expected direction:
+- remove onboarding dependency on retired Identity tenant endpoints
+- introduce Tenant service client / adapter for:
+  - check code
+  - provision tenant
+- keep Identity service client for:
+  - assign tenant
+  - assign roles
+  - other auth/membership tasks as appropriate
+
+Make the split explicit in code so future maintainers can see:
+
+- Tenant service = tenant lifecycle
+- Identity service = membership/access
+
+--------------------------------------------------
+
+PART F — FRONTEND / UX PRESERVATION
+
+--------------------------------------------------
+
+Preserve existing provider onboarding UX in Common Portal as much as possible:
+
+- onboarding CTA still visible only for COMMON_PORTAL providers
+- code availability check still works
+- duplicate code errors still surface correctly
+- success response still gives provider the correct portal URL
+- DNS delay messaging remains if already present
+
+Do NOT redesign the onboarding page beyond what is required to support the new backend flow.
+
+--------------------------------------------------
+
+PART G — ERROR HANDLING
+
+--------------------------------------------------
+
+Handle and document at least:
+
+1. Tenant code already taken
+   - should surface as 409/conflict-style UX
+
+2. Tenant service unavailable
+   - clear service failure response
+
+3. Identity membership assignment failure
+   - do NOT silently mark provider as TENANT if membership failed
+
+4. Provider not in COMMON_PORTAL stage
+   - reject cleanly
+
+5. Missing IdentityUserId
+   - reject cleanly
+
+6. Partial-failure behavior
+   - if Tenant service succeeds but Identity assignment fails, document exact current behavior
+   - do NOT hide this state
+   - prefer fail-fast and explicit reporting
+
+--------------------------------------------------
+
+PART H — DATA CONSISTENCY RULES
+
+--------------------------------------------------
+
+You MUST preserve the following invariants:
+
+- one provider record only
+- one Identity user only
+- provider registry remains global/shared
+- networks remain tenant-owned
+- provider stage progression does not create duplicate rows
+- provider only becomes TENANT after tenant provisioning + identity membership assignment succeed
+
+Be explicit about any unavoidable temporary inconsistency window.
+
+--------------------------------------------------
+
+PART I — SECURITY RULES
+
+--------------------------------------------------
+
+Ensure:
+
+- CareConnect never accepts tenantId from client for onboarding
+- tenantId comes only from Tenant service provision response
+- Identity membership APIs are called with internal/service auth only
+- onboarding endpoints remain authenticated appropriately
+- no cross-tenant escalation path is introduced
+
+--------------------------------------------------
+
+PART J — VALIDATION / TESTING
+
+--------------------------------------------------
+
+You MUST validate and document at minimum:
+
+1. Code availability check now hits Tenant service and works
+2. Retired Identity endpoints are no longer used by CareConnect onboarding
+3. Provider onboarding succeeds end-to-end
+4. Tenant service provisions tenant successfully
+5. Identity membership assignment succeeds
+6. Provider transitions to TENANT stage
+7. No duplicate provider record created
+8. No duplicate Identity user created
+9. Login works at new tenant subdomain
+10. CareConnect appears in tenant portal after onboarding
+11. Duplicate tenant code handled correctly
+12. dotnet build succeeds
+13. Next.js / TypeScript build succeeds if frontend touched
+
+Also document:
+- any temporary gaps still remaining for Phase 2
+
+--------------------------------------------------
+
+PART K — REPORT FORMAT (MANDATORY)
+
+/analysis/BLK-CC-01-report.md
+
+# BLK-CC-01 Report
+
+## 1. Summary
+
+## 2. Old Identity Coupling Found
+- Exact classes/methods/endpoints that were replaced
+
+## 3. Tenant Service Integration
+- Code-check and provision flow updates
+
+## 4. Identity Membership Integration
+- Assign-tenant / role assignment usage
+
+## 5. Frontend / UX Impact
+- What changed, what stayed the same
+
+## 6. Data Consistency / Failure Handling
+- Partial-failure behavior, invariants preserved
+
+## 7. Changed Files
+- Full file paths
+
+## 8. Methods / Endpoints Updated
+- Service methods
+- endpoint handlers
+- client methods
+
+## 9. GitHub Commits (MANDATORY)
+- Include ALL commit IDs for this block
+- Example:
+  - abc1234 — Replace Identity check-code call with Tenant service
+  - def5678 — Refactor provider onboarding to Tenant → Identity flow
+
+## 10. Validation Results
+
+## 11. Issues / Gaps
+
+--------------------------------------------------
+
+DO NOT:
+
+- remove BLK-ID-02 membership APIs
+- reintroduce tenant creation in Identity
+- redesign provider onboarding UX
+- add unrelated onboarding features
+- change provider lifecycle semantics
+
+--------------------------------------------------
+
+FINAL STEP
+
+Verify:
+
+- CareConnect onboarding no longer depends on retired Identity tenant endpoints
+- CareConnect now uses:
+    Tenant service for tenant lifecycle
+    Identity service for membership
+- provider onboarding works end-to-end again
+- report saved at:
+    /analysis/BLK-CC-01-report.md
+
+--------------------------------------------------
+
+BEGIN IMPLEMENTATION

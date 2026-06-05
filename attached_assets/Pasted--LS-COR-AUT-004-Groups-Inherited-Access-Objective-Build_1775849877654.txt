@@ -1,0 +1,682 @@
+# LS-COR-AUT-004 — Groups + Inherited Access
+
+## Objective
+
+Build the group-based access assignment and inherited access layer for LS-COR-AUT.
+
+This feature must extend the direct-access model from LS-COR-AUT-002 and the effective-access/JWT projection model from LS-COR-AUT-003 by introducing:
+
+* groups
+* group membership
+* group-based product access
+* group-based role assignment
+* inherited effective access computation
+* JWT claim projection that includes inherited access
+
+At completion, users must be able to receive access through:
+
+* direct assignment
+* group inheritance
+* or both
+
+This feature must remain backward-compatible with LS-COR-AUT-001, LS-COR-AUT-002, and LS-COR-AUT-003.
+
+---
+
+## Architectural Constraints
+
+### Identity
+
+* Do NOT implement authentication changes
+* Do NOT add new login flows
+* JWT issuance remains in Identity
+* This feature extends access computation only
+
+### Synq Audit
+
+* All mutation paths introduced here must publish audit events through the centralized audit abstraction
+* Do NOT create local audit tables
+
+### Compatibility
+
+* Must preserve compatibility with LS-COR-AUT-001 runtime filters
+* Must preserve LS-COR-AUT-003 claim projection pattern
+* Must not break direct-access behavior already implemented
+
+---
+
+## In Scope
+
+### 1. Group model
+
+Add the source-of-truth entities needed to support reusable access assignment through groups.
+
+### 2. Group membership
+
+Allow users to belong to one or more groups within a tenant.
+
+### 3. Group product access
+
+Allow groups to grant product access to members.
+
+### 4. Group role assignment
+
+Allow groups to grant roles to members.
+
+### 5. Effective access inheritance
+
+Update effective access computation so inherited access is merged with direct access.
+
+### 6. JWT claim projection
+
+Ensure inherited access is included in JWT-generated claims without breaking existing downstream enforcement.
+
+### 7. Audit integration
+
+All group mutations must publish Synq Audit events.
+
+---
+
+## Out of Scope
+
+Do not implement:
+
+* admin UI
+* self-service group management
+* nested groups
+* dynamic rules-based groups
+* approval workflows
+* permission/capability redesign
+* cross-tenant groups
+* external identity sync
+* removal of legacy role resolution paths unless necessary for safe integration
+
+---
+
+## Required Data Model
+
+## 1. Group
+
+Represents a reusable access-assignment container within a tenant.
+
+Suggested fields:
+
+* `Id`
+* `TenantId`
+* `Name`
+* `Description` nullable
+* `Status` (`Active`, `Archived`)
+* `ScopeType` (`Tenant`, `Product`, `Organization`)
+* `ProductCode` nullable
+* `OrganizationId` nullable
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
+
+Rules:
+
+* group belongs to exactly one tenant
+* name uniqueness should be enforced per tenant where practical
+* `ProductCode` only allowed for product-scoped groups
+* `OrganizationId` only allowed for organization-scoped groups
+* archived groups must not contribute inherited access
+
+---
+
+## 2. GroupMembership
+
+Represents a user’s membership in a group.
+
+Suggested fields:
+
+* `Id`
+* `TenantId`
+* `GroupId`
+* `UserId`
+* `MembershipStatus` (`Active`, `Removed`)
+* `AddedAtUtc`
+* `RemovedAtUtc` nullable
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
+
+Rules:
+
+* user must belong to same tenant as group
+* duplicate active membership must be prevented
+* removed memberships must not contribute inherited access
+
+---
+
+## 3. GroupProductAccess
+
+Represents product access granted by a group.
+
+Suggested fields:
+
+* `Id`
+* `TenantId`
+* `GroupId`
+* `ProductCode`
+* `AccessStatus` (`Granted`, `Revoked`)
+* `GrantedAtUtc`
+* `RevokedAtUtc` nullable
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
+
+Rules:
+
+* group and product must belong to same tenant context
+* tenant must be entitled to the product
+* duplicate active records must be prevented
+* revoked group product access must not contribute inherited access
+
+---
+
+## 4. GroupRoleAssignment
+
+Represents roles granted by a group.
+
+Suggested fields:
+
+* `Id`
+* `TenantId`
+* `GroupId`
+* `RoleCode`
+* `ProductCode` nullable
+* `OrganizationId` nullable
+* `AssignmentStatus` (`Active`, `Removed`)
+* `AssignedAtUtc`
+* `RemovedAtUtc` nullable
+* `CreatedAtUtc`
+* `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
+
+Rules:
+
+* role must exist in canonical role catalog
+* product-scoped role must match valid product context
+* group tenant must match assignment tenant
+* removed assignments must not contribute inherited access
+
+---
+
+## Required Services
+
+Implement or extend services equivalent to the following responsibilities.
+
+### IGroupService
+
+Responsibilities:
+
+* create group
+* update group
+* archive group
+* get group by id
+* list groups by tenant
+
+### IGroupMembershipService
+
+Responsibilities:
+
+* add user to group
+* remove user from group
+* list group members
+* list groups for a user
+
+### IGroupProductAccessService
+
+Responsibilities:
+
+* grant product to group
+* revoke product from group
+* list group product assignments
+
+### IGroupRoleAssignmentService
+
+Responsibilities:
+
+* assign role to group
+* remove role from group
+* list group roles
+
+### IInheritedAccessQueryService
+
+Responsibilities:
+
+* retrieve memberships for a user
+* retrieve inherited products
+* retrieve inherited roles
+* expose normalized data for effective access calculation
+
+You may extend `IAccessSourceQueryService` instead of creating a separate read service if that fits the current architecture better.
+
+---
+
+## API Requirements
+
+Use existing API conventions and route patterns.
+
+### Groups
+
+Implement endpoints equivalent to:
+
+* `GET /api/tenants/{tenantId}/groups`
+* `POST /api/tenants/{tenantId}/groups`
+* `GET /api/tenants/{tenantId}/groups/{groupId}`
+* `PATCH /api/tenants/{tenantId}/groups/{groupId}`
+* `DELETE /api/tenants/{tenantId}/groups/{groupId}`
+
+Behavior:
+
+* create group
+* update metadata and scope-safe fields
+* archive group instead of hard delete
+* enforce tenant boundary
+
+### Group memberships
+
+Implement endpoints equivalent to:
+
+* `GET /api/tenants/{tenantId}/groups/{groupId}/members`
+* `POST /api/tenants/{tenantId}/groups/{groupId}/members`
+* `DELETE /api/tenants/{tenantId}/groups/{groupId}/members/{userId}`
+* `GET /api/tenants/{tenantId}/users/{userId}/groups`
+
+Behavior:
+
+* add/remove users
+* list group members
+* list user group memberships
+* reject cross-tenant membership
+
+### Group product access
+
+Implement endpoints equivalent to:
+
+* `GET /api/tenants/{tenantId}/groups/{groupId}/products`
+* `PUT /api/tenants/{tenantId}/groups/{groupId}/products/{productCode}`
+* `DELETE /api/tenants/{tenantId}/groups/{groupId}/products/{productCode}`
+
+Behavior:
+
+* grant/revoke product access for group
+* require tenant entitlement to product
+
+### Group role assignments
+
+Implement endpoints equivalent to:
+
+* `GET /api/tenants/{tenantId}/groups/{groupId}/roles`
+* `POST /api/tenants/{tenantId}/groups/{groupId}/roles`
+* `DELETE /api/tenants/{tenantId}/groups/{groupId}/roles/{assignmentId}`
+
+Behavior:
+
+* assign/remove group roles
+* validate role catalog and product context
+
+### Snapshot / debug
+
+Extend access snapshot support to expose inherited access inputs, either by:
+
+* extending the existing snapshot endpoint, or
+* adding a group-aware access snapshot route
+
+This should help validate inheritance behavior during rollout.
+
+---
+
+## Authorization Requirements
+
+Protect all new mutation endpoints using existing admin authorization patterns.
+
+Rules:
+
+* `PlatformAdmin` can operate across tenants
+* `TenantAdmin` can operate only within their tenant
+* normal members cannot mutate groups
+* tenant boundary enforcement must be explicit on every read and write path
+
+Do not weaken existing LS-COR-AUT authorization behavior.
+
+---
+
+## Validation Requirements
+
+Implement these rules explicitly.
+
+### Group validation
+
+* group name required
+* name uniqueness per tenant where practical
+* invalid scope combinations rejected
+* archived groups cannot be mutated except through explicitly allowed restore flow if one exists; otherwise treat archive as terminal for this feature
+
+### Membership validation
+
+* user must belong to same tenant
+* group must belong to same tenant
+* duplicate active membership prevented
+* archived group cannot accept new members
+
+### Group product access validation
+
+* tenant must be entitled to product
+* group tenant must match entitlement tenant
+* duplicate active assignment prevented
+* archived group cannot receive new product grants
+
+### Group role assignment validation
+
+* role must exist
+* product-scoped role must match correct product
+* group scope and role scope must not conflict
+* archived group cannot receive new role assignments
+
+---
+
+## Effective Access Engine Changes
+
+Extend `IEffectiveAccessService` so effective access includes both direct and inherited access.
+
+### Required resolution model
+
+For each user, effective access must merge:
+
+#### Direct sources
+
+* `UserProductAccess`
+* `UserRoleAssignment`
+
+#### Inherited sources
+
+* `GroupMembership`
+* `GroupProductAccess`
+* `GroupRoleAssignment`
+
+#### Tenant gate
+
+All product access remains gated by active `TenantProductEntitlement`
+
+---
+
+## Access Resolution Rules
+
+### Effective product access
+
+A user has effective access to a product if:
+
+* tenant entitlement is active
+  AND
+* direct user access is granted
+  OR
+* inherited group product access is granted through at least one active group membership
+
+### Effective roles
+
+A role is effective if:
+
+* direct role assignment is active
+  OR
+* inherited group role assignment is active through at least one active group membership
+  AND
+* the related product is effectively accessible when role is product-scoped
+
+### De-duplication
+
+* merged product lists must be distinct
+* merged role lists must be distinct
+* group overlap must not produce duplicate JWT claims
+
+### Explainability
+
+Enhance the effective access result and/or snapshot output to show source attribution where practical, for example:
+
+* direct
+* inherited via group X
+
+This will help with debugging and future admin UI work.
+
+---
+
+## JWT Claim Projection Requirements
+
+Update JWT claim generation so inherited access is included automatically.
+
+### Required claims
+
+Continue emitting:
+
+* `tenant_id`
+* `product_codes`
+* `product_roles`
+* `access_version`
+
+### Compatibility
+
+* preserve LS-COR-AUT-001 compatibility
+* preserve current claim parsing logic
+* do not break legacy merge path unless fully safe to do so
+
+### Claim content
+
+`product_roles` must include effective roles from:
+
+* direct assignments
+* group-inherited assignments
+* any temporary legacy merge still required for safe migration
+
+---
+
+## AccessVersion / Token Freshness Requirements
+
+Any mutation introduced in this feature that changes inherited access must increment `AccessVersion` for affected users.
+
+This includes:
+
+* group created only if it does not affect users yet: no increment required
+* user added to group: increment that user
+* user removed from group: increment that user
+* group product granted/revoked: increment all active members of that group
+* group role assigned/removed: increment all active members of that group
+* group archived: increment all active members who lose inherited access
+
+Implement this carefully and tenant-safely.
+
+If bulk updates are needed, keep them correct first. Optimization can come later.
+
+---
+
+## Synq Audit Integration Requirements
+
+All group-related mutations must publish audit events through the centralized publisher.
+
+### Required event families
+
+Group lifecycle:
+
+* `GROUP_CREATED`
+* `GROUP_UPDATED`
+* `GROUP_ARCHIVED`
+
+Membership:
+
+* `GROUP_MEMBER_ADDED`
+* `GROUP_MEMBER_REMOVED`
+
+Group product access:
+
+* `GROUP_PRODUCT_GRANTED`
+* `GROUP_PRODUCT_REVOKED`
+
+Group role assignments:
+
+* `GROUP_ROLE_ASSIGNED`
+* `GROUP_ROLE_REMOVED`
+
+### Audit payload expectations
+
+Include where available:
+
+* event id
+* timestamp UTC
+* actor user id
+* actor tenant id
+* target tenant id
+* target group id
+* target user id where relevant
+* product code where relevant
+* role code where relevant
+* correlation/request id
+* before/after metadata where practical
+
+Audit delivery failure must not break the primary business mutation.
+
+---
+
+## Persistence and Migration Requirements
+
+* use additive migrations
+* align naming with current codebase conventions
+* do not break existing direct-access schema or services
+
+Add useful indexes such as:
+
+* `(TenantId, Name)` on groups if name uniqueness is enforced
+* `(TenantId, GroupId, UserId)` on group memberships
+* `(TenantId, GroupId, ProductCode)` on group product access
+* `(TenantId, GroupId, RoleCode)` on group role assignments
+
+Reuse enum/status patterns already established where appropriate.
+
+---
+
+## Backward Compatibility Requirements
+
+This feature must not break:
+
+* LS-COR-AUT-001 runtime enforcement
+* LS-COR-AUT-002 direct access APIs
+* LS-COR-AUT-003 JWT claim generation and access version checks
+
+Direct access must continue to work even if a user belongs to no groups.
+
+Legacy claim merge behavior may remain during transition if still required.
+
+---
+
+## Testing Requirements
+
+Implement meaningful tests covering direct + inherited access behavior.
+
+### Unit tests
+
+Cover:
+
+* group validation
+* membership validation
+* group product validation
+* group role validation
+* inherited access computation
+* de-duplication of merged access
+
+### Integration tests
+
+Cover:
+
+* create/update/archive group
+* add/remove group member
+* grant/revoke product to group
+* assign/remove role to group
+* inherited access appears in access snapshot
+* inherited access appears in JWT claims after login
+* archived group no longer grants access
+* invalid cross-tenant operations rejected
+
+### AccessVersion tests
+
+Cover:
+
+* adding user to group invalidates stale token
+* removing user from group invalidates stale token
+* granting group product invalidates affected members
+* removing group role invalidates affected members
+
+### Regression tests
+
+Verify:
+
+* direct-only users still work
+* LS-COR-AUT-001 filters still work
+* existing login flow still works
+* downstream services remain unchanged
+
+---
+
+## Acceptance Criteria
+
+This feature is complete only if all of the following are true:
+
+1. The system has durable source-of-truth entities for:
+
+   * groups
+   * group memberships
+   * group product access
+   * group role assignments
+
+2. Users can inherit product access and roles through active group membership.
+
+3. Effective access computation merges direct and inherited access correctly.
+
+4. JWT claims include inherited access without breaking LS-COR-AUT-001 compatibility.
+
+5. All group-related mutations increment `AccessVersion` for affected users.
+
+6. All group-related mutations publish Synq Audit events through the centralized abstraction.
+
+7. Archived groups stop contributing inherited access.
+
+8. Cross-tenant group and membership operations are rejected.
+
+9. Existing direct access behavior remains operational and non-broken.
+
+10. The new code builds cleanly and fits existing architecture patterns.
+
+---
+
+## Implementation Notes
+
+* Keep this feature focused on backend group inheritance only.
+* Do not add UI yet.
+* Prefer clear source attribution in access snapshot/debug outputs to simplify later admin tooling.
+* Keep service boundaries explicit and avoid hiding inheritance logic inside controllers.
+* Correctness is more important than premature optimization.
+
+---
+
+## Required Report Output
+
+When finished, create a report file in the root `/analysis` folder named:
+
+`LS-COR-AUT-004-report.md`
+
+The report must include:
+
+* summary of what was implemented
+* schema/tables added or modified
+* services/interfaces added
+* endpoints added
+* audit events implemented
+* effective access changes
+* JWT claim changes if any
+* access version invalidation behavior
+* tests run and results
+* build status
+* known gaps or deferred items
+* assumptions made

@@ -1,0 +1,409 @@
+You are implementing **LS-REPORTS-07-001 — Reporting UI & Builder (Tenant + Control Center)** for the LegalSynq Reports Service.
+
+## Platform Context
+You have already completed:
+- Templates, Versioning, Assignment, Overrides
+- Execution Engine (real data)
+- Export Engine (CSV/XLSX/PDF)
+- Scheduling + Delivery
+- Audit Integration
+- Production integrations (Email, SFTP, S3, Liens adapter)
+
+This story introduces the **user-facing UI layer** to make the system fully usable.
+
+---
+
+# FRONTEND APPROACH
+
+## Stack (REQUIRED)
+- React (Vite preferred; Next.js acceptable)
+- TypeScript
+- TanStack Query (React Query)
+- Tailwind CSS (or MUI if faster)
+- Zustand or React Context (lightweight state)
+
+## Folder
+Create UI under:
+`/reports-ui`
+
+---
+
+# CRITICAL EXECUTION RULES
+
+## 1. Create the report file FIRST
+Create:
+`/analysis/LS-REPORTS-07-001-report.md`
+
+This must be the FIRST step.
+
+## 2. Update the report continuously
+After each step include:
+- files created/modified
+- UI components added
+- API integrations
+- validation results
+- issues encountered
+- decisions made
+- (optional) screenshots or descriptions
+
+## 3. Keep scope controlled
+DO NOT implement:
+- advanced charts/dashboards
+- AI builder
+- mobile app
+- full theming system
+
+Focus on:
+👉 usable, functional UI
+
+## 4. Preserve architecture
+- UI → API → Service → Execution → Export → Delivery → Adapters
+- DO NOT bypass APIs
+- Keep API client layer centralized
+- Keep components modular and reusable
+
+---
+
+# STORY ID
+**LS-REPORTS-07-001 — Reporting UI & Builder**
+
+---
+
+# OBJECTIVE
+Build a complete UI that allows:
+- Admins → manage templates (Control Center)
+- Tenants → run, export, customize, and schedule reports
+
+---
+
+# REQUIRED IMPLEMENTATION
+
+# A. App Structure
+
+Create:
+
+/reports-ui
+  /src
+    /pages
+    /components
+    /services (API clients)
+    /state
+    /types
+    /routes
+    /layouts
+
+Add routing:
+- /admin/templates
+- /admin/templates/:id
+- /tenant/reports
+- /tenant/reports/:id
+- /tenant/reports/:id/builder
+- /tenant/schedules
+- /tenant/schedules/:id
+
+---
+
+# B. API Client Layer
+
+Create a centralized API client (axios or fetch):
+
+Base URL:
+`/api/v1`
+
+Services:
+- templateService
+- assignmentService
+- reportExecutionService
+- reportExportService
+- scheduleService
+- runHistoryService
+
+Handle:
+- errors (global interceptor)
+- loading states
+- response typing
+
+---
+
+# C. Control Center UI (Admin)
+
+## 1. Template List Page
+Route: `/admin/templates`
+
+Features:
+- table/grid
+- columns:
+  - name
+  - product
+  - org type
+  - latest version
+  - published status
+- search + filter
+- action: edit
+
+---
+
+## 2. Template Editor Page
+Route: `/admin/templates/:id`
+
+Fields:
+- name
+- description
+- product
+- org type
+
+Sections:
+- columns (JSON editor or structured list)
+- filters (basic)
+
+Actions:
+- Save
+- Publish Version
+
+---
+
+## 3. Assignment UI
+- assign template to:
+  - all tenants
+  - specific tenants (simple input/tag list)
+
+---
+
+# D. Tenant Portal UI
+
+---
+
+## 1. Report Catalog
+Route: `/tenant/reports`
+
+Features:
+- grouped by product
+- show:
+  - report name
+  - description
+- actions:
+  - Run
+  - Customize
+  - Schedule
+
+---
+
+## 2. Report Viewer
+Route: `/tenant/reports/:id`
+
+Features:
+- dynamic filter inputs (based on config)
+- Run button
+
+---
+
+## 3. Results Table Component
+
+Create reusable DataGrid:
+
+Features:
+- render columns + rows
+- scrollable
+- client-side sorting
+- column order respected
+
+---
+
+## 4. Export UI
+
+Add:
+- Export button
+
+Modal:
+- select format:
+  - CSV
+  - XLSX
+  - PDF
+
+Call:
+POST `/report-exports`
+
+Behavior:
+- trigger file download (blob)
+
+---
+
+# E. Report Builder (CORE FEATURE)
+
+---
+
+## 1. Builder Page
+Route: `/tenant/reports/:id/builder`
+
+---
+
+## 2. Layout
+
+Left Panel:
+- available fields (from product)
+
+Main Panel:
+- selected fields (columns)
+
+---
+
+## 3. Builder Features
+
+- add/remove fields
+- reorder fields (drag-drop or buttons)
+- rename column labels
+
+---
+
+## 4. Filters Section
+
+- add filter rules
+- operators:
+  - equals
+  - contains
+  - range (optional)
+
+---
+
+## 5. Save Behavior
+
+- save as:
+  - tenant custom report
+  - or override existing template
+
+Call:
+- override / custom report APIs
+
+---
+
+# F. Scheduling UI
+
+---
+
+## 1. Schedule List
+Route: `/tenant/schedules`
+
+Display:
+- name
+- frequency
+- next run
+- status
+
+---
+
+## 2. Create/Edit Schedule
+
+Fields:
+- name
+- frequency (daily/weekly/monthly)
+- time
+- timezone
+- export format
+- delivery method:
+  - OnScreen
+  - Email
+  - SFTP
+
+- delivery config (conditional fields)
+
+---
+
+## 3. Run History
+
+- list runs
+- display:
+  - status
+  - timestamps
+  - file info (if available)
+
+---
+
+# G. State Management
+
+Use:
+- React Query → API calls (server state)
+- local component state for builder
+
+Cache:
+- report definitions
+- schedules
+
+---
+
+# H. Validation
+
+- required fields enforced
+- prevent invalid builder configs
+- scheduling matches backend rules
+- feature gating respected (if provided)
+
+---
+
+# I. Styling
+
+- clean layout
+- responsive for desktop
+- minimal but professional
+
+---
+
+# ACCEPTANCE CRITERIA
+
+1. UI app runs successfully
+2. Admin template UI works
+3. Tenant report catalog works
+4. Report execution works from UI
+5. Results table displays data
+6. Export works and downloads file
+7. Builder allows field selection and save
+8. Scheduling UI works
+9. API integration is complete
+10. No major runtime errors
+
+---
+
+# IMPLEMENTATION STEPS
+
+1. Create report file
+2. Scaffold React app
+3. Create API client layer
+4. Build Admin template UI
+5. Build Tenant report catalog
+6. Build report execution UI
+7. Build results table component
+8. Build export modal
+9. Build report builder
+10. Build scheduling UI
+11. Integrate APIs
+12. Validate flows end-to-end
+13. Finalize report
+
+---
+
+# REPORT FORMAT
+
+Include:
+- Execution Log
+- UI Pages Implemented
+- Components Created
+- API Integration Summary
+- Validation Results
+- Issues
+- Decisions
+- Known Gaps
+- Final Summary
+
+---
+
+# DEFINITION OF DONE
+
+- full UI exists
+- report lifecycle works end-to-end from UI
+- builder works (basic)
+- scheduling works
+- export works
+- APIs integrated
+
+---
+
+Now implement **LS-REPORTS-07-001** exactly as described.

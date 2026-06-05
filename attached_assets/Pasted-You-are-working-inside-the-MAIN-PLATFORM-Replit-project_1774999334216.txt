@@ -1,0 +1,343 @@
+You are working inside the MAIN PLATFORM Replit project.
+
+Your task is to merge the standalone Notifications backend service into this main platform codebase in a safe, incremental, backend-first way.
+
+==================================================
+GOAL
+==================================================
+
+Merge the standalone `notifications` service into the main platform so it runs from:
+
+/apps/services/notifications
+
+The Notifications backend is already feature-complete enough to merge:
+- send orchestration
+- provider routing and failover
+- webhook ingestion
+- templates
+- BYOP provider configs
+- billing / metering / rate limits
+- contact suppression enforcement
+
+Do NOT redesign the service.
+Do NOT build UI in this task.
+Do NOT rewrite working business logic unless required for platform integration.
+
+This is a MERGE + INTEGRATION task.
+
+==================================================
+PRIMARY OBJECTIVES
+==================================================
+
+1. Copy the standalone notifications backend into:
+   /apps/services/notifications
+
+2. Wire it into the main platform workspace/build/runtime
+
+3. Replace standalone assumptions with platform integration points:
+   - environment/secrets
+   - auth / tenant context
+   - migrations
+   - route mounting
+   - worker startup model
+   - audit transport integration where possible
+
+4. Validate that the backend runs inside the main platform
+
+5. Generate a merge report
+
+==================================================
+IMPORTANT RULES
+==================================================
+
+- Keep the notifications service modular and intact
+- Avoid changing core business logic unless necessary for integration
+- Prefer adapters/wrappers over invasive rewrites
+- Do NOT build UI in this task
+- Do NOT remove existing notifications features
+- Do NOT leave temporary broken imports or TODO-only merge state
+- If something cannot be fully wired because the platform structure differs, document it clearly in the report and leave the cleanest partial integration possible
+
+==================================================
+SOURCE / TARGET ASSUMPTION
+==================================================
+
+Target path must be:
+
+/apps/services/notifications
+
+The notifications service should remain structured as a standalone service module inside the platform.
+
+Preserve expected substructure where possible:
+- src/
+- analysis/
+- package.json
+- tsconfig.json
+- env/config setup
+
+==================================================
+STEP-BY-STEP CHECKLIST
+==================================================
+
+--------------------------------------
+STEP 1 — Inspect the main platform structure
+--------------------------------------
+
+- Identify:
+  - monorepo/workspace configuration
+  - root package manager setup
+  - apps/services layout
+  - backend service bootstrap patterns
+  - auth/tenant middleware patterns
+  - migration approach
+  - shared logging/audit utilities if they exist
+  - worker/process patterns if they exist
+
+- Do NOT guess. Inspect actual structure first.
+
+--------------------------------------
+STEP 2 — Create target service folder
+--------------------------------------
+
+Ensure this path exists:
+
+/apps/services/notifications
+
+--------------------------------------
+STEP 3 — Bring in the notifications backend code
+--------------------------------------
+
+Copy/import the standalone notifications service into:
+- /apps/services/notifications
+
+Preserve service boundaries and structure.
+
+Do NOT merge in obsolete prototype UI code.
+Backend only.
+
+--------------------------------------
+STEP 4 — Wire workspace / package registration
+--------------------------------------
+
+Update the main platform workspace/package configuration so the new service is recognized.
+
+Examples of things to check and update:
+- root workspace config
+- package manager workspaces
+- root scripts
+- build scripts
+- dev scripts
+- TypeScript project references if used
+
+Ensure dependency installation works from the main platform root.
+
+--------------------------------------
+STEP 5 — Resolve dependency alignment
+--------------------------------------
+
+- Install or align required dependencies for the notifications service
+- Reuse platform-standard versions where sensible
+- Avoid duplicate/conflicting package setups
+
+At the end of this step:
+- the service should typecheck
+- dependency resolution should work from the monorepo
+
+--------------------------------------
+STEP 6 — Integrate environment + secrets handling
+--------------------------------------
+
+Map the notifications service config into the platform environment system.
+
+Bring forward all required notifications-specific settings such as:
+- DB connection settings
+- provider credentials
+- webhook verification settings
+- PROVIDER_SECRET_ENCRYPTION_KEY
+- any notifications defaults
+
+If the platform uses a different secrets/config approach:
+- adapt cleanly
+- do not hardcode secrets
+- keep the notifications config environment-driven
+
+Create/update:
+- .env.example or equivalent platform config documentation if needed
+
+--------------------------------------
+STEP 7 — Replace standalone DB startup assumptions
+--------------------------------------
+
+The standalone notifications service may still use development-style schema sync assumptions.
+
+For the main platform merge:
+- identify all notifications-related models/tables
+- align them to the platform migration strategy
+- create or prepare proper migration files if the platform expects migrations
+- do NOT rely on dev-only sync behavior as the final merge state if the platform has a formal migration flow
+
+If full migration conversion cannot be completed in one pass:
+- leave the cleanest interim state possible
+- clearly document exactly what remains in the report
+
+--------------------------------------
+STEP 8 — Integrate auth + tenant context
+--------------------------------------
+
+Replace standalone tenant/header assumptions with the platform’s real tenant/auth model where possible.
+
+Requirements:
+- notifications requests should derive tenant context from platform auth/session/middleware if available
+- keep a clean abstraction
+- do not break tenant scoping
+
+If full auth integration is not possible immediately:
+- keep the service functional
+- document the temporary fallback clearly
+
+--------------------------------------
+STEP 9 — Mount notifications routes into the main platform
+--------------------------------------
+
+Expose the service through the main platform backend/router/gateway.
+
+Ensure the notifications API surface is mounted and reachable.
+
+Key route groups expected:
+- /v1/notifications
+- /v1/templates
+- /v1/providers
+- /v1/webhooks
+- /v1/billing
+- /v1/contacts
+
+Use the platform routing conventions.
+
+--------------------------------------
+STEP 10 — Integrate audit/logging bindings
+--------------------------------------
+
+If the main platform has shared audit/logging transport:
+- connect the notifications service to it cleanly
+
+If not fully possible in one pass:
+- preserve current audit abstraction
+- document integration gap clearly
+
+Do not remove audit emission behavior.
+
+--------------------------------------
+STEP 11 — Integrate worker/process model
+--------------------------------------
+
+Inspect how the main platform runs background work.
+
+Then:
+- align notifications workers to that model where practical
+- ensure worker startup is not tied to standalone Replit-only assumptions
+- keep service runnable even if some worker integration remains partial
+
+Do not overbuild queue infrastructure in this task.
+
+--------------------------------------
+STEP 12 — Typecheck and fix integration issues
+--------------------------------------
+
+Run:
+- install
+- build
+- typecheck
+
+Fix:
+- broken imports
+- path issues
+- workspace issues
+- config typing issues
+- route registration issues
+
+Goal:
+- clean compile
+- no broken service references
+
+--------------------------------------
+STEP 13 — Backend smoke validation
+--------------------------------------
+
+Validate the merged backend with at least these flows if environment allows:
+
+1. basic notification send
+2. template-based notification send
+3. provider routing / BYOP path
+4. webhook endpoint reachability
+5. suppression enforcement path
+6. billing/usage endpoint reachability
+
+If real provider credentials are not available:
+- validate boot, routing, and internal service integration as far as possible
+- document limits clearly
+
+--------------------------------------
+STEP 14 — Do NOT build UI
+--------------------------------------
+
+This merge task is backend only.
+
+Do NOT:
+- build notifications frontend pages
+- add platform navigation UI
+- create admin screens
+
+UI comes later.
+
+==================================================
+DELIVERABLES
+==================================================
+
+Create a merge report at:
+
+/analysis/notifications-merge-report.md
+
+The report must include:
+
+1. What was merged
+2. Exact final path of the service
+3. What platform files/configs were modified
+4. Workspace/package changes made
+5. Env/secrets integration changes made
+6. DB/migration integration status
+7. Auth/tenant integration status
+8. Route mounting status
+9. Worker integration status
+10. Anything still using interim/temporary behavior
+11. Any blockers or unresolved items
+12. Run instructions
+13. Validation results
+14. Clear statement:
+   - whether the notifications backend is runnable inside the main platform now
+   - what minor follow-up work remains before UI begins
+
+==================================================
+SUCCESS CRITERIA
+==================================================
+
+This task is successful only if:
+
+- notifications backend exists under /apps/services/notifications
+- workspace/package wiring is complete
+- service compiles inside the main platform
+- routes are mounted or integration status is clearly documented
+- env/secrets requirements are integrated or clearly documented
+- auth/tenant integration is wired or cleanly documented
+- no UI work was introduced
+- a complete merge report is generated
+
+==================================================
+EXECUTION STYLE
+==================================================
+
+Work incrementally and carefully.
+Prefer a clean, minimally invasive merge over broad rewrites.
+If you hit ambiguity, inspect the actual platform structure and make the safest platform-aligned choice.
+Document anything incomplete clearly in the report.
+
+Begin now.

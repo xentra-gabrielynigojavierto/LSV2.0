@@ -1,0 +1,302 @@
+# LS-COR-AUT-002 — Access Source-of-Truth Foundation
+
+## Objective
+
+Build the authoritative access source-of-truth foundation for LS-COR-AUT so the platform has a governed, persistent model for product access assignment that supports the runtime enforcement introduced in LS-COR-AUT-001.
+
+This feature must establish the backend model and services for:
+
+* tenant product entitlements
+* tenant-user membership linkage
+* direct user product access
+* direct user role assignments
+* audit publishing to Synq Audit
+* read contracts for future effective-access and JWT claim projection
+
+This must be implemented as an additive, non-breaking feature.
+
+---
+
+## Architectural Constraints
+
+### Identity
+
+* Do NOT implement authentication
+* Do NOT store passwords or sessions
+* Use Identity-owned `UserId` only
+
+### Synq Audit
+
+* Do NOT create local audit tables
+* ALL mutations must publish events via `IAuditPublisher`
+* Audit failure must NOT break business logic
+
+### Compatibility
+
+* Must NOT break LS-COR-AUT-001
+* Existing JWT `product_roles` enforcement must continue working
+
+---
+
+## In Scope
+
+### Entities (create or normalize)
+
+1. TenantProductEntitlement
+
+* TenantId
+* ProductCode
+* Status (Active, Disabled, Suspended)
+* EnabledAtUtc
+* DisabledAtUtc
+* CreatedAtUtc / UpdatedAtUtc
+* CreatedBy / UpdatedBy
+* UNIQUE (TenantId, ProductCode)
+
+2. TenantUserMembership (reuse if exists, otherwise normalize)
+
+* TenantId
+* UserId
+* Status
+* OrganizationId (nullable)
+
+3. UserProductAccess
+
+* TenantId
+* UserId
+* ProductCode
+* AccessStatus (Granted, Revoked)
+* OrganizationId (nullable)
+* SourceType = Direct
+* GrantedAtUtc / RevokedAtUtc
+* audit fields
+
+4. UserRoleAssignment
+
+* TenantId
+* UserId
+* ProductCode (nullable)
+* RoleCode
+* AssignmentStatus (Active, Removed)
+* OrganizationId (nullable)
+* SourceType = Direct
+* AssignedAtUtc / RemovedAtUtc
+* audit fields
+
+---
+
+## Services
+
+Implement:
+
+### ITenantProductEntitlementService
+
+* EnableProduct(tenantId, productCode)
+* DisableProduct(tenantId, productCode)
+* GetTenantProducts(tenantId)
+
+### IUserProductAccessService
+
+* GrantAccess(tenantId, userId, productCode)
+* RevokeAccess(tenantId, userId, productCode)
+* GetUserProducts(tenantId, userId)
+
+### IUserRoleAssignmentService
+
+* AssignRole(tenantId, userId, roleCode, productCode?)
+* RemoveRole(assignmentId)
+* GetUserRoles(tenantId, userId)
+
+### IAccessSourceQueryService
+
+* GetTenantEntitlements(tenantId)
+* GetUserDirectProducts(tenantId, userId)
+* GetUserDirectRoles(tenantId, userId)
+
+### IAuditPublisher
+
+* PublishAsync(AuditEvent)
+
+---
+
+## API Endpoints
+
+Follow existing route conventions.
+
+### Tenant Products
+
+GET    /tenants/{tenantId}/products
+PUT    /tenants/{tenantId}/products/{productCode}
+DELETE /tenants/{tenantId}/products/{productCode}
+
+### User Products
+
+GET    /tenants/{tenantId}/users/{userId}/products
+PUT    /tenants/{tenantId}/users/{userId}/products/{productCode}
+DELETE /tenants/{tenantId}/users/{userId}/products/{productCode}
+
+### User Roles
+
+GET    /tenants/{tenantId}/users/{userId}/roles
+POST   /tenants/{tenantId}/users/{userId}/roles
+DELETE /tenants/{tenantId}/users/{userId}/roles/{assignmentId}
+
+---
+
+## Authorization Rules
+
+* PlatformAdmin → full access
+* TenantAdmin → tenant-only access
+* Members → NO access to these endpoints
+* Enforce tenant isolation on ALL queries and writes
+
+---
+
+## Validation Rules
+
+### Tenant Product
+
+* Must be valid product code
+* No duplicate active records
+
+### User Product Access
+
+* User must belong to tenant
+* Tenant must be entitled to product
+* Prevent duplicate active assignment
+
+### Role Assignment
+
+* Role must exist
+* Product roles must match product
+* User must belong to tenant
+
+---
+
+## Synq Audit Events
+
+Publish via IAuditPublisher:
+
+Tenant:
+
+* TENANT_PRODUCT_ENABLED
+* TENANT_PRODUCT_DISABLED
+
+User Product:
+
+* USER_PRODUCT_GRANTED
+* USER_PRODUCT_REVOKED
+
+User Role:
+
+* USER_ROLE_ASSIGNED
+* USER_ROLE_REMOVED
+
+Each event must include:
+
+* timestamp
+* actorUserId
+* tenantId
+* targetUserId (if applicable)
+* productCode (if applicable)
+* roleCode (if applicable)
+* correlationId
+
+Do NOT fail business logic if audit fails.
+
+---
+
+## Effective Access Preparation
+
+Add read methods to support:
+
+* tenant product list
+* user direct product access
+* user direct roles
+
+DO NOT implement:
+
+* groups
+* inheritance
+* full effective-access engine
+* JWT rewrite
+
+---
+
+## Persistence
+
+* Add migrations (non-breaking)
+* Add indexes:
+
+  * (TenantId, ProductCode)
+  * (TenantId, UserId, ProductCode)
+  * (TenantId, UserId, RoleCode)
+
+---
+
+## Testing
+
+### Unit
+
+* entitlement validation
+* product access validation
+* role validation
+* tenant boundary enforcement
+
+### Integration
+
+* enable/disable tenant product
+* grant/revoke user product
+* assign/remove role
+* reject invalid assignments
+
+### Audit
+
+* verify event published
+* verify failure does not break flow
+
+### Regression
+
+* LS-COR-AUT-001 still works
+* services build and run
+
+---
+
+## Acceptance Criteria
+
+* Source-of-truth exists for:
+
+  * tenant product entitlements
+  * user product access
+  * user role assignments
+
+* Invalid cross-tenant or invalid product assignments are blocked
+
+* Audit events are emitted for all mutations
+
+* No breaking changes to existing auth/enforcement
+
+* Code builds cleanly
+
+* Read contracts exist for next phase
+
+---
+
+## Output रिपोर्ट
+
+Create file:
+
+/analysis/LS-COR-AUT-002-report.md
+
+Include:
+
+* summary
+* schema changes
+* services added
+* endpoints added
+* audit events implemented
+* validation rules
+* test results
+* build status
+* gaps
+* assumptions

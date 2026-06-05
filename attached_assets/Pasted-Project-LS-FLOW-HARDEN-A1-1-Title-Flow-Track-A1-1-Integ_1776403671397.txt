@@ -1,0 +1,338 @@
+Project: LS-FLOW-HARDEN-A1.1
+Title: Flow Track A1.1 — Integration Test Matrix and Positive E2E Validation
+
+You are implementing the follow-up validation track after LS-FLOW-HARDEN-A1.
+
+IMPORTANT DELIVERY RULES
+1. Create the report file FIRST:
+   /analysis/LS-FLOW-HARDEN-A1.1-report.md
+2. Update it incrementally as implementation progresses.
+3. Clearly document assumptions, especially around test host setup, auth overrides, seeded data, fixture availability, and any environment blockers.
+4. At the end, include:
+   - what was implemented
+   - files created
+   - files modified
+   - test infrastructure added
+   - integration tests added
+   - E2E fixture/setup changes
+   - positive E2E results
+   - failures/blockers encountered
+   - build/run notes
+   - known gaps/issues
+   - recommendation: ready for rollout or needs another iteration
+
+REPORT FORMAT
+
+# LS-FLOW-HARDEN-A1.1 Report
+
+## Scope Executed
+## Assumptions
+## Repository / Architecture Notes
+## Test Infrastructure Notes
+## Integration Test Coverage
+## E2E Fixture / Seed Notes
+## Positive End-to-End Validation Results
+## Diagnostics / Error Assertion Notes
+## Documentation Changes
+## Known Issues / Gaps
+## Recommendation
+
+OBJECTIVE
+
+Close the remaining validation gap after LS-FLOW-HARDEN-A1 by:
+- adding a real integration-test matrix around the hardened Flow execution surface
+- proving IDOR, tenant isolation, auth, and transition integrity in automated tests
+- standing up deterministic fixtures or test seeding for positive happy-path execution
+- running and recording successful positive E2E scenarios for SynqLien, CareConnect, and SynqFund
+
+This phase is about verification, confidence, and rollout readiness — not new workflow features.
+
+SCOPE INCLUDES
+
+- WebApplicationFactory-style integration testing for Flow.Api and relevant product passthroughs
+- deterministic test auth / test principals / test service tokens
+- deterministic seeded workflow definitions, workflow instances, mappings, and parent entities as needed for tests
+- automated tests for ownership, tenant isolation, auth, transition integrity, and product correlation
+- successful positive E2E execution runs for SynqLien, CareConnect, and SynqFund
+- documentation/runbook updates for how these tests and E2E validations are executed
+
+DO NOT BUILD
+
+- new workflow engine features
+- branching/timer/SLA enhancements
+- outbox/async pipeline
+- auth model redesign
+- major product UI changes
+- DB schema redesign unless strictly needed for deterministic test seeding
+- external integrations
+
+CRITICAL REQUIREMENTS
+
+You MUST:
+- preserve the hardened atomic ownership model from A1
+- validate the actual request wiring end to end, not only helper methods
+- add automated tests for the highest-risk security/integrity paths
+- prove at least one positive happy-path execution per target product
+- be honest and explicit about any environment limitation
+- keep tests deterministic and suitable for CI
+
+CURRENT CONTEXT FROM A1
+
+A1 already delivered:
+- Flow-side atomic ownership-aware execution endpoints
+- product passthroughs updated to call those endpoints
+- service-token validation tightened
+- caller context classification
+- error code standardization
+- unit tests for caller classification and startup guard
+
+A1 explicitly deferred:
+- full integration matrix using WebApplicationFactory or equivalent
+- positive happy-path E2E runs due to missing fixtures/seeds in the local container
+
+IMPLEMENTATION REQUIREMENTS
+
+1. TEST HOST / INTEGRATION INFRASTRUCTURE
+
+Requirements:
+- add a proper integration-test host for Flow.Api using WebApplicationFactory<Program> or equivalent
+- override production-only dependencies as needed for tests:
+  - FlowDbContext (use deterministic test DB: SQLite in-memory preferred; InMemory only if relational behavior is not required)
+  - audit adapter
+  - notification adapter
+  - auth schemes / principals
+- ensure tenant query filters and ownership joins still behave realistically in the test host
+- if product passthrough endpoints are tested separately, add corresponding minimal integration hosts or focused test harnesses
+
+Important:
+- prefer relational test behavior when validating joins, FKs, and query filters
+- the test harness must support repeatable CI execution
+
+2. DETERMINISTIC TEST AUTH
+
+Requirements:
+- add test auth support for:
+  - authenticated user with tenant + product capability
+  - authenticated user without required product capability
+  - authenticated user from wrong tenant
+  - valid service token principal
+  - invalid service token principal
+- make it easy for tests to control:
+  - caller type
+  - tenant id
+  - subject
+  - actor
+  - permissions / product roles
+- ensure auth tests validate the actual configured policies, not only handcrafted helper behavior
+
+3. TEST DATA / FIXTURE SEEDING
+
+Requirements:
+- seed deterministic test data sufficient to exercise:
+  - workflow definitions with steps
+  - workflow instances
+  - product workflow mappings
+  - parent/source entities or their effective stand-ins for route correlation
+  - multiple tenants
+  - multiple products
+- support at minimum:
+  - one valid SynqLien mapping
+  - one valid CareConnect mapping
+  - one valid SynqFund mapping
+  - one wrong-parent case
+  - one cross-tenant case
+  - one stale-step case
+  - one inactive/completed instance case
+
+Notes:
+- if full product service DBs are not practical in the integration host, use the minimum valid substitute needed to exercise the API contract honestly
+- document exactly what is real vs simulated
+
+4. FLOW API INTEGRATION TEST MATRIX
+
+You MUST add automated Flow API integration tests for:
+
+A. Ownership / IDOR
+- GET by wrong parent context fails closed
+- ADVANCE by wrong parent context fails closed
+- COMPLETE by wrong parent context fails closed
+
+B. Tenant isolation
+- tenant A cannot read or mutate tenant B workflow instance
+- service token with tenant A cannot mutate tenant B workflow instance
+
+C. Product correlation
+- SynqLien context cannot operate CareConnect-owned mapping
+- CareConnect context cannot operate SynqFund-owned mapping
+- SynqFund context cannot operate SynqLien-owned mapping
+
+D. Transition integrity
+- stale expectedCurrentStepKey returns 409 with expected_step_mismatch
+- inactive instance advance/complete returns 409 with instance_not_active
+- concurrent mutation path returns 409 with concurrent_state_change if feasible in test harness
+
+E. Auth
+- user with valid capability succeeds where expected
+- user without capability is denied
+- invalid issuer/audience/service-token claims are denied
+- missing tenant claim is denied
+
+F. Error contract
+- responses return the expected structured error code
+- no sensitive ownership detail leaks in denial responses
+
+5. PRODUCT PASSTHROUGH INTEGRATION TESTS
+
+Add automated tests for product endpoints that verify:
+
+- product endpoint calls the hardened Flow atomic route
+- wrong parent route fails closed
+- wrong tenant fails
+- valid happy-path passthrough works
+- product endpoint preserves correct product slug and sourceEntityType contract
+
+Target products:
+- SynqLien
+- CareConnect
+- SynqFund
+
+If a full host per product is too heavy, implement the maximum safe subset and document what remains.
+
+6. POSITIVE HAPPY-PATH E2E VALIDATION
+
+You MUST run and record successful positive E2E flows.
+
+Required scenarios:
+
+A. SynqLien
+- identify or create a valid parent record
+- start workflow
+- retrieve workflow instance
+- retrieve current step
+- advance at least one step
+- complete if the definition supports it
+- verify final status and mapping
+
+B. CareConnect
+- identify or create a valid referral parent
+- start workflow
+- retrieve workflow instance
+- advance at least one step
+- verify state transition and mapping
+
+C. SynqFund
+- identify or create a valid application parent
+- start workflow
+- retrieve workflow instance
+- advance at least one step
+- verify state transition and mapping
+
+For each scenario capture in the report:
+- exact request sequence
+- representative payloads
+- response status codes
+- workflowInstanceId
+- step before/after
+- status before/after
+- mapping / ownership proof
+- whether auth used user bearer or service token
+- whether validation was automated, manual, or both
+
+If the local environment still cannot support full positive E2E:
+- add the missing seeding/fixture/setup to make it work if safely possible
+- otherwise document the precise blocker and the exact commands/environment needed to run it elsewhere
+- do not claim success without evidence
+
+7. CI / EXECUTION READINESS
+
+Requirements:
+- add commands/scripts so the integration tests can run predictably in CI
+- add or update a script for positive E2E validation if needed
+- document required environment variables clearly
+- ensure failure messages are useful and actionable
+
+8. DOCUMENTATION
+
+Update:
+- apps/services/flow/docs/README.md
+- apps/services/flow/docs/architecture.md
+- apps/services/flow/docs/merge-phase-A1.1-notes.md
+
+Document:
+- integration-test architecture
+- seeded fixtures/test data model
+- how to run the integration suite
+- how to run the positive E2E scenarios
+- remaining limitations/deferrals
+
+9. EXPLICIT DEFERRALS
+
+Document clearly what remains out of scope unless strictly required:
+- transactional outbox
+- async execution
+- richer step model
+- RS256/JWKS rollout
+- major UI work
+- broader workflow feature expansion
+
+VALIDATION
+
+You MUST confirm and record in the report:
+
+Test Infrastructure
+- integration test host exists and runs
+- auth overrides / test principals work
+- seeded test data is deterministic
+
+Flow API Validation
+- ownership / IDOR tests exist and pass
+- tenant isolation tests exist and pass
+- product correlation tests exist and pass
+- transition integrity tests exist and pass
+- auth tests exist and pass
+- error-code assertions exist and pass
+
+Product Validation
+- product passthrough tests exist for SynqLien, CareConnect, and SynqFund
+- at least one valid passthrough success path is verified
+- wrong-parent / wrong-tenant denial is verified
+
+Positive E2E
+- at least one successful happy-path workflow per product is recorded
+- state transitions and ownership are proven
+- auth mode used is documented
+
+Platform Integrity
+- existing services still build/run
+- no regression introduced to existing user-based paths
+- hardened ownership flow remains the active path
+
+EXECUTION ORDER
+
+1. Inspect A1 output and identify the exact missing integration/E2E coverage.
+2. Create /analysis/LS-FLOW-HARDEN-A1.1-report.md immediately and begin logging assumptions/actions.
+3. Build the Flow.Api integration-test host and auth override/test principal infrastructure.
+4. Add deterministic seed data and fixtures for ownership, tenant, product, and transition scenarios.
+5. Add Flow API integration tests for IDOR, tenant isolation, auth, transition integrity, and error contracts.
+6. Add product passthrough integration tests for Liens, CareConnect, and Fund.
+7. Add/update scripts for CI-friendly execution and positive E2E validation.
+8. Run and record successful happy-path scenarios for SynqLien, CareConnect, and SynqFund.
+9. Update docs/runbook notes.
+10. Finalize the report with exact evidence, blockers, and rollout recommendation.
+
+SUCCESS CONDITION
+
+Track A1.1 is successful when:
+- automated integration tests cover the highest-risk ownership, auth, tenant, and transition paths
+- product passthrough validation exists for SynqLien, CareConnect, and SynqFund
+- successful happy-path E2E flows are recorded for all three target products
+- the hardened ownership model is proven in tests, not just by inspection
+- the system is ready for controlled rollout with CI-enforced validation
+
+FAILURE CONDITION
+
+Track A1.1 fails if:
+- the integration matrix is still absent
+- positive happy-path execution is still not demonstrated
+- tests are non-deterministic or too shallow to verify the hardened contract
+- ownership/auth/tenant validation is not proven through actual request execution

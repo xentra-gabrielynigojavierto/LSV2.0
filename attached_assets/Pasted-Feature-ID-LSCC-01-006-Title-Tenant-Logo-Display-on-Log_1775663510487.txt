@@ -1,0 +1,112 @@
+Feature ID: LSCC-01-006
+Title: Tenant Logo Display on Login Right Panel (Pre-Auth Branding)
+
+Objective
+
+Display the tenant’s uploaded logo above the “Welcome back” heading on the login page right panel, without requiring authentication.
+
+Target Files
+apps/web/src/app/login/page.tsx
+Create if needed:
+apps/web/src/lib/branding/getTenantBranding.ts
+Requirements
+1. Fetch Tenant Branding (Pre-Auth)
+Retrieve tenant branding before login
+Use existing endpoint if accessible:
+GET /api/tenants/current/branding
+If not accessible without auth, create:
+GET /api/public/tenant/branding?tenant={identifier}
+2. Tenant Resolution
+
+Support at least one:
+
+subdomain (preferred)
+OR query param (?tenant=xyz)
+fallback to default tenant
+3. Extract Logo
+From response:
+logoDocumentId
+Build URL:
+/api/branding/logo/{logoDocumentId}
+UI Changes
+
+Update apps/web/src/app/login/page.tsx
+
+Layout Order (right panel)
+Tenant logo (NEW)
+“Welcome back”
+Subtitle
+Login form
+Logo Rendering Rules
+Only render if logoDocumentId exists
+Fallback:
+show nothing (preferred)
+Styling:
+centered
+max-h-16
+max-w-[180px]
+object-contain
+mb-6
+Implementation Notes
+A. Create Utility
+
+/apps/web/src/lib/branding/getTenantBranding.ts
+
+Returns:
+
+{
+  logoDocumentId?: string
+}
+
+Responsibilities:
+
+resolve tenant
+call branding API
+handle failure safely
+B. Update Login Page
+Convert to async server component if needed
+Call getTenantBranding()
+Pass result to UI
+C. Render Logo
+
+Conditionally render:
+
+/api/branding/logo/${logoDocumentId}
+
+Place ABOVE “Welcome back”
+
+Error Handling
+Branding fetch failure → do not block login
+Logo load failure → hide image (no broken icon)
+Acceptance Criteria
+Tenant logo appears above “Welcome back”
+Works without authentication
+No logo → clean fallback
+No UI breakage
+Responsive layout
+No console errors
+Login flow unchanged
+Test Scenarios
+Tenant with logo → displays correctly
+Tenant without logo → no logo shown
+Invalid logoDocumentId → no broken image
+API failure → login still works
+Mobile → layout intact
+Output Report
+
+Create:
+
+/analysis/LSCC-01-006-report.md
+
+Include:
+
+files modified
+files created
+branding approach used
+test results
+assumptions/limitations
+Constraints
+Do NOT change authentication flow
+Reuse existing branding logic where possible
+Do NOT introduce breaking API changes
+Keep implementation minimal and consistent

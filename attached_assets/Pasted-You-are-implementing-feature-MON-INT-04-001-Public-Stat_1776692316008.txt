@@ -1,0 +1,328 @@
+You are implementing feature MON-INT-04-001 — Public Status Page.
+
+OBJECTIVE
+Create a public, read-only `/status` page that exposes real-time platform health using the existing monitoring summary API, suitable for external users and stakeholders.
+
+This page is the first public-facing presentation layer built on top of the internal Monitoring platform.
+
+ARCHITECTURE RULE (NON-NEGOTIABLE)
+- Monitoring Service = source of truth
+- Control Center = read-only consumer
+- Public status page must use the existing Control Center BFF summary path
+- Do NOT call Monitoring Service directly from the browser
+- Do NOT expose admin actions, internal IDs, or sensitive operational details
+- Do NOT add backend APIs unless an absolute blocker is proven
+
+MANDATORY EXECUTION RULES
+- Create the report file FIRST at: /analysis/MON-INT-04-001-report.md
+- Update the report incrementally after each meaningful step
+- Do NOT wait until the end to write the report
+- Do NOT redesign the authenticated Control Center monitoring page
+- Do NOT introduce fake uptime percentages, charts, or incidents
+- Prefer minimal, reversible changes
+- Keep public and internal concerns clearly separated
+
+CURRENT CONTEXT
+- Internal monitoring is feature-complete for operator use
+- `/api/monitoring/summary` already exists and is public-safe
+- Internal monitoring page includes banner, component list, alert detail, resolve flow, and history
+- This feature is public presentation only, not admin capability
+
+GOAL OF THIS FEATURE
+By the end of this feature:
+- `/status` is accessible without authentication
+- it shows overall system status using real monitoring data
+- it shows component status in a simplified external-friendly view
+- it shows active incidents using sanitized alert information
+- it exposes no admin or internal control surfaces
+
+---
+
+STEP 1 — CREATE REPORT FIRST
+
+Create:
+- /analysis/MON-INT-04-001-report.md
+
+Initialize with:
+
+# MON-INT-04-001 — Public Status Page
+
+## 1. Task Summary
+## 2. Existing Public-Safe Monitoring API Analysis
+## 3. Public Status Page Design
+## 4. Implementation
+## 5. Public Data Exposure Review
+## 6. Validation
+## 7. Files Changed
+## 8. Known Gaps / Risks
+## 9. Recommended Next Feature
+
+Explicitly state that the report was created FIRST.
+
+---
+
+STEP 2 — ANALYZE THE EXISTING PUBLIC-SAFE SUMMARY PATH
+
+Inspect the existing summary flow used by the internal monitoring page and determine whether it is already safe and sufficient for a public status page.
+
+At minimum inspect:
+- apps/control-center/src/app/api/monitoring/summary/route.ts
+- any auth/public-path configuration that affects this route
+- the MonitoringSummary data shape currently returned
+- the fields used by the internal monitoring page
+
+Document:
+- whether `/api/monitoring/summary` is already public-safe
+- which fields are safe for public display
+- which fields must NOT be shown on the public page even if available
+- whether any additional sanitization is needed in the page layer only
+
+Important:
+- Do NOT add a new backend endpoint unless you find an actual blocker
+- Prefer reuse of the current public-safe API
+
+---
+
+STEP 3 — DESIGN THE PUBLIC STATUS PAGE
+
+Create a simple, external-facing page at:
+
+- /status
+
+The page must include:
+
+A. Header section
+- title: "System Status"
+- short subtitle such as "Current platform availability"
+- last updated timestamp from `summary.system.lastCheckedAtUtc`
+
+B. Overall status section
+- prominently display `summary.system.status`
+- color map:
+  - Healthy → green
+  - Degraded → amber/yellow
+  - Down → red
+
+C. Component status list
+- all components from `summary.integrations`
+- sort order:
+  - Down
+  - Degraded
+  - Healthy
+  - then alphabetical by name
+- show only safe fields:
+  - component name
+  - status
+  - optionally last checked
+  - optionally latency if it is already shown publicly and is not judged too internal
+
+D. Active incidents section
+- show only if `summary.alerts.length > 0`
+- for each alert show:
+  - component name if derivable safely
+  - message
+  - severity
+  - triggered timestamp
+- do NOT show internal IDs or operator-only metadata
+
+Design constraints:
+- no authenticated shell / no internal navigation
+- no admin controls
+- no resolve buttons
+- no filter controls required
+- clean, calm, readable layout
+- external-facing tone and presentation
+
+Document the chosen layout and why it is appropriate.
+
+---
+
+STEP 4 — IMPLEMENT THE PUBLIC PAGE
+
+Create the public route page in the Control Center app, likely:
+
+- apps/control-center/src/app/status/page.tsx
+
+You may add small focused presentational components if helpful, such as:
+- public-status-banner.tsx
+- public-component-status-list.tsx
+- public-incidents-panel.tsx
+
+But keep the implementation lean.
+
+Requirements:
+- no auth required
+- page should fetch from the existing public-safe summary API path using a server-side pattern consistent with the app
+- page must not import or reuse admin-only controls
+- page must not depend on authenticated Control Center shell components if those would force auth
+- page should remain visually separate from the operator page if necessary
+
+If the current app layout would force auth or internal nav onto `/status`, adjust the route/layout structure minimally so `/status` is truly public and read-only.
+
+Document any route/layout decision clearly.
+
+---
+
+STEP 5 — COMPONENT STATUS LIST (PUBLIC VERSION)
+
+Implement a simplified public component list.
+
+Requirements:
+- use `summary.integrations`
+- sorted as specified
+- no client-side filtering required
+- no category management UI
+- no incident detail interactions
+- show only public-safe information
+
+If an existing internal component can be reused safely without pulling in internal UX or interactivity, reuse it.
+Otherwise create a separate public-facing list component.
+
+Do NOT expose:
+- internal entity IDs
+- admin affordances
+- internal-only categories if they are not appropriate for public users
+- anything that feels operationally sensitive beyond basic service status
+
+---
+
+STEP 6 — ACTIVE INCIDENTS SECTION
+
+Implement a simplified active incidents section using `summary.alerts`.
+
+Requirements:
+- only render if there are active alerts
+- show human-readable alert information only
+- no action buttons
+- no raw IDs
+- no internal debug payloads
+
+If the alert message alone is too technical, do not invent new text; instead present the existing message cleanly and document the limitation.
+
+If a component name is available through the public-safe alert shape, display it.
+If not, fall back gracefully to the message-only presentation.
+
+---
+
+STEP 7 — ERROR / EMPTY / DEGRADED DATA HANDLING
+
+Handle these states explicitly:
+
+A. Summary fetch fails
+- show a public-safe fallback:
+  - "Status unavailable"
+  - no crash
+  - no stack traces
+  - no internal error details
+
+B. No components
+- show: "No components are currently being monitored."
+
+C. No alerts
+- hide the incidents section or show a calm "No active incidents" message, whichever fits better
+
+D. Partial/missing timestamps or latency
+- show "Unavailable" rather than inventing values
+
+Document the chosen behavior.
+
+---
+
+STEP 8 — PUBLIC DATA EXPOSURE REVIEW
+
+Before finalizing, review what the public page exposes.
+
+Verify it does NOT expose:
+- alert IDs
+- internal entity IDs
+- raw backend URLs
+- operator-only actions
+- admin routing
+- service tokens
+- stack traces
+- internal debug info
+
+Document the exact fields exposed publicly and why they are acceptable.
+
+If you discover that a currently returned field should not be shown, hide it in the page layer rather than changing the backend unless absolutely necessary.
+
+---
+
+STEP 9 — VALIDATION
+
+Validate as far as environment permits.
+
+At minimum validate:
+A. `/status` is reachable without authentication
+B. `/status` renders using real monitoring data
+C. system status displays correctly
+D. component list renders in sorted order
+E. active incidents show when alerts exist
+F. no admin controls are visible
+G. `/status` does not break the internal monitoring page
+H. local and service modes both render safely through the same summary contract
+
+Capture:
+- exact routes tested
+- whether auth was required or not
+- sample rendered data shape
+- what was runtime-tested vs code-verified only
+
+If browser validation is partially blocked, still validate route behavior, compile state, and data flow precisely.
+
+---
+
+STEP 10 — FILES CHANGED
+
+List every file:
+- created
+- modified
+- purpose
+
+Be explicit.
+
+---
+
+STEP 11 — KNOWN GAPS / RISKS
+
+Document clearly:
+- no uptime percentages yet
+- no response time charts yet
+- no historical availability bars yet
+- no public incident drill-down yet
+- any remaining wording or presentation limitations
+- any differences between local mode and service mode visible on the public page
+
+---
+
+STEP 12 — RECOMMEND NEXT FEATURE
+
+Recommend one of:
+
+Option A:
+- MON-INT-04-002 — Uptime Aggregation Engine
+Use this if the public page is complete enough and the next value is real uptime metrics.
+
+Option B:
+- MON-INT-04-003 — Availability Timeline Bars
+Use this if uptime buckets/history are already sufficiently available to visualize next.
+
+Option C:
+- Stabilization / production validation
+Use this if the public page is functionally complete and the highest-value next step is verification rather than more features.
+
+Choose based on actual implementation outcome.
+
+---
+
+DONE CONDITION
+
+This feature is complete when:
+- /analysis/MON-INT-04-001-report.md exists and was created FIRST
+- `/status` is publicly accessible without authentication
+- it displays real system status from the existing monitoring summary API
+- it shows a simplified component list
+- it shows active incidents safely
+- it exposes no admin actions or sensitive internal details
+- no fake data was introduced
+- validation has been performed and documented

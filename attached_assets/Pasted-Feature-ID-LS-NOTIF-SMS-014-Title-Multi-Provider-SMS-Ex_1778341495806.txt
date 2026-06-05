@@ -1,0 +1,562 @@
+Feature ID: LS-NOTIF-SMS-014
+
+Title:
+Multi-Provider SMS Expansion and Intelligent Routing
+
+Objective:
+Expand Notification Service beyond Twilio into a resilient multi-provider SMS platform with intelligent provider selection, dynamic failover, cost-aware routing, health-aware routing, tenant/provider policy control, and regional delivery optimization.
+
+Critical Architectural Constraint:
+Notification Service remains the source of truth for:
+- SMS provider execution
+- provider routing
+- runtime provider resolution
+- provider health awareness
+- provider cost awareness
+- routing decision persistence
+- routing analytics
+
+Control Center must only consume Notification Service APIs and render/administer routing policy, provider health, and routing decision visibility. Do not duplicate SMS routing logic in Control Center.
+
+Requirements:
+- Implement multi-provider SMS routing inside Notification Service.
+- Preserve Twilio as the existing/default provider.
+- Add additional provider capability incrementally.
+- Do not introduce large rewrites.
+- Do not break existing Twilio SMS send, reconciliation, cost analytics, alerting, escalation, dashboard, or incident-management behavior.
+- Do not expose provider credentials, webhook URLs, CredentialsJson, SettingsJson, auth tokens, raw provider payloads, or full phone numbers.
+- Preserve tenant-owned provider runtime resolution.
+- Keep Control Center as UI/admin consumer only.
+
+Implementation Requirements:
+1. Extend Notification Service SMS provider architecture to support multiple SMS providers at runtime.
+2. Add at least one additional SMS provider adapter if feasible within the current codebase, with preference for Vonage, Telnyx, or Plivo based on lowest-risk implementation.
+3. Add provider capability metadata so providers can declare whether they support send, status lookup, health check, cost estimate, and regional routing.
+4. Add routing policy support for provider selection.
+5. Add routing modes:
+   - priority
+   - cost_optimized
+   - health_optimized
+   - hybrid
+   - regional
+6. Add routing decision persistence for audit/debug/reporting.
+7. Integrate routing decisions into outbound SMS send flow.
+8. Preserve existing SMS compliance/preference enforcement before routing/provider execution.
+9. Preserve existing provider runtime resolution and tenant-owned config support.
+10. Preserve vendor reconciliation where supported; unsupported providers must fail safely or skip pull-reconciliation with structured reason.
+11. Add admin APIs for routing policies, provider capabilities, provider health, and routing decisions.
+12. Add Control Center UI for routing policy management and routing visibility if feasible.
+13. Preserve all existing SMS operational APIs and UI behavior.
+
+Critical Constraints:
+- Reuse existing ISmsProviderAdapter, ISmsProviderStatusLookup, ProviderRoutingService, TenantProviderConfig, SmsProviderRuntimeResolver, SmsCostAnalytics, SmsDashboard, SmsOperationalAlert, and Control Center patterns where appropriate.
+- Do NOT rewrite the Notification Service delivery pipeline.
+- Do NOT bypass existing contact enforcement, preference checks, audit, retry/dead-letter, or attempt persistence.
+- Do NOT hardcode routing logic directly inside provider adapters.
+- Do NOT make provider adapters aware of tenant routing policy.
+- Do NOT call external providers from dashboard/routing read APIs.
+- Do NOT introduce AI/ML routing in this feature.
+- Do NOT implement FX conversion.
+- Do NOT add conversational inbound SMS.
+- Validate against the current codebase before implementing.
+- Create the report FIRST and continuously update it during implementation.
+
+Required Report File:
+Create this file immediately before making changes:
+
+/analysis/LS-NOTIF-SMS-014-report.md
+
+The report must be updated incrementally throughout implementation and include:
+
+1. Initial codebase analysis
+2. Existing SMS provider abstraction findings
+3. Existing Twilio adapter/runtime resolver findings
+4. Existing ProviderRoutingService findings
+5. Existing TenantProviderConfig findings
+6. Existing reconciliation/status lookup findings
+7. Existing cost analytics findings
+8. Existing alert/dashboard/control-center findings
+9. Files added
+10. Files modified
+11. Database/schema/config changes
+12. API/interface changes
+13. UI/route changes, if implemented
+14. Validation/testing performed
+15. Known gaps/issues
+16. Recommended next steps
+
+Implementation Tasks:
+
+STEP 1 — Analyze Existing SMS Provider and Routing Architecture
+- Identify:
+  - ISmsProviderAdapter contract
+  - ISmsProviderStatusLookup capability interface
+  - TwilioAdapter behavior
+  - TwilioAdapterFactory behavior
+  - SmsProviderRuntimeResolver behavior
+  - ProviderRoutingService behavior
+  - ProviderRoute model
+  - TenantProviderConfig model
+  - NotificationAttempt provider fields
+  - providerConfigId persistence
+  - SMS reconciliation logic
+  - SMS cost analytics logic
+  - provider health worker patterns
+  - admin endpoint patterns
+  - Control Center SMS operational UI patterns
+- Document findings in the report before implementation.
+
+STEP 2 — Define Provider Capability Model
+Add provider capability metadata inside Notification Service.
+
+Suggested model:
+SmsProviderCapability
+
+Suggested fields:
+- ProviderType
+- DisplayName
+- SupportsSend
+- SupportsStatusLookup
+- SupportsHealthCheck
+- SupportsCostEstimate
+- SupportsRegionalRouting
+- SupportsTenantOwnedConfig
+- SupportsPlatformConfig
+- SupportedCountries nullable/list/string
+- DefaultCurrency
+- Notes
+
+Requirements:
+- Capability metadata can be static/config-driven initially.
+- Twilio capability must reflect existing support:
+  - send = true
+  - status lookup = true
+  - health check = true
+  - cost estimate = true
+  - tenant-owned config = true
+- Additional providers should declare accurate support.
+- Unsupported capabilities must be explicit, not assumed.
+- Do not expose credentials.
+
+STEP 3 — Add Additional Provider Adapter Incrementally
+Add at least one new SMS provider adapter if feasible.
+
+Preferred provider order:
+1. Vonage
+2. Telnyx
+3. Plivo
+4. MessageBird
+5. Sinch
+
+Requirements:
+- Follow existing TwilioAdapter pattern.
+- Implement ISmsProviderAdapter for send.
+- Implement ValidateConfigAsync.
+- Implement HealthCheckAsync if provider supports low-risk health check.
+- Implement ISmsProviderStatusLookup only if provider lookup is straightforward and safe.
+- Normalize provider responses into SmsSendResult.
+- Normalize failures into ProviderFailure categories.
+- Do not expose credentials.
+- Read credentials/settings from TenantProviderConfig via provider-specific factory.
+- Keep provider-specific logic in provider adapter/factory only.
+
+Suggested generic credential/settings patterns:
+CredentialsJson:
+{
+  "apiKey": "",
+  "apiSecret": "",
+  "authToken": ""
+}
+
+SettingsJson:
+{
+  "fromNumber": "",
+  "region": "",
+  "defaultCountry": ""
+}
+
+If provider implementation is too risky due to SDK/API uncertainty:
+- Implement capability metadata and factory scaffolding only.
+- Document provider adapter as known gap.
+- Do not create fake sends or placeholder sends.
+
+STEP 4 — Add Provider Adapter Factory Abstraction
+Generalize provider adapter creation beyond Twilio.
+
+Suggested interface:
+ISmsProviderAdapterFactory
+
+Suggested methods:
+- bool Supports(string providerType)
+- ISmsProviderAdapter CreateFromConfig(TenantProviderConfig config)
+- ISmsProviderAdapter CreatePlatformDefault(string providerType)
+
+Requirements:
+- Preserve existing ITwilioAdapterFactory behavior or adapt it behind the generic abstraction.
+- Do not break Twilio construction.
+- Provider-specific validation remains in provider-specific factory/adapter.
+- Runtime resolver should resolve providers through factory registry rather than Twilio-only switch when feasible.
+- Unsupported provider should return structured provider_runtime_resolution_failed or unsupported_provider.
+
+STEP 5 — Add SMS Routing Policy Model
+Add routing policy support.
+
+Suggested entity:
+SmsRoutingPolicy
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- Name string
+- Enabled bool
+- Region string? nullable
+- CountryCode string? nullable
+- RoutingMode string
+- PreferredProvidersJson string? nullable
+- ExcludedProvidersJson string? nullable
+- MaxEstimatedCostPerMessage decimal? nullable
+- RequireHealthyProvider bool
+- FallbackToPlatform bool
+- Priority int
+- CreatedAt DateTime
+- UpdatedAt DateTime
+- CreatedBy string? nullable
+- UpdatedBy string? nullable
+
+Suggested RoutingMode values:
+- priority
+- cost_optimized
+- health_optimized
+- hybrid
+- regional
+
+Requirements:
+- Policy matching supports tenant-specific and platform/global policies.
+- Tenant policy should override global policy when more specific.
+- Region/country matching should be optional.
+- Invalid provider names must be rejected or ignored safely.
+- Policies must not store credentials.
+
+STEP 6 — Add SMS Routing Decision Model
+Persist routing decision details for audit/debug/reporting.
+
+Suggested entity:
+SmsRoutingDecision
+
+Suggested fields:
+- Id Guid
+- TenantId Guid? nullable
+- NotificationId Guid? nullable
+- AttemptId Guid? nullable
+- RoutingPolicyId Guid? nullable
+- RoutingMode string
+- SelectedProvider string
+- SelectedProviderConfigId Guid? nullable
+- ProviderOwnershipMode string? nullable
+- CandidateProvidersJson string? nullable
+- ExcludedProvidersJson string? nullable
+- DecisionReason string
+- EstimatedCostAmount decimal? nullable
+- CostCurrency string? nullable
+- HealthSnapshotJson string? nullable
+- Region string? nullable
+- CountryCode string? nullable
+- CreatedAt DateTime
+
+Requirements:
+- Store safe operational metadata only.
+- Do not store credentials or raw recipient data.
+- Link to NotificationAttempt once attempt exists if feasible.
+- Routing decisions must be queryable for admin/debug.
+- If no route found, persist no_route decision where possible.
+
+STEP 7 — Implement Routing Engine
+Add an internal routing engine.
+
+Suggested interface:
+ISmsRoutingEngine
+
+Suggested methods:
+- Task<SmsRoutingDecisionResult> SelectRouteAsync(SmsRoutingRequest request, CancellationToken ct)
+
+Suggested request:
+- tenantId
+- notificationId
+- recipient metadata needed for country/region if available
+- channel = sms
+- candidate routes from ProviderRoutingService
+- estimated message metadata if available
+
+Suggested result:
+- success
+- selected ProviderRoute
+- routingMode
+- selectedProvider
+- selectedProviderConfigId
+- decisionReason
+- candidateProviders
+- excludedProviders
+- estimatedCost
+- health metadata
+- failureCode/failureMessage
+
+Requirements:
+- Existing contact enforcement runs before routing.
+- Routing engine must only select among valid candidate routes.
+- It must not create provider credentials.
+- It must not call external providers in the send path except existing health snapshots if already locally persisted.
+- It must be deterministic for priority mode.
+- It must fail safely with no_route or no_healthy_provider.
+- It must persist routing decision.
+
+STEP 8 — Implement Routing Modes
+Implement initial routing modes.
+
+Priority:
+- Use ordered candidate provider routes.
+- Preserve current behavior as default.
+
+Cost optimized:
+- Select lowest estimated cost provider among candidates with available estimate.
+- If no estimate exists, fall back to priority.
+- Respect MaxEstimatedCostPerMessage if configured.
+
+Health optimized:
+- Avoid providers marked degraded/unhealthy by local health/alert state where available.
+- If no health data exists, fall back to priority.
+- Do not call provider health live in send path unless existing pattern already does.
+
+Hybrid:
+- Combine health gate first, then cost optimization, then priority fallback.
+
+Regional:
+- Prefer providers/policies matching recipient country/region where available.
+- If recipient region cannot be derived safely, fall back to priority.
+
+Requirements:
+- Document any routing mode partially implemented due to missing health/country data.
+- Do not overbuild geographic parsing.
+- Keep default behavior backward compatible.
+
+STEP 9 — Integrate Routing Engine Into SMS Send Flow
+Update outbound SMS send flow.
+
+Expected flow:
+1. Validate/preference/contact enforcement.
+2. Resolve candidate routes using existing ProviderRoutingService.
+3. Pass candidates to SmsRoutingEngine.
+4. Persist routing decision.
+5. Resolve runtime provider adapter for selected route.
+6. Send SMS through selected provider.
+7. Persist provider/providerConfigId/ownership on attempt as existing behavior.
+8. Update routing decision with attemptId if feasible.
+
+Requirements:
+- Preserve Twilio default behavior when no routing policy exists.
+- Preserve retry/dead-letter.
+- Preserve failover semantics.
+- Preserve audit.
+- Preserve cost recording.
+- No duplicate sends.
+- No routing API/dashboard API triggers sends.
+
+STEP 10 — Reconciliation Compatibility
+Update reconciliation behavior for multi-provider compatibility.
+
+Requirements:
+- If selected provider supports ISmsProviderStatusLookup:
+  - perform status lookup as existing reconciliation does.
+- If provider does not support status lookup:
+  - skip with structured outcome such as skipped_provider_status_lookup_unsupported.
+- Preserve Twilio reconciliation behavior.
+- Do not force unsupported providers to implement lookup.
+- Ensure activity/dashboard/cost APIs handle non-Twilio provider values.
+
+STEP 11 — Cost Analytics Compatibility
+Update cost analytics/provider estimates for multiple providers.
+
+Requirements:
+- Add provider-specific estimated cost config where appropriate.
+- Cost analytics must group by provider/providerConfigId/ownership as already designed.
+- If provider cost estimate unavailable, CostSource should be unavailable or default configured value.
+- Do not fake actual provider cost.
+- No FX conversion.
+
+Suggested config:
+SmsCostAnalytics:
+  ProviderEstimates:
+    twilio: 0.0075
+    vonage: 0.0065
+    telnyx: 0.0055
+
+If existing options binding makes dictionary support difficult, use simple env/config keys and document.
+
+STEP 12 — Admin Routing APIs
+Add admin APIs inside Notification Service.
+
+Suggested endpoints:
+- GET /v1/admin/sms/routing/capabilities
+- GET /v1/admin/sms/routing/policies
+- GET /v1/admin/sms/routing/policies/{id}
+- POST /v1/admin/sms/routing/policies
+- PUT /v1/admin/sms/routing/policies/{id}
+- POST /v1/admin/sms/routing/policies/{id}/disable
+- GET /v1/admin/sms/routing/decisions
+- GET /v1/admin/sms/routing/decisions/summary
+- GET /v1/admin/sms/routing/providers/health
+
+Requirements:
+- Require PlatformAdmin/admin authorization.
+- Do not expose credentials or raw settings.
+- Return providerConfigId only as opaque metadata.
+- Support filters for tenantId, provider, routingMode, policyId, date range.
+- Decision APIs are read-only.
+- Policy APIs are explicit admin mutations.
+
+STEP 13 — Control Center Routing UI If Feasible
+If feasible within current Control Center patterns, add UI.
+
+Suggested route:
+- /notifications/sms-routing
+
+Suggested sections:
+- provider capability table
+- routing policy table
+- create/edit routing policy form
+- routing decision table
+- provider health summary
+
+Requirements:
+- PlatformAdmin-only.
+- Uses Notification Service APIs only.
+- No credentials displayed.
+- No send/retry/provider calls from UI.
+- Preserve existing Control Center functionality.
+
+If too large for this feature, document as next task.
+
+STEP 14 — Documentation
+Update documentation/report notes for:
+- provider capability model
+- supported providers
+- routing modes
+- routing policy behavior
+- routing decision persistence
+- fallback behavior
+- reconciliation compatibility
+- cost analytics compatibility
+- limitations
+- provider credential JSON shapes
+- future providers
+
+Documentation must explain:
+- Twilio remains default/backward compatible provider.
+- Additional providers may have partial capability support.
+- routing decisions are operational metadata.
+- health/cost routing uses local data only.
+- dashboards/read APIs do not call external providers.
+
+STEP 15 — Validation
+Perform validation/testing for:
+
+Provider capability:
+- Twilio capability returned correctly.
+- New provider capability returned correctly if implemented.
+- Unsupported provider not treated as supported.
+
+Provider adapter:
+- Twilio send unchanged.
+- New provider config validation works if implemented.
+- New provider send result normalized if implemented.
+- New provider failures classified safely.
+
+Routing policy:
+- create/update/disable policy works.
+- tenant policy overrides global policy.
+- invalid provider names handled safely.
+- excluded providers not selected.
+- preferred provider ordering respected.
+
+Routing engine:
+- priority mode preserves existing behavior.
+- cost_optimized selects lowest estimated cost when estimates exist.
+- health_optimized avoids degraded provider when local health says degraded.
+- hybrid applies health then cost then priority.
+- regional falls back safely when region unavailable.
+- no candidates returns no_route.
+- no healthy providers returns no_healthy_provider.
+
+Send flow:
+- contact/preference enforcement still runs before routing.
+- selected provider is used.
+- providerConfigId and ownership persisted.
+- routing decision persisted.
+- retry/dead-letter unchanged.
+- cost recording still works.
+- no duplicate sends.
+
+Reconciliation:
+- Twilio reconciliation unchanged.
+- unsupported provider status lookup skipped safely.
+- activity/dashboard APIs display provider correctly.
+
+Cost analytics:
+- provider breakdown works for multiple providers.
+- cost estimate uses provider-specific estimate where configured.
+- unavailable cost handled safely.
+
+Admin APIs:
+- capabilities endpoint works.
+- routing policy CRUD works.
+- routing decisions endpoint works.
+- provider health endpoint works.
+- admin authorization enforced.
+- secrets not exposed.
+
+Control Center UI if implemented:
+- route PlatformAdmin-only.
+- policy table renders.
+- capabilities render.
+- decision table renders.
+- no credentials displayed.
+
+Existing behavior preservation:
+- LS-NOTIF-SMS-001 through LS-NOTIF-SMS-013 behavior remains intact.
+- email/in-app notification behavior unchanged.
+
+Security:
+- no credentials exposed.
+- no webhook URLs exposed.
+- no raw phone numbers exposed.
+- no raw provider payloads exposed.
+- provider settings not exposed.
+
+Document all validation results in the report.
+
+Expected Deliverables:
+- Provider capability model/service
+- Optional additional SMS provider adapter
+- Generalized SMS provider adapter factory/registry
+- SMS routing policy entity/table
+- SMS routing decision entity/table
+- Routing engine
+- Routing mode implementation
+- Send-flow routing integration
+- Reconciliation compatibility updates
+- Cost analytics compatibility updates
+- Admin routing APIs
+- Optional Control Center routing UI
+- Completed analysis report
+
+Do NOT:
+- Break Twilio behavior
+- Rewrite Notification Service delivery pipeline
+- Add conversational inbound SMS
+- Add voice/MMS routing
+- Expose provider credentials or secrets
+- Store raw phone numbers in routing decisions
+- Call providers from dashboard/routing read APIs
+- Implement AI/ML routing
+- Implement FX conversion
+- Duplicate routing logic in Control Center
+- Break LS-NOTIF-SMS-001 through LS-NOTIF-SMS-013 behavior

@@ -1,0 +1,422 @@
+Build the next feature phase for the Coach Daxie coach platform using the new **shared coach implementation layer**.
+
+Do not create disconnected page-level implementations.
+Everything in this phase must be built from the shared:
+
+* coach feature spec
+* types/schema
+* constants
+* mock data
+* selectors/helpers
+* parity checklist
+
+## Objective
+
+Implement the first major coach workflow that fully uses the shared foundation across both:
+
+* coach web dashboard
+* coach mobile app
+
+This phase should build:
+
+1. Plans
+2. Plan Detail
+3. Plan Builder
+4. Templates
+5. Template Detail
+6. Template Assignment Flow
+
+The goal is to prove that web and mobile can stay aligned while still using platform-appropriate UI.
+
+---
+
+## Core Build Rule
+
+All of these features must be created from the shared coach layer.
+Do not hardcode separate structures for web and mobile.
+
+Use shared:
+
+* entities
+* field names
+* labels
+* statuses
+* actions
+* tabs
+* workflow states
+
+Web and mobile can render differently, but the capabilities must match.
+
+---
+
+## Features to Build
+
+# 1. Plans
+
+Build the coach Plans experience on both web and mobile.
+
+### Required capabilities
+
+* list active plans
+* search plans
+* filter plans
+* sort plans
+* open plan detail
+* duplicate plan
+* archive plan
+* edit plan
+
+### Shared fields per plan
+
+At minimum include:
+
+* id
+* plan name
+* assigned athlete
+* goal type
+* duration
+* current week
+* status
+* adherence/compliance
+* last updated
+
+### Web
+
+Create:
+
+* `/coach/plans`
+* table or structured multi-column plan list
+* filters and search in a toolbar
+* quick actions inline
+
+### Mobile
+
+Create:
+
+* `CoachPlansScreen`
+* stacked cards
+* filter sheet/drawer
+* search input
+* plan row/card tap to open detail
+* touch-friendly action menu
+
+---
+
+# 2. Plan Detail
+
+Build plan detail on both web and mobile.
+
+### Required capabilities
+
+* open a specific plan
+* show athlete attached to the plan
+* show current goal
+* show week selector
+* show weekly schedule
+* open workout details
+* jump to assigned athlete
+* assign a template to the plan
+
+### Shared states
+
+* loading
+* empty plan
+* populated
+* unsaved changes
+* save success
+* validation error
+* archived plan if relevant
+
+### Web
+
+Create:
+
+* `/coach/plans/[id]`
+* wide layout with header and weekly schedule
+* side panel or modal for workout editing
+
+### Mobile
+
+Create:
+
+* `CoachPlanDetailScreen`
+* stacked weekly view
+* day cards
+* bottom sheet or full-screen workout editor
+
+---
+
+# 3. Plan Builder
+
+This is the most important feature in this phase.
+
+Build a full coach-facing plan editing workflow across web and mobile.
+
+### Workout types
+
+Use shared constants for:
+
+* easy run
+* intervals
+* tempo
+* long run
+* recovery
+* swim
+* bike
+* strength
+* rest
+
+### Required actions
+
+* add workout
+* edit workout
+* remove workout
+* duplicate workout
+* move workout to another day
+* copy day
+* adjust weekly volume %
+* save draft
+* save changes
+* revert unsaved changes if feasible
+* assign template to plan
+
+### Workout fields
+
+At minimum:
+
+* workout type
+* title
+* duration or distance
+* intensity / zone
+* notes / instructions
+
+### Web UX
+
+* weekly planner view
+* more visible editing controls
+* inline edit or side panel where appropriate
+
+### Mobile UX
+
+* day-based editing flow
+* bottom sheet or full-screen editor
+* mobile-first touch interactions
+* keep all core actions available
+
+Do not remove functionality on mobile.
+Adapt it.
+
+---
+
+# 4. Templates
+
+Build the reusable template library on both web and mobile.
+
+### Required capabilities
+
+* list templates
+* search templates
+* filter templates
+* open template detail
+* duplicate template
+* archive template
+* edit template
+* assign template to athlete/plan
+
+### Shared fields per template
+
+At minimum:
+
+* id
+* template name
+* category / sport
+* goal type
+* athlete level
+* duration
+* workouts per week
+* last updated
+
+### Web
+
+Create:
+
+* `/coach/templates`
+* template grid or table
+* toolbar filters
+* action menu
+
+### Mobile
+
+Create:
+
+* `CoachTemplatesScreen`
+* card list
+* search
+* filter sheet
+* quick action menu
+
+---
+
+# 5. Template Detail
+
+Build a reusable template editor on both web and mobile.
+
+### Required capabilities
+
+* open template
+* view template metadata
+* edit weekly structure
+* add/edit/remove workouts
+* duplicate template
+* save template
+* assign template to athlete/plan
+
+### Distinction rule
+
+Make it visually clear that:
+
+* Plan = live athlete plan
+* Template = reusable blueprint
+
+Do not let these feel identical without labels/context.
+
+### Web
+
+Create:
+
+* `/coach/templates/[id]`
+
+### Mobile
+
+Create:
+
+* `CoachTemplateDetailScreen`
+
+---
+
+# 6. Template Assignment Flow
+
+Build a clear shared workflow for assigning a template.
+
+### Required capabilities
+
+Coach can:
+
+* choose a template
+* choose athlete or plan
+* confirm assignment
+* preview resulting plan if feasible
+
+### Entry points
+
+* from template detail
+* from plan detail
+* from athlete detail if relevant
+
+### Shared states
+
+* selecting target
+* previewing template
+* confirming assignment
+* assignment success
+* assignment error
+
+### Web
+
+Can use modal, drawer, or flow page.
+
+### Mobile
+
+Use full-screen flow or bottom sheet sequence.
+
+---
+
+## Shared Layer Requirements
+
+For every feature in this phase, wire it into:
+
+* shared types
+* shared constants
+* shared mock data
+* shared selectors/helpers
+* shared feature mapping
+* shared parity matrix
+
+Update the parity matrix as each feature is implemented.
+
+Do not leave these pages running on disconnected local mocks.
+
+---
+
+## Cross-Linking Requirements
+
+Add strong linking between features.
+
+Required flows:
+
+* Athlete Detail → Open active plan
+* Athlete Detail → Assign template
+* Plans → Open assigned athlete
+* Plans → Assign template
+* Templates → Assign to athlete/plan
+* Dashboard alerts if relevant → open plan needing attention
+
+These flows must work on both web and mobile.
+
+---
+
+## Mock Data Expansion
+
+Expand shared mock data to include:
+
+* multiple active plans
+* multiple templates
+* varied workout weeks
+* athletes with different goals and statuses
+* realistic adherence patterns
+
+Keep data internally consistent across all coach surfaces.
+
+---
+
+## UX Quality Bar
+
+Maintain premium quality across both platforms.
+
+### Required qualities
+
+* clean
+* fast
+* professional
+* structured
+* realistic coaching workflow
+* platform-appropriate
+
+### Avoid
+
+* feature drift
+* missing mobile capabilities
+* page-local mock data
+* placeholder-only screens
+* inconsistent labels
+
+---
+
+## Deliverables
+
+Implement on both coach web and coach mobile:
+
+1. Plans
+2. Plan Detail
+3. Plan Builder
+4. Templates
+5. Template Detail
+6. Template Assignment Flow
+
+Also:
+7. update shared mock data
+8. update shared selectors/helpers
+9. update parity matrix
+10. ensure all new screens consume the shared coach layer
+
+At the end of this phase, the coach platform should support a complete plan creation and template workflow across both web and mobile without drift.
