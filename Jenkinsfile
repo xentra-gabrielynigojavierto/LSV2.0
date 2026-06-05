@@ -62,7 +62,7 @@ spec:
                             docker build \
                               --build-arg APP_PORT=5000 \
                               -t $ECR_REGISTRY/tenant-app:$IMAGE_TAG \
-                              ./apps/services/tenant/Dockerfile
+                             -f ./apps/services/tenant/Dockerfile
 
                             docker push $ECR_REGISTRY/tenant-app:$IMAGE_TAG
                             '''
