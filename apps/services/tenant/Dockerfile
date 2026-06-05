@@ -6,10 +6,15 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 #  Set working directory
 WORKDIR /src
 
-#  Copy EVERYTHING from service folder
-# Works because Jenkins runs:
-# docker build ./identity
-COPY . .
+# copy tenant service
+COPY apps/services/tenant ./apps/services/tenant
+
+# copy shared dependencies
+COPY shared ./shared
+
+# move into tenant directory
+WORKDIR /src/apps/services/tenant
+
 
 #  Restore dependencies
 RUN dotnet restore Tenant.Api/Tenant.Api.csproj
