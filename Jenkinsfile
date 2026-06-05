@@ -5,7 +5,7 @@ pipeline {
 apiVersion: v1
 kind: Pod
 metadata:
-  namespace: tools
+  namespace: dev
 spec:
   containers:
   - name: docker
