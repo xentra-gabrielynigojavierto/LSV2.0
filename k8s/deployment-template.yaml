@@ -1,0 +1,60 @@
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: dotnet-core-deployment    #Make sure this matches the name of your Kubernetes deployment
+  namespace: dev                  #Make sure this matches the namespace you want to deploy to, change per environment
+  labels:
+    app: dotnet-core-service     #Make sure this matches the label selector in your Kubernetes service, change per app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: dotnet-core-service    #Make sure this matches the label selector in your Kubernetes service, change per app
+
+  template:
+    metadata:
+      labels:
+        app: dotnet-core-service  #Make sure this matches the label selector in your Kubernetes service, change per app
+
+    
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+
+      containers:
+        - name:  dotnet-core-service #change per app
+          image: IMAGE_PLACEHOLDER #637423518666.dkr.ecr.us-east-1.amazonaws.com/dotnet-core-service:test
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8080 #change per app
+
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"  #change per environment
+
+          readinessProbe:
+            httpGet:
+              path: / #/health #change per app
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: / #/health #change per app
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
