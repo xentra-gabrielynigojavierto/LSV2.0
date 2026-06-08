@@ -14,7 +14,7 @@ spec:
       privileged: true
     tty: true
   - name: aws-k8s-tools
-    image: amazon/aws-cli:2.15.15
+    image: lachlanevenson/k8s-aws-cli:latest
     command: ["cat"]
     tty: true
 '''
