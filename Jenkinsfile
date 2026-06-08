@@ -108,7 +108,7 @@ spec:
         stage('Deploy to EKS') {
             steps {
                 container('aws-k8s-tools') {
-
+                    // mesh-configuration/
                     sh '''
                     #  Configure kubeconfig for EKS
                     aws eks update-kubeconfig \
@@ -116,7 +116,7 @@ spec:
                       --name $EKS_CLUSTER_NAME
 
                     #  Apply manifests
-                    kubectl apply -f ./k8s/mesh-configuration/
+                    kubectl apply -f ./k8s/
                     '''
                 }
             }
