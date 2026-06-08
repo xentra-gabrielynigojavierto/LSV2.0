@@ -14,7 +14,7 @@ spec:
       privileged: true
     tty: true
   - name: aws-k8s-tools
-    image: lachlanevenson/k8s-aws-cli:latest
+    image: bitnami/kubectl:1.30
     command: ["cat"]
     tty: true
 '''
@@ -110,6 +110,9 @@ spec:
                 container('aws-k8s-tools') {
                     // mesh-configuration/
                     sh '''
+                    apk add --no-cache python3 py3-pip
+                    pip install awscli
+
                     #  Configure kubeconfig for EKS
                     aws eks update-kubeconfig \
                       --region $AWS_REGION \
