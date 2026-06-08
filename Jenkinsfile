@@ -13,10 +13,12 @@ spec:
     securityContext:
       privileged: true
     tty: true
-  - name: aws-k8s-tools
+  
+    - name: aws-k8s-tools
     image: bitnami/kubectl:latest
-    command: ["cat"]
+    command: ["sh", "-c", "cat"]
     tty: true
+
 '''
         }
     }
@@ -107,28 +109,26 @@ spec:
 
         stage('Deploy to EKS') {
             steps {
-                container('aws-k8s-tools') {
-                    // mesh-configuration/
-                    sh '''
-                    apk add --no-cache python3 py3-pip
-                    pip install awscli
-                    curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl
-                    chmod +x kubectl
-                    mv kubectl /usr/local/bin/
-                    
+                
+            container('aws-k8s-tools') {
+                        sh '''
 
-                    #  Configure kubeconfig for EKS
-                    aws eks update-kubeconfig \
-                      --region $AWS_REGION \
-                      --name $EKS_CLUSTER_NAME
+                        apt-get update
+                        apt-get install -y python3 python3-pip
+                        pip3 install awscli
 
-                    #  Apply manifests
-                    kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
-                    kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
-                    kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
-                    kubectl apply -f ./k8s/LSV2TEST/tenant-service.yaml -n $K8S_NAMESPACE
-                    '''
-                }
+                        aws eks update-kubeconfig \
+                        --region $AWS_REGION \
+                        --name $EKS_CLUSTER_NAME
+
+                        kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
+                        kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
+                        kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
+                        kubectl apply -f ./k8s/LSV2TEST/tenant-service.yaml -n $K8S_NAMESPACE
+
+                        '''
+                    }
+
             }
         }
     }
