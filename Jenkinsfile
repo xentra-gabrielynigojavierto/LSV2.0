@@ -86,7 +86,7 @@ spec:
                         }
                     }
                 }
-               /* stage('Identity Service') {
+                /*stage('Identity Service') {
                     steps {
                         container('docker') {
                             sh '''
@@ -100,10 +100,10 @@ spec:
                             '''
                         }
                     }
-                }
+                }*/
 
             }
-        }*/
+        }
 
         stage('Deploy to EKS') {
             steps {
