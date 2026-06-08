@@ -78,7 +78,7 @@ spec:
                             docker build \
                               --build-arg APP_PORT=5000 \
                               -t $ECR_REGISTRY/gateway-yarp:$IMAGE_TAG \
-                             -f ./apps/gateway/Dockerfile \
+                             -f ./apps/gateway/Gateway.Api/Dockerfile \
                              .
 
                             docker push $ECR_REGISTRY/gateway-yarp:$IMAGE_TAG
