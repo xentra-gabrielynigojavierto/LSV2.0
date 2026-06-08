@@ -75,6 +75,7 @@ spec:
                     steps {
                         container('docker') {
                             sh '''
+                            docker build \
                               --build-arg APP_PORT=5000 \
                               -t $ECR_REGISTRY/gateway-yarp:$IMAGE_TAG \
                              -f ./apps/services/gateway/Dockerfile \
@@ -89,6 +90,7 @@ spec:
                     steps {
                         container('docker') {
                             sh '''
+                            docker build \
                               --build-arg APP_PORT=5000 \
                               -t $ECR_REGISTRY/identity-service:$IMAGE_TAG \
                              -f ./apps/services/identity/Dockerfile \
