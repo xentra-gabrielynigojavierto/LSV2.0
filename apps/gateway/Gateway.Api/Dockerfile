@@ -9,10 +9,16 @@ WORKDIR /src
 #  Copy EVERYTHING from service folder
 # Works because Jenkins runs:
 # docker build ./identity
-COPY . .
+COPY apps/services/gateway ./apps/services/gateway
+
+# copy shared dependencies
+COPY shared ./shared
+
+# move into gateway directory
+WORKDIR /src/apps/services/gateway
 
 #  Restore dependencies
-RUN dotnet restore
+RUN dotnet restore Gateway.Api/Gateway.Api.csproj
 
 #  Publish ONLY API project (YOU CHANGE THIS PER SERVICE)
 RUN dotnet publish Gateway.Api/Gateway.Api.csproj \
