@@ -1,27 +1,27 @@
 pipeline {
     agent {
-        kubernetes {
-            yaml '''
+    kubernetes {
+        yaml '''
 apiVersion: v1
 kind: Pod
 metadata:
   namespace: dev
 spec:
   containers:
-  - name: docker
-    image: docker:24.0.7-dind
-    securityContext:
-      privileged: true
-    tty: true
-  
-    - name: aws-k8s-tools
-    image: bitnami/kubectl:latest
-    command: ["sh", "-c", "cat"]
-    tty: true
+    - name: docker
+      image: docker:24.0.7-dind
+      securityContext:
+        privileged: true
+      tty: true
 
+    - name: aws-k8s-tools
+      image: bitnami/kubectl:latest
+      command: ["sh", "-c", "cat"]
+      tty: true
 '''
-        }
     }
+}
+``
 
     environment {
         AWS_REGION = 'us-east-1'
