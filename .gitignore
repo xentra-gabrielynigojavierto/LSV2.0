@@ -36,3 +36,6 @@ Thumbs.db
 replit.nix
 .cache/
 .local/state/
+
+#NO GIT LFS
+*.tar.gz
