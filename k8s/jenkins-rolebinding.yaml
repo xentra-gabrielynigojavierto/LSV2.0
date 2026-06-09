@@ -6,8 +6,8 @@ metadata:
   namespace: dev   #Make sure this matches the namespace you want to deploy to, this already exists -GYJ
 subjects:
 - kind: ServiceAccount
-  name: jenkins-sa
-  namespace: dev
+  name: jenkins
+  namespace: jenkins
 roleRef:
   kind: Role
   name: jenkins
