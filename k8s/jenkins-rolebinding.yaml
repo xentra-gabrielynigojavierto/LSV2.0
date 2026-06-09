@@ -5,9 +5,9 @@ metadata:
   namespace: dev   #Make sure this matches the namespace you want to deploy to, this already exists -GYJ
 subjects:
 - kind: ServiceAccount
-  name: jenkins
-  namespace: jenkins
+  name: jenkins-sa
+  namespace: dev
 roleRef:
   kind: Role
-  name: jenkins-deployer
+  name: jenkins
   apiGroup: rbac.authorization.k8s.io
