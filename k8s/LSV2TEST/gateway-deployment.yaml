@@ -1,0 +1,60 @@
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: Legalsynq-V2-test    #Make sure this matches the name of your Kubernetes deployment
+  namespace: dev                  #Make sure this matches the namespace you want to deploy to, change per environment
+  labels:
+    app: gateway-yarp     #Make sure this matches the label selector in your Kubernetes service, change per app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: gateway-yarp    #Make sure this matches the label selector in your Kubernetes service, change per app
+
+  template:
+    metadata:
+      labels:
+        app: gateway-yarp  #Make sure this matches the label selector in your Kubernetes service, change per app
+
+    
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+
+      containers:
+        - name:  gateway-yarp #change per app
+          image: IMAGE_PLACEHOLDER #637423518666.dkr.ecr.us-east-1.amazonaws.com/gateway-yarp:test
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 5010 #change per app
+
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"  #change per environment
+
+          readinessProbe:
+            httpGet:
+              path: / #/health #change per app
+              port: 5010
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: / #/health #change per app
+              port: 5010
+            initialDelaySeconds: 30
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

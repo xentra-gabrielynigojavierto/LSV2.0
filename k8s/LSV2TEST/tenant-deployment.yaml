@@ -31,7 +31,7 @@ spec:
           imagePullPolicy: Always
 
           ports:
-            - containerPort: 8080 #change per app
+            - containerPort: 5005 #change per app
 
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -40,14 +40,14 @@ spec:
           readinessProbe:
             httpGet:
               path: / #/health #change per app
-              port: 8080
+              port: 5005
             initialDelaySeconds: 15
             periodSeconds: 10
 
           livenessProbe:
             httpGet:
               path: / #/health #change per app
-              port: 8080
+              port: 5005
             initialDelaySeconds: 30
             periodSeconds: 20
 

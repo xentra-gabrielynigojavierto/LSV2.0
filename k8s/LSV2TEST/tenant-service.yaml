@@ -17,4 +17,4 @@ spec:
 
   ports:
   - port: 80
-    targetPort: 5000   #change per app
+    targetPort: 5005   #change per app
