@@ -116,20 +116,9 @@ spec:
         stage('Deploy to EKS') {
             steps {
                 
-            container('aws-k8s-tools') {
-                        sh '''
-                        aws eks update-kubeconfig \
-                        --region $AWS_REGION \
-                        --name $EKS_CLUSTER_NAME
-                        '''
-                    }
+        
             container('kubectl') {
                 sh '''
-                apk add --no-cache curl
-                curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl
-                chmod +x kubectl
-                mv kubectl /usr/local/bin/
-                export KUBECONFIG=$PWD/kubeconfig
                 kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
                 kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
                 kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
