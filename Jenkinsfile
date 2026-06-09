@@ -15,7 +15,7 @@ spec:
       tty: true
 
     - name: aws-k8s-tools
-      image: bitnami/kubectl:latest
+      image: amazon/aws-cli:2.15.15
       command: ["sh", "-c", "cat"]
       tty: true
 '''
@@ -111,10 +111,6 @@ spec:
                 
             container('aws-k8s-tools') {
                         sh '''
-
-                        apt-get update
-                        apt-get install -y python3 python3-pip
-                        pip3 install awscli
 
                         aws eks update-kubeconfig \
                         --region $AWS_REGION \
