@@ -7,6 +7,8 @@ kind: Pod
 metadata:
   namespace: dev
 spec:
+  serviceAccountName: jenkins-sa
+  
   containers:
     - name: docker
       image: docker:24.0.7-dind
