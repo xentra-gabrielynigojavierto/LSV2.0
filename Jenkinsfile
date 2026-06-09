@@ -119,6 +119,10 @@ spec:
         
             container('kubectl') {
                 sh '''
+                apk add --no-cache curl
+                curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl
+                chmod +x kubectl
+                mv kubectl /usr/local/bin/
                 kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
                 kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
                 kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
