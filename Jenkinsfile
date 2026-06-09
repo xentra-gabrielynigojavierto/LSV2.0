@@ -16,6 +16,11 @@ spec:
 
     - name: aws-k8s-tools
       image: amazon/aws-cli:2.15.15
+      command: ["cat"]
+      tty: true
+
+    - name: kubectl
+      image: bitnami/kubectl:latest
       command: ["sh", "-c", "cat"]
       tty: true
 '''
@@ -111,20 +116,23 @@ spec:
                 
             container('aws-k8s-tools') {
                         sh '''
-
                         aws eks update-kubeconfig \
                         --region $AWS_REGION \
                         --name $EKS_CLUSTER_NAME
-
-                        kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
-                        kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
-                        kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
-                        kubectl apply -f ./k8s/LSV2TEST/tenant-service.yaml -n $K8S_NAMESPACE
-
                         '''
+                    }
+            container('kubectl') {
+                sh '''
+                kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
+                kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
+                kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
+                kubectl apply -f ./k8s/LSV2TEST/tenant-service.yaml -n $K8S_NAMESPACE
+                 '''
+                }
+
+                      
                     }
 
             }
         }
     }
-}
