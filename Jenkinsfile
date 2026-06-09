@@ -1,6 +1,8 @@
 pipeline {
     agent {
     kubernetes {
+        namespace 'dev'
+        defaultContainer 'docker'
         yaml '''
 apiVersion: v1
 kind: Pod
