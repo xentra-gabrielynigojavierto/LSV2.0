@@ -1,16 +1,12 @@
-#jenkins-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: dev     #Make sure this matches the namespace you want to deploy to
-  name: jenkins  #Name of the role that Jenkins will use to deploy to the dev namespace, this already exit -GYJ
+  name: jenkins-deployer  #Name of the role that Jenkins will use to deploy to the dev namespace, this already exit -GYJ
 rules:
 - apiGroups: ["", "apps"]
   resources:
     - pods
-    - pods/log
-    - pods/exec
-    - pods/attach
     - services
     - deployments
     - namespaces
@@ -22,14 +18,3 @@ rules:
     - update
     - patch
     - delete
-- apiGroups: ["apps"]
-  resources:
-    - deployments
-  verbs:
-    - get
-    - list
-    - watch
-    - create
-    - delete
-    - update
-    - patch

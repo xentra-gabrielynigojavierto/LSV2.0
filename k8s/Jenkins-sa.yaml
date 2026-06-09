@@ -1,6 +1,5 @@
-#jenkins-sa.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: jenkins-sa
-  namespace: dev
+  name: jenkins
+  namespace: jenkins
