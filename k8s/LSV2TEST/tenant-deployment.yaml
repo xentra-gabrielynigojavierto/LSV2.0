@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 
 metadata:
-  name: legalsynq-v2-test    #Make sure this matches the name of your Kubernetes deployment
+  name: legalsynq-v2-tenant    #Make sure this matches the name of your Kubernetes deployment
   namespace: dev                  #Make sure this matches the namespace you want to deploy to, change per environment
   labels:
     app: tenant-app     #Make sure this matches the label selector in your Kubernetes service, change per app
