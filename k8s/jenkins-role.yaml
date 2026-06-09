@@ -8,6 +8,9 @@ rules:
 - apiGroups: ["", "apps"]
   resources:
     - pods
+    - pods/exec
+    - pods/exec
+    - pods/exec
     - services
     - deployments
     - namespaces
