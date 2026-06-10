@@ -124,18 +124,18 @@ spec:
                 chmod +x kubectl
                 mv kubectl /usr/local/bin/
                 unset KUBECONFIG
+                
+                sed "s|IMAGE_PLACEHOLDER|${ECR_REGISTRY}/gateway-yarp:${IMAGE_TAG}|g" \
+                ./k8s/LSV2TEST/gateway-deployment.yaml \
+                | kubectl apply -f - -n ${K8S_NAMESPACE}
 
-
-                sed "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/gateway-yarp:$IMAGE_TAG|g" \
-                ./k8s/LSV2TEST/gateway-deployment.yaml > /tmp/gateway-deployment.yaml
-
-                sed "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/tenant-app:$IMAGE_TAG|g" \
-                ./k8s/LSV2TEST/tenant-deployment.yaml > /tmp/tenant-deployment.yaml
+                kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
 
                 
-                kubectl apply -f ./k8s/LSV2TEST/gateway-deployment.yaml -n $K8S_NAMESPACE
-                kubectl apply -f ./k8s/LSV2TEST/gateway-service.yaml -n $K8S_NAMESPACE
-                kubectl apply -f ./k8s/LSV2TEST/tenant-deployment.yaml -n $K8S_NAMESPACE
+                sed "s|IMAGE_PLACEHOLDER|${ECR_REGISTRY}/tenant-app:${IMAGE_TAG}|g" \
+                ./k8s/LSV2TEST/tenant-deployment.yaml \
+                | kubectl apply -f - -n ${K8S_NAMESPACE}
+                
                 kubectl apply -f ./k8s/LSV2TEST/tenant-service.yaml -n $K8S_NAMESPACE
                  '''
                 }
