@@ -48,4 +48,4 @@ ENV ASPNETCORE_URLS=http://+:${SERVICE_PORT}
 EXPOSE ${SERVICE_PORT}
 
 #  Run application (YOU change DLL name)
-ENTRYPOINT ["dotnet", "tenant.Api.dll"]
+ENTRYPOINT ["dotnet", "Tenant.Api.dll"]
