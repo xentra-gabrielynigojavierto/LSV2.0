@@ -6,16 +6,21 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 #  Set working directory
 WORKDIR /src
 
-#  Copy EVERYTHING from service folder
-# Works because Jenkins runs:
-# docker build ./identity
-COPY . .
+# copy tenant service
+COPY apps/services/task ./apps/services/task
+
+# copy shared dependencies
+COPY shared ./shared
+
+# move into tenant directory
+WORKDIR /src/apps/services/task
+
 
 #  Restore dependencies
-RUN dotnet restore
+RUN dotnet restore Task.Api/Task.Api.csproj
 
 #  Publish ONLY API project (YOU CHANGE THIS PER SERVICE)
-RUN dotnet publish task.Api/task.Api.csproj \
+RUN dotnet publish Task.Api/Task.Api.csproj \
     -c Release \
     -o /app/publish \
     /p:UseAppHost=false
@@ -43,4 +48,4 @@ ENV ASPNETCORE_URLS=http://+:${SERVICE_PORT}
 EXPOSE ${SERVICE_PORT}
 
 #  Run application (YOU change DLL name)
-ENTRYPOINT ["dotnet", "task.Api.dll"]
+ENTRYPOINT ["dotnet", "Task.Api.dll"]

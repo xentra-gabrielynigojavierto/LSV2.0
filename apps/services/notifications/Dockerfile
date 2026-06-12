@@ -6,16 +6,21 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 #  Set working directory
 WORKDIR /src
 
-#  Copy EVERYTHING from service folder
-# Works because Jenkins runs:
-# docker build ./identity
-COPY . .
+# copy tenant service
+COPY apps/services/notifications ./apps/services/notifications
+
+# copy shared dependencies
+COPY shared ./shared
+
+# move into tenant directory
+WORKDIR /src/apps/services/notifications
+
 
 #  Restore dependencies
-RUN dotnet restore
+RUN dotnet restore Notifications.Api/Notifications.Api.csproj
 
 #  Publish ONLY API project (YOU CHANGE THIS PER SERVICE)
-RUN dotnet publish notifications.Api/notifications.Api.csproj \
+RUN dotnet publish Notifications.Api/Notifications.Api.csproj \
     -c Release \
     -o /app/publish \
     /p:UseAppHost=false
@@ -43,4 +48,4 @@ ENV ASPNETCORE_URLS=http://+:${SERVICE_PORT}
 EXPOSE ${SERVICE_PORT}
 
 #  Run application (YOU change DLL name)
-ENTRYPOINT ["dotnet", "notifications.Api.dll"]
+ENTRYPOINT ["dotnet", "Notifications.Api.dll"]

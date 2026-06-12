@@ -7,20 +7,20 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # copy tenant service
-COPY apps/services/monitoring ./apps/services/monitoring
+COPY apps/services/documents ./apps/services/documents
 
 # copy shared dependencies
 COPY shared ./shared
 
-# move into tenant directory
-WORKDIR /src/apps/services/monitoring
+# move into documents directory
+WORKDIR /src/apps/services/documents
 
 
 #  Restore dependencies
-RUN dotnet restore Monitoring.Api/Monitoring.Api.csproj
+RUN dotnet restore Documents.Api/Documents.Api.csproj
 
 #  Publish ONLY API project (YOU CHANGE THIS PER SERVICE)
-RUN dotnet publish Monitoring.Api/Monitoring.Api.csproj \
+RUN dotnet publish Documents.Api/Documents.Api.csproj \
     -c Release \
     -o /app/publish \
     /p:UseAppHost=false
@@ -48,4 +48,4 @@ ENV ASPNETCORE_URLS=http://+:${SERVICE_PORT}
 EXPOSE ${SERVICE_PORT}
 
 #  Run application (YOU change DLL name)
-ENTRYPOINT ["dotnet", "Liens.Api.dll"]
+ENTRYPOINT ["dotnet", "Documents.Api.dll"]
